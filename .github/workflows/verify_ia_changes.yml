@@ -1,0 +1,76 @@
+name: 🔍 Vérification Modifications IA
+
+on:
+  push:
+    branches:
+      - ia
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  verify-changes:
+    name: Détection des modifications IA
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 📥 Checkout du code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Récupérer tout l'historique
+      
+      - name: 🔍 Comparaison avec main
+        run: |
+          echo "========================================="
+          echo "🔍 DÉTECTION DES MODIFICATIONS IA"
+          echo "========================================="
+          echo ""
+          
+          # Récupérer la branche main
+          git fetch origin main
+          
+          # Statistiques des changements
+          echo "📊 STATISTIQUES:"
+          git diff --stat origin/main..HEAD
+          echo ""
+          
+          # Fichiers modifiés
+          echo "📝 FICHIERS MODIFIÉS:"
+          git diff --name-only origin/main..HEAD
+          echo ""
+          
+          # Compter les modifications
+          MODIFIED_FILES=$(git diff --name-only origin/main..HEAD | wc -l)
+          echo "Total: $MODIFIED_FILES fichiers modifiés"
+          
+          # Vérifier les fichiers critiques
+          echo ""
+          echo "⚠️ FICHIERS CRITIQUES MODIFIÉS:"
+          git diff --name-only origin/main..HEAD | grep -E "(app\.py|vector_store|rag_engine|smart_metadata)" || echo "Aucun"
+      
+      - name: 📋 Résumé des modifications
+        run: |
+          echo "========================================="
+          echo "📋 RÉSUMÉ"
+          echo "========================================="
+          
+          # Additions/Suppressions
+          ADDITIONS=$(git diff --shortstat origin/main..HEAD | grep -oP '\d+(?= insertion)')
+          DELETIONS=$(git diff --shortstat origin/main..HEAD | grep -oP '\d+(?= deletion)')
+          
+          echo "✅ Lignes ajoutées: ${ADDITIONS:-0}"
+          echo "❌ Lignes supprimées: ${DELETIONS:-0}"
+          echo ""
+          echo "💡 Vérifiez ces changements avant de fusionner avec main!"
+      
+      - name: 🧪 Tests de sécurité (optionnel)
+        run: |
+          echo "🧪 Vérification de la présence de secrets..."
+          
+          # Vérifier qu'aucun secret n'a été committé
+          if git diff origin/main..HEAD | grep -iE "(api_key|password|secret|token)" > /dev/null; then
+            echo "⚠️ ATTENTION: Possibles secrets détectés dans le diff!"
+            echo "Vérifiez manuellement avant de fusionner."
+          else
+            echo "✅ Aucun secret détecté"
+          fi

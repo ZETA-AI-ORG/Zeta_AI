@@ -1,0 +1,112 @@
+# ========================================
+# 🤖 INSTRUCTIONS POUR WINDSURF/CURSOR
+# ========================================
+# Copie ces instructions dans Windsurf pour qu'il respecte le système de protection
+
+RÈGLES STRICTES POUR L'IA:
+
+1. BRANCHE DE TRAVAIL:
+   - Tu dois TOUJOURS travailler sur la branche 'ia'
+   - JAMAIS modifier directement la branche 'main'
+   - Vérifier la branche actuelle avant toute modification: git branch
+
+2. FICHIERS INTERDITS:
+   - NE JAMAIS toucher au dossier /stable
+   - NE JAMAIS toucher au dossier /backup
+   - NE JAMAIS modifier les scripts dans /scripts
+   - NE JAMAIS modifier .gitignore
+   - NE JAMAIS modifier les workflows GitHub
+
+3. FICHIERS SENSIBLES:
+   - .env → Modifications avec confirmation utilisateur
+   - app.py → Modifications avec confirmation utilisateur
+   - database/vector_store_clean_v2.py → Modifications avec confirmation
+   - core/rag_engine.py → Modifications avec confirmation
+
+4. AVANT TOUTE MODIFICATION MAJEURE:
+   - Demander confirmation à l'utilisateur
+   - Expliquer clairement ce qui va être modifié
+   - Proposer une sauvegarde si nécessaire
+
+5. APRÈS MODIFICATIONS:
+   - Suggérer de vérifier les changements: powershell ./scripts/check_ia_changes.ps1
+   - Suggérer de tester le code
+   - Suggérer de créer une version stable si tout fonctionne
+
+6. EN CAS D'ERREUR:
+   - Proposer de restaurer une version stable
+   - Proposer d'annuler les modifications: git reset --hard main
+   - Ne JAMAIS forcer des modifications qui cassent le code
+
+7. COMMITS:
+   - Toujours faire des commits clairs et descriptifs
+   - Format: "🔧 [Composant] Description courte"
+   - Exemples:
+     * "🔧 [MeiliSearch] Fix scoring case-insensitive"
+     * "✨ [RAG] Ajout filtrage dynamique"
+     * "🐛 [API] Correction endpoint /chat"
+
+8. TESTS:
+   - Toujours suggérer de tester après modifications
+   - Proposer des commandes de test appropriées
+   - Vérifier que le serveur démarre correctement
+
+9. DOCUMENTATION:
+   - Mettre à jour la documentation si nécessaire
+   - Expliquer les changements complexes
+   - Ajouter des commentaires dans le code
+
+10. SÉCURITÉ:
+    - Ne JAMAIS commit de secrets (API keys, passwords)
+    - Vérifier que .env est dans .gitignore
+    - Alerter si des secrets sont détectés dans le code
+
+========================================
+WORKFLOW RECOMMANDÉ:
+========================================
+
+1. DÉBUT DE SESSION:
+   git checkout ia
+   powershell ./scripts/auto_backup.ps1
+
+2. DÉVELOPPEMENT:
+   - Faire les modifications demandées
+   - Tester régulièrement
+   - Commits fréquents
+
+3. FIN DE SESSION:
+   powershell ./scripts/check_ia_changes.ps1
+   # Si OK: git checkout main && git merge ia
+   # Si KO: git reset --hard main
+
+========================================
+EXEMPLES DE BONNES PRATIQUES:
+========================================
+
+✅ BON:
+"Je vais modifier le fichier database/vector_store_clean_v2.py pour corriger le scoring.
+Voulez-vous que je crée une sauvegarde d'abord?"
+
+✅ BON:
+"Modifications terminées. Je suggère de:
+1. Tester avec: python test_meili_lite.py
+2. Vérifier les changements: powershell ./scripts/check_ia_changes.ps1
+3. Si OK, fusionner: git checkout main && git merge ia"
+
+❌ MAUVAIS:
+"Je vais modifier directement app.py sur main sans confirmation."
+
+❌ MAUVAIS:
+"Je supprime le dossier /stable car il prend de la place."
+
+========================================
+RAPPEL IMPORTANT:
+========================================
+
+Tu es un ASSISTANT, pas un dictateur.
+- Toujours demander confirmation pour les modifications majeures
+- Toujours expliquer ce que tu fais
+- Toujours proposer des alternatives
+- Toujours respecter les règles de protection
+
+L'utilisateur a le dernier mot sur TOUTES les décisions.

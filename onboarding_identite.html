@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="fr" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Identité de l'Entreprise - Assistant IA</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        primary: { 50: '#f0f9ff', 100: '#e0f2fe', 200: '#bae6fd', 300: '#7dd3fc', 400: '#38bdf8', 500: '#0ea5e9', 600: '#0284c7', 700: '#0369a1', 800: '#075985', 900: '#0c4a6e' },
+                        dark: { 900: '#0a0e1a', 800: '#111827', 700: '#1f2937', 600: '#374151', 500: '#4b5563' }
+                    },
+                    fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] },
+                    boxShadow: { 'premium': '0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.2)', 'premium-lg': '0 10px 15px -3px rgba(0, 0, 0, 0.4), 0 4px 6px -2px rgba(0, 0, 0, 0.3)', 'glow': '0 0 20px rgba(14, 165, 233, 0.3)' }
+                }
+            }
+        }
+    </script>
+    <style>
+        * { scrollbar-width: thin; scrollbar-color: #0ea5e9 #1f2937; }
+        *::-webkit-scrollbar { width: 10px; }
+        *::-webkit-scrollbar-track { background: #1f2937; border-radius: 10px; }
+        *::-webkit-scrollbar-thumb { background: linear-gradient(180deg, #0ea5e9, #0284c7); border-radius: 10px; border: 2px solid #1f2937; }
+        body { font-family: 'Inter', sans-serif; background: linear-gradient(135deg, #0a0e1a 0%, #111827 100%); }
+        .gradient-text { background: linear-gradient(135deg, #38bdf8, #0ea5e9); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+        .card-premium { background: linear-gradient(135deg, rgba(31, 41, 55, 0.9), rgba(17, 24, 39, 0.95)); backdrop-filter: blur(10px); border: 1px solid rgba(14, 165, 233, 0.2); transition: all 0.3s ease; }
+        .card-premium:hover { border-color: rgba(14, 165, 233, 0.5); box-shadow: 0 0 30px rgba(14, 165, 233, 0.2); transform: translateY(-2px); }
+        .btn-premium { background: linear-gradient(135deg, #0ea5e9, #0284c7); box-shadow: 0 4px 14px rgba(14, 165, 233, 0.4); transition: all 0.3s ease; position: relative; overflow: hidden; }
+        .btn-premium::before { content: ''; position: absolute; top: 0; left: -100%; width: 100%; height: 100%; background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent); transition: left 0.5s ease; }
+        .btn-premium:hover::before { left: 100%; }
+        .btn-premium:hover { box-shadow: 0 6px 20px rgba(14, 165, 233, 0.6); transform: translateY(-2px); }
+        .input-premium { background: rgba(31, 41, 55, 0.5); border: 1px solid rgba(75, 85, 99, 0.5); transition: all 0.3s ease; }
+        .input-premium:focus { background: rgba(31, 41, 55, 0.8); border-color: #0ea5e9; box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.1); outline: none; }
+        .slide-in { animation: slideIn 0.5s cubic-bezier(0.4, 0, 0.2, 1); }
+        @keyframes slideIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        .pulse-glow { animation: pulseGlow 2s ease-in-out infinite; }
+        @keyframes pulseGlow { 0%, 100% { box-shadow: 0 0 20px rgba(14, 165, 233, 0.3); } 50% { box-shadow: 0 0 40px rgba(14, 165, 233, 0.5); } }
+    </style>
+</head>
+<body class="min-h-screen antialiased">
+    <!-- Header -->
+    <div class="card-premium border-b border-primary-500/20 shadow-premium-lg">
+        <div class="max-w-7xl mx-auto px-6 lg:px-8 py-8">
+            <div class="flex items-center justify-between mb-6">
+                <div>
+                    <h1 class="text-3xl font-bold gradient-text tracking-tight">Configuration de l'Entreprise</h1>
+                    <p class="text-gray-400 text-sm mt-2 font-light">Suivez les étapes pour configurer votre assistant IA.</p>
+                </div>
+                <div class="hidden md:flex items-center space-x-2 text-xs font-medium px-4 py-2 rounded-full bg-primary-500/10 border border-primary-500/30 text-primary-400">
+                    <span class="w-2 h-2 bg-primary-500 rounded-full pulse-glow"></span>
+                    <span>Étape 1/3</span>
+                </div>
+            </div>
+            <div class="flex items-center space-x-2 md:space-x-4">
+                <div class="flex items-center space-x-2">
+                    <div class="w-10 h-10 bg-gradient-to-br from-primary-500 to-primary-600 rounded-full flex items-center justify-center shadow-premium pulse-glow">
+                        <span class="text-white font-bold">1</span>
+                    </div>
+                    <span class="hidden md:block text-sm font-semibold text-white">Identité</span>
+                </div>
+                <div class="flex-1 h-1 bg-dark-600 rounded-full"></div>
+                <div class="flex items-center space-x-2 opacity-50">
+                    <div class="w-10 h-10 bg-dark-600 rounded-full flex items-center justify-center">
+                        <span class="text-gray-500 font-bold">2</span>
+                    </div>
+                    <span class="hidden md:block text-sm text-gray-500">Catalogue</span>
+                </div>
+                <div class="flex-1 h-1 bg-dark-600 rounded-full"></div>
+                <div class="flex items-center space-x-2 opacity-50">
+                    <div class="w-10 h-10 bg-dark-600 rounded-full flex items-center justify-center">
+                        <span class="text-gray-500 font-bold">3</span>
+                    </div>
+                    <span class="hidden md:block text-sm text-gray-500">Finalisation</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="max-w-5xl mx-auto px-6 lg:px-8 py-12">
+        <div class="card-premium rounded-2xl p-8 shadow-premium-lg slide-in">
+            <div class="flex items-center space-x-4 mb-8">
+                <div class="w-14 h-14 bg-gradient-to-br from-primary-500 to-primary-600 rounded-xl flex items-center justify-center shadow-glow">
+                    <svg class="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path></svg>
+                </div>
+                <div>
+                    <h2 class="text-2xl font-bold text-white">Identité de l'Entreprise</h2>
+                    <p class="text-sm text-gray-400 mt-1">Informations de base sur votre entreprise</p>
+                </div>
+            </div>
+
+            <form id="identityForm" class="space-y-8">
+                <!-- Nom entreprise & IA -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-300 mb-2.5">
+                            Nom de l'entreprise <span class="text-red-400">*</span>
+                        </label>
+                        <input type="text" id="companyName" required 
+                               class="input-premium w-full rounded-xl px-4 py-3.5 text-white placeholder-gray-500"
+                               placeholder="Ex: Rue_du_gros"
+                               oninput="autoSave()">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-300 mb-2.5">
+                            Nom de l'IA <span class="text-red-400">*</span>
+                        </label>
+                        <input type="text" id="iaName" required
+                               class="input-premium w-full rounded-xl px-4 py-3.5 text-white placeholder-gray-500"
+                               placeholder="Ex: gamma"
+                               oninput="autoSave()">
+                    </div>
+                </div>
+
+                <!-- Zone d'activité -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-300 mb-2.5">
+                        Zone d'activité <span class="text-red-400">*</span>
+                    </label>
+                    <input type="text" id="activityZone" required
+                           class="input-premium w-full rounded-xl px-4 py-3.5 text-white placeholder-gray-500"
+                           placeholder="Ex: Côte d'Ivoire"
+                           oninput="autoSave()">
+                </div>
+
+                <!-- Description -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-300 mb-2.5">
+                        Description de l'entreprise <span class="text-red-400">*</span>
+                    </label>
+                    <textarea id="description" required rows="4"
+                              class="input-premium w-full rounded-xl px-4 py-3 text-white placeholder-gray-500"
+                              placeholder="Décrivez votre activité, vos produits/services..."
+                              oninput="autoSave()"></textarea>
+                    <p class="text-xs text-gray-500 mt-2">Donnez une description complète de votre entreprise</p>
+                </div>
+
+                <!-- Mission -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-300 mb-2.5">
+                        Mission <span class="text-red-400">*</span>
+                    </label>
+                    <textarea id="mission" required rows="3"
+                              class="input-premium w-full rounded-xl px-4 py-3 text-white placeholder-gray-500"
+                              placeholder="Quelle est la mission de votre entreprise ?"
+                              oninput="autoSave()"></textarea>
+                </div>
+
+                <!-- Objectif IA -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-300 mb-2.5">
+                        Objectif de l'IA <span class="text-red-400">*</span>
+                    </label>
+                    <textarea id="iaObjective" required rows="2"
+                              class="input-premium w-full rounded-xl px-4 py-3 text-white placeholder-gray-500"
+                              placeholder="Ex: Convertir chaque client en prospect"
+                              oninput="autoSave()"></textarea>
+                    <p class="text-xs text-gray-500 mt-2">Quel est le rôle principal de l'assistant IA ?</p>
+                </div>
+            </form>
+        </div>
+
+        <!-- Navigation -->
+        <div class="mt-12 flex justify-between items-center">
+            <button onclick="window.history.back()" 
+                    class="px-8 py-4 bg-dark-700 hover:bg-dark-600 border border-dark-600 rounded-xl text-gray-300 font-semibold transition-all flex items-center space-x-2">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
+                <span>Précédent</span>
+            </button>
+            
+            <div class="flex gap-4">
+                <button onclick="manualSave()" 
+                        class="px-8 py-4 bg-dark-700 hover:bg-dark-600 border border-dark-600 hover:border-primary-500 rounded-xl text-gray-300 hover:text-primary-400 font-semibold transition-all flex items-center space-x-2">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"></path></svg>
+                    <span id="saveStatus">Sauvegarder</span>
+                </button>
+                <button onclick="submitIdentity()" 
+                        class="btn-premium px-10 py-4 rounded-xl text-white font-bold text-lg flex items-center space-x-2">
+                    <span>Suivant</span>
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5l7 7-7 7"></path></svg>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let autoSaveTimer = null;
+
+        // Auto-save avec délai
+        function autoSave() {
+            clearTimeout(autoSaveTimer);
+            autoSaveTimer = setTimeout(() => {
+                saveData();
+                showSaveStatus('💾 Auto-sauvegarde...', 1000);
+            }, 2000); // 2 secondes après la dernière frappe
+        }
+
+        // Sauvegarde manuelle
+        function manualSave() {
+            saveData();
+            showSaveStatus('✅ Sauvegardé !', 2000);
+        }
+
+        // Fonction de sauvegarde centrale
+        function saveData() {
+            const data = {
+                companyName: document.getElementById('companyName').value,
+                iaName: document.getElementById('iaName').value,
+                activityZone: document.getElementById('activityZone').value,
+                description: document.getElementById('description').value,
+                mission: document.getElementById('mission').value,
+                iaObjective: document.getElementById('iaObjective').value
+            };
+
+            localStorage.setItem('identity_data', JSON.stringify(data));
+            console.log('💾 Identité sauvegardée:', data);
+        }
+
+        // Afficher statut de sauvegarde
+        function showSaveStatus(message, duration) {
+            const statusEl = document.getElementById('saveStatus');
+            const originalText = statusEl.textContent;
+            statusEl.textContent = message;
+            setTimeout(() => {
+                statusEl.textContent = originalText;
+            }, duration);
+        }
+
+        function submitIdentity() {
+            const form = document.getElementById('identityForm');
+            if (!form.checkValidity()) {
+                form.reportValidity();
+                return;
+            }
+
+            saveData();
+            console.log('✅ Passage au catalogue');
+            
+            // Redirection vers catalogue
+            window.location.href = 'onboarding_catalogue.html';
+        }
+
+        // Charger données au démarrage
+        window.addEventListener('DOMContentLoaded', () => {
+            const saved = localStorage.getItem('identity_data');
+            if (saved) {
+                const data = JSON.parse(saved);
+                document.getElementById('companyName').value = data.companyName || '';
+                document.getElementById('iaName').value = data.iaName || '';
+                document.getElementById('activityZone').value = data.activityZone || '';
+                document.getElementById('description').value = data.description || '';
+                document.getElementById('mission').value = data.mission || '';
+                document.getElementById('iaObjective').value = data.iaObjective || '';
+                console.log('✅ Données restaurées depuis localStorage');
+            }
+        });
+    </script>
+</body>
+</html>

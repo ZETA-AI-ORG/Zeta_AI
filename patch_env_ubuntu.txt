@@ -1,0 +1,14 @@
+# COMMANDE POUR PATCHER LE .ENV UBUNTU
+
+# 1. Modifier la ligne DEFAULT_LLM_MODEL
+sed -i 's/DEFAULT_LLM_MODEL=llama-3.3-70b-versatile/DEFAULT_LLM_MODEL=llama-3.1-8b-instant/' .env
+
+# 2. Modifier le commentaire associé
+sed -i 's/# Configuration LLM - PRÊT POUR DEMAIN (QUOTA RESET)/# Configuration LLM - TEST 8B INSTANT/' .env
+sed -i 's/# PRODUCTION: Modèle 70B optimal restauré pour tests finaux/# TEST: Modèle 8B pour comparaison performance\/coût vs 70B/' .env
+
+# 3. Vérifier la modification
+grep "DEFAULT_LLM_MODEL" .env
+
+# RÉSULTAT ATTENDU:
+# DEFAULT_LLM_MODEL=llama-3.1-8b-instant
