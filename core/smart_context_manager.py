@@ -81,12 +81,17 @@ class SmartContextManager:
         pattern2 = r'Bloc-note:\s*ajouter info\s*\(([^,]+),\s*([^\)]+)\)'
         matches2 = re.findall(pattern2, thinking_text, re.IGNORECASE)
         
-        # Pattern 3: avec "Action :"
+        # Pattern 3: avec "Action :" (avec ou sans espace)
         pattern3 = r'Action\s*:\s*Bloc-note:\s*ajouter info\s*\(([^,]+),\s*["\']?([^"\']+)["\']?\)'
         matches3 = re.findall(pattern3, thinking_text, re.IGNORECASE)
         
-        all_matches = matches1 + matches2 + matches3
+        # Pattern 4: avec "- Action :" (liste)
+        pattern4 = r'-\s*Action\s*:\s*Bloc-note:\s*ajouter info\s*\(([^,]+),\s*["\']?([^"\']+)["\']?\)'
+        matches4 = re.findall(pattern4, thinking_text, re.IGNORECASE)
         
+        all_matches = matches1 + matches2 + matches3 + matches4
+        
+        logger.info(f"🔍 [THINKING] Patterns trouvés: P1={len(matches1)}, P2={len(matches2)}, P3={len(matches3)}, P4={len(matches4)}")       
         for key, value in all_matches:
             key = key.strip().strip('"').strip("'").lower()
             value = value.strip().strip('"').strip("'")
@@ -144,20 +149,12 @@ class SmartContextManager:
                 bot_response = interaction.get('bot_response', '').lower()
                 combined = f"{msg} {bot_response}"
                 
-                # Extraire produit
+                # Extraire produit (FALLBACK BASIQUE - sera remplacé par extraction THINKING)
                 if not extracted.get('produit'):
-                    if 'lot 150' in combined:
-                        extracted['produit'] = 'lot 150'
-                        extracted['prix_produit'] = '13500'
-                    elif 'lot 300' in combined:
-                        extracted['produit'] = 'lot 300'
-                        extracted['prix_produit'] = '24000'
-                    elif 'lot150' in combined.replace(' ', ''):
-                        extracted['produit'] = 'lot 150'
-                        extracted['prix_produit'] = '13500'
-                    elif 'lot300' in combined.replace(' ', ''):
-                        extracted['produit'] = 'lot 300'
-                        extracted['prix_produit'] = '24000'
+                    # Pattern simple: chercher mention de produit/prix dans la conversation
+                    prix_match = re.search(r'prix[:\s]+(\d+[\s\d]*)\s*f?cfa', combined.lower())
+                    if prix_match:
+                        extracted['prix_produit'] = prix_match.group(1).replace(' ', '')
                 
                 # Extraire zone
                 if not extracted.get('zone'):

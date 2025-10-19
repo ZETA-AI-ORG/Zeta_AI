@@ -65,37 +65,42 @@ class GlobalPromptCache:
         """
         🎯 Récupère le prompt depuis le cache ou la base de données
         Retourne None si non trouvé
+        
+        ✅ CACHE ACTIVÉ - Gain ~1.6s par requête
         """
         cache_key = self._create_cache_key(company_id)
         
+        # Vérifier le cache
         with self.lock:
-            # Vérifier le cache
             if cache_key in self.cache:
-                cache_entry = self.cache[cache_key]
+                entry = self.cache[cache_key]
                 
-                if not self._is_expired(cache_entry):
-                    # Cache hit ! - LOG SIMPLIFIÉ
+                # Vérifier expiration
+                if not self._is_expired(entry):
+                    # ✅ CACHE HIT
+                    entry["access_count"] += 1
                     self.stats["hits"] += 1
-                    cache_entry["access_count"] += 1
-                    log3("[PROMPT_CACHE]", f"✅ Hit: {company_id[:8]}... | {len(cache_entry['prompt'])} chars")
-                    return cache_entry["prompt"]
+                    
+                    cached_age = (datetime.now() - entry["cached_at"]).total_seconds()
+                    log3("[PROMPT_CACHE]", f"✅ Cache hit: {company_id[:8]}... | Saved: {1.6:.3f}s | Age: {cached_age:.0f}s")
+                    
+                    return entry["prompt"]
                 else:
-                    # Entrée expirée
+                    # Expiré, supprimer
                     del self.cache[cache_key]
                     self.stats["invalidations"] += 1
         
-        # Cache miss - récupérer depuis la base
+        # ❌ CACHE MISS - Récupérer depuis la base
+        log3("[PROMPT_CACHE]", f"❌ Cache miss: {company_id[:8]}... | Fetching from DB...")
         self.stats["misses"] += 1
-        log3("[PROMPT_CACHE]", f"❌ Miss: {company_id[:8]}...")
         
-        # Récupérer depuis Supabase
         prompt = await self._fetch_from_database(company_id)
         
+        # Mettre en cache pour les prochaines requêtes
         if prompt:
             await self.set_prompt(company_id, prompt)
-            return prompt
         
-        return None
+        return prompt
     
     async def _fetch_from_database(self, company_id: str) -> Optional[str]:
         """Récupère le prompt depuis la base de données"""

@@ -1,0 +1,67 @@
+{
+  "checkpoint_id": "test_user_123_20251019_204533",
+  "user_id": "test_user_123",
+  "company_id": "test_company",
+  "timestamp": "2025-10-19T20:45:33.838950",
+  "thinking": {
+    "success": true,
+    "deja_collecte": {
+      "type_produit": "Couches culottes",
+      "quantite": 150,
+      "zone": "Marcory",
+      "telephone": null,
+      "paiement": null
+    },
+    "nouvelles_donnees": [
+      {
+        "cle": "type_produit",
+        "valeur": "Couches culottes",
+        "source": "question"
+      },
+      {
+        "cle": "quantite",
+        "valeur": 150,
+        "source": "question"
+      },
+      {
+        "cle": "zone",
+        "valeur": "Marcory",
+        "source": "question"
+      }
+    ],
+    "confiance": {
+      "score": 80,
+      "raison": "Données complètes"
+    },
+    "progression": {
+      "completude": "3/5"
+    },
+    "strategie": {
+      "phase": "interet"
+    }
+  },
+  "notepad": {
+    "produit": "Couches culottes",
+    "quantite": 150,
+    "zone": "Marcory",
+    "frais_livraison": "1500"
+  },
+  "conversation_history": [],
+  "metrics": {
+    "confiance_score": 80,
+    "completude": "3/5",
+    "phase_qualification": "interet"
+  },
+  "metadata": {
+    "test": true,
+    "version": "1.0"
+  },
+  "statistics": {
+    "notepad_completude": "4/6",
+    "notepad_completude_pct": 66.66666666666666,
+    "conversation_length": 0,
+    "thinking_parsed": true,
+    "deja_collecte_count": 5,
+    "nouvelles_donnees_count": 3
+  }
+}

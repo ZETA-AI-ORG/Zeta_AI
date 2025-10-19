@@ -1,0 +1,29 @@
+{
+  "checkpoint_id": "test_integration_20251019_204534",
+  "user_id": "test_integration",
+  "company_id": "test_company",
+  "timestamp": "2025-10-19T20:45:34.392853",
+  "thinking": {},
+  "notepad": {
+    "produit": "Couches culottes",
+    "quantite": 150,
+    "zone": "Marcory",
+    "frais_livraison": "1500",
+    "telephone": "0160924560"
+  },
+  "conversation_history": [],
+  "metrics": {
+    "confiance_score": 95,
+    "completude": "5/5",
+    "phase_qualification": "action"
+  },
+  "metadata": {},
+  "statistics": {
+    "notepad_completude": "5/6",
+    "notepad_completude_pct": 83.33333333333334,
+    "conversation_length": 0,
+    "thinking_parsed": false,
+    "deja_collecte_count": 0,
+    "nouvelles_donnees_count": 0
+  }
+}

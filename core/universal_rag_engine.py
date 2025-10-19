@@ -738,35 +738,34 @@ INSTRUCTION: Demande poliment au client de préciser ce qu'il souhaite savoir su
                 print(f"⚠️ Erreur mise à jour mémoire: {e}")
                 # Continuer avec l'ancien contexte
         
-        # ========== FILTRAGE INTELLIGENT DOCS LIVRAISON ==========
-        # Si zone trouvée par regex → NE PAS inclure docs MeiliSearch livraison
+        # ========== FILTRER DOCS LIVRAISON SI REGEX A TROUVÉ ==========
+        # Si regex a trouvé la zone, supprimer les docs delivery de MeiliSearch (doublon)
         meili_context_filtered = search_results['meili_context']
         
-        if delivery_zone_found and search_results['meili_context']:
-            logger.info("🔍 [FILTRAGE] Zone trouvée par regex → Suppression docs livraison MeiliSearch")
+        if delivery_zone_found:
+            logger.info("✅ [DOCS] Zone trouvée par regex → Supprimer docs delivery de MeiliSearch (doublon)")
             
-            # Filtrer les documents de type "delivery"
-            lines = search_results['meili_context'].split('\n')
+            # Filtrer les lignes contenant "LIVRAISON" ou "delivery_" dans l'index
+            lines = meili_context_filtered.split('\n')
             filtered_lines = []
-            skip_delivery_doc = False
+            skip_until_next_doc = False
             
             for line in lines:
-                # Détecter début document livraison
-                if 'LIVRAISON -' in line or 'Index de provenance: delivery_' in line:
-                    skip_delivery_doc = True
+                # Détecter début d'un document delivery
+                if 'delivery_' in line or 'LIVRAISON -' in line:
+                    skip_until_next_doc = True
                     continue
                 
-                # Détecter fin document (nouveau document ou séparateur)
-                if line.startswith('DOCUMENT #') or line.startswith('==='):
-                    skip_delivery_doc = False
+                # Détecter début d'un nouveau document (réinitialiser le skip)
+                if line.startswith('DOCUMENT #'):
+                    skip_until_next_doc = False
                 
-                # Garder ligne si pas dans doc livraison
-                if not skip_delivery_doc:
+                # Garder la ligne si on ne skip pas
+                if not skip_until_next_doc:
                     filtered_lines.append(line)
             
             meili_context_filtered = '\n'.join(filtered_lines)
-            tokens_saved = len(search_results['meili_context']) - len(meili_context_filtered)
-            logger.info(f"✅ [FILTRAGE] Docs livraison supprimés → -{tokens_saved} chars économisés")
+            logger.info(f"📦 [DOCS] Docs delivery filtrés: {len(lines)} → {len(filtered_lines)} lignes")
         
         # Construction du contexte structuré
         context_parts = []
@@ -1284,33 +1283,48 @@ INSTRUCTION: Demande poliment au client de préciser ce qu'il souhaite savoir su
             return "✅ Commande reçue ! Nous la traitons et vous recontactons rapidement."
     
     async def _get_dynamic_prompt(self, company_id: str, company_name: str) -> str:
-        """📋 Récupère le prompt dynamique via le cache unifié (fallback défaut)"""
+        """📋 Récupère le prompt dynamique via company_booster (nouveau système universel)"""
         try:
-            # Utiliser le système de cache (évite les appels répétés à Supabase)
-            from database.supabase_client import get_company_system_prompt
+            # ✅ NOUVEAU: Utiliser le générateur de prompt dynamique basé sur company_booster
+            from core.dynamic_prompt_generator import get_prompt_for_company
             
-            prompt = await get_company_system_prompt(company_id)
-            if prompt and len(prompt.strip()) > 0:
-                # Rendre les variables du template robustement avec des valeurs par défaut
-                try:
-                    personalized_prompt = prompt.format(
-                        company_name=company_name,
-                        ai_name="Assistant",
-                        secteur_activite="commerce",
-                        mission_principale="",
-                        objectif_final=""
-                    )
-                except KeyError as e:
-                    # Si des variables inconnues sont présentes, utiliser le template tel quel
-                    print(f"⚠️ Variable manquante dans template (cache): {e}")
-                    personalized_prompt = prompt
+            try:
+                # Récupérer le prompt depuis company_booster (avec cache automatique)
+                prompt = get_prompt_for_company(
+                    company_id=company_id,
+                    supabase_client=self.supabase
+                )
+                logger.info(f"✅ [DYNAMIC PROMPT] Prompt généré depuis company_booster pour {company_id[:8]}...")
+                return prompt
+            
+            except Exception as e_booster:
+                logger.warning(f"⚠️ [DYNAMIC PROMPT] Fallback ancien système: {e_booster}")
                 
-                logger.info(f"📋 Prompt (cache/unifié) récupéré pour {company_id[:8]}...")
-                return personalized_prompt
-            
-            # Fallback si pas de prompt personnalisé
-            logger.info("📋 Utilisation prompt par défaut (cache vide)")
-            return f"""Tu es un assistant client professionnel pour {company_name}.
+                # FALLBACK: Ancien système (get_company_system_prompt)
+                from database.supabase_client import get_company_system_prompt
+                
+                prompt = await get_company_system_prompt(company_id)
+                if prompt and len(prompt.strip()) > 0:
+                    # Rendre les variables du template robustement avec des valeurs par défaut
+                    try:
+                        personalized_prompt = prompt.format(
+                            company_name=company_name,
+                            ai_name="Assistant",
+                            secteur_activite="commerce",
+                            mission_principale="",
+                            objectif_final=""
+                        )
+                    except KeyError as e:
+                        # Si des variables inconnues sont présentes, utiliser le template tel quel
+                        print(f"⚠️ Variable manquante dans template (cache): {e}")
+                        personalized_prompt = prompt
+                    
+                    logger.info(f"📋 Prompt (ancien système) récupéré pour {company_id[:8]}...")
+                    return personalized_prompt
+                
+                # Fallback ultime si pas de prompt personnalisé
+                logger.info("📋 Utilisation prompt par défaut (aucun système disponible)")
+                return f"""Tu es un assistant client professionnel pour {company_name}.
 
 RÈGLES STRICTES:
 - Utilise UNIQUEMENT les informations du contexte fourni
@@ -1320,7 +1334,7 @@ RÈGLES STRICTES:
 - Ne jamais inventer de données"""
         
         except Exception as e:
-            logger.error(f"❌ Erreur récupération prompt dynamique (cache): {e}")
+            logger.error(f"❌ Erreur récupération prompt dynamique: {e}")
             return f"Tu es un assistant client professionnel pour {company_name}."
     
     def _detect_pricing_context(self, query: str, context: str) -> str:
@@ -1633,22 +1647,24 @@ INSTRUCTION SPÉCIALE PAIEMENT:
         # Stocker request_id pour le tracker
         self._request_id = request_id or 'unknown'
         # --- FAQ CACHE (avant tout traitement lourd) ---
-        try:
-            from core.faq_answer_cache import faq_answer_cache
-            cache_key_context = company_id  # Pour éviter collisions multi-entreprise
-            cached = faq_answer_cache.get(query, cache_key_context)
-            if cached:
-                print("⚡ [FAQ CACHE] Réponse instantanée (cache hit)")
-                return UniversalRAGResult(
-                    response=cached,
-                    confidence=1.0,
-                    documents_found=True,
-                    processing_time_ms=1,
-                    search_method="faq_cache",
-                    context_used="FAQ_CACHE"
-                )
-        except Exception as e:
-            print(f"[FAQ CACHE] Erreur cache: {e}")
+        # ✅ FAQ CACHE RÉACTIVÉ POUR OPTIMISATION PERFORMANCE
+        if not skip_faq_cache:
+            try:
+                from core.faq_answer_cache import faq_answer_cache
+                cache_key_context = company_id  # Pour éviter collisions multi-entreprise
+                cached = faq_answer_cache.get(query, cache_key_context)
+                if cached:
+                    print("⚡ [FAQ CACHE] Réponse instantanée (cache hit)")
+                    return UniversalRAGResult(
+                        response=cached,
+                        confidence=1.0,
+                        documents_found=True,
+                        processing_time_ms=1,
+                        search_method="faq_cache",
+                        context_used="FAQ_CACHE"
+                    )
+            except Exception as e:
+                print(f"[FAQ CACHE] Erreur cache: {e}")
 
         """
         🌍 TRAITEMENT UNIVERSEL D'UNE REQUÊTE
@@ -1691,13 +1707,15 @@ INSTRUCTION SPÉCIALE PAIEMENT:
                 # Continuer avec la réponse originale
 
             # --- Stockage dans le cache FAQ (après génération) ---
-            try:
-                from core.faq_answer_cache import faq_answer_cache
-                cache_key_context = company_id
-                faq_answer_cache.set(query, cache_key_context, response)
-                print("[FAQ CACHE] Réponse stockée dans le cache FAQ")
-            except Exception as e:
-                print(f"[FAQ CACHE] Erreur stockage: {e}")
+            # ✅ FAQ CACHE RÉACTIVÉ POUR OPTIMISATION PERFORMANCE
+            if not skip_faq_cache:
+                try:
+                    from core.faq_answer_cache import faq_answer_cache
+                    cache_key_context = company_id
+                    faq_answer_cache.set(query, cache_key_context, response)
+                    print("[FAQ CACHE] Réponse stockée dans le cache FAQ")
+                except Exception as e:
+                    print(f"[FAQ CACHE] Erreur stockage: {e}")
             # 4. Calcul de la confiance
             confidence = self.calculate_confidence(search_results, response)
             print(f"📊 Confiance calculée: {confidence:.2f}")

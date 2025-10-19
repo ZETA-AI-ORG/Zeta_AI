@@ -1,0 +1,68 @@
+{
+  "checkpoint_id": "test_319_20251020_010945",
+  "user_id": "test_319",
+  "company_id": "default",
+  "timestamp": "2025-10-20T01:09:45.248052",
+  "thinking": {
+    "success": true,
+    "deja_collecte": {
+      "type_produit": "Couches",
+      "quantite": 150,
+      "zone": "Yopougon",
+      "telephone": null
+    },
+    "nouvelles_donnees": [
+      {
+        "cle": "type_produit",
+        "valeur": "Couches taille 4",
+        "source": "question",
+        "confiance": "HAUTE"
+      }
+    ],
+    "confiance": {
+      "score": 95,
+      "raison": "Informations complètes"
+    },
+    "progression": {
+      "completude": "5/5",
+      "prochaine_etape": {
+        "type": "conclusion",
+        "action": "Réponse finale"
+      }
+    },
+    "strategie_qualification": {
+      "phase": "conclusion",
+      "objectif": "Fournir le prix",
+      "technique": "information_directe"
+    },
+    "parsing_errors": []
+  },
+  "notepad": {
+    "created_at": "2025-10-20T01:04:43.074417",
+    "products": [],
+    "quantities": {},
+    "delivery_zone": null,
+    "delivery_cost": null,
+    "payment_method": null,
+    "payment_number": null,
+    "phone_number": null,
+    "calculated_totals": [],
+    "last_updated": "2025-10-20T01:04:43.074455",
+    "conversation_count": 0
+  },
+  "conversation_history": [],
+  "metrics": {
+    "confiance_score": 95,
+    "completude": "5/5",
+    "phase_qualification": "conclusion"
+  },
+  "metadata": {},
+  "statistics": {
+    "notepad_completude": "0/6",
+    "notepad_completude_pct": 0.0,
+    "conversation_length": 0,
+    "thinking_parsed": true,
+    "deja_collecte_count": 4,
+    "nouvelles_donnees_count": 1
+  }
+}

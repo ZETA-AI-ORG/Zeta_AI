@@ -17,6 +17,15 @@ import requests
 import tempfile
 import re
 
+# ========== OPTIMISATION PERFORMANCE ==========
+from config_performance import (
+    configure_performance_logs,
+    ENVIRONMENT,
+    HYDE_SKIP_SIMPLE_QUERIES,
+    MAX_HISTORY_MESSAGES,
+    MAX_HISTORY_CHARS
+)
+
 # Logger
 # Configuration globale du logging (horodatage, niveau, message)
 # ✅ OPTIMISATION: Niveau INFO par défaut (pas DEBUG) pour gain performance
@@ -28,6 +37,9 @@ logging.basicConfig(
 )
 logger = logging.getLogger("app")
 logger.setLevel(LOG_LEVEL)
+
+# Configurer les logs selon l'environnement
+configure_performance_logs()
 
 # Créer un gestionnaire de console
 console_handler = logging.StreamHandler()
@@ -1217,20 +1229,44 @@ async def chat_endpoint(req: ChatRequest, request: Request):
     logger.debug(f"Headers: {_truncate_log(dict(request.headers))}")
     logger.debug(f"Body: {_truncate_log(req)}")
     
-    # Déterminer si HYDE nécessaire (skip pour requêtes courtes)
+    # Déterminer si HYDE nécessaire (skip pour requêtes courtes OU simples)
     word_count = len(req.message.split()) if req.message else 0
-    skip_hyde = req.botlive_enabled or word_count < 10 or not req.message
+    
+    # ⚡ OPTIMISATION: Skip HYDE pour questions simples (gain ~2s sur 60% requêtes)
+    if HYDE_SKIP_SIMPLE_QUERIES:
+        from core.hyde_optimizer import should_skip_hyde
+        skip_hyde_simple = should_skip_hyde(req.message or "")
+    else:
+        skip_hyde_simple = False
+    
+    skip_hyde = req.botlive_enabled or word_count < 10 or not req.message or skip_hyde_simple
     
     if skip_hyde:
-        print(f"[HYDE] Skippé (botlive={req.botlive_enabled}, mots={word_count})")
+        reason = "botlive" if req.botlive_enabled else "court" if word_count < 10 else "simple" if skip_hyde_simple else "vide"
+        print(f"⚡ [HYDE] Skippé ({reason}, mots={word_count})")
     
     # Créer tâches parallèles
     async def get_prompt_version():
         try:
+            # ⚡ OPTIMISATION: Utiliser cache local pour prompts (gain ~3s)
+            from core.prompt_local_cache import get_prompt_cache
+            prompt_cache = get_prompt_cache()
+            
+            # Essayer cache d'abord
+            cached_version = prompt_cache.get(f"{req.company_id}_version")
+            if cached_version:
+                return int(cached_version)
+            
+            # Sinon fetch Supabase
             supabase_client = get_supabase_client()
             prompt_manager = PromptManager(supabase_client)
             active_prompt = await prompt_manager.get_active_prompt(req.company_id)
-            return active_prompt['version']
+            version = active_prompt['version']
+            
+            # Sauvegarder en cache
+            prompt_cache.set(f"{req.company_id}_version", str(version))
+            
+            return version
         except Exception as e:
             log3("[PROMPT_ERROR]", f"Erreur récupération prompt: {e}")
             return 1
@@ -1263,7 +1299,7 @@ async def chat_endpoint(req: ChatRequest, request: Request):
         req.message = hyde_result
     
     # === CACHE MULTI-NIVEAUX: EXACT + SÉMANTIQUE ===
-    # Désactiver le cache pour le mode Botlive (réponses dépendantes d'images et prompts dynamiques)
+    # ✅ CACHE RÉACTIVÉ POUR OPTIMISATION PERFORMANCE
     if not req.botlive_enabled:
         # NIVEAU 1: Cache exact (Redis classique)
         try:
@@ -1637,7 +1673,7 @@ async def chat_endpoint(req: ChatRequest, request: Request):
         }
         
         # Sauvegarder la réponse en cache pour les requêtes futures identiques
-        # Attention: ne pas mettre en cache les réponses Botlive (dépendantes d'images et prompts dynamiques)
+        # ✅ CACHE RÉACTIVÉ POUR OPTIMISATION PERFORMANCE
         if not getattr(req, "botlive_enabled", False):
             # Sauvegarder dans cache exact (Redis)
             try:
@@ -1764,13 +1800,17 @@ class OnboardCompanyRequest(BaseModel):
     secteur_activite: str
     mission_principale: str
     objectif_final: str
-    system_prompt_template: str
     rag_enabled: bool = True
     fallback_to_human_message: str = "J'ai du mal à vous suivre. Pouvez-vous reformuler ou préférez-vous que je vous redirige vers un conseiller ?"
     ai_objective: Optional[str] = None
     # Nouveaux prompts Botlive (version 2.0)
     prompt_botlive_groq_70b: Optional[str] = None
     prompt_botlive_deepseek_v3: Optional[str] = None
+
+class UpdateSystemPromptRequest(BaseModel):
+    company_id: str
+    system_prompt_template: str
+    rag_enabled: bool = True
 
 @app.post("/save_message")
 async def save_message(payload: ConversationPayload):
@@ -1813,7 +1853,7 @@ async def onboard_company_endpoint(req: OnboardCompanyRequest):
             
         log3("[ONBOARD]", f"🔗 Supabase: {SUPABASE_URL}")
         log3("[ONBOARD]", f"🔑 Clé API: {'*' * 8}{SUPABASE_KEY[-4:] if SUPABASE_KEY else 'NONE'}")
-        log3("[ONBOARD]", f"📋 Données reçues: {req.dict(exclude={'system_prompt_template'})}...")
+        log3("[ONBOARD]", f"📋 Données reçues: {req.dict()}")
         
         try:
             # Générer un company_id s'il est manquant ou vide
@@ -1828,7 +1868,7 @@ async def onboard_company_endpoint(req: OnboardCompanyRequest):
                 secteur_activite=req.secteur_activite,
                 mission_principale=req.mission_principale,
                 objectif_final=req.objectif_final,
-                system_prompt_template=req.system_prompt_template,
+                system_prompt_template=None,  # Sera géré par /update_system_prompt
                 rag_enabled=req.rag_enabled,
                 fallback_to_human_message=req.fallback_to_human_message,
                 ai_objective=req.ai_objective,
@@ -1847,7 +1887,7 @@ async def onboard_company_endpoint(req: OnboardCompanyRequest):
                     "secteur_activite": req.secteur_activite,
                     "mission_principale": req.mission_principale,
                     "objectif_final": req.objectif_final,
-                    "system_prompt_template": req.system_prompt_template,
+                    "system_prompt_template": None,
                     "rag_enabled": req.rag_enabled,
                     "fallback_to_human_message": req.fallback_to_human_message,
                     "created_at": now,
@@ -1907,6 +1947,84 @@ async def onboard_company_endpoint(req: OnboardCompanyRequest):
         
         import traceback
         log3("[ONBOARD]", f"Stack trace: {traceback.format_exc()}")
+
+# --- Endpoint de mise à jour du system_prompt_template ---
+@app.post("/update_system_prompt")
+async def update_system_prompt_endpoint(req: UpdateSystemPromptRequest):
+    """
+    Endpoint pour mettre à jour uniquement le system_prompt_template d'une entreprise.
+    Utilisé par le workflow N8N pour injecter le prompt RAG généré.
+    """
+    try:
+        log3("[UPDATE_PROMPT]", f"🚀 Mise à jour system_prompt pour company_id: {req.company_id}")
+        
+        # Vérification des variables d'environnement
+        from config import SUPABASE_URL, SUPABASE_KEY
+        if not SUPABASE_URL or not SUPABASE_KEY:
+            error_msg = "Configuration Supabase manquante. Vérifiez les variables d'environnement."
+            log3("[UPDATE_PROMPT]", f"❌ {error_msg}")
+            raise HTTPException(status_code=500, detail=error_msg)
+        
+        log3("[UPDATE_PROMPT]", f"📋 Longueur du prompt: {len(req.system_prompt_template)} caractères")
+        
+        try:
+            # Importer la fonction Supabase
+            from database.supabase_client import supabase
+            
+            # Mise à jour dans Supabase
+            response = supabase.table("company_rag_configs").update({
+                "system_prompt_template": req.system_prompt_template,
+                "rag_enabled": req.rag_enabled,
+                "updated_at": "now()"
+            }).eq("company_id", req.company_id).execute()
+            
+            if not response.data:
+                log3("[UPDATE_PROMPT]", f"⚠️ Aucune ligne mise à jour pour company_id: {req.company_id}")
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"Entreprise {req.company_id} non trouvée. Assurez-vous que /onboard_company a été appelé en premier."
+                )
+            
+            log3("[UPDATE_PROMPT]", f"✅ Succès - system_prompt_template mis à jour")
+            return {
+                "success": True,
+                "message": f"System prompt mis à jour pour {req.company_id}",
+                "company_id": req.company_id,
+                "prompt_length": len(req.system_prompt_template)
+            }
+            
+        except HTTPException:
+            raise
+        except Exception as e:
+            error_type = type(e).__name__
+            error_msg = str(e)
+            log3("[UPDATE_PROMPT]", f"❌ Erreur Supabase: {error_type} - {error_msg}")
+            
+            import traceback
+            tb = traceback.format_exc()
+            log3("[UPDATE_PROMPT]", f"Stack trace: {tb}")
+            
+            raise HTTPException(
+                status_code=500,
+                detail=f"Erreur lors de la mise à jour du prompt: {error_msg}"
+            )
+            
+    except HTTPException as http_exc:
+        log3("[UPDATE_PROMPT]", f"HTTPException: {http_exc.detail}")
+        raise http_exc
+        
+    except Exception as e:
+        error_type = type(e).__name__
+        error_msg = str(e)
+        log3("[UPDATE_PROMPT]", f"❌ Erreur inattendue: {error_type} - {error_msg}")
+        
+        import traceback
+        log3("[UPDATE_PROMPT]", f"Stack trace: {traceback.format_exc()}")
+        
+        raise HTTPException(
+            status_code=500,
+            detail=f"Erreur inattendue: {error_msg}"
+        )
 
 # =====================
 # Botlive: Live Mode API

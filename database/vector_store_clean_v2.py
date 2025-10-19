@@ -539,13 +539,8 @@ async def search_all_indexes_parallel(query: str, company_id: str, limit: int = 
     # Formater le contexte final
     formatted_context = ""
     for i, doc in enumerate(scored_documents, 1):
-        keywords = doc.get('found_keywords', [])
-        formatted_context += (
-            f"DOCUMENT #{i} (Score: {doc['score']:.2f})\n"
-            f"Index de provenance: {doc.get('source_index','?')}\n"
-            f"N-grams trouvés: {keywords}\n"
-            f"{doc['content']}\n\n"
-        )
+        # Format minimal: seulement le contenu utile pour le LLM
+        formatted_context += f"{doc['content']}\n\n"
     
     # Log résumé
     logger.info(f"📄 [MEILI_DEBUG] N-grams utilisés: {ngrams}")

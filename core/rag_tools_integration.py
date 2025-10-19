@@ -256,7 +256,7 @@ def calculate(expression: str) -> str:
 def process_llm_response(llm_output: str, user_id: str = None, company_id: str = None, enable_tools: bool = True, source_documents: list = None) -> Dict[str, Any]:
     """
     Traite complètement une réponse LLM avec extraction et outils
-    🧠 INTÉGRATION SMART CONTEXT MANAGER
+    🧠 INTÉGRATION SMART CONTEXT MANAGER + THINKING PARSER + DATA CHANGE TRACKER
     
     Args:
         llm_output: Sortie brute du LLM
@@ -269,12 +269,16 @@ def process_llm_response(llm_output: str, user_id: str = None, company_id: str =
         Dict contenant:
         - response: Réponse finale nettoyée
         - thinking: Contenu thinking (pour logs)
+        - thinking_parsed: Données YAML parsées du thinking
+        - data_changes: Changements détectés
         - tools_executed: Nombre d'outils exécutés
         - state_updated: État mis à jour (bool)
     """
     result = {
         "response": llm_output,
         "thinking": "",
+        "thinking_parsed": None,
+        "data_changes": None,
         "tools_executed": 0,
         "state_updated": False,
         "raw_output": llm_output
@@ -288,13 +292,73 @@ def process_llm_response(llm_output: str, user_id: str = None, company_id: str =
             result["thinking"] = thinking
             return result
         
-        # Mode complet avec outils + Smart Context Manager
+        # Mode complet avec outils + Smart Context Manager + Thinking Parser
         thinking, response_clean, response_with_tools = extract_thinking_and_response(
             llm_output, user_id, company_id, source_documents
         )
         
         result["response"] = response_with_tools
         result["thinking"] = thinking
+        
+        # 🧠 PUZZLE 5: Parser le thinking YAML
+        try:
+            from core.thinking_parser import get_thinking_parser
+            from core.data_change_tracker import get_data_change_tracker
+            
+            parser = get_thinking_parser()
+            thinking_data = parser.parse_full_thinking(llm_output)
+            result["thinking_parsed"] = thinking_data
+            
+            if thinking_data["success"]:
+                logger.info(f"✅ [THINKING_PARSER] Parse réussi: confiance {thinking_data['confiance']['score']}%, complétude {thinking_data['progression']['completude']}")
+                
+                # 🔄 TRACKER: Comparer avec l'état actuel du notepad
+                try:
+                    from core.conversation_notepad import get_conversation_notepad
+                    notepad_manager = get_conversation_notepad()
+                    notepad = notepad_manager.get_notepad(user_id, company_id or "default")
+                    current_state = notepad
+                    
+                    tracker = get_data_change_tracker()
+                    
+                    # Track changements depuis thinking
+                    new_data = tracker.track_thinking_changes(thinking_data, current_state)
+                    
+                    # Logger l'état après changements
+                    tracker.log_current_state(new_data, "État après thinking")
+                    
+                    result["data_changes"] = tracker.get_changes_history(limit=5)
+                    
+                    # 💾 CHECKPOINT: Sauvegarder l'état complet
+                    try:
+                        from core.conversation_checkpoint import get_checkpoint_manager
+                        checkpoint_manager = get_checkpoint_manager()
+                        
+                        checkpoint_id = checkpoint_manager.create_checkpoint(
+                            user_id=user_id,
+                            company_id=company_id or "default",
+                            thinking_data=thinking_data,
+                            notepad_data=notepad,
+                            metrics={
+                                "confiance_score": thinking_data['confiance']['score'],
+                                "completude": thinking_data['progression']['completude'],
+                                "phase_qualification": thinking_data['strategie_qualification']['phase']
+                            }
+                        )
+                        
+                        result["checkpoint_id"] = checkpoint_id
+                        logger.info(f"💾 [CHECKPOINT] Sauvegardé: {checkpoint_id}")
+                        
+                    except Exception as e:
+                        logger.warning(f"⚠️ [CHECKPOINT] Erreur sauvegarde: {e}")
+                    
+                except Exception as e:
+                    logger.warning(f"⚠️ [DATA_TRACKER] Erreur tracking: {e}")
+            else:
+                logger.warning(f"⚠️ [THINKING_PARSER] Parse échoué: {len(thinking_data.get('parsing_errors', []))} erreurs")
+                
+        except Exception as e:
+            logger.error(f"❌ [THINKING_PARSER] Erreur: {e}")
         
         # Compter outils exécutés
         if response_with_tools != response_clean:

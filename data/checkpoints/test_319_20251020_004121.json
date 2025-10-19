@@ -1,0 +1,68 @@
+{
+  "checkpoint_id": "test_319_20251020_004121",
+  "user_id": "test_319",
+  "company_id": "default",
+  "timestamp": "2025-10-20T00:41:21.202710",
+  "thinking": {
+    "success": true,
+    "deja_collecte": {
+      "type_produit": "Couches culottes",
+      "quantite": 150,
+      "zone": "Yopougon",
+      "telephone": null
+    },
+    "nouvelles_donnees": [
+      {
+        "cle": "localisation",
+        "valeur": "rue du grossite, Abidjan, Cote d'ivoire",
+        "source": "context",
+        "confiance": "HAUTE"
+      }
+    ],
+    "confiance": {
+      "score": 95,
+      "raison": "localisation trouvée"
+    },
+    "progression": {
+      "completude": "4/5",
+      "prochaine_etape": {
+        "type": "collecte",
+        "action": "Question produit ou validation commande"
+      }
+    },
+    "strategie_qualification": {
+      "phase": "validation",
+      "objectif": "Confirmer la commande",
+      "technique": "confirmation_commande"
+    },
+    "parsing_errors": []
+  },
+  "notepad": {
+    "created_at": "2025-10-20T00:41:20.206405",
+    "products": [],
+    "quantities": {},
+    "delivery_zone": null,
+    "delivery_cost": null,
+    "payment_method": null,
+    "payment_number": null,
+    "phone_number": null,
+    "calculated_totals": [],
+    "last_updated": "2025-10-20T00:41:20.206446",
+    "conversation_count": 0
+  },
+  "conversation_history": [],
+  "metrics": {
+    "confiance_score": 95,
+    "completude": "4/5",
+    "phase_qualification": "validation"
+  },
+  "metadata": {},
+  "statistics": {
+    "notepad_completude": "0/6",
+    "notepad_completude_pct": 0.0,
+    "conversation_length": 0,
+    "thinking_parsed": true,
+    "deja_collecte_count": 4,
+    "nouvelles_donnees_count": 1
+  }
+}

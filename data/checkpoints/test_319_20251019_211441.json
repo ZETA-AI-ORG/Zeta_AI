@@ -1,0 +1,74 @@
+{
+  "checkpoint_id": "test_319_20251019_211441",
+  "user_id": "test_319",
+  "company_id": "default",
+  "timestamp": "2025-10-19T21:14:41.434540",
+  "thinking": {
+    "success": true,
+    "deja_collecte": {
+      "type_produit": "Couches culottes",
+      "quantite": 150,
+      "zone": "Yopougon",
+      "telephone": null
+    },
+    "nouvelles_donnees": [
+      {
+        "cle": "type_produit",
+        "valeur": "Couches culottes",
+        "source": "question",
+        "confiance": "HAUTE"
+      },
+      {
+        "cle": "quantite",
+        "valeur": 150,
+        "source": "question",
+        "confiance": "HAUTE"
+      }
+    ],
+    "confiance": {
+      "score": 95,
+      "raison": "données complètes"
+    },
+    "progression": {
+      "completude": "4/5",
+      "prochaine_etape": {
+        "type": "calcul",
+        "action": "Calculer prix total avec livraison"
+      }
+    },
+    "strategie_qualification": {
+      "phase": "qualification",
+      "objectif": "Calculer prix total",
+      "technique": "utilisation_formule"
+    },
+    "parsing_errors": []
+  },
+  "notepad": {
+    "created_at": "2025-10-19T21:14:41.266262",
+    "products": [],
+    "quantities": {},
+    "delivery_zone": null,
+    "delivery_cost": null,
+    "payment_method": null,
+    "payment_number": null,
+    "phone_number": null,
+    "calculated_totals": [],
+    "last_updated": "2025-10-19T21:14:41.266277",
+    "conversation_count": 0
+  },
+  "conversation_history": [],
+  "metrics": {
+    "confiance_score": 95,
+    "completude": "4/5",
+    "phase_qualification": "qualification"
+  },
+  "metadata": {},
+  "statistics": {
+    "notepad_completude": "0/6",
+    "notepad_completude_pct": 0.0,
+    "conversation_length": 0,
+    "thinking_parsed": true,
+    "deja_collecte_count": 4,
+    "nouvelles_donnees_count": 2
+  }
+}

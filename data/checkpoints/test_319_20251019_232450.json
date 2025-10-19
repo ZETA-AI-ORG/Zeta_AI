@@ -1,0 +1,68 @@
+{
+  "checkpoint_id": "test_319_20251019_232450",
+  "user_id": "test_319",
+  "company_id": "default",
+  "timestamp": "2025-10-19T23:24:50.842079",
+  "thinking": {
+    "success": true,
+    "deja_collecte": {
+      "localisation": "rue du grossite, Abidjan, Cote d'ivoire",
+      "type_boutique": "Boutique uniquement en ligne",
+      "telephone": "+225 0160924560",
+      "zone": "Abidjan"
+    },
+    "nouvelles_donnees": [
+      {
+        "cle": "localisation",
+        "valeur": "rue du grossite, Abidjan, Cote d'ivoire",
+        "source": "context",
+        "confiance": "HAUTE"
+      }
+    ],
+    "confiance": {
+      "score": 95,
+      "raison": "contexte clair"
+    },
+    "progression": {
+      "completude": "2/5",
+      "prochaine_etape": {
+        "type": "collecte",
+        "action": "Question courte"
+      }
+    },
+    "strategie_qualification": {
+      "phase": "interet",
+      "objectif": "identifier produit",
+      "technique": "urgence"
+    },
+    "parsing_errors": []
+  },
+  "notepad": {
+    "created_at": "2025-10-19T23:24:50.268723",
+    "products": [],
+    "quantities": {},
+    "delivery_zone": null,
+    "delivery_cost": null,
+    "payment_method": null,
+    "payment_number": null,
+    "phone_number": null,
+    "calculated_totals": [],
+    "last_updated": "2025-10-19T23:24:50.268737",
+    "conversation_count": 0
+  },
+  "conversation_history": [],
+  "metrics": {
+    "confiance_score": 95,
+    "completude": "2/5",
+    "phase_qualification": "interet"
+  },
+  "metadata": {},
+  "statistics": {
+    "notepad_completude": "0/6",
+    "notepad_completude_pct": 0.0,
+    "conversation_length": 0,
+    "thinking_parsed": true,
+    "deja_collecte_count": 4,
+    "nouvelles_donnees_count": 1
+  }
+}

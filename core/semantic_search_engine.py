@@ -85,7 +85,8 @@ class OptimizedSemanticSearchEngine:
     
     def __init__(self):
         # Modèles multilingues optimisés pour le français
-        self.model_name = "sentence-transformers/paraphrase-multilingual-mpnet-base-v2"
+        # OPTIMISATION: Utilise modèle léger au lieu du lourd (1.11 GB → 90 MB)
+        self.model_name = "sentence-transformers/all-MiniLM-L6-v2"  # Modifié pour performance
         self.french_model_name = "dangvantuan/sentence-camembert-large"
         self.client = httpx.AsyncClient(timeout=30.0)
         
