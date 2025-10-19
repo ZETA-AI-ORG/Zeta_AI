@@ -55,8 +55,12 @@ stop_words = {
     "au", "aux",  # "à" retiré - doit passer pour les n-grams de 3 mots
     "ce", "cet", "cette", "ces",
     # === ADVERBES COMPLETS (200+) ===
-    # Adverbes interrogatifs
+    # Adverbes interrogatifs (questions vides sans valeur sémantique)
     "combien", "comment", "pourquoi", "quand", "où", "ou",
+    # Verbes de questionnement vides
+    "coute", "coûte", "couter", "coûter", "coûte", "coutent", "coûtent",
+    "coute-t-il", "coûte-t-il", "coute-t-elle", "coûte-t-elle",
+    "faire", "fait", "font", "fera", "feront", "ferait", "feraient",
     # Adverbes de quantité
     "beaucoup", "peu", "assez", "trop", "très", "fort", "tant", "autant",
     "plus", "moins", "davantage", "guère", "environ", "presque", "quasi",
@@ -192,21 +196,50 @@ def _lemmatize_fr(word, lemmatizer):
 
 def _calculate_smart_score_v2(content: str, query: str, all_docs_corpus: list) -> dict:
     """
-    Scoring intelligent : TF-IDF + BM25 (position) + Similarité fuzzy/lemmatisation
+    Scoring intelligent : TF-IDF + BM25 (position) + Similarité fuzzy
+    ⚠️ CORRECTION PUZZLE 3 : Pas de plafond 100 ici, on le fait après les boosts
     """
     import math
     import re
     from unidecode import unidecode
     from rapidfuzz import fuzz
-    # Système francophonie SUPPRIMÉ - utilisation simple normalisation
-    def norm_lem_words(text):
-        return [_normalize(w) for w in re.findall(r"\w+", text)]
+    
+    content_norm = _normalize(content)
+    query_norm = _normalize(query)
+    query_words = query_norm.split()
+    
+    # TF-IDF simplifié
+    tf_scores = []
+    for word in query_words:
+        tf = content_norm.count(word)
+        df = sum(1 for doc in all_docs_corpus if word in _normalize(doc))
+        idf = math.log((len(all_docs_corpus) + 1) / (df + 1)) if df > 0 else 0
+        tf_scores.append(tf * idf)
+    
+    tf_idf_score = sum(tf_scores) * 10
+    
+    # BM25 : position des mots
+    position_bonus = 0
+    content_words = content_norm.split()
+    for word in query_words:
+        if word in content_words:
+            pos = content_words.index(word)
+            position_bonus += max(0, 10 - (pos / 10))
+    
+    # Similarité fuzzy globale
+    fuzzy_score = fuzz.partial_ratio(query_norm, content_norm) / 2
+    
+    # Score final (PAS de plafond ici)
+    base_score = tf_idf_score + position_bonus + fuzzy_score
+    
+    return {
+        'score': base_score,
+        'tf_idf': tf_idf_score,
+        'position_bonus': position_bonus,
+        'fuzzy': fuzzy_score
+    }
 
-    query_words = norm_lem_words(query)
-    doc_words = norm_lem_words(content)
-    doc_length = len(doc_words)
-
-    # --- Nouveau scoring scalable ---
+    # --- Ancien scoring scalable (désactivé) ---
     # BONUS_EXACT scalable : 5 points par mot du n-gram (au lieu de 2)
     BONUS_EXACT = 5
     BONUS_FUZZY = 0.5
@@ -453,27 +486,10 @@ async def search_all_indexes_parallel(query: str, company_id: str, limit: int = 
     except Exception as e:
         logger.warning(f"⚠️ [MEILI_BOOST] Erreur boosters: {e}")
     
-    # ========== AMÉLIORATION 2: FILTRAGE DYNAMIQUE ==========
-    try:
-        from core.smart_metadata_extractor import filter_by_dynamic_threshold
-        
-        # Convertir pour filtrage
-        docs_for_filter = [{
-            'content': d['content'],
-            'score': d['score'],
-            'similarity': d.get('similarity', d['score'] / 100.0),
-            'metadata': d.get('metadata', {})
-        } for d in scored_documents]
-        
-        filtered_docs_standard = filter_by_dynamic_threshold(docs_for_filter)
-        logger.info(f"🔍 [MEILI_FILTER] {len(filtered_docs_standard)}/{len(scored_documents)} docs retenus après filtrage")
-        
-        # Garder seulement les docs filtrés
-        filtered_contents = {d['content'] for d in filtered_docs_standard}
-        scored_documents = [d for d in scored_documents if d['content'] in filtered_contents]
-        
-    except Exception as e:
-        logger.warning(f"⚠️ [MEILI_FILTER] Erreur filtrage: {e}")
+    # ========== AMÉLIORATION 2: FILTRAGE DYNAMIQUE (DÉSACTIVÉ - remplacé par DBR) ==========
+    # Le filtrage dynamique global est désactivé car le DBR inter-index garantit déjà la diversité
+    # et évite d'éliminer les docs delivery qui ont des scores naturellement plus bas
+    logger.info(f"🔍 [MEILI_FILTER] Filtrage dynamique global désactivé (DBR actif)")
     
     # ========== AMÉLIORATION 3: EXTRACTION CONTEXTE ==========
     try:
@@ -501,25 +517,28 @@ async def search_all_indexes_parallel(query: str, company_id: str, limit: int = 
     except Exception as e:
         logger.warning(f"⚠️ [MEILI_EXTRACT] Erreur extraction: {e}")
     
-    # ========== SEUIL INTELLIGENT AVEC MARGE ==========
-    threshold = 4
-    min_score = 1
-    filtered_docs = [d for d in scored_documents if d['score'] >= min_score]
-    high_score_docs = [d for d in filtered_docs if d['score'] >= threshold]
-    max_docs = 3
-    # Regrouper par index
+    # ========== PUZZLE 4 : DBR INTER-INDEX (TOP 3 par index matché) ==========
     from collections import defaultdict
     docs_by_index = defaultdict(list)
-    for doc in high_score_docs:
-        docs_by_index[doc.get('source_index','?')].append(doc)
-    # Sélectionner jusqu'à 3 docs par index
-    scored_documents = []
-    for idx, docs in docs_by_index.items():
-        scored_documents.extend(sorted(docs, key=lambda x: x['score'], reverse=True)[:max_docs])
-    # Tri final (optionnel, par score global)
-    scored_documents.sort(key=lambda x: x['score'], reverse=True)
+    
+    # Regrouper par index
+    for doc in scored_documents:
+        docs_by_index[doc['source_index']].append(doc)
+    
+    # Garder TOP 3 par index
+    final_docs = []
+    for index_name, docs in docs_by_index.items():
+        sorted_docs = sorted(docs, key=lambda x: x['score'], reverse=True)
+        top_3 = sorted_docs[:3]
+        final_docs.extend(top_3)
+        logger.info(f"📦 [DBR] {index_name}: {len(top_3)}/{len(docs)} docs gardés (scores: {[round(d['score'], 2) for d in top_3]})")
+    
+    # Trier globalement par score
+    scored_documents = sorted(final_docs, key=lambda x: x['score'], reverse=True)
+    
+    # Formater le contexte final
     formatted_context = ""
-    for i, doc in enumerate(scored_documents[:limit], 1):
+    for i, doc in enumerate(scored_documents, 1):
         keywords = doc.get('found_keywords', [])
         formatted_context += (
             f"DOCUMENT #{i} (Score: {doc['score']:.2f})\n"
@@ -528,7 +547,7 @@ async def search_all_indexes_parallel(query: str, company_id: str, limit: int = 
             f"{doc['content']}\n\n"
         )
     
-    # Log résumé : n-grams, nb docs, scores, puis contexte tronqué (2 docs max)
+    # Log résumé
     logger.info(f"📄 [MEILI_DEBUG] N-grams utilisés: {ngrams}")
     logger.info(f"📦 [MEILI_DEBUG] {len(scored_documents)} docs retenus, scores: {[round(d['score'],2) for d in scored_documents]}")
     logger.info(f"[FUZZY] Résumé: {sum([len(d.get('found_keywords', [])) for d in scored_documents])} n-grams matchés sur {len(scored_documents)} docs.")

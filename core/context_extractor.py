@@ -104,21 +104,25 @@ def _detect_doc_type(content: str) -> str:
 
 def _extract_product_info(content: str, query: str, user_context: Dict) -> str:
     """
-    Extrait UNIQUEMENT la variante demandée du produit (REGEX AMÉLIORÉS)
+    Extrait UNIQUEMENT la variante demandée du produit (FORMAT RÉDUIT STRATÉGIQUE)
+    
+    Format de sortie:
+        PRODUIT: [nom]
+        VARIANTE: [détails] | [prix]
+        - Quantité: [valeur]
+        - Description: [texte]
     
     Exemple:
         Query: "Prix 300 couches taille 3"
         Avant: 1500 chars (6 tailles)
-        Après: 150 chars (1 taille)
+        Après: 120 chars (1 taille, format réduit)
     """
     lines = content.split("\n")
     extracted_lines = []
     
-    # Garder header (nom produit, catégorie)
-    for i, line in enumerate(lines[:10]):  # 10 premières lignes max
-        if any(kw in line for kw in ["PRODUIT:", "Catégorie:", "Sous-catégorie:"]):
-            extracted_lines.append(line)
-        if "VARIANTES ET PRIX" in line:
+    # Garder UNIQUEMENT le nom du produit (pas catégorie/sous-catégorie)
+    for i, line in enumerate(lines[:10]):
+        if "PRODUIT:" in line:
             extracted_lines.append(line)
             break
     
@@ -148,40 +152,51 @@ def _extract_product_info(content: str, query: str, user_context: Dict) -> str:
             requested_variant = quantite_match.group(1)
             break
     
-    # Extraction variante
+    # Extraction variante avec FORMAT RÉDUIT
     if requested_variant:
         in_variant = False
-        variant_lines = []
+        variant_data = {}
         
         for line in lines:
             line_lower = line.lower()
             
-            # Début variante demandée
-            if requested_variant.lower() in line_lower:
+            # Début variante demandée (ligne VARIANTE:)
+            if requested_variant.lower() in line_lower and "variante:" in line_lower:
                 in_variant = True
-                variant_lines.append(line)
+                variant_data['variante'] = line.replace("VARIANTE:", "").strip()
             
-            # Lignes de la variante (indentées)
-            elif in_variant and (line.startswith("   -") or line.startswith("   ")):
-                variant_lines.append(line)
-            
-            # Fin variante (nouvelle variante ou section)
-            elif in_variant and (re.match(r'^\d+\.', line) or line.startswith("USAGE")):
-                break
+            # Extraction des champs clés (Quantité, Description)
+            elif in_variant:
+                if "quantité:" in line_lower or "quantite:" in line_lower:
+                    variant_data['quantite'] = line.strip()
+                elif "description:" in line_lower:
+                    variant_data['description'] = line.strip()
+                # Fin variante (nouvelle variante ou section)
+                elif re.match(r'^VARIANTE:', line) or line.startswith("USAGE"):
+                    break
         
-        if variant_lines:
-            extracted_lines.extend(variant_lines)
+        if variant_data:
+            # Format réduit stratégique
+            extracted_lines.append(f"VARIANTE: {variant_data.get('variante', '')}")
+            if 'quantite' in variant_data:
+                extracted_lines.append(variant_data['quantite'])
+            if 'description' in variant_data:
+                extracted_lines.append(variant_data['description'])
+            
             logger.info(f"🎯 [PRODUIT] Variante extraite: {requested_variant}")
-            logger.info(f"✅ [EXTRACTION STRICTE] {len(variant_lines)} lignes gardées (au lieu de {len(lines)})")
+            logger.info(f"✅ [EXTRACTION RÉDUITE] Format stratégique appliqué")
         else:
-            # ✅ AMÉLIORATION: Fallback plus intelligent
-            # Si variante demandée mais non trouvée → garder seulement header + 2 premières variantes
-            logger.warning(f"⚠️ [PRODUIT] Variante '{requested_variant}' non trouvée, fallback limité")
-            extracted_lines.extend(lines[:15])  # Header + ~2 variantes max
+            # Fallback: garder première variante en format réduit
+            logger.warning(f"⚠️ [PRODUIT] Variante '{requested_variant}' non trouvée, fallback")
+            for line in lines[:15]:
+                if "VARIANTE:" in line or "- Quantité:" in line or "- Description:" in line:
+                    extracted_lines.append(line)
     else:
-        # ✅ AMÉLIORATION: Pas de variante spécifique → limiter à 3 premières variantes
-        logger.info(f"📋 [PRODUIT] Aucune variante spécifique, limitation à 3 variantes")
-        extracted_lines = lines[:20]  # Header + ~3 variantes max
+        # Pas de variante spécifique: garder première variante en format réduit
+        logger.info(f"📋 [PRODUIT] Aucune variante spécifique, première variante en format réduit")
+        for line in lines[:15]:
+            if "VARIANTE:" in line or "- Quantité:" in line or "- Description:" in line:
+                extracted_lines.append(line)
     
     return "\n".join(extracted_lines)
 

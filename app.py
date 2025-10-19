@@ -97,6 +97,7 @@ if not config.MEILI_API_KEY or not config.SUPABASE_KEY:
     warnings.warn("[SECURITY] Clé API Meilisearch ou Supabase manquante! Vérifiez vos variables d'environnement.")
 
 from core.models import ChatRequest
+from FIX_CONTEXT_LOSS_COMPLETE import build_smart_context_summary, extract_from_last_exchanges
 from pydantic import BaseModel
 from core.universal_rag_engine import get_universal_rag_response
 from core.prompt_manager import PromptManager
@@ -1293,40 +1294,40 @@ async def chat_endpoint(req: ChatRequest, request: Request):
         except Exception as cache_error:
             log3("[CACHE ERROR]", f"Erreur cache exact: {cache_error}")
         
-        # NIVEAU 2: Cache sémantique (similarité)
+        # NIVEAU 2: Cache sémantique (similarité) - DÉSACTIVÉ POUR TESTS
         try:
-            from core.semantic_cache import check_semantic_cache
-            
-            semantic_result = check_semantic_cache(req.message, req.company_id)
-            
-            if semantic_result:
-                similarity = semantic_result.get("similarity", 0)
-                # Convertir numpy types en Python natifs
-                similarity = float(similarity) if hasattr(similarity, 'item') else float(similarity)
+            if False:  # Désactivé temporairement
+                from core.semantic_cache import check_semantic_cache
                 
-                log3("[CACHE SEMANTIC HIT]", f"Réponse similaire trouvée (similarité: {similarity:.3f})")
-                log3("[CACHE SEMANTIC]", f"Question originale: {semantic_result.get('original_query', '')[:50]}...")
-                log3("[CACHE HIT]", f"Temps économisé: ~3-5 secondes de traitement RAG")
+                semantic_result = check_semantic_cache(req.message, req.company_id)
                 
-                response_data = semantic_result.get("response")
-                if isinstance(response_data, dict):
-                    response_data["cached"] = True
-                    response_data["cache_type"] = "semantic"
-                    response_data["similarity"] = similarity
-                    response_data["cache_hit_time"] = "~100ms"
-                else:
-                    response_data = {
-                        "response": response_data,
-                        "cached": True,
-                        "cache_type": "semantic",
-                        "similarity": similarity,
-                        "cache_hit_time": "~100ms"
-                    }
+                if semantic_result:
+                    similarity = semantic_result.get("similarity", 0)
+                    # Convertir numpy types en Python natifs
+                    similarity = float(similarity) if hasattr(similarity, 'item') else float(similarity)
+                    
+                    log3("[CACHE SEMANTIC HIT]", f"Réponse similaire trouvée (similarité: {similarity:.3f})")
+                    log3("[CACHE SEMANTIC]", f"Question originale: {semantic_result.get('original_query', '')[:50]}...")
+                    log3("[CACHE HIT]", f"Temps économisé: ~3-5 secondes de traitement RAG")
+                    
+                    response_data = semantic_result.get("response")
+                    if isinstance(response_data, dict):
+                        response_data["cached"] = True
+                        response_data["cache_type"] = "semantic"
+                        response_data["similarity"] = similarity
+                        response_data["cache_hit_time"] = "~100ms"
+                    else:
+                        response_data = {
+                            "response": response_data,
+                            "cached": True,
+                            "cache_type": "semantic",
+                            "similarity": similarity,
+                            "cache_hit_time": "~100ms"
+                        }
+                    
+                    return response_data
                 
-                return response_data
-            
-            log3("[CACHE SEMANTIC MISS]", "Aucune réponse similaire, traitement RAG complet")
-            
+                log3("[CACHE SEMANTIC MISS]", "Aucune réponse similaire, traitement RAG complet")
         except Exception as semantic_error:
             log3("[CACHE SEMANTIC ERROR]", f"Erreur cache sémantique: {semantic_error}")
         # Continuer sans cache en cas d'erreur
@@ -1525,13 +1526,28 @@ async def chat_endpoint(req: ChatRequest, request: Request):
     else:
         # RAG normal. Si image seule, créer un fallback minimal
         msg_for_rag = req.message or ("[Image reçue]" if (req.images and len(req.images) > 0) else "")
+
+        # ========== CONSTRUCTION CONTEXTE INTELLIGENT ==========
+        print(" [CONTEXT] Construction contexte intelligent...")
+        context_summary = ""
+        try:
+            context_summary = build_smart_context_summary(
+                conversation_history=conversation_history,
+                user_id=req.user_id,
+                company_id=req.company_id
+            )
+            print(f" [CONTEXT] Résumé généré:\n{context_summary}")
+        except Exception as ctx_error:
+            print(f" [CONTEXT] Erreur construction contexte: {ctx_error}")
+            context_summary = ""
+
         response = await safe_api_call(
             lambda: get_universal_rag_response(msg_for_rag, req.company_id, req.user_id, req.images, conversation_history, False, request_id),
             context="rag_response",
             fallback_func=lambda: "Je rencontre des difficultés techniques. Pouvez-vous reformuler votre question ?",
             max_retries=3
         )
-    
+
     # Si erreur dans RAG, utiliser la réponse fallback
     if hasattr(response, 'success') and not response.success:
         response = response.fallback_response or "Service temporairement indisponible."
@@ -1576,6 +1592,39 @@ async def chat_endpoint(req: ChatRequest, request: Request):
             
             await save_message_supabase(req.company_id, req.user_id, "assistant", {"text": response_text})
             print(f"🔍 [CHAT_ENDPOINT] Réponse assistant sauvegardée")
+            
+            # ========== EXTRACTION ET SAUVEGARDE CONTEXTE ==========
+            print("🧠 [CONTEXT] Extraction contexte depuis historique...")
+            try:
+                # Construire historique complet avec nouveau message
+                full_history = conversation_history + f"\nClient: {req.message}\nVous: {response_text}"
+                
+                # Extraire infos
+                extracted = extract_from_last_exchanges(full_history)
+                
+                if extracted:
+                    print(f"✅ [CONTEXT] Infos extraites: {extracted}")
+                    
+                    # Sauvegarder dans notepad
+                    try:
+                        from core.conversation_notepad import get_conversation_notepad
+                        notepad = get_conversation_notepad()
+                        
+                        for key, value in extracted.items():
+                            if key == 'produit':
+                                notepad.add_product(value, req.user_id, req.company_id)
+                            elif key in ['zone', 'frais_livraison', 'telephone', 'paiement', 'acompte', 'prix_produit', 'total']:
+                                notepad.add_info(key, value, req.user_id, req.company_id)
+                        
+                        print(f"✅ [CONTEXT] Contexte sauvegardé dans notepad")
+                    except Exception as notepad_error:
+                        print(f"⚠️ [CONTEXT] Erreur sauvegarde notepad: {notepad_error}")
+                else:
+                    print("⚠️ [CONTEXT] Aucune info extraite")
+            
+            except Exception as extract_error:
+                print(f"⚠️ [CONTEXT] Erreur extraction: {extract_error}")
+            
         except Exception as e:
             print(f"🔍 [CHAT_ENDPOINT] Erreur sauvegarde réponse: {e}")
         

@@ -100,8 +100,8 @@ temp/
 CHATBOT2.0 BEFORE LAST/
 
 # ===== FICHIERS DE TEST =====
-test_*.py
-*_test.py
+# test_*.py  # Temporairement désactivé pour tests PUZZLE
+# *_test.py  # Temporairement désactivé pour tests PUZZLE
 tests/__pycache__/
 
 # ===== DOCUMENTATION TEMPORAIRE =====
