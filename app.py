@@ -118,7 +118,15 @@ if not config.MEILI_API_KEY or not config.SUPABASE_KEY:
     warnings.warn("[SECURITY] Clé API Meilisearch ou Supabase manquante! Vérifiez vos variables d'environnement.")
 
 from core.models import ChatRequest
-from FIX_CONTEXT_LOSS_COMPLETE import build_smart_context_summary, extract_from_last_exchanges
+try:
+    from FIX_CONTEXT_LOSS_COMPLETE import build_smart_context_summary, extract_from_last_exchanges
+except Exception as e:
+    logger.warning(f"⚠️ FIX_CONTEXT_LOSS_COMPLETE import failed: {e}")
+    # Fallback functions
+    def build_smart_context_summary(*args, **kwargs):
+        return ""
+    def extract_from_last_exchanges(*args, **kwargs):
+        return []
 from pydantic import BaseModel
 from core.universal_rag_engine import get_universal_rag_response
 from core.prompt_manager import PromptManager
