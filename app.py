@@ -117,9 +117,12 @@ if not config.MEILI_API_KEY or not config.SUPABASE_KEY:
     import warnings
     warnings.warn("[SECURITY] Clé API Meilisearch ou Supabase manquante! Vérifiez vos variables d'environnement.")
 
+print("🔍 [DEBUG] Importing core.models...")
 from core.models import ChatRequest
+print("🔍 [DEBUG] Importing FIX_CONTEXT_LOSS_COMPLETE...")
 try:
     from FIX_CONTEXT_LOSS_COMPLETE import build_smart_context_summary, extract_from_last_exchanges
+    print("✅ [DEBUG] FIX_CONTEXT_LOSS_COMPLETE imported")
 except Exception as e:
     logger.warning(f"⚠️ FIX_CONTEXT_LOSS_COMPLETE import failed: {e}")
     # Fallback functions
@@ -127,31 +130,49 @@ except Exception as e:
         return ""
     def extract_from_last_exchanges(*args, **kwargs):
         return []
+print("🔍 [DEBUG] Importing pydantic...")
 from pydantic import BaseModel
+print("🔍 [DEBUG] Importing universal_rag_engine...")
 from core.universal_rag_engine import get_universal_rag_response
+print("🔍 [DEBUG] Importing prompt_manager...")
 from core.prompt_manager import PromptManager
+print("🔍 [DEBUG] Importing supabase_client...")
 from database.supabase_client import get_company_system_prompt, search_supabase_semantic, get_supabase_client
+print("🔍 [DEBUG] Importing ingestion_api...")
 from ingestion.ingestion_api import router as ingestion_router
+print("🔍 [DEBUG] Importing global_embedding_cache...")
 from core.global_embedding_cache import initialize_global_cache, cleanup_global_cache
+print("🔍 [DEBUG] Importing auth router...")
 from routes.auth import router as auth_router
+print("🔍 [DEBUG] Importing routes...")
 from routes import auth, messenger
+print("🔍 [DEBUG] Importing meili_ingest_api...")
 from meili_ingest_api import router as meili_router
 # from routes.rag import router as rag_router  # SUPPRIMÉ - fichier obsolète
+print("🔍 [DEBUG] Importing meili router...")
 from routes.meili import router as meili_explorer_router
 app.include_router(meili_explorer_router, prefix="/meili")
+print("🔍 [DEBUG] Importing utils...")
 from utils import log3, groq_resilience
+print("🔍 [DEBUG] Importing security_validator...")
 from core.security_validator import validate_user_prompt
+print("🔍 [DEBUG] Importing hallucination_guard...")
 from core.hallucination_guard import check_ai_response
+print("🔍 [DEBUG] Importing error_handler...")
 from core.error_handler import safe_api_call, global_error_handler
+print("🔍 [DEBUG] Importing circuit_breaker...")
 from core.circuit_breaker import groq_circuit_breaker, supabase_circuit_breaker, meilisearch_circuit_breaker
 import traceback
 
 # --- Image search API ---
+print("🔍 [DEBUG] Importing image_search...")
 from api.image_search import router as image_search_router
 
 # --- Botlive API Routes ---
+print("🔍 [DEBUG] Importing botlive router...")
 from routes.botlive import router as botlive_router
 app.include_router(botlive_router)
+print("✅ [DEBUG] All imports completed!")
 
 # --- Models for prompt admin ---
 class PromptUpdateRequest(BaseModel):
