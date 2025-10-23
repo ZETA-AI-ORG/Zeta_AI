@@ -194,12 +194,9 @@ class FrenchNLPProcessor:
     
     def _init_lemmatizer(self):
         """Initialise le lemmatiseur français"""
-        try:
-            self.lemmatizer = FrenchLefffLemmatizer()
-            logger.info("✅ Lemmatiseur français initialisé")
-        except Exception as e:
-            logger.error(f"❌ Erreur init lemmatiseur: {e}")
-            self.lemmatizer = None
+        # Lemmatiseur désactivé (package non installé)
+        self.lemmatizer = None
+        logger.info("ℹ️ Lemmatiseur désactivé (non requis)")
     
     def normalize_text(self, text: str) -> str:
         """Normalise le texte (accents, casse, ponctuation)"""
