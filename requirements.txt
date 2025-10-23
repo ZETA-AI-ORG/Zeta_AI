@@ -18,7 +18,6 @@ redis>=5.0.1
 # Text processing
 unidecode>=1.3.6
 rapidfuzz>=3.0.0
-french-lefff-lemmatizer>=0.4.0
 
 # ML/Embeddings dependencies
 sentence-transformers>=2.2.2
