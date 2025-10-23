@@ -1,0 +1,74 @@
+{
+  "checkpoint_id": "test_client_simulator_20251020_090845",
+  "user_id": "test_client_simulator",
+  "company_id": "default",
+  "timestamp": "2025-10-20T09:08:45.643306",
+  "thinking": {
+    "success": true,
+    "deja_collecte": {
+      "type_produit": null,
+      "quantite": 300,
+      "zone": null,
+      "telephone": null
+    },
+    "nouvelles_donnees": [
+      {
+        "cle": "quantite",
+        "valeur": 300,
+        "source": "question",
+        "confiance": "HAUTE"
+      },
+      {
+        "cle": "taille",
+        "valeur": 3,
+        "source": "question",
+        "confiance": "HAUTE"
+      }
+    ],
+    "confiance": {
+      "score": 60,
+      "raison": "Type de couches manquant"
+    },
+    "progression": {
+      "completude": "2/5",
+      "prochaine_etape": {
+        "type": "collecte",
+        "action": "Demander type de couches"
+      }
+    },
+    "strategie_qualification": {
+      "phase": "decouverte",
+      "objectif": "Identifier type exact de couches",
+      "technique": "clarification_obligatoire"
+    },
+    "parsing_errors": []
+  },
+  "notepad": {
+    "created_at": "2025-10-20T09:08:45.584104",
+    "products": [],
+    "quantities": {},
+    "delivery_zone": null,
+    "delivery_cost": null,
+    "payment_method": null,
+    "payment_number": null,
+    "phone_number": null,
+    "calculated_totals": [],
+    "last_updated": "2025-10-20T09:08:45.584121",
+    "conversation_count": 0
+  },
+  "conversation_history": [],
+  "metrics": {
+    "confiance_score": 60,
+    "completude": "2/5",
+    "phase_qualification": "decouverte"
+  },
+  "metadata": {},
+  "statistics": {
+    "notepad_completude": "0/6",
+    "notepad_completude_pct": 0.0,
+    "conversation_length": 0,
+    "thinking_parsed": true,
+    "deja_collecte_count": 4,
+    "nouvelles_donnees_count": 2
+  }
+}

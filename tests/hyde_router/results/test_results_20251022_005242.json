@@ -1,0 +1,161 @@
+{
+  "timestamp": "20251022_005242",
+  "summary": {
+    "total": 12,
+    "passed": 10,
+    "failed": 2,
+    "errors": 0,
+    "pass_rate": 83.33333333333334,
+    "avg_tokens": 641.6666666666666,
+    "total_tokens": 7700,
+    "total_cost_usd": 0.00043119999999999996,
+    "avg_cost_per_request_usd": 3.593333333333333e-05,
+    "estimated_cost_1000_requests_usd": 0.03593333333333333
+  },
+  "results": [
+    {
+      "scenario_id": "S1_debut_conversation",
+      "description": "Client démarre la conversation - rien collecté",
+      "status": "PASS",
+      "expected_phase": 1,
+      "actual_phase": 1,
+      "expected_raison": "produit et variante manquants",
+      "actual_raison": "produit et variante manquants",
+      "tokens_used": 610,
+      "prompt": "Tu es un routeur de workflow commercial. Analyse l'état de la collecte de données et détermine la phase suivante.\n\n## DONNÉES À COLLECTER (dans l'ordre)\n\n1. **PRODUIT + VARIANTE** (obligatoires ensemble)\n2. **ZONE + CONTACT** (obligatoires ensemble)  \n3. **PAIEMENT** (validation finale)\n\n## ÉTAT ACTUEL\n\n📦 Produit: ❌ manquant\n🔧 Variante: ❌ manquant\n📍 Zone: ❌ manquant\n📞 Téléphone: ❌ manquant\n💳 Paiement: ❌ manquant\n\n## HISTORIQUE CONVERSATION\n\nClient: Bonjour\n\n## LOGIQUE DE DÉCISION (STRICTE)\n\n**PHASE 1 - Collecte Produit/Variante**\n→ SI produit = ❌ manquant OU variante = ❌ manquant\n→ ALORS Phase 1\n\n**PHASE 2 - Collecte Livraison/Contact**\n→ SI produit ≠ ❌ manquant ET variante ≠ ❌ manquant\n→ ET (zone = ❌ manquant OU telephone = ❌ manquant)\n→ ALORS Phase 2\n\n**PHASE 3 - Validation Paiement**\n→ SI produit ≠ ❌ manquant ET variante ≠ ❌ manquant\n→ ET zone ≠ ❌ manquant ET telephone ≠ ❌ manquant\n→ ALORS Phase 3\n\n## EXEMPLES\n\n**Exemple 1:**\n- Produit: ❌ manquant, Variante: ❌ manquant\n- Décision: Phase 1 (produit et variante manquants)\n\n**Exemple 2:**\n- Produit: \"Chaussures Nike\", Variante: \"Taille 42\"\n- Zone: ❌ manquant, Téléphone: ❌ manquant\n- Décision: Phase 2 (produit/variante OK, collecte livraison)\n\n**Exemple 3:**\n- Produit: \"Chaussures Nike\", Variante: \"Taille 42\"\n- Zone: \"Paris\", Téléphone: \"0601020304\"\n- Paiement: \"pending\"\n- Décision: Phase 3 (tout collecté, attente paiement)\n\n---\n\nQuestion client: Bonjour\n\nIMPORTANT: Retourne UNIQUEMENT le JSON, RIEN D'AUTRE. Pas d'explication, pas d'analyse, juste le JSON.\n\nFormat de réponse (STRICTEMENT):\n{\"phase\": X, \"raison\": \"explication courte\"}\n",
+      "raw_response": "{\"phase\": 1, \"raison\": \"produit et variante manquants\"}"
+    },
+    {
+      "scenario_id": "S2_produit_sans_variante",
+      "description": "Client mentionne produit mais pas la variante",
+      "status": "PASS",
+      "expected_phase": 1,
+      "actual_phase": 1,
+      "expected_raison": "variante manquante",
+      "actual_raison": "Produit et variante manquants",
+      "tokens_used": 634,
+      "prompt": "Tu es un routeur de workflow commercial. Analyse l'état de la collecte de données et détermine la phase suivante.\n\n## DONNÉES À COLLECTER (dans l'ordre)\n\n1. **PRODUIT + VARIANTE** (obligatoires ensemble)\n2. **ZONE + CONTACT** (obligatoires ensemble)  \n3. **PAIEMENT** (validation finale)\n\n## ÉTAT ACTUEL\n\n📦 Produit: Couches à pression\n🔧 Variante: ❌ manquant\n📍 Zone: ❌ manquant\n📞 Téléphone: ❌ manquant\n💳 Paiement: ❌ manquant\n\n## HISTORIQUE CONVERSATION\n\nClient: Je veux des couches à pression\nAgent: Quelle taille vous intéresse?\n\n## LOGIQUE DE DÉCISION (STRICTE)\n\n**PHASE 1 - Collecte Produit/Variante**\n→ SI produit = ❌ manquant OU variante = ❌ manquant\n→ ALORS Phase 1\n\n**PHASE 2 - Collecte Livraison/Contact**\n→ SI produit ≠ ❌ manquant ET variante ≠ ❌ manquant\n→ ET (zone = ❌ manquant OU telephone = ❌ manquant)\n→ ALORS Phase 2\n\n**PHASE 3 - Validation Paiement**\n→ SI produit ≠ ❌ manquant ET variante ≠ ❌ manquant\n→ ET zone ≠ ❌ manquant ET telephone ≠ ❌ manquant\n→ ALORS Phase 3\n\n## EXEMPLES\n\n**Exemple 1:**\n- Produit: ❌ manquant, Variante: ❌ manquant\n- Décision: Phase 1 (produit et variante manquants)\n\n**Exemple 2:**\n- Produit: \"Chaussures Nike\", Variante: \"Taille 42\"\n- Zone: ❌ manquant, Téléphone: ❌ manquant\n- Décision: Phase 2 (produit/variante OK, collecte livraison)\n\n**Exemple 3:**\n- Produit: \"Chaussures Nike\", Variante: \"Taille 42\"\n- Zone: \"Paris\", Téléphone: \"0601020304\"\n- Paiement: \"pending\"\n- Décision: Phase 3 (tout collecté, attente paiement)\n\n---\n\nQuestion client: Je veux des couches à pression\n\nIMPORTANT: Retourne UNIQUEMENT le JSON, RIEN D'AUTRE. Pas d'explication, pas d'analyse, juste le JSON.\n\nFormat de réponse (STRICTEMENT):\n{\"phase\": X, \"raison\": \"explication courte\"}\n",
+      "raw_response": "{\"phase\": 1, \"raison\": \"Produit et variante manquants\"}"
+    },
+    {
+      "scenario_id": "S3_variante_sans_produit",
+      "description": "Client mentionne taille mais produit pas clair",
+      "status": "PASS",
+      "expected_phase": 1,
+      "actual_phase": 1,
+      "expected_raison": "produit manquant",
+      "actual_raison": "Produit et variante manquants",
+      "tokens_used": 624,
+      "prompt": "Tu es un routeur de workflow commercial. Analyse l'état de la collecte de données et détermine la phase suivante.\n\n## DONNÉES À COLLECTER (dans l'ordre)\n\n1. **PRODUIT + VARIANTE** (obligatoires ensemble)\n2. **ZONE + CONTACT** (obligatoires ensemble)  \n3. **PAIEMENT** (validation finale)\n\n## ÉTAT ACTUEL\n\n📦 Produit: ❌ manquant\n🔧 Variante: Taille 3\n📍 Zone: ❌ manquant\n📞 Téléphone: ❌ manquant\n💳 Paiement: ❌ manquant\n\n## HISTORIQUE CONVERSATION\n\nClient: Taille 3\nAgent: Taille 3 de quel produit?\n\n## LOGIQUE DE DÉCISION (STRICTE)\n\n**PHASE 1 - Collecte Produit/Variante**\n→ SI produit = ❌ manquant OU variante = ❌ manquant\n→ ALORS Phase 1\n\n**PHASE 2 - Collecte Livraison/Contact**\n→ SI produit ≠ ❌ manquant ET variante ≠ ❌ manquant\n→ ET (zone = ❌ manquant OU telephone = ❌ manquant)\n→ ALORS Phase 2\n\n**PHASE 3 - Validation Paiement**\n→ SI produit ≠ ❌ manquant ET variante ≠ ❌ manquant\n→ ET zone ≠ ❌ manquant ET telephone ≠ ❌ manquant\n→ ALORS Phase 3\n\n## EXEMPLES\n\n**Exemple 1:**\n- Produit: ❌ manquant, Variante: ❌ manquant\n- Décision: Phase 1 (produit et variante manquants)\n\n**Exemple 2:**\n- Produit: \"Chaussures Nike\", Variante: \"Taille 42\"\n- Zone: ❌ manquant, Téléphone: ❌ manquant\n- Décision: Phase 2 (produit/variante OK, collecte livraison)\n\n**Exemple 3:**\n- Produit: \"Chaussures Nike\", Variante: \"Taille 42\"\n- Zone: \"Paris\", Téléphone: \"0601020304\"\n- Paiement: \"pending\"\n- Décision: Phase 3 (tout collecté, attente paiement)\n\n---\n\nQuestion client: Taille 3\n\nIMPORTANT: Retourne UNIQUEMENT le JSON, RIEN D'AUTRE. Pas d'explication, pas d'analyse, juste le JSON.\n\nFormat de réponse (STRICTEMENT):\n{\"phase\": X, \"raison\": \"explication courte\"}\n",
+      "raw_response": "{\"phase\": 1, \"raison\": \"Produit et variante manquants\"}"
+    },
+    {
+      "scenario_id": "S4_produit_variante_ok",
+      "description": "Produit + variante collectés, passage à livraison",
+      "status": "PASS",
+      "expected_phase": 2,
+      "actual_phase": 2,
+      "expected_raison": "produit/variante OK, zone et contact manquants",
+      "actual_raison": "Produit et variante collectés, mais zone et téléphone manquants",
+      "tokens_used": 665,
+      "prompt": "Tu es un routeur de workflow commercial. Analyse l'état de la collecte de données et détermine la phase suivante.\n\n## DONNÉES À COLLECTER (dans l'ordre)\n\n1. **PRODUIT + VARIANTE** (obligatoires ensemble)\n2. **ZONE + CONTACT** (obligatoires ensemble)  \n3. **PAIEMENT** (validation finale)\n\n## ÉTAT ACTUEL\n\n📦 Produit: Couches à pression\n🔧 Variante: Taille 3 - Lot 300\n📍 Zone: ❌ manquant\n📞 Téléphone: ❌ manquant\n💳 Paiement: ❌ manquant\n\n## HISTORIQUE CONVERSATION\n\nClient: Je veux des couches à pression\nAgent: Quelle taille?\nClient: Taille 3, lot de 300\nAgent: Parfait! Dans quelle zone livrer?\n\n## LOGIQUE DE DÉCISION (STRICTE)\n\n**PHASE 1 - Collecte Produit/Variante**\n→ SI produit = ❌ manquant OU variante = ❌ manquant\n→ ALORS Phase 1\n\n**PHASE 2 - Collecte Livraison/Contact**\n→ SI produit ≠ ❌ manquant ET variante ≠ ❌ manquant\n→ ET (zone = ❌ manquant OU telephone = ❌ manquant)\n→ ALORS Phase 2\n\n**PHASE 3 - Validation Paiement**\n→ SI produit ≠ ❌ manquant ET variante ≠ ❌ manquant\n→ ET zone ≠ ❌ manquant ET telephone ≠ ❌ manquant\n→ ALORS Phase 3\n\n## EXEMPLES\n\n**Exemple 1:**\n- Produit: ❌ manquant, Variante: ❌ manquant\n- Décision: Phase 1 (produit et variante manquants)\n\n**Exemple 2:**\n- Produit: \"Chaussures Nike\", Variante: \"Taille 42\"\n- Zone: ❌ manquant, Téléphone: ❌ manquant\n- Décision: Phase 2 (produit/variante OK, collecte livraison)\n\n**Exemple 3:**\n- Produit: \"Chaussures Nike\", Variante: \"Taille 42\"\n- Zone: \"Paris\", Téléphone: \"0601020304\"\n- Paiement: \"pending\"\n- Décision: Phase 3 (tout collecté, attente paiement)\n\n---\n\nQuestion client: Taille 3, lot de 300\n\nIMPORTANT: Retourne UNIQUEMENT le JSON, RIEN D'AUTRE. Pas d'explication, pas d'analyse, juste le JSON.\n\nFormat de réponse (STRICTEMENT):\n{\"phase\": X, \"raison\": \"explication courte\"}\n",
+      "raw_response": "{\"phase\": 2, \"raison\": \"Produit et variante collectés, mais zone et téléphone manquants\"}"
+    },
+    {
+      "scenario_id": "S5_zone_sans_contact",
+      "description": "Zone collectée mais pas le téléphone",
+      "status": "PASS",
+      "expected_phase": 2,
+      "actual_phase": 2,
+      "expected_raison": "contact manquant",
+      "actual_raison": "Produit et variante OK, zone manquante",
+      "tokens_used": 632,
+      "prompt": "Tu es un routeur de workflow commercial. Analyse l'état de la collecte de données et détermine la phase suivante.\n\n## DONNÉES À COLLECTER (dans l'ordre)\n\n1. **PRODUIT + VARIANTE** (obligatoires ensemble)\n2. **ZONE + CONTACT** (obligatoires ensemble)  \n3. **PAIEMENT** (validation finale)\n\n## ÉTAT ACTUEL\n\n📦 Produit: Couches à pression\n🔧 Variante: Taille 3 - Lot 300\n📍 Zone: Angré\n📞 Téléphone: ❌ manquant\n💳 Paiement: ❌ manquant\n\n## HISTORIQUE CONVERSATION\n\nClient: Je suis à Angré\nAgent: Quel est votre numéro de téléphone?\n\n## LOGIQUE DE DÉCISION (STRICTE)\n\n**PHASE 1 - Collecte Produit/Variante**\n→ SI produit = ❌ manquant OU variante = ❌ manquant\n→ ALORS Phase 1\n\n**PHASE 2 - Collecte Livraison/Contact**\n→ SI produit ≠ ❌ manquant ET variante ≠ ❌ manquant\n→ ET (zone = ❌ manquant OU telephone = ❌ manquant)\n→ ALORS Phase 2\n\n**PHASE 3 - Validation Paiement**\n→ SI produit ≠ ❌ manquant ET variante ≠ ❌ manquant\n→ ET zone ≠ ❌ manquant ET telephone ≠ ❌ manquant\n→ ALORS Phase 3\n\n## EXEMPLES\n\n**Exemple 1:**\n- Produit: ❌ manquant, Variante: ❌ manquant\n- Décision: Phase 1 (produit et variante manquants)\n\n**Exemple 2:**\n- Produit: \"Chaussures Nike\", Variante: \"Taille 42\"\n- Zone: ❌ manquant, Téléphone: ❌ manquant\n- Décision: Phase 2 (produit/variante OK, collecte livraison)\n\n**Exemple 3:**\n- Produit: \"Chaussures Nike\", Variante: \"Taille 42\"\n- Zone: \"Paris\", Téléphone: \"0601020304\"\n- Paiement: \"pending\"\n- Décision: Phase 3 (tout collecté, attente paiement)\n\n---\n\nQuestion client: Je suis à Angré\n\nIMPORTANT: Retourne UNIQUEMENT le JSON, RIEN D'AUTRE. Pas d'explication, pas d'analyse, juste le JSON.\n\nFormat de réponse (STRICTEMENT):\n{\"phase\": X, \"raison\": \"explication courte\"}\n",
+      "raw_response": "{\"phase\": 2, \"raison\": \"Produit et variante OK, zone manquante\"}"
+    },
+    {
+      "scenario_id": "S6_contact_sans_zone",
+      "description": "Téléphone collecté mais pas la zone",
+      "status": "PASS",
+      "expected_phase": 2,
+      "actual_phase": 2,
+      "expected_raison": "zone manquante",
+      "actual_raison": "Produit et variante OK, mais zone et téléphone manquants",
+      "tokens_used": 644,
+      "prompt": "Tu es un routeur de workflow commercial. Analyse l'état de la collecte de données et détermine la phase suivante.\n\n## DONNÉES À COLLECTER (dans l'ordre)\n\n1. **PRODUIT + VARIANTE** (obligatoires ensemble)\n2. **ZONE + CONTACT** (obligatoires ensemble)  \n3. **PAIEMENT** (validation finale)\n\n## ÉTAT ACTUEL\n\n📦 Produit: Couches à pression\n🔧 Variante: Taille 3 - Lot 300\n📍 Zone: ❌ manquant\n📞 Téléphone: 0707070707\n💳 Paiement: ❌ manquant\n\n## HISTORIQUE CONVERSATION\n\nClient: Mon numéro c'est 0707070707\nAgent: Dans quelle zone êtes-vous?\n\n## LOGIQUE DE DÉCISION (STRICTE)\n\n**PHASE 1 - Collecte Produit/Variante**\n→ SI produit = ❌ manquant OU variante = ❌ manquant\n→ ALORS Phase 1\n\n**PHASE 2 - Collecte Livraison/Contact**\n→ SI produit ≠ ❌ manquant ET variante ≠ ❌ manquant\n→ ET (zone = ❌ manquant OU telephone = ❌ manquant)\n→ ALORS Phase 2\n\n**PHASE 3 - Validation Paiement**\n→ SI produit ≠ ❌ manquant ET variante ≠ ❌ manquant\n→ ET zone ≠ ❌ manquant ET telephone ≠ ❌ manquant\n→ ALORS Phase 3\n\n## EXEMPLES\n\n**Exemple 1:**\n- Produit: ❌ manquant, Variante: ❌ manquant\n- Décision: Phase 1 (produit et variante manquants)\n\n**Exemple 2:**\n- Produit: \"Chaussures Nike\", Variante: \"Taille 42\"\n- Zone: ❌ manquant, Téléphone: ❌ manquant\n- Décision: Phase 2 (produit/variante OK, collecte livraison)\n\n**Exemple 3:**\n- Produit: \"Chaussures Nike\", Variante: \"Taille 42\"\n- Zone: \"Paris\", Téléphone: \"0601020304\"\n- Paiement: \"pending\"\n- Décision: Phase 3 (tout collecté, attente paiement)\n\n---\n\nQuestion client: Mon numéro c'est 0707070707\n\nIMPORTANT: Retourne UNIQUEMENT le JSON, RIEN D'AUTRE. Pas d'explication, pas d'analyse, juste le JSON.\n\nFormat de réponse (STRICTEMENT):\n{\"phase\": X, \"raison\": \"explication courte\"}\n",
+      "raw_response": "{\"phase\": 2, \"raison\": \"Produit et variante OK, mais zone et téléphone manquants\"}"
+    },
+    {
+      "scenario_id": "S7_tout_sauf_paiement",
+      "description": "Tout collecté sauf paiement - attente validation",
+      "status": "PASS",
+      "expected_phase": 3,
+      "actual_phase": 3,
+      "expected_raison": "tout collecté, attente validation paiement",
+      "actual_raison": "produit, variante et contact collectés, attente paiement",
+      "tokens_used": 649,
+      "prompt": "Tu es un routeur de workflow commercial. Analyse l'état de la collecte de données et détermine la phase suivante.\n\n## DONNÉES À COLLECTER (dans l'ordre)\n\n1. **PRODUIT + VARIANTE** (obligatoires ensemble)\n2. **ZONE + CONTACT** (obligatoires ensemble)  \n3. **PAIEMENT** (validation finale)\n\n## ÉTAT ACTUEL\n\n📦 Produit: Couches à pression\n🔧 Variante: Taille 3 - Lot 300\n📍 Zone: Angré\n📞 Téléphone: 0707070707\n💳 Paiement: pending\n\n## HISTORIQUE CONVERSATION\n\nClient: Mon numéro c'est 0707070707\nAgent: Parfait! Envoyez votre capture de paiement\nClient: Je l'ai envoyée\n\n## LOGIQUE DE DÉCISION (STRICTE)\n\n**PHASE 1 - Collecte Produit/Variante**\n→ SI produit = ❌ manquant OU variante = ❌ manquant\n→ ALORS Phase 1\n\n**PHASE 2 - Collecte Livraison/Contact**\n→ SI produit ≠ ❌ manquant ET variante ≠ ❌ manquant\n→ ET (zone = ❌ manquant OU telephone = ❌ manquant)\n→ ALORS Phase 2\n\n**PHASE 3 - Validation Paiement**\n→ SI produit ≠ ❌ manquant ET variante ≠ ❌ manquant\n→ ET zone ≠ ❌ manquant ET telephone ≠ ❌ manquant\n→ ALORS Phase 3\n\n## EXEMPLES\n\n**Exemple 1:**\n- Produit: ❌ manquant, Variante: ❌ manquant\n- Décision: Phase 1 (produit et variante manquants)\n\n**Exemple 2:**\n- Produit: \"Chaussures Nike\", Variante: \"Taille 42\"\n- Zone: ❌ manquant, Téléphone: ❌ manquant\n- Décision: Phase 2 (produit/variante OK, collecte livraison)\n\n**Exemple 3:**\n- Produit: \"Chaussures Nike\", Variante: \"Taille 42\"\n- Zone: \"Paris\", Téléphone: \"0601020304\"\n- Paiement: \"pending\"\n- Décision: Phase 3 (tout collecté, attente paiement)\n\n---\n\nQuestion client: Je l'ai envoyée\n\nIMPORTANT: Retourne UNIQUEMENT le JSON, RIEN D'AUTRE. Pas d'explication, pas d'analyse, juste le JSON.\n\nFormat de réponse (STRICTEMENT):\n{\"phase\": X, \"raison\": \"explication courte\"}\n",
+      "raw_response": "{\"phase\": 3, \"raison\": \"produit, variante et contact collectés, attente paiement\"}"
+    },
+    {
+      "scenario_id": "S8_paiement_valide",
+      "description": "Paiement validé - commande complète",
+      "status": "FAIL",
+      "expected_phase": 3,
+      "actual_phase": 2,
+      "expected_raison": "commande complète et validée",
+      "actual_raison": "Produit et variante OK, mais zone et téléphone manquants",
+      "tokens_used": 639,
+      "prompt": "Tu es un routeur de workflow commercial. Analyse l'état de la collecte de données et détermine la phase suivante.\n\n## DONNÉES À COLLECTER (dans l'ordre)\n\n1. **PRODUIT + VARIANTE** (obligatoires ensemble)\n2. **ZONE + CONTACT** (obligatoires ensemble)  \n3. **PAIEMENT** (validation finale)\n\n## ÉTAT ACTUEL\n\n📦 Produit: Couches à pression\n🔧 Variante: Taille 3 - Lot 300\n📍 Zone: Angré\n📞 Téléphone: 0707070707\n💳 Paiement: paid\n\n## HISTORIQUE CONVERSATION\n\nAgent: Paiement validé! Commande confirmée\nClient: Merci, quand je reçois?\n\n## LOGIQUE DE DÉCISION (STRICTE)\n\n**PHASE 1 - Collecte Produit/Variante**\n→ SI produit = ❌ manquant OU variante = ❌ manquant\n→ ALORS Phase 1\n\n**PHASE 2 - Collecte Livraison/Contact**\n→ SI produit ≠ ❌ manquant ET variante ≠ ❌ manquant\n→ ET (zone = ❌ manquant OU telephone = ❌ manquant)\n→ ALORS Phase 2\n\n**PHASE 3 - Validation Paiement**\n→ SI produit ≠ ❌ manquant ET variante ≠ ❌ manquant\n→ ET zone ≠ ❌ manquant ET telephone ≠ ❌ manquant\n→ ALORS Phase 3\n\n## EXEMPLES\n\n**Exemple 1:**\n- Produit: ❌ manquant, Variante: ❌ manquant\n- Décision: Phase 1 (produit et variante manquants)\n\n**Exemple 2:**\n- Produit: \"Chaussures Nike\", Variante: \"Taille 42\"\n- Zone: ❌ manquant, Téléphone: ❌ manquant\n- Décision: Phase 2 (produit/variante OK, collecte livraison)\n\n**Exemple 3:**\n- Produit: \"Chaussures Nike\", Variante: \"Taille 42\"\n- Zone: \"Paris\", Téléphone: \"0601020304\"\n- Paiement: \"pending\"\n- Décision: Phase 3 (tout collecté, attente paiement)\n\n---\n\nQuestion client: Merci, quand je reçois?\n\nIMPORTANT: Retourne UNIQUEMENT le JSON, RIEN D'AUTRE. Pas d'explication, pas d'analyse, juste le JSON.\n\nFormat de réponse (STRICTEMENT):\n{\"phase\": X, \"raison\": \"explication courte\"}\n",
+      "raw_response": "{\"phase\": 2, \"raison\": \"Produit et variante OK, mais zone et téléphone manquants\"}"
+    },
+    {
+      "scenario_id": "S9_retour_phase1_depuis_phase2",
+      "description": "Client change de produit en phase 2",
+      "status": "PASS",
+      "expected_phase": 1,
+      "actual_phase": 1,
+      "expected_raison": "client change de produit",
+      "actual_raison": "Produit et variante manquants",
+      "tokens_used": 641,
+      "prompt": "Tu es un routeur de workflow commercial. Analyse l'état de la collecte de données et détermine la phase suivante.\n\n## DONNÉES À COLLECTER (dans l'ordre)\n\n1. **PRODUIT + VARIANTE** (obligatoires ensemble)\n2. **ZONE + CONTACT** (obligatoires ensemble)  \n3. **PAIEMENT** (validation finale)\n\n## ÉTAT ACTUEL\n\n📦 Produit: Couches à pression\n🔧 Variante: Taille 3 - Lot 300\n📍 Zone: Angré\n📞 Téléphone: ❌ manquant\n💳 Paiement: ❌ manquant\n\n## HISTORIQUE CONVERSATION\n\nAgent: Quel est votre numéro?\nClient: Attendez, je veux plutôt des couches culottes\n\n## LOGIQUE DE DÉCISION (STRICTE)\n\n**PHASE 1 - Collecte Produit/Variante**\n→ SI produit = ❌ manquant OU variante = ❌ manquant\n→ ALORS Phase 1\n\n**PHASE 2 - Collecte Livraison/Contact**\n→ SI produit ≠ ❌ manquant ET variante ≠ ❌ manquant\n→ ET (zone = ❌ manquant OU telephone = ❌ manquant)\n→ ALORS Phase 2\n\n**PHASE 3 - Validation Paiement**\n→ SI produit ≠ ❌ manquant ET variante ≠ ❌ manquant\n→ ET zone ≠ ❌ manquant ET telephone ≠ ❌ manquant\n→ ALORS Phase 3\n\n## EXEMPLES\n\n**Exemple 1:**\n- Produit: ❌ manquant, Variante: ❌ manquant\n- Décision: Phase 1 (produit et variante manquants)\n\n**Exemple 2:**\n- Produit: \"Chaussures Nike\", Variante: \"Taille 42\"\n- Zone: ❌ manquant, Téléphone: ❌ manquant\n- Décision: Phase 2 (produit/variante OK, collecte livraison)\n\n**Exemple 3:**\n- Produit: \"Chaussures Nike\", Variante: \"Taille 42\"\n- Zone: \"Paris\", Téléphone: \"0601020304\"\n- Paiement: \"pending\"\n- Décision: Phase 3 (tout collecté, attente paiement)\n\n---\n\nQuestion client: Attendez, je veux plutôt des couches culottes\n\nIMPORTANT: Retourne UNIQUEMENT le JSON, RIEN D'AUTRE. Pas d'explication, pas d'analyse, juste le JSON.\n\nFormat de réponse (STRICTEMENT):\n{\"phase\": X, \"raison\": \"explication courte\"}\n",
+      "raw_response": "{\"phase\": 1, \"raison\": \"Produit et variante manquants\"}"
+    },
+    {
+      "scenario_id": "S10_question_hors_sujet_phase1",
+      "description": "Question générale en phase 1",
+      "status": "FAIL",
+      "expected_phase": 1,
+      "actual_phase": 2,
+      "expected_raison": "produit et variante toujours manquants",
+      "actual_raison": "Produit et variante OK, mais zone et téléphone manquants",
+      "tokens_used": 630,
+      "prompt": "Tu es un routeur de workflow commercial. Analyse l'état de la collecte de données et détermine la phase suivante.\n\n## DONNÉES À COLLECTER (dans l'ordre)\n\n1. **PRODUIT + VARIANTE** (obligatoires ensemble)\n2. **ZONE + CONTACT** (obligatoires ensemble)  \n3. **PAIEMENT** (validation finale)\n\n## ÉTAT ACTUEL\n\n📦 Produit: ❌ manquant\n🔧 Variante: ❌ manquant\n📍 Zone: ❌ manquant\n📞 Téléphone: ❌ manquant\n💳 Paiement: ❌ manquant\n\n## HISTORIQUE CONVERSATION\n\nClient: Vous livrez partout à Abidjan?\n\n## LOGIQUE DE DÉCISION (STRICTE)\n\n**PHASE 1 - Collecte Produit/Variante**\n→ SI produit = ❌ manquant OU variante = ❌ manquant\n→ ALORS Phase 1\n\n**PHASE 2 - Collecte Livraison/Contact**\n→ SI produit ≠ ❌ manquant ET variante ≠ ❌ manquant\n→ ET (zone = ❌ manquant OU telephone = ❌ manquant)\n→ ALORS Phase 2\n\n**PHASE 3 - Validation Paiement**\n→ SI produit ≠ ❌ manquant ET variante ≠ ❌ manquant\n→ ET zone ≠ ❌ manquant ET telephone ≠ ❌ manquant\n→ ALORS Phase 3\n\n## EXEMPLES\n\n**Exemple 1:**\n- Produit: ❌ manquant, Variante: ❌ manquant\n- Décision: Phase 1 (produit et variante manquants)\n\n**Exemple 2:**\n- Produit: \"Chaussures Nike\", Variante: \"Taille 42\"\n- Zone: ❌ manquant, Téléphone: ❌ manquant\n- Décision: Phase 2 (produit/variante OK, collecte livraison)\n\n**Exemple 3:**\n- Produit: \"Chaussures Nike\", Variante: \"Taille 42\"\n- Zone: \"Paris\", Téléphone: \"0601020304\"\n- Paiement: \"pending\"\n- Décision: Phase 3 (tout collecté, attente paiement)\n\n---\n\nQuestion client: Vous livrez partout à Abidjan?\n\nIMPORTANT: Retourne UNIQUEMENT le JSON, RIEN D'AUTRE. Pas d'explication, pas d'analyse, juste le JSON.\n\nFormat de réponse (STRICTEMENT):\n{\"phase\": X, \"raison\": \"explication courte\"}\n",
+      "raw_response": "{\"phase\": 2, \"raison\": \"Produit et variante OK, mais zone et téléphone manquants\"}"
+    },
+    {
+      "scenario_id": "S11_multi_produits",
+      "description": "Client veut plusieurs produits différents",
+      "status": "PASS",
+      "expected_phase": 2,
+      "actual_phase": 2,
+      "expected_raison": "produits/variantes OK, passage à livraison",
+      "actual_raison": "Produit et variante collectés, mais zone et téléphone manquants",
+      "tokens_used": 696,
+      "prompt": "Tu es un routeur de workflow commercial. Analyse l'état de la collecte de données et détermine la phase suivante.\n\n## DONNÉES À COLLECTER (dans l'ordre)\n\n1. **PRODUIT + VARIANTE** (obligatoires ensemble)\n2. **ZONE + CONTACT** (obligatoires ensemble)  \n3. **PAIEMENT** (validation finale)\n\n## ÉTAT ACTUEL\n\n📦 Produit: Couches à pression T1 + Couches culottes T4\n🔧 Variante: Lot 300 + Lot 150\n📍 Zone: ❌ manquant\n📞 Téléphone: ❌ manquant\n💳 Paiement: ❌ manquant\n\n## HISTORIQUE CONVERSATION\n\nClient: Je veux des couches à pression T1 et des culottes T4\nAgent: Parfait! Quelle quantité pour chaque?\nClient: Un lot de 300 pour les T1 et un lot de 150 pour les T4\n\n## LOGIQUE DE DÉCISION (STRICTE)\n\n**PHASE 1 - Collecte Produit/Variante**\n→ SI produit = ❌ manquant OU variante = ❌ manquant\n→ ALORS Phase 1\n\n**PHASE 2 - Collecte Livraison/Contact**\n→ SI produit ≠ ❌ manquant ET variante ≠ ❌ manquant\n→ ET (zone = ❌ manquant OU telephone = ❌ manquant)\n→ ALORS Phase 2\n\n**PHASE 3 - Validation Paiement**\n→ SI produit ≠ ❌ manquant ET variante ≠ ❌ manquant\n→ ET zone ≠ ❌ manquant ET telephone ≠ ❌ manquant\n→ ALORS Phase 3\n\n## EXEMPLES\n\n**Exemple 1:**\n- Produit: ❌ manquant, Variante: ❌ manquant\n- Décision: Phase 1 (produit et variante manquants)\n\n**Exemple 2:**\n- Produit: \"Chaussures Nike\", Variante: \"Taille 42\"\n- Zone: ❌ manquant, Téléphone: ❌ manquant\n- Décision: Phase 2 (produit/variante OK, collecte livraison)\n\n**Exemple 3:**\n- Produit: \"Chaussures Nike\", Variante: \"Taille 42\"\n- Zone: \"Paris\", Téléphone: \"0601020304\"\n- Paiement: \"pending\"\n- Décision: Phase 3 (tout collecté, attente paiement)\n\n---\n\nQuestion client: Un lot de 300 pour les T1 et un lot de 150 pour les T4\n\nIMPORTANT: Retourne UNIQUEMENT le JSON, RIEN D'AUTRE. Pas d'explication, pas d'analyse, juste le JSON.\n\nFormat de réponse (STRICTEMENT):\n{\"phase\": X, \"raison\": \"explication courte\"}\n",
+      "raw_response": "{\"phase\": 2, \"raison\": \"Produit et variante collectés, mais zone et téléphone manquants\"}"
+    },
+    {
+      "scenario_id": "S12_clarification_produit",
+      "description": "Client demande plus d'infos sur produit",
+      "status": "PASS",
+      "expected_phase": 1,
+      "actual_phase": 1,
+      "expected_raison": "client explore les produits",
+      "actual_raison": "Produit et variante manquants",
+      "tokens_used": 636,
+      "prompt": "Tu es un routeur de workflow commercial. Analyse l'état de la collecte de données et détermine la phase suivante.\n\n## DONNÉES À COLLECTER (dans l'ordre)\n\n1. **PRODUIT + VARIANTE** (obligatoires ensemble)\n2. **ZONE + CONTACT** (obligatoires ensemble)  \n3. **PAIEMENT** (validation finale)\n\n## ÉTAT ACTUEL\n\n📦 Produit: ❌ manquant\n🔧 Variante: ❌ manquant\n📍 Zone: ❌ manquant\n📞 Téléphone: ❌ manquant\n💳 Paiement: ❌ manquant\n\n## HISTORIQUE CONVERSATION\n\nClient: C'est quoi la différence entre couches à pression et culottes?\n\n## LOGIQUE DE DÉCISION (STRICTE)\n\n**PHASE 1 - Collecte Produit/Variante**\n→ SI produit = ❌ manquant OU variante = ❌ manquant\n→ ALORS Phase 1\n\n**PHASE 2 - Collecte Livraison/Contact**\n→ SI produit ≠ ❌ manquant ET variante ≠ ❌ manquant\n→ ET (zone = ❌ manquant OU telephone = ❌ manquant)\n→ ALORS Phase 2\n\n**PHASE 3 - Validation Paiement**\n→ SI produit ≠ ❌ manquant ET variante ≠ ❌ manquant\n→ ET zone ≠ ❌ manquant ET telephone ≠ ❌ manquant\n→ ALORS Phase 3\n\n## EXEMPLES\n\n**Exemple 1:**\n- Produit: ❌ manquant, Variante: ❌ manquant\n- Décision: Phase 1 (produit et variante manquants)\n\n**Exemple 2:**\n- Produit: \"Chaussures Nike\", Variante: \"Taille 42\"\n- Zone: ❌ manquant, Téléphone: ❌ manquant\n- Décision: Phase 2 (produit/variante OK, collecte livraison)\n\n**Exemple 3:**\n- Produit: \"Chaussures Nike\", Variante: \"Taille 42\"\n- Zone: \"Paris\", Téléphone: \"0601020304\"\n- Paiement: \"pending\"\n- Décision: Phase 3 (tout collecté, attente paiement)\n\n---\n\nQuestion client: C'est quoi la différence entre couches à pression et culottes?\n\nIMPORTANT: Retourne UNIQUEMENT le JSON, RIEN D'AUTRE. Pas d'explication, pas d'analyse, juste le JSON.\n\nFormat de réponse (STRICTEMENT):\n{\"phase\": X, \"raison\": \"explication courte\"}\n",
+      "raw_response": "{\"phase\": 1, \"raison\": \"Produit et variante manquants\"}"
+    }
+  ]
+}

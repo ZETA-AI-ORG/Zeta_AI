@@ -1,0 +1,110 @@
+{
+  "timestamp": "20251022_002753",
+  "summary": {
+    "total": 12,
+    "passed": 0,
+    "failed": 0,
+    "errors": 12,
+    "pass_rate": 0.0,
+    "avg_tokens": 0,
+    "total_tokens": 0
+  },
+  "results": [
+    {
+      "scenario_id": "S1_debut_conversation",
+      "description": "Client démarre la conversation - rien collecté",
+      "status": "ERROR",
+      "error": "GROQ_API_KEY manquant dans l'environnement",
+      "raw_response": "",
+      "prompt": "Tu es un agent de workflow. Ton objectif: remplir cette checklist.\n\n## CHECKLIST\n\n📋 DONNÉES À COLLECTER:\n- produit: ❌ manquant\n- variante: ❌ manquant\n- zone: ❌ manquant\n- telephone: ❌ manquant\n- paiement: ❌ manquant\n\n## CONTEXTE FOURNI\n\n💬 DERNIERS ÉCHANGES:\nClient: Bonjour\n\n📋 DONNÉES DÉJÀ COLLECTÉES:\n- produit: ❌ manquant\n- variante: ❌ manquant\n- zone: ❌ manquant\n- telephone: ❌ manquant\n- paiement: ❌ manquant\n\n## TON RÔLE\n\nOriente le workflow vers la bonne étape selon ce qui manque.\n\n**PHASE 1** si produit ET/OU variante manquants (les deux sont nécessaires)\n**PHASE 2** si zone de livraison ET/OU contact manquant  \n**PHASE 3** si tout collecté (attente/validation paiement)\n\n## RÈGLE\n\nTa décision doit s'adapter au flux de conversation en temps réel.\n\n---\n\nQuestion client: Bonjour\n\nRetourne uniquement au format JSON:\n{\"phase\": X, \"raison\": \"explication courte\"}\n"
+    },
+    {
+      "scenario_id": "S2_produit_sans_variante",
+      "description": "Client mentionne produit mais pas la variante",
+      "status": "ERROR",
+      "error": "GROQ_API_KEY manquant dans l'environnement",
+      "raw_response": "",
+      "prompt": "Tu es un agent de workflow. Ton objectif: remplir cette checklist.\n\n## CHECKLIST\n\n📋 DONNÉES À COLLECTER:\n- produit: Couches à pression\n- variante: ❌ manquant\n- zone: ❌ manquant\n- telephone: ❌ manquant\n- paiement: ❌ manquant\n\n## CONTEXTE FOURNI\n\n💬 DERNIERS ÉCHANGES:\nClient: Je veux des couches à pression\nAgent: Quelle taille vous intéresse?\n\n📋 DONNÉES DÉJÀ COLLECTÉES:\n- produit: Couches à pression\n- variante: ❌ manquant\n- zone: ❌ manquant\n- telephone: ❌ manquant\n- paiement: ❌ manquant\n\n## TON RÔLE\n\nOriente le workflow vers la bonne étape selon ce qui manque.\n\n**PHASE 1** si produit ET/OU variante manquants (les deux sont nécessaires)\n**PHASE 2** si zone de livraison ET/OU contact manquant  \n**PHASE 3** si tout collecté (attente/validation paiement)\n\n## RÈGLE\n\nTa décision doit s'adapter au flux de conversation en temps réel.\n\n---\n\nQuestion client: Je veux des couches à pression\n\nRetourne uniquement au format JSON:\n{\"phase\": X, \"raison\": \"explication courte\"}\n"
+    },
+    {
+      "scenario_id": "S3_variante_sans_produit",
+      "description": "Client mentionne taille mais produit pas clair",
+      "status": "ERROR",
+      "error": "GROQ_API_KEY manquant dans l'environnement",
+      "raw_response": "",
+      "prompt": "Tu es un agent de workflow. Ton objectif: remplir cette checklist.\n\n## CHECKLIST\n\n📋 DONNÉES À COLLECTER:\n- produit: ❌ manquant\n- variante: Taille 3\n- zone: ❌ manquant\n- telephone: ❌ manquant\n- paiement: ❌ manquant\n\n## CONTEXTE FOURNI\n\n💬 DERNIERS ÉCHANGES:\nClient: Taille 3\nAgent: Taille 3 de quel produit?\n\n📋 DONNÉES DÉJÀ COLLECTÉES:\n- produit: ❌ manquant\n- variante: Taille 3\n- zone: ❌ manquant\n- telephone: ❌ manquant\n- paiement: ❌ manquant\n\n## TON RÔLE\n\nOriente le workflow vers la bonne étape selon ce qui manque.\n\n**PHASE 1** si produit ET/OU variante manquants (les deux sont nécessaires)\n**PHASE 2** si zone de livraison ET/OU contact manquant  \n**PHASE 3** si tout collecté (attente/validation paiement)\n\n## RÈGLE\n\nTa décision doit s'adapter au flux de conversation en temps réel.\n\n---\n\nQuestion client: Taille 3\n\nRetourne uniquement au format JSON:\n{\"phase\": X, \"raison\": \"explication courte\"}\n"
+    },
+    {
+      "scenario_id": "S4_produit_variante_ok",
+      "description": "Produit + variante collectés, passage à livraison",
+      "status": "ERROR",
+      "error": "GROQ_API_KEY manquant dans l'environnement",
+      "raw_response": "",
+      "prompt": "Tu es un agent de workflow. Ton objectif: remplir cette checklist.\n\n## CHECKLIST\n\n📋 DONNÉES À COLLECTER:\n- produit: Couches à pression\n- variante: Taille 3 - Lot 300\n- zone: ❌ manquant\n- telephone: ❌ manquant\n- paiement: ❌ manquant\n\n## CONTEXTE FOURNI\n\n💬 DERNIERS ÉCHANGES:\nClient: Je veux des couches à pression\nAgent: Quelle taille?\nClient: Taille 3, lot de 300\nAgent: Parfait! Dans quelle zone livrer?\n\n📋 DONNÉES DÉJÀ COLLECTÉES:\n- produit: Couches à pression\n- variante: Taille 3 - Lot 300\n- zone: ❌ manquant\n- telephone: ❌ manquant\n- paiement: ❌ manquant\n\n## TON RÔLE\n\nOriente le workflow vers la bonne étape selon ce qui manque.\n\n**PHASE 1** si produit ET/OU variante manquants (les deux sont nécessaires)\n**PHASE 2** si zone de livraison ET/OU contact manquant  \n**PHASE 3** si tout collecté (attente/validation paiement)\n\n## RÈGLE\n\nTa décision doit s'adapter au flux de conversation en temps réel.\n\n---\n\nQuestion client: Taille 3, lot de 300\n\nRetourne uniquement au format JSON:\n{\"phase\": X, \"raison\": \"explication courte\"}\n"
+    },
+    {
+      "scenario_id": "S5_zone_sans_contact",
+      "description": "Zone collectée mais pas le téléphone",
+      "status": "ERROR",
+      "error": "GROQ_API_KEY manquant dans l'environnement",
+      "raw_response": "",
+      "prompt": "Tu es un agent de workflow. Ton objectif: remplir cette checklist.\n\n## CHECKLIST\n\n📋 DONNÉES À COLLECTER:\n- produit: Couches à pression\n- variante: Taille 3 - Lot 300\n- zone: Angré\n- telephone: ❌ manquant\n- paiement: ❌ manquant\n\n## CONTEXTE FOURNI\n\n💬 DERNIERS ÉCHANGES:\nClient: Je suis à Angré\nAgent: Quel est votre numéro de téléphone?\n\n📋 DONNÉES DÉJÀ COLLECTÉES:\n- produit: Couches à pression\n- variante: Taille 3 - Lot 300\n- zone: Angré\n- telephone: ❌ manquant\n- paiement: ❌ manquant\n\n## TON RÔLE\n\nOriente le workflow vers la bonne étape selon ce qui manque.\n\n**PHASE 1** si produit ET/OU variante manquants (les deux sont nécessaires)\n**PHASE 2** si zone de livraison ET/OU contact manquant  \n**PHASE 3** si tout collecté (attente/validation paiement)\n\n## RÈGLE\n\nTa décision doit s'adapter au flux de conversation en temps réel.\n\n---\n\nQuestion client: Je suis à Angré\n\nRetourne uniquement au format JSON:\n{\"phase\": X, \"raison\": \"explication courte\"}\n"
+    },
+    {
+      "scenario_id": "S6_contact_sans_zone",
+      "description": "Téléphone collecté mais pas la zone",
+      "status": "ERROR",
+      "error": "GROQ_API_KEY manquant dans l'environnement",
+      "raw_response": "",
+      "prompt": "Tu es un agent de workflow. Ton objectif: remplir cette checklist.\n\n## CHECKLIST\n\n📋 DONNÉES À COLLECTER:\n- produit: Couches à pression\n- variante: Taille 3 - Lot 300\n- zone: ❌ manquant\n- telephone: 0707070707\n- paiement: ❌ manquant\n\n## CONTEXTE FOURNI\n\n💬 DERNIERS ÉCHANGES:\nClient: Mon numéro c'est 0707070707\nAgent: Dans quelle zone êtes-vous?\n\n📋 DONNÉES DÉJÀ COLLECTÉES:\n- produit: Couches à pression\n- variante: Taille 3 - Lot 300\n- zone: ❌ manquant\n- telephone: 0707070707\n- paiement: ❌ manquant\n\n## TON RÔLE\n\nOriente le workflow vers la bonne étape selon ce qui manque.\n\n**PHASE 1** si produit ET/OU variante manquants (les deux sont nécessaires)\n**PHASE 2** si zone de livraison ET/OU contact manquant  \n**PHASE 3** si tout collecté (attente/validation paiement)\n\n## RÈGLE\n\nTa décision doit s'adapter au flux de conversation en temps réel.\n\n---\n\nQuestion client: Mon numéro c'est 0707070707\n\nRetourne uniquement au format JSON:\n{\"phase\": X, \"raison\": \"explication courte\"}\n"
+    },
+    {
+      "scenario_id": "S7_tout_sauf_paiement",
+      "description": "Tout collecté sauf paiement - attente validation",
+      "status": "ERROR",
+      "error": "GROQ_API_KEY manquant dans l'environnement",
+      "raw_response": "",
+      "prompt": "Tu es un agent de workflow. Ton objectif: remplir cette checklist.\n\n## CHECKLIST\n\n📋 DONNÉES À COLLECTER:\n- produit: Couches à pression\n- variante: Taille 3 - Lot 300\n- zone: Angré\n- telephone: 0707070707\n- paiement: pending\n\n## CONTEXTE FOURNI\n\n💬 DERNIERS ÉCHANGES:\nClient: Mon numéro c'est 0707070707\nAgent: Parfait! Envoyez votre capture de paiement\nClient: Je l'ai envoyée\n\n📋 DONNÉES DÉJÀ COLLECTÉES:\n- produit: Couches à pression\n- variante: Taille 3 - Lot 300\n- zone: Angré\n- telephone: 0707070707\n- paiement: pending\n\n## TON RÔLE\n\nOriente le workflow vers la bonne étape selon ce qui manque.\n\n**PHASE 1** si produit ET/OU variante manquants (les deux sont nécessaires)\n**PHASE 2** si zone de livraison ET/OU contact manquant  \n**PHASE 3** si tout collecté (attente/validation paiement)\n\n## RÈGLE\n\nTa décision doit s'adapter au flux de conversation en temps réel.\n\n---\n\nQuestion client: Je l'ai envoyée\n\nRetourne uniquement au format JSON:\n{\"phase\": X, \"raison\": \"explication courte\"}\n"
+    },
+    {
+      "scenario_id": "S8_paiement_valide",
+      "description": "Paiement validé - commande complète",
+      "status": "ERROR",
+      "error": "GROQ_API_KEY manquant dans l'environnement",
+      "raw_response": "",
+      "prompt": "Tu es un agent de workflow. Ton objectif: remplir cette checklist.\n\n## CHECKLIST\n\n📋 DONNÉES À COLLECTER:\n- produit: Couches à pression\n- variante: Taille 3 - Lot 300\n- zone: Angré\n- telephone: 0707070707\n- paiement: paid\n\n## CONTEXTE FOURNI\n\n💬 DERNIERS ÉCHANGES:\nAgent: Paiement validé! Commande confirmée\nClient: Merci, quand je reçois?\n\n📋 DONNÉES DÉJÀ COLLECTÉES:\n- produit: Couches à pression\n- variante: Taille 3 - Lot 300\n- zone: Angré\n- telephone: 0707070707\n- paiement: paid\n\n## TON RÔLE\n\nOriente le workflow vers la bonne étape selon ce qui manque.\n\n**PHASE 1** si produit ET/OU variante manquants (les deux sont nécessaires)\n**PHASE 2** si zone de livraison ET/OU contact manquant  \n**PHASE 3** si tout collecté (attente/validation paiement)\n\n## RÈGLE\n\nTa décision doit s'adapter au flux de conversation en temps réel.\n\n---\n\nQuestion client: Merci, quand je reçois?\n\nRetourne uniquement au format JSON:\n{\"phase\": X, \"raison\": \"explication courte\"}\n"
+    },
+    {
+      "scenario_id": "S9_retour_phase1_depuis_phase2",
+      "description": "Client change de produit en phase 2",
+      "status": "ERROR",
+      "error": "GROQ_API_KEY manquant dans l'environnement",
+      "raw_response": "",
+      "prompt": "Tu es un agent de workflow. Ton objectif: remplir cette checklist.\n\n## CHECKLIST\n\n📋 DONNÉES À COLLECTER:\n- produit: Couches à pression\n- variante: Taille 3 - Lot 300\n- zone: Angré\n- telephone: ❌ manquant\n- paiement: ❌ manquant\n\n## CONTEXTE FOURNI\n\n💬 DERNIERS ÉCHANGES:\nAgent: Quel est votre numéro?\nClient: Attendez, je veux plutôt des couches culottes\n\n📋 DONNÉES DÉJÀ COLLECTÉES:\n- produit: Couches à pression\n- variante: Taille 3 - Lot 300\n- zone: Angré\n- telephone: ❌ manquant\n- paiement: ❌ manquant\n\n## TON RÔLE\n\nOriente le workflow vers la bonne étape selon ce qui manque.\n\n**PHASE 1** si produit ET/OU variante manquants (les deux sont nécessaires)\n**PHASE 2** si zone de livraison ET/OU contact manquant  \n**PHASE 3** si tout collecté (attente/validation paiement)\n\n## RÈGLE\n\nTa décision doit s'adapter au flux de conversation en temps réel.\n\n---\n\nQuestion client: Attendez, je veux plutôt des couches culottes\n\nRetourne uniquement au format JSON:\n{\"phase\": X, \"raison\": \"explication courte\"}\n"
+    },
+    {
+      "scenario_id": "S10_question_hors_sujet_phase1",
+      "description": "Question générale en phase 1",
+      "status": "ERROR",
+      "error": "GROQ_API_KEY manquant dans l'environnement",
+      "raw_response": "",
+      "prompt": "Tu es un agent de workflow. Ton objectif: remplir cette checklist.\n\n## CHECKLIST\n\n📋 DONNÉES À COLLECTER:\n- produit: ❌ manquant\n- variante: ❌ manquant\n- zone: ❌ manquant\n- telephone: ❌ manquant\n- paiement: ❌ manquant\n\n## CONTEXTE FOURNI\n\n💬 DERNIERS ÉCHANGES:\nClient: Vous livrez partout à Abidjan?\n\n📋 DONNÉES DÉJÀ COLLECTÉES:\n- produit: ❌ manquant\n- variante: ❌ manquant\n- zone: ❌ manquant\n- telephone: ❌ manquant\n- paiement: ❌ manquant\n\n## TON RÔLE\n\nOriente le workflow vers la bonne étape selon ce qui manque.\n\n**PHASE 1** si produit ET/OU variante manquants (les deux sont nécessaires)\n**PHASE 2** si zone de livraison ET/OU contact manquant  \n**PHASE 3** si tout collecté (attente/validation paiement)\n\n## RÈGLE\n\nTa décision doit s'adapter au flux de conversation en temps réel.\n\n---\n\nQuestion client: Vous livrez partout à Abidjan?\n\nRetourne uniquement au format JSON:\n{\"phase\": X, \"raison\": \"explication courte\"}\n"
+    },
+    {
+      "scenario_id": "S11_multi_produits",
+      "description": "Client veut plusieurs produits différents",
+      "status": "ERROR",
+      "error": "GROQ_API_KEY manquant dans l'environnement",
+      "raw_response": "",
+      "prompt": "Tu es un agent de workflow. Ton objectif: remplir cette checklist.\n\n## CHECKLIST\n\n📋 DONNÉES À COLLECTER:\n- produit: Couches à pression T1 + Couches culottes T4\n- variante: Lot 300 + Lot 150\n- zone: ❌ manquant\n- telephone: ❌ manquant\n- paiement: ❌ manquant\n\n## CONTEXTE FOURNI\n\n💬 DERNIERS ÉCHANGES:\nClient: Je veux des couches à pression T1 et des culottes T4\nAgent: Parfait! Quelle quantité pour chaque?\nClient: Un lot de 300 pour les T1 et un lot de 150 pour les T4\n\n📋 DONNÉES DÉJÀ COLLECTÉES:\n- produit: Couches à pression T1 + Couches culottes T4\n- variante: Lot 300 + Lot 150\n- zone: ❌ manquant\n- telephone: ❌ manquant\n- paiement: ❌ manquant\n\n## TON RÔLE\n\nOriente le workflow vers la bonne étape selon ce qui manque.\n\n**PHASE 1** si produit ET/OU variante manquants (les deux sont nécessaires)\n**PHASE 2** si zone de livraison ET/OU contact manquant  \n**PHASE 3** si tout collecté (attente/validation paiement)\n\n## RÈGLE\n\nTa décision doit s'adapter au flux de conversation en temps réel.\n\n---\n\nQuestion client: Un lot de 300 pour les T1 et un lot de 150 pour les T4\n\nRetourne uniquement au format JSON:\n{\"phase\": X, \"raison\": \"explication courte\"}\n"
+    },
+    {
+      "scenario_id": "S12_clarification_produit",
+      "description": "Client demande plus d'infos sur produit",
+      "status": "ERROR",
+      "error": "GROQ_API_KEY manquant dans l'environnement",
+      "raw_response": "",
+      "prompt": "Tu es un agent de workflow. Ton objectif: remplir cette checklist.\n\n## CHECKLIST\n\n📋 DONNÉES À COLLECTER:\n- produit: ❌ manquant\n- variante: ❌ manquant\n- zone: ❌ manquant\n- telephone: ❌ manquant\n- paiement: ❌ manquant\n\n## CONTEXTE FOURNI\n\n💬 DERNIERS ÉCHANGES:\nClient: C'est quoi la différence entre couches à pression et culottes?\n\n📋 DONNÉES DÉJÀ COLLECTÉES:\n- produit: ❌ manquant\n- variante: ❌ manquant\n- zone: ❌ manquant\n- telephone: ❌ manquant\n- paiement: ❌ manquant\n\n## TON RÔLE\n\nOriente le workflow vers la bonne étape selon ce qui manque.\n\n**PHASE 1** si produit ET/OU variante manquants (les deux sont nécessaires)\n**PHASE 2** si zone de livraison ET/OU contact manquant  \n**PHASE 3** si tout collecté (attente/validation paiement)\n\n## RÈGLE\n\nTa décision doit s'adapter au flux de conversation en temps réel.\n\n---\n\nQuestion client: C'est quoi la différence entre couches à pression et culottes?\n\nRetourne uniquement au format JSON:\n{\"phase\": X, \"raison\": \"explication courte\"}\n"
+    }
+  ]
+}

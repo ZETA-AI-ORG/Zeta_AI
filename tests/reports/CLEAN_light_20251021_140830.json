@@ -1,0 +1,121 @@
+{
+  "scenario": "light",
+  "user_id": "test_simulator_b0f0090c",
+  "timestamp": "2025-10-21T14:08:30.481477",
+  "total_time_s": 121.31726264953613,
+  "total_turns": 8,
+  "turns": [
+    {
+      "message": "Bonjour",
+      "response": "Bonjour ! 😊 Bienvenue chez RUEDUGROSSISTE. Quel produit grossiste recherches-tu aujourd'hui ?",
+      "thinking": "",
+      "full_result": {
+        "response": "Bonjour ! 😊 Bienvenue chez RUEDUGROSSISTE. Quel produit grossiste recherches-tu aujourd'hui ?",
+        "cached": false,
+        "security_score": "LOW",
+        "hallucination_score": 1.0,
+        "thinking": "",
+        "validation": null
+      },
+      "exec_time_ms": 23909.514904022217
+    },
+    {
+      "message": "Je cherche des couches pour bébé",
+      "response": "Noté ! On a différentes tailles de couches à pression pour bébé :\n- Taille 1 (0-4 kg) : 17 900 F CFA pour 300 couches\n- Taille 2 (3-8 kg) : 18 900 F CFA pour 300 couches\n- Taille 3 (6-11 kg) : 22 900 F CFA pour 300 couches\nQuelle taille te convient ?",
+      "thinking": "",
+      "full_result": {
+        "response": "Noté ! On a différentes tailles de couches à pression pour bébé :\n- Taille 1 (0-4 kg) : 17 900 F CFA pour 300 couches\n- Taille 2 (3-8 kg) : 18 900 F CFA pour 300 couches\n- Taille 3 (6-11 kg) : 22 900 F CFA pour 300 couches\nQuelle taille te convient ?",
+        "cached": false,
+        "security_score": "LOW",
+        "hallucination_score": 1.0,
+        "thinking": "",
+        "validation": null
+      },
+      "exec_time_ms": 14176.498889923096
+    },
+    {
+      "message": "Mon bébé a 6 mois et pèse 8kg",
+      "response": "Noté ! 📦 Pour un bébé de 6 mois et 8kg, je te conseille :\n- Couches à pression Taille 3 (6-11 kg) - 300 couches | 22.900 F CFA\n- Couches culottes (disponibles en toutes tailles) - Lot de 150 | 13.500 F CFA\n\nQuel produit t'intéresse ?",
+      "thinking": "",
+      "full_result": {
+        "response": "Noté ! 📦 Pour un bébé de 6 mois et 8kg, je te conseille :\n- Couches à pression Taille 3 (6-11 kg) - 300 couches | 22.900 F CFA\n- Couches culottes (disponibles en toutes tailles) - Lot de 150 | 13.500 F CFA\n\nQuel produit t'intéresse ?",
+        "cached": false,
+        "security_score": "LOW",
+        "hallucination_score": 1.0,
+        "thinking": "",
+        "validation": null
+      },
+      "exec_time_ms": 12998.225927352905
+    },
+    {
+      "message": "Je veux 300 couches",
+      "response": "Noté ! 📦 On a 2 types de couches :\n- Couches culottes (24 000 F pour 300)\n- Couches à pression (17 900 F pour 300 en taille 1, 18 900 F pour 300 en taille 2)\n\nLequel te convient ?",
+      "thinking": "",
+      "full_result": {
+        "response": "Noté ! 📦 On a 2 types de couches :\n- Couches culottes (24 000 F pour 300)\n- Couches à pression (17 900 F pour 300 en taille 1, 18 900 F pour 300 en taille 2)\n\nLequel te convient ?",
+        "cached": false,
+        "security_score": "LOW",
+        "hallucination_score": 1.0,
+        "thinking": "",
+        "validation": null
+      },
+      "exec_time_ms": 12608.916521072388
+    },
+    {
+      "message": "Je suis à Yopougon",
+      "response": "Noté ! 📞 Pour mieux te servir, je besoin de ton numéro de téléphone, s'il te plaît ?",
+      "thinking": "",
+      "full_result": {
+        "response": "Noté ! 📞 Pour mieux te servir, je besoin de ton numéro de téléphone, s'il te plaît ?",
+        "cached": false,
+        "security_score": "LOW",
+        "hallucination_score": 1.0,
+        "thinking": "",
+        "validation": null
+      },
+      "exec_time_ms": 10635.198593139648
+    },
+    {
+      "message": "Mon numéro: 0708123456",
+      "response": "Noté ! Pour valider ta commande de 300 couches à livrer à Yopougon, envoie 2000 FCFA sur notre compte Wave au +225 0787360757. Envoie la capture de ton dépôt s'il te plaît.",
+      "thinking": "",
+      "full_result": {
+        "response": "Noté ! Pour valider ta commande de 300 couches à livrer à Yopougon, envoie 2000 FCFA sur notre compte Wave au +225 0787360757. Envoie la capture de ton dépôt s'il te plaît.",
+        "cached": false,
+        "security_score": "LOW",
+        "hallucination_score": 1.0,
+        "thinking": "",
+        "validation": null
+      },
+      "exec_time_ms": 12629.239082336426
+    },
+    {
+      "message": "Voilà mon paiement",
+      "response": "Noté ! Pour valider ton paiement, nous avons besoin d'une capture claire de ton dépôt Wave au +225 0787360757. Peux-tu nous l'envoyer s'il te plaît ?",
+      "thinking": "",
+      "full_result": {
+        "response": "Noté ! Pour valider ton paiement, nous avons besoin d'une capture claire de ton dépôt Wave au +225 0787360757. Peux-tu nous l'envoyer s'il te plaît ?",
+        "cached": false,
+        "security_score": "LOW",
+        "hallucination_score": 1.0,
+        "thinking": "",
+        "validation": null
+      },
+      "exec_time_ms": 13248.250961303711
+    },
+    {
+      "message": "Oui je confirme",
+      "response": "Noté ! Pour valider ton paiement, nous avons besoin d'une capture claire de ton dépôt Wave au +225 0787360757. Envoie la capture s'il te plaît.",
+      "thinking": "",
+      "full_result": {
+        "response": "Noté ! Pour valider ton paiement, nous avons besoin d'une capture claire de ton dépôt Wave au +225 0787360757. Envoie la capture s'il te plaît.",
+        "cached": false,
+        "security_score": "LOW",
+        "hallucination_score": 1.0,
+        "thinking": "",
+        "validation": null
+      },
+      "exec_time_ms": 12921.008110046387
+    }
+  ]
+}

@@ -308,13 +308,14 @@ class BotliveEngine:
         
         return unique_transactions
 
-    def verify_payment(self, image_path: str, company_phone: str = None) -> dict:
+    def verify_payment(self, image_path: str, company_phone: str = None, required_amount: int = None) -> dict:
         """
         OCR pour extraire montant/devise, avec VALIDATION STRICTE du numéro entreprise.
         
         Args:
             image_path: Chemin vers l'image
             company_phone: Numéro de téléphone de l'entreprise (OBLIGATOIRE pour validation)
+            required_amount: Montant acompte requis (extrait dynamiquement du prompt)
         
         Returns:
             Dict avec amount, currency, reference, raw_text, et transactions si multiples
@@ -381,10 +382,30 @@ class BotliveEngine:
                     
                     out["amount"] = best_transaction['amount']
                     out["currency"] = best_transaction.get('currency', 'FCFA')
+                    out["phone"] = best_transaction.get('phone', '')
+                    out["phone_normalized"] = best_transaction.get('phone_normalized', '')
                     out["reference"] = best_transaction.get('reference', '')
                     out["all_transactions"] = all_transactions
                     
-                    print(f"[OCR] 🎯 Transaction sélectionnée: {out['amount']} FCFA (la plus récente)")
+                    print(f"[OCR] 🎯 Transaction sélectionnée: {out['amount']} FCFA vers {out['phone']} (la plus récente)")
+                    
+                    # ═══════════════════════════════════════════════════════════
+                    # VALIDATION STRICTE #3 : MONTANT >= ACOMPTE REQUIS
+                    # ═══════════════════════════════════════════════════════════
+                    if required_amount:
+                        try:
+                            detected_amount = int(out['amount'])
+                            if detected_amount < required_amount:
+                                print(f"[OCR] ❌ REJET STRICT: Montant insuffisant")
+                                print(f"[OCR] 💰 Détecté: {detected_amount} FCFA | Requis: {required_amount} FCFA")
+                                out["error"] = "MONTANT_INSUFFISANT"
+                                out["required_amount"] = required_amount
+                                out["detected_amount"] = detected_amount
+                                return out
+                            else:
+                                print(f"[OCR] ✅ Montant validé: {detected_amount} FCFA >= {required_amount} FCFA")
+                        except ValueError:
+                            print(f"[OCR] ⚠️ Impossible de valider montant: {out['amount']}")
                     
                     r = re.search(r"(ref[:\-\s]*[a-z0-9\-]+|wave[:\-\s]*[a-z0-9\-]+)", joined)
                     if r:

@@ -1,0 +1,69 @@
+{
+  "checkpoint_id": "test_client_simulator_20251021_132154",
+  "user_id": "test_client_simulator",
+  "company_id": "default",
+  "timestamp": "2025-10-21T13:21:54.530322",
+  "thinking": {
+    "success": true,
+    "deja_collecte": {
+      "zone": "Anyama",
+      "frais_livraison": 2500,
+      "produit": null,
+      "quantite": null,
+      "telephone": null,
+      "paiement": null
+    },
+    "nouvelles_donnees": [
+      {
+        "cle": "zone",
+        "valeur": "Anyama",
+        "confiance": "HAUTE"
+      }
+    ],
+    "confiance": {
+      "score": 80,
+      "raison": ""
+    },
+    "progression": {
+      "completude": "1/5",
+      "prochaine_etape": {
+        "type": "collecte",
+        "action": "Continuer la collecte d'informations"
+      }
+    },
+    "strategie_qualification": {
+      "phase": "decouverte",
+      "objectif": "Identifier le besoin",
+      "technique": "clarification"
+    },
+    "parsing_errors": []
+  },
+  "notepad": {
+    "created_at": "2025-10-21T13:19:58.203232",
+    "products": [],
+    "quantities": {},
+    "delivery_zone": null,
+    "delivery_cost": null,
+    "payment_method": null,
+    "payment_number": null,
+    "phone_number": null,
+    "calculated_totals": [],
+    "last_updated": "2025-10-21T13:19:58.203245",
+    "conversation_count": 0
+  },
+  "conversation_history": [],
+  "metrics": {
+    "confiance_score": 80,
+    "completude": "1/5",
+    "phase_qualification": "decouverte"
+  },
+  "metadata": {},
+  "statistics": {
+    "notepad_completude": "0/6",
+    "notepad_completude_pct": 0.0,
+    "conversation_length": 0,
+    "thinking_parsed": true,
+    "deja_collecte_count": 6,
+    "nouvelles_donnees_count": 1
+  }
+}

@@ -15,7 +15,9 @@ from pathlib import Path
 async def analyze_image_with_botlive(
     image_data: str,
     user_id: str,
-    context: str = ""
+    context: str = "",
+    company_phone: str = None,
+    required_amount: int = None
 ) -> Dict[str, Any]:
     """
     Appelle le système Botlive existant pour analyser une image
@@ -24,6 +26,8 @@ async def analyze_image_with_botlive(
         image_data: Image en base64
         user_id: ID utilisateur
         context: Contexte conversation
+        company_phone: Numéro Wave entreprise (extrait du prompt)
+        required_amount: Acompte requis (extrait du prompt)
     
     Returns:
         {
@@ -53,22 +57,32 @@ async def analyze_image_with_botlive(
         # Détecter type d'image (paiement vs produit)
         # On essaie d'abord OCR paiement, si ça échoue on fait produit
         
-        # 1. Essayer OCR paiement
-        payment_result = engine.detect_payment(temp_image_path)
+        # 1. Essayer OCR paiement avec VALIDATION STRICTE
+        # Utiliser valeurs passées en paramètre (extraites du prompt) avec fallback
+        final_company_phone = company_phone or "+225 0787360757"
+        final_required_amount = required_amount or 2000
         
-        if payment_result and payment_result.get("amount", 0) > 0:
+        print(f"📋 [BOTLIVE_INTEGRATION] Config: Phone={final_company_phone}, Amount={final_required_amount} FCFA")
+        
+        payment_result = engine.verify_payment(
+            image_path=temp_image_path,
+            company_phone=final_company_phone,
+            required_amount=final_required_amount
+        )
+        
+        if payment_result and payment_result.get("amount"):
             # C'est un paiement!
-            print(f"💰 [BOTLIVE_INTEGRATION] Paiement détecté: {payment_result['amount']} FCFA")
+            print(f"💰 [BOTLIVE_INTEGRATION] Paiement détecté: {payment_result['amount']} {payment_result.get('currency', 'FCFA')}")
             
-            analysis_text = f"Paiement Wave détecté. Montant: {payment_result['amount']} FCFA. "
+            analysis_text = f"Paiement Wave détecté. Montant: {payment_result['amount']} {payment_result.get('currency', 'FCFA')}. "
             if payment_result.get("phone"):
                 analysis_text += f"Numéro: {payment_result['phone']}. "
-            if payment_result.get("transaction_id"):
-                analysis_text += f"Transaction: {payment_result['transaction_id']}."
+            if payment_result.get("reference"):
+                analysis_text += f"Référence: {payment_result['reference']}."
             
             result = {
                 "analysis": analysis_text,
-                "confidence": payment_result.get("confidence", 0.85),
+                "confidence": 0.90,
                 "raw_data": payment_result
             }
         

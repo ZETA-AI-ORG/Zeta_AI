@@ -43,6 +43,9 @@ class UniversalRAGResult:
     fusion_metadata: Optional[Dict[str, Any]] = None
     verification_result: Optional[Dict[str, Any]] = None
     quality_score: Optional[float] = None
+    # Champs pour debugging et validation
+    thinking: str = ""
+    validation: Optional[Dict[str, Any]] = None
 
 class UniversalRAGEngine:
     """
@@ -61,6 +64,15 @@ class UniversalRAGEngine:
     def __init__(self):
         self.llm_client = None
         self.embedding_model = None
+        
+        # Initialiser Supabase pour les prompts dynamiques
+        try:
+            from database.supabase_client import get_supabase_client
+            self.supabase = get_supabase_client()
+            logger.info("✅ Connexion Supabase initialisée (prompts dynamiques)")
+        except Exception as e:
+            logger.warning(f"⚠️ Supabase non disponible: {e}")
+            self.supabase = None
         
         # Nouveaux composants avancés
         if ADVANCED_MODULES_AVAILABLE:
@@ -460,21 +472,99 @@ class UniversalRAGEngine:
     async def generate_response(self, query: str, search_results: Dict[str, Any], company_id: str, company_name: str = "notre entreprise", user_id: str = None, images=None) -> str:
         """🤖 Génère une réponse avec prompt dynamique Supabase et mémoire conversationnelle"""
         
+        # ========== RÉCUPÉRATION PROMPT DYNAMIQUE (AVANT TRAITEMENT IMAGE) ==========
+        try:
+            dynamic_prompt = await self._get_dynamic_prompt(company_id, company_name)
+            print("✅ Prompt dynamique récupéré")
+            
+            # Extraire configuration entreprise du prompt
+            prompt_config = self._extract_config_from_prompt(dynamic_prompt)
+            print(f"📋 [CONFIG EXTRAITE] Wave: {prompt_config['wave_phone']}, Acompte: {prompt_config['required_amount']} FCFA")
+        except Exception as e:
+            print(f"⚠️ Prompt par défaut: {str(e)[:30]}")
+            dynamic_prompt = f"Tu es un assistant client professionnel pour {company_name}."
+            prompt_config = {'wave_phone': None, 'required_amount': None}
+        
         # ========== ANALYSE IMAGE SI PRÉSENTE ==========
         image_context = ""
         if images and len(images) > 0:
             print("📸 [IMAGE] Détectée, analyse via Botlive...")
             try:
                 from core.image_analyzer import analyze_image_for_rag
+                import requests
+                import base64
                 
-                # Analyser l'image
+                # Télécharger l'image depuis l'URL
+                image_url = images[0]
+                print(f"📥 [IMAGE] Téléchargement: {image_url[:80]}...")
+                
+                response = requests.get(image_url, timeout=15)
+                response.raise_for_status()
+                
+                # Convertir en base64
+                image_base64 = base64.b64encode(response.content).decode('utf-8')
+                print(f"✅ [IMAGE] Téléchargée et convertie en base64 ({len(image_base64)} chars)")
+                
+                # Analyser l'image avec config entreprise
                 image_analysis = await analyze_image_for_rag(
-                    image_data=images[0],
+                    image_data=image_base64,
                     user_id=user_id or "unknown",
-                    context=query
+                    context=query,
+                    company_phone=prompt_config.get('wave_phone'),
+                    required_amount=prompt_config.get('required_amount')
                 )
                 
                 print(f"✅ [IMAGE] Type: {image_analysis['type']}, Confiance: {image_analysis.get('confidence', 0):.2f}")
+                
+                # ========== FALLBACK AUTOMATIQUE VERS BOTLIVE POUR PAIEMENTS ==========
+                if image_analysis["type"] == "payment":
+                    print("💳 [FALLBACK] Image de paiement détectée → Redirection vers Botlive")
+                    try:
+                        from core.botlive_rag_hybrid import botlive_hybrid
+                        
+                        # Construire contexte pour Botlive
+                        payment_data = image_analysis["data"]
+                        
+                        # Convertir amount en int (Botlive attend un int, pas une string)
+                        amount = payment_data.get('amount', 0)
+                        if isinstance(amount, str):
+                            try:
+                                amount = int(amount)
+                            except (ValueError, TypeError):
+                                amount = 0
+                        
+                        # Utiliser config extraite du prompt (avec fallback)
+                        wave_phone = prompt_config.get('wave_phone') or '225 07 87 36 07 57'
+                        required_amount = prompt_config.get('required_amount') or 2000
+                        
+                        context = {
+                            'detected_objects': [],
+                            'filtered_transactions': [{
+                                'amount': amount,
+                                'currency': 'FCFA',
+                                'phone': payment_data.get('phone', ''),
+                                'verified': payment_data.get('verified', False)
+                            }],
+                            'expected_deposit': required_amount,
+                            'company_phone': wave_phone
+                        }
+                        
+                        # Appeler Botlive
+                        print(f"🔄 [FALLBACK] Appel Botlive avec context: {context}")
+                        botlive_result = await botlive_hybrid.process_request(
+                            user_id=user_id or "unknown",
+                            message=query,
+                            context=context,
+                            conversation_history="",
+                            company_id=company_id
+                        )
+                        
+                        print(f"✅ [FALLBACK] Réponse Botlive reçue, retour au RAG")
+                        return botlive_result.get('response', 'Erreur traitement paiement')
+                        
+                    except Exception as fallback_error:
+                        print(f"❌ [FALLBACK] Erreur Botlive: {fallback_error}")
+                        # Continuer avec RAG normal en cas d'erreur
                 
                 # Construire contexte selon type
                 if image_analysis["type"] == "payment":
@@ -830,14 +920,8 @@ INSTRUCTION: Demande poliment au client de préciser ce qu'il souhaite savoir su
         # except Exception as e:
         #     print(f"[REGEX] Erreur enrichissement contexte : {e}")
         
-        # 📋 RÉCUPÉRATION PROMPT DYNAMIQUE SUPABASE
-        try:
-            dynamic_prompt = await self._get_dynamic_prompt(company_id, company_name)
-            print("✅ Prompt dynamique récupéré")
-            print(f"📋 [DÉTAIL PROMPT] Contenu:\n{dynamic_prompt[:300]}{'...' if len(dynamic_prompt) > 300 else ''}")
-        except Exception as e:
-            print(f"⚠️ Prompt par défaut: {str(e)[:30]}")
-            dynamic_prompt = f"Tu es un assistant client professionnel pour {company_name}."
+        # 📋 PROMPT DÉJÀ RÉCUPÉRÉ AU DÉBUT (avant traitement image)
+        print(f"📋 [DÉTAIL PROMPT] Contenu:\n{dynamic_prompt[:300]}{'...' if len(dynamic_prompt) > 300 else ''}")
         
         # Enrichissement intelligent du prompt avec détection de remises
         pricing_enhancement = self._detect_pricing_context(query, structured_context)
@@ -904,34 +988,31 @@ INSTRUCTION: Demande poliment au client de préciser ce qu'il souhaite savoir su
         except Exception as e:
             print(f"⚠️ [ENHANCED_MEMORY] Injection échouée: {e}")
         
-        # ========== INJECTION CONTEXTE NOTEPAD + DIRECTIVE DYNAMIQUE ==========
+        # ========== INJECTION CONTEXTE NOTEPAD (SIMPLIFIÉ) ==========
         try:
-            from .conversation_notepad import get_conversation_notepad
+            from .conversation_notepad import ConversationNotepad
             
             if user_id:
-                notepad = get_conversation_notepad()
-                notepad_context = notepad.get_context_for_llm(user_id, company_id)
+                notepad = ConversationNotepad.get_instance()
+                notepad_data = notepad.get_all(user_id, company_id)
                 
-                # ========== GÉNÉRATION DIRECTIVE DYNAMIQUE DE PROGRESSION ==========
-                directive = self._generate_progression_directive(notepad_context, user_id, company_id)
-                
-                # Combiner notepad + directive
-                full_context = ""
-                if notepad_context:
-                    full_context += notepad_context
-                if directive:
-                    full_context += f"\n\n{directive}"
-                
-                if full_context:
-                    # Injecter le contexte enrichi AVANT le contexte RAG
-                    system_prompt = system_prompt.replace(
-                        "CONTEXTE DISPONIBLE:",
-                        f"{full_context}\n\nCONTEXTE DISPONIBLE:"
-                    )
-                    logger.info(f"📋 Contexte notepad injecté: {len(notepad_context) if notepad_context else 0} chars")
-                    logger.info(f"🎯 Directive progression injectée: {len(directive) if directive else 0} chars")
+                if notepad_data:
+                    # Construire contexte formaté
+                    notepad_lines = ["\n📋 CONTEXTE COLLECTÉ (NE PAS REDEMANDER):"]
+                    if notepad_data.get('produit'):
+                        notepad_lines.append(f"   ✅ Produit: {notepad_data['produit']}")
+                    if notepad_data.get('zone'):
+                        notepad_lines.append(f"   ✅ Zone: {notepad_data['zone']}")
+                    if notepad_data.get('telephone'):
+                        notepad_lines.append(f"   ✅ Téléphone: {notepad_data['telephone']}")
+                    if notepad_data.get('paiement'):
+                        notepad_lines.append(f"   ✅ Paiement: {notepad_data['paiement']}")
+                    
+                    notepad_context = "\n".join(notepad_lines)
+                    system_prompt += f"\n{notepad_context}\n"
+                    logger.info(f"📋 Contexte notepad injecté: {len(notepad_context)} chars")
         except Exception as e:
-            logger.warning(f"⚠️ Injection notepad/directive échouée: {e}")
+            logger.warning(f"⚠️ Injection notepad échouée: {e}")
         
         # Ajout fallback si bloc question/contexte absent
         if "{question}" in system_prompt:
@@ -1014,6 +1095,7 @@ INSTRUCTION: Demande poliment au client de préciser ce qu'il souhaite savoir su
             
             # ========== EXTRACTION BALISE <response> + OUTILS BOTLIVE ==========
             # Utiliser le système d'extraction avancé de Botlive
+            thinking = ""  # Initialiser AVANT le try
             try:
                 from core.rag_tools_integration import process_llm_response
                 
@@ -1025,7 +1107,10 @@ INSTRUCTION: Demande poliment au client de préciser ce qu'il souhaite savoir su
                 )
                 
                 response = processed["response"]
-                thinking = processed.get("thinking", "")
+                # ✅ CRITIQUE: Ne pas écraser thinking s'il est déjà rempli
+                extracted_thinking = processed.get("thinking", "")
+                if extracted_thinking:  # Seulement si non vide
+                    thinking = extracted_thinking
                 tools_executed = processed.get("tools_executed", 0)
                 
                 # Stocker pour accès externe (tests)
@@ -1281,6 +1366,27 @@ INSTRUCTION: Demande poliment au client de préciser ce qu'il souhaite savoir su
         except Exception as e:
             print(f"[BOTLIVE] Erreur finalisation: {e}")
             return "✅ Commande reçue ! Nous la traitons et vous recontactons rapidement."
+    
+    def _extract_config_from_prompt(self, prompt: str) -> dict:
+        """Extrait WAVE_ENTREPRISE et ACOMPTE_REQUIS du prompt"""
+        import re
+        
+        config = {
+            'wave_phone': None,
+            'required_amount': None
+        }
+        
+        # Extraire WAVE_ENTREPRISE: +225 0787360757
+        wave_match = re.search(r'WAVE_ENTREPRISE:\s*\+?(\d+\s*\d+\s*\d+)', prompt)
+        if wave_match:
+            config['wave_phone'] = wave_match.group(1).replace(' ', '')
+        
+        # Extraire ACOMPTE_REQUIS: 2000 FCFA
+        acompte_match = re.search(r'ACOMPTE_REQUIS:\s*(\d+)\s*FCFA', prompt)
+        if acompte_match:
+            config['required_amount'] = int(acompte_match.group(1))
+        
+        return config
     
     async def _get_dynamic_prompt(self, company_id: str, company_name: str) -> str:
         """📋 Récupère le prompt dynamique via company_booster (nouveau système universel)"""
@@ -1632,7 +1738,7 @@ INSTRUCTION SPÉCIALE PAIEMENT:
             "products": products
         }
     
-    async def process_query(self, query: str, company_id: str, user_id: str, company_name: str = None, skip_faq_cache: bool = False, request_id: str = None) -> UniversalRAGResult:
+    async def process_query(self, query: str, company_id: str, user_id: str, company_name: str = None, skip_faq_cache: bool = False, request_id: str = None, images: List[str] = None) -> UniversalRAGResult:
         """
         🌍 TRAITEMENT UNIVERSEL AVANCÉ D'UNE REQUÊTE
         
@@ -1687,7 +1793,7 @@ INSTRUCTION SPÉCIALE PAIEMENT:
             
             # 3. Génération de réponse avec prompt dynamique
             company_display_name = company_name or f"l'entreprise {company_id[:8]}"
-            response = await self.generate_response(query, search_results, company_id, company_display_name, user_id)
+            response = await self.generate_response(query, search_results, company_id, company_display_name, user_id, images=images)
 
             # 4. Traitement des outils dans la réponse LLM
             # 🧠 SMART CONTEXT MANAGER - Passer company_id et documents sources
@@ -1719,17 +1825,73 @@ INSTRUCTION SPÉCIALE PAIEMENT:
             # 4. Calcul de la confiance
             confidence = self.calculate_confidence(search_results, response)
             print(f"📊 Confiance calculée: {confidence:.2f}")
+            
             # 5. Construction du résultat
             processing_time = (time.time() - start_time) * 1000
+            
+            # ✅ CRITIQUE: Utiliser self._last_thinking qui est sauvegardé ligne 1118
+            # La variable locale 'thinking' peut être écrasée par des appels ultérieurs
+            thinking_text = getattr(self, '_last_thinking', thinking)
+            print(f"🔍 [THINKING_FINAL] Thinking à retourner: {len(thinking_text)} chars")
+            print(f"🔍 [THINKING_FINAL] Contenu: {thinking_text[:200] if thinking_text else 'VIDE'}")
+            print(f"🔍 [THINKING_FINAL] Source: {'self._last_thinking' if hasattr(self, '_last_thinking') else 'variable locale'}")
+            
             result = UniversalRAGResult(
                 response=response,
                 confidence=confidence,
                 documents_found=search_results['total_documents'] > 0,
                 processing_time_ms=processing_time,
                 search_method=search_results['search_method'],
-                context_used=search_results['supabase_context'] or search_results['meili_context'] or "Aucun"
+                context_used=search_results['supabase_context'] or search_results['meili_context'] or "Aucun",
+                thinking=thinking_text,
+                validation=None  # Sera ajouté par botlive si nécessaire
             )
             print(f"✅ [FIN] RAG terminé: {processing_time:.0f}ms | Méthode: {search_results['search_method']}")
+            
+            # 🧠 AUTO-LEARNING: Track exécution en background
+            try:
+                from core.auto_learning_wrapper import track_rag_execution
+                
+                # Extraire thinking_data depuis réponse
+                thinking_data = {}
+                if hasattr(thinking_result, 'thinking') and thinking_result.thinking:
+                    thinking_data = thinking_result.thinking
+                
+                # Préparer documents utilisés
+                documents_used = []
+                if search_results.get('meili_context'):
+                    # Extraire documents depuis contexte MeiliSearch
+                    for doc in search_results.get('meili_results', []):
+                        documents_used.append({
+                            'id': doc.get('id', 'unknown'),
+                            'content': doc.get('content', ''),
+                            'source': 'meilisearch'
+                        })
+                if search_results.get('supabase_results'):
+                    # Documents Supabase
+                    for doc in search_results.get('supabase_results', []):
+                        documents_used.append({
+                            'id': doc.get('id', 'unknown'),
+                            'content': doc.get('content', ''),
+                            'source': 'supabase'
+                        })
+                
+                # Track en background (non-bloquant)
+                asyncio.create_task(track_rag_execution(
+                    company_id=company_id,
+                    user_id=user_id,
+                    query=query,
+                    thinking_data=thinking_data,
+                    documents_used=documents_used,
+                    response_time_ms=int(processing_time),
+                    llm_model=self.llm_model,
+                    conversation_id=request_id
+                ))
+                
+            except Exception as learning_error:
+                # Silent fail - ne pas bloquer RAG
+                print(f"⚠️ [AUTO-LEARNING] Erreur tracking: {learning_error}")
+            
             return result
             
         except Exception as e:
@@ -1938,16 +2100,17 @@ async def get_universal_rag_response(
     message: str, 
     company_id: str, 
     user_id: str, 
-    company_name: str = None,
+    images: List[str] = None,
     conversation_history: str = "",
     skip_faq_cache: bool = False,
-    request_id: str = None
+    request_id: str = None,
+    company_name: str = None
 ) -> Dict[str, Any]:
     """
     🌍 INTERFACE SIMPLE POUR RAG UNIVERSEL
     
     Usage:
-    result = await get_universal_rag_response("Que vendez-vous?", "company123", "user456", "Rue du Gros", "USER: Bonjour...")
+    result = await get_universal_rag_response("Que vendez-vous?", "company123", "user456", [], "USER: Bonjour...")
     print(result['response'])
     """
     
@@ -1956,12 +2119,13 @@ async def get_universal_rag_response(
     print(f"🔍 [RAG_ENTRY] Message: '{message}'")
     print(f"🔍 [RAG_ENTRY] Company: {company_id}")
     print(f"🔍 [RAG_ENTRY] User: {user_id}")
+    print(f"🔍 [RAG_ENTRY] Images: {len(images) if images else 0}")
     print(f"🔍 [RAG_ENTRY] conversation_history: '{conversation_history}'")
     print(f"🔍 [RAG_ENTRY] Taille historique: {len(conversation_history)} chars")
     print(f"🔍 [RAG_ENTRY] Contient Cocody: {'Cocody' in conversation_history}")
     print()
     
-    result = await universal_rag.process_query(message, company_id, user_id, company_name, skip_faq_cache, request_id)
+    result = await universal_rag.process_query(message, company_id, user_id, company_name, skip_faq_cache, request_id, images=images)
     
     return {
         'response': result.response,
@@ -1970,6 +2134,8 @@ async def get_universal_rag_response(
         'processing_time_ms': result.processing_time_ms,
         'search_method': result.search_method,
         'context_used': result.context_used,
+        'thinking': getattr(result, 'thinking', ''),  # ← AJOUT thinking
+        'validation': getattr(result, 'validation', None),  # ← AJOUT validation
         'success': True
     }
 

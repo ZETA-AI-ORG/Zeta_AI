@@ -21,6 +21,15 @@ class ConversationNotepad:
     Stocke: produits, quantités, zones, prix, calculs
     """
     
+    _instance = None
+    
+    @classmethod
+    def get_instance(cls):
+        """Retourne l'instance singleton"""
+        if cls._instance is None:
+            cls._instance = cls()
+        return cls._instance
+    
     def __init__(self):
         self.notepads: Dict[str, Dict[str, Any]] = {}
         logger.info("📋 ConversationNotepad initialisé")
@@ -96,6 +105,37 @@ class ConversationNotepad:
             logger.info(f"🚚 Zone changée: {old_zone} → {zone} ({cost} FCFA)")
         else:
             logger.info(f"🚚 Livraison définie: {zone} ({cost} FCFA)")
+    
+    def get_all(self, user_id: str, company_id: str) -> Dict[str, Any]:
+        """Récupère toutes les données du notepad sous forme de dict simple"""
+        notepad = self.get_notepad(user_id, company_id)
+        
+        result = {}
+        
+        # Produit (prendre le dernier)
+        if notepad["products"]:
+            last_product = notepad["products"][-1]
+            product_str = last_product["name"]
+            if last_product.get("variant"):
+                product_str += f" {last_product['variant']}"
+            result["produit"] = product_str
+            result["prix_produit"] = str(int(last_product["price"]))
+        
+        # Zone
+        if notepad.get("delivery_zone"):
+            result["zone"] = notepad["delivery_zone"]
+        if notepad.get("delivery_cost"):
+            result["frais_livraison"] = str(int(notepad["delivery_cost"]))
+        
+        # Téléphone
+        if notepad.get("phone_number"):
+            result["telephone"] = notepad["phone_number"]
+        
+        # Paiement
+        if notepad.get("payment_method"):
+            result["paiement"] = notepad["payment_method"]
+        
+        return result
     
     def update_payment(self, user_id: str, company_id: str,
                       method: str, number: Optional[str] = None):

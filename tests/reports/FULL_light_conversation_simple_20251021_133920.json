@@ -1,0 +1,189 @@
+{
+  "scenario": "light_conversation_simple",
+  "start_time": 1761046624.426334,
+  "end_time": 1761046760.0222466,
+  "total_duration_ms": 135595.91269493103,
+  "total_rag_time_ms": 126723.39391708374,
+  "total_turns": 8,
+  "total_tokens": 398,
+  "total_cost_usd": 0.00031442,
+  "turns": [
+    {
+      "turn": 1,
+      "timestamp": "2025-10-21T13:37:20.470096",
+      "user_message": "Bonjour",
+      "llm_response": "Bonjour ! ✅ Commande confirmée ! Récapitulatif:\n📦 10 lots de 150 couches à pression - 0 FCFA\n🚚 Livraison Anyama - 2500 FCFA  \n💳 Acompte validé: 2000 FCFA\n📞 Contact: 0701234567\n⏰ Livraison: Demain (jour ouvré)\n\nOn te rappelle pour confirmer ! 😊\n\n⚠️ VEUILLEZ NE PAS RÉPONDRE À CE MESSAGE ⚠️",
+      "full_api_response": {
+        "response": "Bonjour ! ✅ Commande confirmée ! Récapitulatif:\n📦 10 lots de 150 couches à pression - 0 FCFA\n🚚 Livraison Anyama - 2500 FCFA  \n💳 Acompte validé: 2000 FCFA\n📞 Contact: 0701234567\n⏰ Livraison: Demain (jour ouvré)\n\nOn te rappelle pour confirmer ! 😊\n\n⚠️ VEUILLEZ NE PAS RÉPONDRE À CE MESSAGE ⚠️",
+        "cached": false,
+        "security_score": "LOW",
+        "hallucination_score": 1.0,
+        "thinking": "",
+        "validation": null
+      },
+      "server_logs": [],
+      "execution_time_ms": 15549.258470535278,
+      "tokens": {
+        "prompt": 1,
+        "completion": 53,
+        "total": 54
+      },
+      "cost_usd": 4.2659999999999995e-05
+    },
+    {
+      "turn": 2,
+      "timestamp": "2025-10-21T13:37:37.319900",
+      "user_message": "Je cherche des couches pour bébé",
+      "llm_response": "✅ Commande confirmée ! Récapitulatif:\n📦 Couches à pression, taille 3, 300 couches\n🚚 Livraison Anyama - 2500 FCFA  \n💳 Acompte validé: 2000 FCFA\n📞 Contact: 0701234567\n⏰ Livraison: Demain (jour ouvré)\n\nOn te rappelle pour confirmer ! 😊\n\n⚠️ VEUILLEZ NE PAS RÉPONDRE À CE MESSAGE ⚠️",
+      "full_api_response": {
+        "response": "✅ Commande confirmée ! Récapitulatif:\n📦 Couches à pression, taille 3, 300 couches\n🚚 Livraison Anyama - 2500 FCFA  \n💳 Acompte validé: 2000 FCFA\n📞 Contact: 0701234567\n⏰ Livraison: Demain (jour ouvré)\n\nOn te rappelle pour confirmer ! 😊\n\n⚠️ VEUILLEZ NE PAS RÉPONDRE À CE MESSAGE ⚠️",
+        "cached": false,
+        "security_score": "LOW",
+        "hallucination_score": 1.0,
+        "thinking": "",
+        "validation": null
+      },
+      "server_logs": [],
+      "execution_time_ms": 15765.053749084473,
+      "tokens": {
+        "prompt": 6,
+        "completion": 48,
+        "total": 54
+      },
+      "cost_usd": 4.2659999999999995e-05
+    },
+    {
+      "turn": 3,
+      "timestamp": "2025-10-21T13:37:54.942667",
+      "user_message": "Mon bébé a 6 mois et pèse 8kg",
+      "llm_response": "Noté ! Pour un bébé de 6 mois et 8 kg, je te recommande les couches à pression taille 3 (6-11 kg) ou taille 4 (9-16 kg). \nTu as déjà confirmé 10 lots mais sans taille. \nQuelle taille préfères-tu pour tes 10 lots ?",
+      "full_api_response": {
+        "response": "Noté ! Pour un bébé de 6 mois et 8 kg, je te recommande les couches à pression taille 3 (6-11 kg) ou taille 4 (9-16 kg). \nTu as déjà confirmé 10 lots mais sans taille. \nQuelle taille préfères-tu pour tes 10 lots ?",
+        "cached": false,
+        "security_score": "LOW",
+        "hallucination_score": 1.0,
+        "thinking": "",
+        "validation": null
+      },
+      "server_logs": [],
+      "execution_time_ms": 16527.462005615234,
+      "tokens": {
+        "prompt": 8,
+        "completion": 44,
+        "total": 52
+      },
+      "cost_usd": 4.108e-05
+    },
+    {
+      "turn": 4,
+      "timestamp": "2025-10-21T13:38:12.021623",
+      "user_message": "Je veux 300 couches",
+      "llm_response": "Noté ! On a 2 types en lot 300 :\n- Couches à pression (Taille 1 : 17 900 F, Taille 2 : 18 900 F)\n- Couches culottes (24 000 F)\n\nLequel tu veux ?",
+      "full_api_response": {
+        "response": "Noté ! On a 2 types en lot 300 :\n- Couches à pression (Taille 1 : 17 900 F, Taille 2 : 18 900 F)\n- Couches culottes (24 000 F)\n\nLequel tu veux ?",
+        "cached": false,
+        "security_score": "LOW",
+        "hallucination_score": 1.0,
+        "thinking": "",
+        "validation": null
+      },
+      "server_logs": [],
+      "execution_time_ms": 16018.455982208252,
+      "tokens": {
+        "prompt": 4,
+        "completion": 36,
+        "total": 40
+      },
+      "cost_usd": 3.1599999999999996e-05
+    },
+    {
+      "turn": 5,
+      "timestamp": "2025-10-21T13:38:29.227218",
+      "user_message": "Je suis à Yopougon",
+      "llm_response": "✅ Commande confirmée ! Récapitulatif:\n📦 Couches à pression, taille 3, 300 couches - 22 900 FCFA\n🚚 Livraison Yopougon - 1 500 FCFA  \n💳 Acompte validé: 2 000 FCFA\n📞 Contact: 0701234567\n⏰ Livraison: Aujourd'hui\n\nOn te rappelle pour confirmer ! 😊\n\n⚠️ VEUILLEZ NE PAS RÉPONDRE À CE MESSAGE ⚠️",
+      "full_api_response": {
+        "response": "✅ Commande confirmée ! Récapitulatif:\n📦 Couches à pression, taille 3, 300 couches - 22 900 FCFA\n🚚 Livraison Yopougon - 1 500 FCFA  \n💳 Acompte validé: 2 000 FCFA\n📞 Contact: 0701234567\n⏰ Livraison: Aujourd'hui\n\nOn te rappelle pour confirmer ! 😊\n\n⚠️ VEUILLEZ NE PAS RÉPONDRE À CE MESSAGE ⚠️",
+        "cached": false,
+        "security_score": "LOW",
+        "hallucination_score": 1.0,
+        "thinking": "",
+        "validation": null
+      },
+      "server_logs": [],
+      "execution_time_ms": 16182.670831680298,
+      "tokens": {
+        "prompt": 4,
+        "completion": 52,
+        "total": 56
+      },
+      "cost_usd": 4.4239999999999997e-05
+    },
+    {
+      "turn": 6,
+      "timestamp": "2025-10-21T13:38:46.210803",
+      "user_message": "Mon numéro: 0708123456",
+      "llm_response": "Noté ! ✅ Commande confirmée ! Récapitulatif:\n📦 lot 150 - 0 FCFA\n🚚 Livraison Yopougon - 1500 FCFA  \n💳 Acompte validé: paid\n📞 Contact: 0701234567\n⏰ Livraison: aujourd'hui\n\nOn te rappelle pour confirmer ! 😊\n\n⚠️ VEUILLEZ NE PAS RÉPONDRE À CE MESSAGE ⚠️",
+      "full_api_response": {
+        "response": "Noté ! ✅ Commande confirmée ! Récapitulatif:\n📦 lot 150 - 0 FCFA\n🚚 Livraison Yopougon - 1500 FCFA  \n💳 Acompte validé: paid\n📞 Contact: 0701234567\n⏰ Livraison: aujourd'hui\n\nOn te rappelle pour confirmer ! 😊\n\n⚠️ VEUILLEZ NE PAS RÉPONDRE À CE MESSAGE ⚠️",
+        "cached": false,
+        "security_score": "LOW",
+        "hallucination_score": 1.0,
+        "thinking": "",
+        "validation": null
+      },
+      "server_logs": [],
+      "execution_time_ms": 15947.77512550354,
+      "tokens": {
+        "prompt": 3,
+        "completion": 45,
+        "total": 48
+      },
+      "cost_usd": 3.7919999999999996e-05
+    },
+    {
+      "turn": 7,
+      "timestamp": "2025-10-21T13:39:03.371234",
+      "user_message": "Voilà mon paiement",
+      "llm_response": "✅ Commande confirmée ! Récapitulatif:\n📦 lot 150 - 0 FCFA\n🚚 Livraison Yopougon - 1500 FCFA  \n💳 Acompte validé: 2000 FCFA\n📞 Contact: 0708123456\n⏰ Livraison: aujourd'hui\n\nOn te rappelle pour confirmer ! 😊\n\n⚠️ VEUILLEZ NE PAS RÉPONDRE À CE MESSAGE ⚠️",
+      "full_api_response": {
+        "response": "✅ Commande confirmée ! Récapitulatif:\n📦 lot 150 - 0 FCFA\n🚚 Livraison Yopougon - 1500 FCFA  \n💳 Acompte validé: 2000 FCFA\n📞 Contact: 0708123456\n⏰ Livraison: aujourd'hui\n\nOn te rappelle pour confirmer ! 😊\n\n⚠️ VEUILLEZ NE PAS RÉPONDRE À CE MESSAGE ⚠️",
+        "cached": false,
+        "security_score": "LOW",
+        "hallucination_score": 1.0,
+        "thinking": "",
+        "validation": null
+      },
+      "server_logs": [],
+      "execution_time_ms": 16138.7357711792,
+      "tokens": {
+        "prompt": 3,
+        "completion": 44,
+        "total": 47
+      },
+      "cost_usd": 3.713e-05
+    },
+    {
+      "turn": 8,
+      "timestamp": "2025-10-21T13:39:18.994927",
+      "user_message": "Oui je confirme",
+      "llm_response": "✅ Commande confirmée ! Récapitulatif:\n📦 lot 150 - 0 FCFA\n🚚 Livraison Yopougon - 1500 FCFA  \n💳 Acompte validé: paid\n📞 Contact: 0708123456\n⏰ Livraison: Livraison aujourd'hui\n\nOn te rappelle pour confirmer ! 😊\n\n⚠️ VEUILLEZ NE PAS RÉPONDRE À CE MESSAGE ⚠️",
+      "full_api_response": {
+        "response": "✅ Commande confirmée ! Récapitulatif:\n📦 lot 150 - 0 FCFA\n🚚 Livraison Yopougon - 1500 FCFA  \n💳 Acompte validé: paid\n📞 Contact: 0708123456\n⏰ Livraison: Livraison aujourd'hui\n\nOn te rappelle pour confirmer ! 😊\n\n⚠️ VEUILLEZ NE PAS RÉPONDRE À CE MESSAGE ⚠️",
+        "cached": false,
+        "security_score": "LOW",
+        "hallucination_score": 1.0,
+        "thinking": "",
+        "validation": null
+      },
+      "server_logs": [],
+      "execution_time_ms": 14593.981981277466,
+      "tokens": {
+        "prompt": 3,
+        "completion": 44,
+        "total": 47
+      },
+      "cost_usd": 3.713e-05
+    }
+  ],
+  "all_server_logs": []
+}

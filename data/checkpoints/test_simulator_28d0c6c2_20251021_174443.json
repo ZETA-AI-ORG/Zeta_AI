@@ -1,0 +1,68 @@
+{
+  "checkpoint_id": "test_simulator_28d0c6c2_20251021_174443",
+  "user_id": "test_simulator_28d0c6c2",
+  "company_id": "default",
+  "timestamp": "2025-10-21T17:44:43.677926",
+  "thinking": {
+    "success": true,
+    "deja_collecte": {
+      "type_produit": null,
+      "quantite": null,
+      "zone": null,
+      "telephone": null,
+      "paiement": null
+    },
+    "nouvelles_donnees": [
+      {
+        "cle": "intention",
+        "valeur": "demande_produit",
+        "confiance": "HAUTE"
+      }
+    ],
+    "confiance": {
+      "score": 40,
+      "raison": ""
+    },
+    "progression": {
+      "completude": "0/5",
+      "prochaine_etape": {
+        "type": "collecte",
+        "action": "Continuer la collecte d'informations"
+      }
+    },
+    "strategie_qualification": {
+      "phase": "decouverte",
+      "objectif": "Identifier le besoin",
+      "technique": "clarification"
+    },
+    "parsing_errors": []
+  },
+  "notepad": {
+    "created_at": "2025-10-21T17:44:43.208810",
+    "products": [],
+    "quantities": {},
+    "delivery_zone": null,
+    "delivery_cost": null,
+    "payment_method": null,
+    "payment_number": null,
+    "phone_number": null,
+    "calculated_totals": [],
+    "last_updated": "2025-10-21T17:44:43.208822",
+    "conversation_count": 0
+  },
+  "conversation_history": [],
+  "metrics": {
+    "confiance_score": 40,
+    "completude": "0/5",
+    "phase_qualification": "decouverte"
+  },
+  "metadata": {},
+  "statistics": {
+    "notepad_completude": "0/6",
+    "notepad_completude_pct": 0.0,
+    "conversation_length": 0,
+    "thinking_parsed": true,
+    "deja_collecte_count": 5,
+    "nouvelles_donnees_count": 1
+  }
+}

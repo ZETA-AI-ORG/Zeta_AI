@@ -1,0 +1,162 @@
+{
+  "test_type": "interactive_manual",
+  "user_id": "test_interactive_a7dc8fed",
+  "timestamp": "2025-10-21T19:17:27.006760",
+  "total_turns": 2,
+  "conversation": [
+    {
+      "turn": 1,
+      "user_message": "BONJOUR",
+      "assistant_response": "Bonjour ! 🌞 Bienvenue chez RUEDUGROSSISTE.\nQue désires-tu acheter aujourd'hui ? 🛍️",
+      "thinking": "PHASE 1 EXTRACTION\nquestion_exacte: \"BONJOUR\"\nintentions:\n  type: salutation\n\nPHASE 2 COLLECTE\ndeja_collecte:\n  type_produit: null\n  quantite: null\n  zone: null\n  telephone: null\n  paiement: null\nnouvelles_donnees: []\n\nPHASE 3 VALIDATION\nverification:\n  prix_trouve: false\n  ambiguite: false\nconfiance_globale: 0\n\nPHASE 4 ANTI_REPETITION\ncheck_repetition:\n  type_produit: false\n  quantite: false\n  zone: false\n  telephone: false\n  paiement: false\n\nPHASE 5 DECISION\nprogression:\n  completude: \"0/5\"\n  donnees_manquantes: [type_produit, quantite, zone, telephone, paiement]\n  prochaine_etape: \"Demander type produit\"",
+      "thinking_length": 614,
+      "debug_contexts": {
+        "state_tracker": {
+          "error": "'OrderState' object has no attribute 'to_dict'"
+        },
+        "notepad": {
+          "error": "'ConversationNotepad' object has no attribute 'get_content'"
+        },
+        "enhanced_memory": {
+          "error": "EnhancedMemory.get_recent_interactions() got multiple values for argument 'limit'"
+        },
+        "thinking_parsed": {
+          "phase2_collected": {},
+          "phase5_decision": {},
+          "completeness": "unknown"
+        },
+        "anti_hallucination": {
+          "error": "'HallucinationCheck' object has no attribute 'is_grounded'"
+        },
+        "security": {
+          "risk_level": "LOW",
+          "is_safe": true,
+          "threats_detected": []
+        },
+        "conversation_history": {
+          "error": "No module named 'core.conversation_manager'"
+        },
+        "checkpoints": {
+          "count": 1,
+          "last_checkpoint": "test_interactive_a7dc8fed_20251021_191458.json"
+        }
+      },
+      "full_result": {
+        "response": "Bonjour ! 🌞 Bienvenue chez RUEDUGROSSISTE.\nQue désires-tu acheter aujourd'hui ? 🛍️",
+        "cached": false,
+        "security_score": "LOW",
+        "hallucination_score": 1.0,
+        "thinking": "PHASE 1 EXTRACTION\nquestion_exacte: \"BONJOUR\"\nintentions:\n  type: salutation\n\nPHASE 2 COLLECTE\ndeja_collecte:\n  type_produit: null\n  quantite: null\n  zone: null\n  telephone: null\n  paiement: null\nnouvelles_donnees: []\n\nPHASE 3 VALIDATION\nverification:\n  prix_trouve: false\n  ambiguite: false\nconfiance_globale: 0\n\nPHASE 4 ANTI_REPETITION\ncheck_repetition:\n  type_produit: false\n  quantite: false\n  zone: false\n  telephone: false\n  paiement: false\n\nPHASE 5 DECISION\nprogression:\n  completude: \"0/5\"\n  donnees_manquantes: [type_produit, quantite, zone, telephone, paiement]\n  prochaine_etape: \"Demander type produit\"",
+        "validation": null,
+        "debug_contexts": {
+          "state_tracker": {
+            "error": "'OrderState' object has no attribute 'to_dict'"
+          },
+          "notepad": {
+            "error": "'ConversationNotepad' object has no attribute 'get_content'"
+          },
+          "enhanced_memory": {
+            "error": "EnhancedMemory.get_recent_interactions() got multiple values for argument 'limit'"
+          },
+          "thinking_parsed": {
+            "phase2_collected": {},
+            "phase5_decision": {},
+            "completeness": "unknown"
+          },
+          "anti_hallucination": {
+            "error": "'HallucinationCheck' object has no attribute 'is_grounded'"
+          },
+          "security": {
+            "risk_level": "LOW",
+            "is_safe": true,
+            "threats_detected": []
+          },
+          "conversation_history": {
+            "error": "No module named 'core.conversation_manager'"
+          },
+          "checkpoints": {
+            "count": 1,
+            "last_checkpoint": "test_interactive_a7dc8fed_20251021_191458.json"
+          }
+        }
+      }
+    },
+    {
+      "turn": 2,
+      "user_message": "Je cherche des couches",
+      "assistant_response": "Noté ! 📦 Nous avons plusieurs types de couches:\n- Couches à pression (22 900 F) - Taille 3 - 6 à 11 kg - 300 couches\n- Couches culottes (disponible sur demande)\n\nLequel te convient ?",
+      "thinking": "PHASE 1: question_exacte + intentions\n  question_exacte: \"Je cherche des couches\"\n  intentions: \n    type: produit\n    sous_type: couches\n\nPHASE 2: deja_collecte + nouvelles_donnees\n  deja_collecte:\n    type_produit: null\n    quantite: null\n    zone: null\n    telephone: null\n    paiement: null\n  nouvelles_donnees:\n    - cle: type_produit\n      valeur: \"Couches à pression\"\n      confiance: HAUTE\n\nPHASE 3: verification + confiance\n  verification:\n    prix_trouve: true\n    ambiguite: true\n  confiance_globale: 60\n\nPHASE 4: check_repetition\n  check_repetition:\n    type_produit: false\n    quantite: false\n    zone: false\n    telephone: false\n    paiement: false\n\nPHASE 5: completude + prochaine_etape\n  progression:\n    completude: \"0/5\"\n    donnees_manquantes: [type_produit, quantite, zone, telephone, paiement]\n    prochaine_etape: \"Préciser type de couches\"",
+      "thinking_length": 862,
+      "debug_contexts": {
+        "state_tracker": {
+          "error": "'OrderState' object has no attribute 'to_dict'"
+        },
+        "notepad": {
+          "error": "'ConversationNotepad' object has no attribute 'get_content'"
+        },
+        "enhanced_memory": {
+          "error": "EnhancedMemory.get_recent_interactions() got multiple values for argument 'limit'"
+        },
+        "thinking_parsed": {
+          "phase2_collected": {},
+          "phase5_decision": {},
+          "completeness": "unknown"
+        },
+        "anti_hallucination": {
+          "error": "'HallucinationCheck' object has no attribute 'is_grounded'"
+        },
+        "security": {
+          "risk_level": "LOW",
+          "is_safe": true,
+          "threats_detected": []
+        },
+        "conversation_history": {
+          "error": "No module named 'core.conversation_manager'"
+        },
+        "checkpoints": {
+          "count": 1,
+          "last_checkpoint": "test_interactive_a7dc8fed_20251021_191458.json"
+        }
+      },
+      "full_result": {
+        "response": "Noté ! 📦 Nous avons plusieurs types de couches:\n- Couches à pression (22 900 F) - Taille 3 - 6 à 11 kg - 300 couches\n- Couches culottes (disponible sur demande)\n\nLequel te convient ?",
+        "cached": false,
+        "security_score": "LOW",
+        "hallucination_score": 1.0,
+        "thinking": "PHASE 1: question_exacte + intentions\n  question_exacte: \"Je cherche des couches\"\n  intentions: \n    type: produit\n    sous_type: couches\n\nPHASE 2: deja_collecte + nouvelles_donnees\n  deja_collecte:\n    type_produit: null\n    quantite: null\n    zone: null\n    telephone: null\n    paiement: null\n  nouvelles_donnees:\n    - cle: type_produit\n      valeur: \"Couches à pression\"\n      confiance: HAUTE\n\nPHASE 3: verification + confiance\n  verification:\n    prix_trouve: true\n    ambiguite: true\n  confiance_globale: 60\n\nPHASE 4: check_repetition\n  check_repetition:\n    type_produit: false\n    quantite: false\n    zone: false\n    telephone: false\n    paiement: false\n\nPHASE 5: completude + prochaine_etape\n  progression:\n    completude: \"0/5\"\n    donnees_manquantes: [type_produit, quantite, zone, telephone, paiement]\n    prochaine_etape: \"Préciser type de couches\"",
+        "validation": null,
+        "debug_contexts": {
+          "state_tracker": {
+            "error": "'OrderState' object has no attribute 'to_dict'"
+          },
+          "notepad": {
+            "error": "'ConversationNotepad' object has no attribute 'get_content'"
+          },
+          "enhanced_memory": {
+            "error": "EnhancedMemory.get_recent_interactions() got multiple values for argument 'limit'"
+          },
+          "thinking_parsed": {
+            "phase2_collected": {},
+            "phase5_decision": {},
+            "completeness": "unknown"
+          },
+          "anti_hallucination": {
+            "error": "'HallucinationCheck' object has no attribute 'is_grounded'"
+          },
+          "security": {
+            "risk_level": "LOW",
+            "is_safe": true,
+            "threats_detected": []
+          },
+          "conversation_history": {
+            "error": "No module named 'core.conversation_manager'"
+          },
+          "checkpoints": {
+            "count": 1,
+            "last_checkpoint": "test_interactive_a7dc8fed_20251021_191458.json"
+          }
+        }
+      }
+    }
+  ]
+}

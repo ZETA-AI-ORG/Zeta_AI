@@ -294,7 +294,7 @@ def print_server_logs(date: str = None, level: str = None, source: str = None):
     logs = get_server_logs(date)
     
     if not logs:
-        print(f"📭 Aucun log trouvé pour {date or 'aujourd\\'hui'}")
+        print(f"📭 Aucun log trouvé pour {date or 'aujourd hui'}")
         return
     
     # Filtrer

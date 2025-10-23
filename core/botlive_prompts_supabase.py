@@ -28,6 +28,7 @@ class BotlivePromptsManager:
         self._cache = {}  # Cache en mémoire pour performance
         
         logger.info("✅ BotlivePromptsManager initialisé avec Supabase")
+        logger.info("🗑️ Cache prompts vidé (démarrage propre)")
     
     def get_prompt(self, company_id: str, llm_choice: str) -> str:
         """
@@ -43,19 +44,22 @@ class BotlivePromptsManager:
         Raises:
             ValueError: Si company_id invalide ou prompts manquants
         """
+        print(f"[DEBUG] Appel get_prompt avec company_id={company_id}, llm_choice={llm_choice}")
         # Vérifier cache
         cache_key = f"{company_id}_{llm_choice}"
         if cache_key in self._cache:
-            logger.debug(f"📦 Cache hit pour {cache_key}")
+            logger.info(f"📦 [CACHE] Cache hit pour {cache_key} ({len(self._cache[cache_key])} chars)")
             return self._cache[cache_key]
         
         try:
-            # Récupérer depuis Supabase
+            # Récupérer depuis Supabase (table company_rag_configs)
+            logger.info(f"🔍 [SUPABASE] Requête: table=company_rag_configs, company_id={company_id}")
             response = self.supabase.table("company_rag_configs") \
                 .select("prompt_botlive_groq_70b, prompt_botlive_deepseek_v3, company_name, ai_name") \
                 .eq("company_id", company_id) \
                 .single() \
                 .execute()
+            logger.info(f"✅ [SUPABASE] Réponse reçue: {bool(response.data)}")
             
             if not response.data:
                 raise ValueError(f"❌ Aucune config trouvée pour company_id: {company_id}")
@@ -77,12 +81,17 @@ class BotlivePromptsManager:
             # Mettre en cache
             self._cache[cache_key] = prompt
             
+            print(f"[DEBUG SUPABASE] Prompt récupéré: {len(prompt)} chars")
+            print(f"[DEBUG SUPABASE] Début du prompt: {prompt[:200]}...")
             logger.info(f"✅ Prompt {llm_choice} récupéré pour {data.get('company_name', company_id)} ({len(prompt)} chars)")
             
             return prompt
             
         except Exception as e:
+            import traceback
             logger.error(f"❌ Erreur récupération prompt pour {company_id}: {e}")
+            logger.error(f"Type d'erreur: {type(e).__name__}")
+            logger.error(f"Traceback complet:\n{traceback.format_exc()}")
             raise
     
     def format_prompt(self, 
@@ -111,7 +120,9 @@ class BotlivePromptsManager:
             str: Prompt complet formaté
         """
         # Récupérer le template depuis Supabase
+        logger.info(f"🔍 [PROMPTS_MANAGER] Récupération prompt: company_id={company_id}, llm={llm_choice}")
         prompt_template = self.get_prompt(company_id, llm_choice)
+        logger.info(f"✅ [PROMPTS_MANAGER] Template récupéré: {len(prompt_template)} chars")
         
         # Variables par défaut
         format_vars = {
@@ -133,6 +144,7 @@ class BotlivePromptsManager:
         # Formatage sécurisé
         try:
             formatted_prompt = prompt_template.format(**format_vars)
+            logger.info(f"✅ [PROMPTS_MANAGER] Prompt formaté: {len(formatted_prompt)} chars")
             return formatted_prompt
         except KeyError as e:
             logger.error(f"⚠️ Variable manquante dans prompt {llm_choice}: {e}")
@@ -140,6 +152,7 @@ class BotlivePromptsManager:
             safe_prompt = prompt_template
             for key, value in format_vars.items():
                 safe_prompt = safe_prompt.replace(f"{{{key}}}", str(value))
+            logger.warning(f"⚠️ [PROMPTS_MANAGER] Fallback formatage: {len(safe_prompt)} chars")
             return safe_prompt
     
     def get_company_info(self, company_id: str) -> Dict[str, Any]:
@@ -220,7 +233,14 @@ def get_prompts_manager() -> BotlivePromptsManager:
     """
     global _prompts_manager
     if _prompts_manager is None:
-        _prompts_manager = BotlivePromptsManager()
+        try:
+            _prompts_manager = BotlivePromptsManager()
+            logger.info("✅ BotlivePromptsManager initialisé avec succès")
+        except Exception as e:
+            logger.error(f"❌ Erreur initialisation BotlivePromptsManager: {e}")
+            logger.error(f"⚠️ FALLBACK: Utilisation prompts hardcodés")
+            # Retourner None pour forcer l'utilisation des prompts hardcodés
+            return None
     return _prompts_manager
 
 

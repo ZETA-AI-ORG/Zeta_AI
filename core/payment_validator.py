@@ -115,7 +115,7 @@ def validate_payment_cumulative(
             message = f"❌ Total reçu: {total_received} FCFA ({payments_list}). Il manque encore {manque} FCFA"
         else:
             # Premier paiement
-            message = f"❌ Paiement insuffisant ! Tu as envoyé {total_received} FCFA mais il manque encore {manque} FCFA"
+            message = f"❌ Paiement insuffisant ! Client a envoyé {total_received} FCFA mais il manque encore {manque} FCFA"
         
         logger.info(f"💰 {message}")
         
@@ -207,32 +207,18 @@ def format_payment_for_prompt(validation_result: Dict[str, Any]) -> str:
         return ""
     
     if validation_result['valid']:
-        # Paiement validé
+        # Paiement validé (version optimisée tokens)
         return f"""
 
-═══════════════════════════════════════════════════════════════
-💳 STATUT PAIEMENT (CALCULÉ AUTOMATIQUEMENT):
-═══════════════════════════════════════════════════════════════
-✅ PAIEMENT VALIDÉ
-{validation_result['message']}
-
-ACTION OBLIGATOIRE: Demander la zone de livraison ET le numéro de téléphone
-NE PAS redemander le paiement - il est VALIDÉ
-═══════════════════════════════════════════════════════════════
+💳 VALIDATION PAIEMENT:
+✅ VALIDÉ: {validation_result['message']}
 """
     else:
-        # Paiement insuffisant ou invalide
+        # Paiement insuffisant (version optimisée tokens)
         return f"""
 
-═══════════════════════════════════════════════════════════════
-💳 STATUT PAIEMENT (CALCULÉ AUTOMATIQUEMENT):
-═══════════════════════════════════════════════════════════════
-❌ PAIEMENT INSUFFISANT
-{validation_result['message']}
-
-ACTION OBLIGATOIRE: Informer le client du montant manquant
-Reprendre EXACTEMENT le message ci-dessus dans ta réponse
-═══════════════════════════════════════════════════════════════
+💳 VALIDATION PAIEMENT:
+❌ INSUFFISANT: {validation_result['message']}
 """
 
 # Tests unitaires

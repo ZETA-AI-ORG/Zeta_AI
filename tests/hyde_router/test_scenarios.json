@@ -1,0 +1,221 @@
+{
+  "scenarios": [
+    {
+      "id": "S1_debut_conversation",
+      "description": "Client démarre la conversation - rien collecté",
+      "collected_data": {
+        "produit": null,
+        "variante": null,
+        "zone": null,
+        "telephone": null,
+        "paiement": null
+      },
+      "conversation_history": [
+        {"role": "client", "message": "Bonjour"}
+      ],
+      "question": "Bonjour",
+      "expected_phase": 1,
+      "expected_raison": "produit et variante manquants"
+    },
+    {
+      "id": "S2_produit_sans_variante",
+      "description": "Client mentionne produit mais pas la variante",
+      "collected_data": {
+        "produit": "Couches à pression",
+        "variante": null,
+        "zone": null,
+        "telephone": null,
+        "paiement": null
+      },
+      "conversation_history": [
+        {"role": "client", "message": "Je veux des couches à pression"},
+        {"role": "agent", "message": "Quelle taille vous intéresse?"}
+      ],
+      "question": "Je veux des couches à pression",
+      "expected_phase": 1,
+      "expected_raison": "variante manquante"
+    },
+    {
+      "id": "S3_variante_sans_produit",
+      "description": "Client mentionne taille mais produit pas clair",
+      "collected_data": {
+        "produit": null,
+        "variante": "Taille 3",
+        "zone": null,
+        "telephone": null,
+        "paiement": null
+      },
+      "conversation_history": [
+        {"role": "client", "message": "Taille 3"},
+        {"role": "agent", "message": "Taille 3 de quel produit?"}
+      ],
+      "question": "Taille 3",
+      "expected_phase": 1,
+      "expected_raison": "produit manquant"
+    },
+    {
+      "id": "S4_produit_variante_ok",
+      "description": "Produit + variante collectés, passage à livraison",
+      "collected_data": {
+        "produit": "Couches à pression",
+        "variante": "Taille 3 - Lot 300",
+        "zone": null,
+        "telephone": null,
+        "paiement": null
+      },
+      "conversation_history": [
+        {"role": "client", "message": "Je veux des couches à pression"},
+        {"role": "agent", "message": "Quelle taille?"},
+        {"role": "client", "message": "Taille 3, lot de 300"},
+        {"role": "agent", "message": "Parfait! Dans quelle zone livrer?"}
+      ],
+      "question": "Taille 3, lot de 300",
+      "expected_phase": 2,
+      "expected_raison": "produit/variante OK, zone et contact manquants"
+    },
+    {
+      "id": "S5_zone_sans_contact",
+      "description": "Zone collectée mais pas le téléphone",
+      "collected_data": {
+        "produit": "Couches à pression",
+        "variante": "Taille 3 - Lot 300",
+        "zone": "Angré",
+        "telephone": null,
+        "paiement": null
+      },
+      "conversation_history": [
+        {"role": "client", "message": "Je suis à Angré"},
+        {"role": "agent", "message": "Quel est votre numéro de téléphone?"}
+      ],
+      "question": "Je suis à Angré",
+      "expected_phase": 2,
+      "expected_raison": "contact manquant"
+    },
+    {
+      "id": "S6_contact_sans_zone",
+      "description": "Téléphone collecté mais pas la zone",
+      "collected_data": {
+        "produit": "Couches à pression",
+        "variante": "Taille 3 - Lot 300",
+        "zone": null,
+        "telephone": "0707070707",
+        "paiement": null
+      },
+      "conversation_history": [
+        {"role": "client", "message": "Mon numéro c'est 0707070707"},
+        {"role": "agent", "message": "Dans quelle zone êtes-vous?"}
+      ],
+      "question": "Mon numéro c'est 0707070707",
+      "expected_phase": 2,
+      "expected_raison": "zone manquante"
+    },
+    {
+      "id": "S7_tout_sauf_paiement",
+      "description": "Tout collecté sauf paiement - attente validation",
+      "collected_data": {
+        "produit": "Couches à pression",
+        "variante": "Taille 3 - Lot 300",
+        "zone": "Angré",
+        "telephone": "0707070707",
+        "paiement": "pending"
+      },
+      "conversation_history": [
+        {"role": "client", "message": "Mon numéro c'est 0707070707"},
+        {"role": "agent", "message": "Parfait! Envoyez votre capture de paiement"},
+        {"role": "client", "message": "Je l'ai envoyée"}
+      ],
+      "question": "Je l'ai envoyée",
+      "expected_phase": 3,
+      "expected_raison": "tout collecté, attente validation paiement"
+    },
+    {
+      "id": "S8_paiement_valide",
+      "description": "Paiement validé - commande complète",
+      "collected_data": {
+        "produit": "Couches à pression",
+        "variante": "Taille 3 - Lot 300",
+        "zone": "Angré",
+        "telephone": "0707070707",
+        "paiement": "paid"
+      },
+      "conversation_history": [
+        {"role": "agent", "message": "Paiement validé! Commande confirmée"},
+        {"role": "client", "message": "Merci, quand je reçois?"}
+      ],
+      "question": "Merci, quand je reçois?",
+      "expected_phase": 3,
+      "expected_raison": "commande complète et validée"
+    },
+    {
+      "id": "S9_retour_phase1_depuis_phase2",
+      "description": "Client change de produit en phase 2",
+      "collected_data": {
+        "produit": "Couches à pression",
+        "variante": "Taille 3 - Lot 300",
+        "zone": "Angré",
+        "telephone": null,
+        "paiement": null
+      },
+      "conversation_history": [
+        {"role": "agent", "message": "Quel est votre numéro?"},
+        {"role": "client", "message": "Attendez, je veux plutôt des couches culottes"}
+      ],
+      "question": "Attendez, je veux plutôt des couches culottes",
+      "expected_phase": 1,
+      "expected_raison": "client change de produit"
+    },
+    {
+      "id": "S10_question_hors_sujet_phase1",
+      "description": "Question générale en phase 1",
+      "collected_data": {
+        "produit": null,
+        "variante": null,
+        "zone": null,
+        "telephone": null,
+        "paiement": null
+      },
+      "conversation_history": [
+        {"role": "client", "message": "Vous livrez partout à Abidjan?"}
+      ],
+      "question": "Vous livrez partout à Abidjan?",
+      "expected_phase": 1,
+      "expected_raison": "produit et variante toujours manquants"
+    },
+    {
+      "id": "S11_multi_produits",
+      "description": "Client veut plusieurs produits différents",
+      "collected_data": {
+        "produit": "Couches à pression T1 + Couches culottes T4",
+        "variante": "Lot 300 + Lot 150",
+        "zone": null,
+        "telephone": null,
+        "paiement": null
+      },
+      "conversation_history": [
+        {"role": "client", "message": "Je veux des couches à pression T1 et des culottes T4"},
+        {"role": "agent", "message": "Parfait! Quelle quantité pour chaque?"},
+        {"role": "client", "message": "Un lot de 300 pour les T1 et un lot de 150 pour les T4"}
+      ],
+      "question": "Un lot de 300 pour les T1 et un lot de 150 pour les T4",
+      "expected_phase": 2,
+      "expected_raison": "produits/variantes OK, passage à livraison"
+    },
+    {
+      "id": "S12_clarification_produit",
+      "description": "Client demande plus d'infos sur produit",
+      "collected_data": {
+        "produit": null,
+        "variante": null,
+        "zone": null,
+        "telephone": null,
+        "paiement": null
+      },
+      "conversation_history": [
+        {"role": "client", "message": "C'est quoi la différence entre couches à pression et culottes?"}
+      ],
+      "question": "C'est quoi la différence entre couches à pression et culottes?",
+      "expected_phase": 1,
+      "expected_raison": "client explore les produits"
+    }
+  ]
+}

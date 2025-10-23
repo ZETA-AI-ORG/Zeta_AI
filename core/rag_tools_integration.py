@@ -285,20 +285,26 @@ def process_llm_response(llm_output: str, user_id: str = None, company_id: str =
     }
     
     try:
+        print(f"🔍 [PROCESS_LLM] enable_tools={enable_tools}, user_id={user_id}")
+        
         if not enable_tools or not user_id:
             # Mode simple: juste extraction balises
+            print(f"⚠️ [PROCESS_LLM] Mode SIMPLE (enable_tools={enable_tools}, user_id={user_id})")
             thinking, response_clean, _ = extract_thinking_and_response(llm_output, None, None, None)
             result["response"] = response_clean
             result["thinking"] = thinking
+            print(f"🔍 [PROCESS_LLM] Thinking extrait (mode simple): {len(thinking)} chars")
             return result
         
         # Mode complet avec outils + Smart Context Manager + Thinking Parser
+        print(f"✅ [PROCESS_LLM] Mode COMPLET")
         thinking, response_clean, response_with_tools = extract_thinking_and_response(
             llm_output, user_id, company_id, source_documents
         )
         
         result["response"] = response_with_tools
         result["thinking"] = thinking
+        print(f"🔍 [PROCESS_LLM] Thinking extrait (mode complet): {len(thinking)} chars")
         
         # 🧠 PUZZLE 5: Parser le thinking YAML
         try:
@@ -373,6 +379,10 @@ def process_llm_response(llm_output: str, user_id: str = None, company_id: str =
             pass
         
         logger.info(f"✅ [PROCESS LLM] Réponse traitée: {len(result['response'])} chars, {result['tools_executed']} outils")
+        
+        # 🔍 DEBUG: Vérifier le thinking avant retour
+        print(f"🔍 [PROCESS_LLM_RETURN] Thinking dans result: {len(result.get('thinking', ''))} chars")
+        print(f"🔍 [PROCESS_LLM_RETURN] Contenu thinking: {result.get('thinking', '')[:200]}")
         
         return result
         

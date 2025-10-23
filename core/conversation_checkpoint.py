@@ -76,10 +76,28 @@ class ConversationCheckpoint:
         # Calculer des statistiques
         checkpoint["statistics"] = self._calculate_statistics(checkpoint)
         
-        # Sauvegarder sur disque
-        self._save_checkpoint(checkpoint_id, checkpoint)
+        # ⚡ OPTIMISATION: Sauvegarder en arrière-plan (non-bloquant)
+        try:
+            from config_performance import ASYNC_CHECKPOINT
+            if ASYNC_CHECKPOINT:
+                import asyncio
+                import threading
+                # Lancer la sauvegarde dans un thread séparé pour ne pas bloquer
+                thread = threading.Thread(
+                    target=self._save_checkpoint,
+                    args=(checkpoint_id, checkpoint),
+                    daemon=True
+                )
+                thread.start()
+                log3("[CHECKPOINT]", f"⚡ Checkpoint en cours (async): {checkpoint_id}")
+            else:
+                self._save_checkpoint(checkpoint_id, checkpoint)
+                log3("[CHECKPOINT]", f"✅ Checkpoint créé: {checkpoint_id}")
+        except ImportError:
+            # Fallback si config non disponible
+            self._save_checkpoint(checkpoint_id, checkpoint)
+            log3("[CHECKPOINT]", f"✅ Checkpoint créé: {checkpoint_id}")
         
-        log3("[CHECKPOINT]", f"✅ Checkpoint créé: {checkpoint_id}")
         log3("[CHECKPOINT]", f"   📊 Confiance: {checkpoint['metrics'].get('confiance_score', 0)}%")
         log3("[CHECKPOINT]", f"   📊 Complétude: {checkpoint['metrics'].get('completude', '0/5')}")
         

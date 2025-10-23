@@ -1,0 +1,330 @@
+{
+  "workflows": [
+    {
+      "name": "WhatsApp → Botlive → WhatsApp",
+      "description": "Workflow principal pour gérer les conversations WhatsApp via Botlive",
+      "nodes": [
+        {
+          "id": "whatsapp_trigger",
+          "type": "n8n-nodes-base.whatsAppTrigger",
+          "name": "WhatsApp Message Received",
+          "parameters": {
+            "webhookUrl": "https://your-n8n.com/webhook/whatsapp"
+          }
+        },
+        {
+          "id": "extract_data",
+          "type": "n8n-nodes-base.set",
+          "name": "Extract Message Data",
+          "parameters": {
+            "values": {
+              "string": [
+                {
+                  "name": "company_id",
+                  "value": "4OS4yFcf2LZwxhKojbAVbKuVuSdb"
+                },
+                {
+                  "name": "user_id",
+                  "value": "={{ $json.from }}"
+                },
+                {
+                  "name": "message",
+                  "value": "={{ $json.text }}"
+                },
+                {
+                  "name": "images",
+                  "value": "={{ $json.media_urls }}"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "id": "call_botlive",
+          "type": "n8n-nodes-base.httpRequest",
+          "name": "Call Botlive API",
+          "parameters": {
+            "method": "POST",
+            "url": "http://localhost:8000/botlive/message",
+            "authentication": "none",
+            "options": {
+              "timeout": 30000
+            },
+            "bodyParametersJson": "={{ JSON.stringify({\n  company_id: $json.company_id,\n  user_id: $json.user_id,\n  message: $json.message,\n  images: $json.images ? [$json.images] : [],\n  conversation_history: \"\"\n}) }}"
+          }
+        },
+        {
+          "id": "check_completion",
+          "type": "n8n-nodes-base.if",
+          "name": "Order Completed?",
+          "parameters": {
+            "conditions": {
+              "string": [
+                {
+                  "value1": "={{ $json.next_step }}",
+                  "operation": "equals",
+                  "value2": "completed"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "id": "send_completion_message",
+          "type": "n8n-nodes-base.whatsApp",
+          "name": "Send Completion Message",
+          "parameters": {
+            "operation": "sendMessage",
+            "phoneNumberId": "YOUR_PHONE_NUMBER_ID",
+            "to": "={{ $json.user_id }}",
+            "message": "🎉 Commande validée ! Nous vous recontactons pour la livraison."
+          }
+        },
+        {
+          "id": "send_bot_response",
+          "type": "n8n-nodes-base.whatsApp",
+          "name": "Send Bot Response",
+          "parameters": {
+            "operation": "sendMessage",
+            "phoneNumberId": "YOUR_PHONE_NUMBER_ID",
+            "to": "={{ $json.user_id }}",
+            "message": "={{ $json.response }}"
+          }
+        },
+        {
+          "id": "log_interaction",
+          "type": "n8n-nodes-base.httpRequest",
+          "name": "Log to Supabase",
+          "parameters": {
+            "method": "POST",
+            "url": "https://ilbihprkxcgsigvueeme.supabase.co/rest/v1/botlive_logs",
+            "authentication": "headerAuth",
+            "headerParameters": {
+              "parameters": [
+                {
+                  "name": "apikey",
+                  "value": "YOUR_SUPABASE_KEY"
+                },
+                {
+                  "name": "Authorization",
+                  "value": "Bearer YOUR_SUPABASE_KEY"
+                }
+              ]
+            },
+            "bodyParametersJson": "={{ JSON.stringify({\n  user_id: $json.user_id,\n  company_id: $json.company_id,\n  message: $json.message,\n  response: $json.response,\n  next_step: $json.next_step,\n  created_at: new Date().toISOString()\n}) }}"
+          }
+        }
+      ],
+      "connections": {
+        "whatsapp_trigger": {
+          "main": [[{"node": "extract_data"}]]
+        },
+        "extract_data": {
+          "main": [[{"node": "call_botlive"}]]
+        },
+        "call_botlive": {
+          "main": [[{"node": "check_completion"}, {"node": "log_interaction"}]]
+        },
+        "check_completion": {
+          "main": [
+            [{"node": "send_completion_message"}],
+            [{"node": "send_bot_response"}]
+          ]
+        }
+      }
+    },
+    {
+      "name": "Botlive Webhook Listener",
+      "description": "Écoute les événements Botlive et déclenche des actions",
+      "nodes": [
+        {
+          "id": "webhook_trigger",
+          "type": "n8n-nodes-base.webhook",
+          "name": "Botlive Webhook",
+          "parameters": {
+            "path": "botlive-events",
+            "httpMethod": "POST",
+            "responseMode": "onReceived"
+          }
+        },
+        {
+          "id": "switch_event",
+          "type": "n8n-nodes-base.switch",
+          "name": "Event Type",
+          "parameters": {
+            "dataPropertyName": "event",
+            "rules": {
+              "rules": [
+                {
+                  "value": "order_completed",
+                  "output": 0
+                },
+                {
+                  "value": "payment_validated",
+                  "output": 1
+                },
+                {
+                  "value": "intervention_required",
+                  "output": 2
+                }
+              ]
+            }
+          }
+        },
+        {
+          "id": "notify_admin_order",
+          "type": "n8n-nodes-base.slack",
+          "name": "Notify Admin - Order",
+          "parameters": {
+            "channel": "#orders",
+            "text": "🎉 Nouvelle commande complétée !\n\nClient: {{ $json.data.user_id }}\nProduit: {{ $json.data.order_status.produit }}\nMontant: {{ $json.data.order_status.paiement }}"
+          }
+        },
+        {
+          "id": "update_crm_payment",
+          "type": "n8n-nodes-base.httpRequest",
+          "name": "Update CRM",
+          "parameters": {
+            "method": "POST",
+            "url": "https://your-crm.com/api/payments",
+            "bodyParametersJson": "={{ JSON.stringify($json.data) }}"
+          }
+        },
+        {
+          "id": "alert_intervention",
+          "type": "n8n-nodes-base.slack",
+          "name": "Alert - Intervention",
+          "parameters": {
+            "channel": "#alerts",
+            "text": "⚠️ INTERVENTION REQUISE\n\nType: {{ $json.data.type }}\nClient: {{ $json.data.user_id }}\nMessage: {{ $json.data.message }}"
+          }
+        }
+      ],
+      "connections": {
+        "webhook_trigger": {
+          "main": [[{"node": "switch_event"}]]
+        },
+        "switch_event": {
+          "main": [
+            [{"node": "notify_admin_order"}],
+            [{"node": "update_crm_payment"}],
+            [{"node": "alert_intervention"}]
+          ]
+        }
+      }
+    },
+    {
+      "name": "Dashboard Stats Updater",
+      "description": "Met à jour les statistiques du dashboard toutes les 5 minutes",
+      "nodes": [
+        {
+          "id": "schedule_trigger",
+          "type": "n8n-nodes-base.scheduleTrigger",
+          "name": "Every 5 Minutes",
+          "parameters": {
+            "rule": {
+              "interval": [
+                {
+                  "field": "minutes",
+                  "minutesInterval": 5
+                }
+              ]
+            }
+          }
+        },
+        {
+          "id": "fetch_stats",
+          "type": "n8n-nodes-base.httpRequest",
+          "name": "Fetch Botlive Stats",
+          "parameters": {
+            "method": "GET",
+            "url": "http://localhost:8000/botlive/stats/4OS4yFcf2LZwxhKojbAVbKuVuSdb?time_range=today"
+          }
+        },
+        {
+          "id": "fetch_active_orders",
+          "type": "n8n-nodes-base.httpRequest",
+          "name": "Fetch Active Orders",
+          "parameters": {
+            "method": "GET",
+            "url": "http://localhost:8000/botlive/orders/active/4OS4yFcf2LZwxhKojbAVbKuVuSdb"
+          }
+        },
+        {
+          "id": "fetch_interventions",
+          "type": "n8n-nodes-base.httpRequest",
+          "name": "Fetch Interventions",
+          "parameters": {
+            "method": "GET",
+            "url": "http://localhost:8000/botlive/interventions/4OS4yFcf2LZwxhKojbAVbKuVuSdb"
+          }
+        },
+        {
+          "id": "merge_data",
+          "type": "n8n-nodes-base.merge",
+          "name": "Merge All Data",
+          "parameters": {
+            "mode": "mergeByIndex"
+          }
+        },
+        {
+          "id": "update_frontend",
+          "type": "n8n-nodes-base.httpRequest",
+          "name": "Update Frontend Cache",
+          "parameters": {
+            "method": "POST",
+            "url": "https://your-frontend.com/api/cache/update",
+            "bodyParametersJson": "={{ JSON.stringify($json) }}"
+          }
+        }
+      ],
+      "connections": {
+        "schedule_trigger": {
+          "main": [[{"node": "fetch_stats"}, {"node": "fetch_active_orders"}, {"node": "fetch_interventions"}]]
+        },
+        "fetch_stats": {
+          "main": [[{"node": "merge_data", "index": 0}]]
+        },
+        "fetch_active_orders": {
+          "main": [[{"node": "merge_data", "index": 1}]]
+        },
+        "fetch_interventions": {
+          "main": [[{"node": "merge_data", "index": 2}]]
+        },
+        "merge_data": {
+          "main": [[{"node": "update_frontend"}]]
+        }
+      }
+    }
+  ],
+  "credentials": {
+    "whatsapp": {
+      "name": "WhatsApp Business API",
+      "type": "whatsAppApi",
+      "data": {
+        "phoneNumberId": "YOUR_PHONE_NUMBER_ID",
+        "accessToken": "YOUR_ACCESS_TOKEN"
+      }
+    },
+    "slack": {
+      "name": "Slack Notifications",
+      "type": "slackApi",
+      "data": {
+        "accessToken": "YOUR_SLACK_TOKEN"
+      }
+    },
+    "supabase": {
+      "name": "Supabase Backend",
+      "type": "httpHeaderAuth",
+      "data": {
+        "name": "apikey",
+        "value": "YOUR_SUPABASE_KEY"
+      }
+    }
+  },
+  "variables": {
+    "BOTLIVE_API_URL": "http://localhost:8000/botlive",
+    "COMPANY_ID": "4OS4yFcf2LZwxhKojbAVbKuVuSdb",
+    "WEBHOOK_URL": "https://your-n8n.com/webhook/botlive-events"
+  }
+}

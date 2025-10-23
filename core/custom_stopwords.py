@@ -36,8 +36,11 @@ CUSTOM_STOP_WORDS = {
     'devoir', 'dois', 'doit', 'devons', 'devez', 'doivent', 'devait', 'devaient', 'devra', 'devront', 'devrait', 'devraient',
     # Mots de remplissage, interjections, expressions
     'c', 'cest', 'ce', 'cet', 'cette', 'ces', 'il', 'y', 'a', 'voici', 'voilà', 'alors', 'donc', 'ainsi', 'aussi', 'encore', 'déjà', 'toujours', 'jamais', 'parfois', 'souvent', 'très', 'trop', 'assez', 'peu', 'plus', 'moins', 'tout', 'tous', 'toute', 'toutes', 'chaque', 'quelque', 'rien', 'personne', 'aucun', 'aucune', 'bon', 'ok', 'okay', 'daccord', 'entendu', 'euh', 'heu', 'ben', 'bah', 'voilà', 'enfin', 'bref', 'sinon', 'non', 'ça', 'hein', 'quoi', 'là', 'même', 'seulement', 'vraiment', 'ne', 'n', 'pas', 'point', 'plus', 'jamais', 'rien', 'personne', 'aucun', 'aucune', 'nul', 'nulle', 'ceci', 'cela', 'ça', 'dite', 'dites', 'faites', 'fais', 'puis', 'voudrais', 'aimerais', 'cordialement', 'rebonjour', 'bonsoir', 'coucou', 'hello', 'hi', 'hey', 'ah', 'oh', 'eh', 'hem', 'hum', 'genre', 'style', 'tu', 'vois', 'réalité', 'vrai', 'sache', 'semble', 'avis', 'pour', 'ainsi', 'quelque', 'sorte', 'parler', 'prendre', 'donner', 'mettre', 'rester', 'passer', 'comprendre', 'connaître', 'chercher', 'trouver', 'demander', 'reprendre', 'continuer', 'commencer', 'arrêter', 'essayer', 'est-ce', 'questce', 'quil', 'quelle', 'quelles', 'quels', 'quelles',
-    # Caractères spéciaux (pour filtrage regex, mais inclus pour robustesse)
+    # Caractères spéciaux et ponctuation (filtrage complet avant n-grams)
     '?', '!', '.', ',', ';', ':', '(', ')', '[', ']', '{', '}', '"', "'", '-', '_', '/', '\\', '*', '&', '%', '$', '#', '@', '=', '+', '<', '>', '^', '~', '`', '|',
+    '«', '»', '…', '–', '—', '•', '°', '§', '¶', '†', '‡', '©', '®', '™', '€', '£', '¥', '¢',
+    '¡', '¿', '‹', '›', '‚', '„', '‟', '′', '″', '‴', '‵', '‶', '‷', '※', '→', '←', '↑', '↓',
+    '✓', '✔', '✕', '✖', '✗', '✘', '☐', '☑', '☒', '★', '☆', '♠', '♣', '♥', '♦',
 }
 
 

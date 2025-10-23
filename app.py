@@ -41,6 +41,15 @@ logger.setLevel(LOG_LEVEL)
 # Configurer les logs selon l'environnement
 configure_performance_logs()
 
+# ========== ACTIVATION LOGGER JSON SERVEUR ==========
+# Capture TOUS les logs (print, logger, erreurs) dans un fichier JSON
+try:
+    from core.server_logger import setup_server_logging
+    setup_server_logging()
+    print("✅ [SERVER_LOGGER] Logs serveur activés → logs/server/")
+except Exception as e:
+    print(f"⚠️ [SERVER_LOGGER] Erreur activation: {e}")
+
 # Créer un gestionnaire de console
 console_handler = logging.StreamHandler()
 console_handler.setLevel(LOG_LEVEL)
@@ -132,6 +141,9 @@ import traceback
 # --- Image search API ---
 from api.image_search import router as image_search_router
 
+# --- Botlive API Routes ---
+from routes.botlive import router as botlive_router
+app.include_router(botlive_router)
 
 # --- Models for prompt admin ---
 class PromptUpdateRequest(BaseModel):
@@ -225,6 +237,13 @@ async def startup_event():
         
         warmup_time = time.time() - warmup_start
         print(f"[STARTUP] ✅ WARM-UP terminé en {warmup_time:.2f}s")
+        
+        # 3.5. Initialiser Auto-Learning System
+        try:
+            from core.auto_learning_wrapper import init_auto_learning
+            init_auto_learning()
+        except Exception as e:
+            print(f"[STARTUP] ⚠️ Auto-learning: {e}")
         
         # 4. Précharger les modèles populaires (sécurité)
         preload_count = cache_system.model_cache.preload_popular_models()
@@ -1429,9 +1448,23 @@ async def chat_endpoint(req: ChatRequest, request: Request):
     
     if use_botlive:
         # 🚀 NOUVEAU SYSTÈME HYBRIDE DEEPSEEK V3 + GROQ 70B
+        print(f"\n{'='*80}")
+        print(f"🚀 [BOTLIVE] ENTRÉE SYSTÈME HYBRIDE")
+        print(f"{'='*80}")
+        print(f"Company ID: {req.company_id}")
+        print(f"User ID: {req.user_id}")
+        print(f"Message: {req.message}")
+        print(f"Images: {len(req.images) if req.images else 0}")
+        print(f"{'='*80}\n")
+        
         try:
+            print(f"[BOTLIVE] 📦 Import botlive_hybrid...")
             from core.botlive_rag_hybrid import botlive_hybrid
+            print(f"[BOTLIVE] ✅ botlive_hybrid importé")
+            
+            print(f"[BOTLIVE] 📦 Import get_botlive_prompt...")
             from database.supabase_client import get_botlive_prompt
+            print(f"[BOTLIVE] ✅ get_botlive_prompt importé")
             
             # Utiliser les prompts hardcodés pour extraction du numéro
             from core.botlive_prompts_hardcoded import DEEPSEEK_V3_PROMPT
@@ -1490,12 +1523,21 @@ async def chat_endpoint(req: ChatRequest, request: Request):
             conversation_history = deduplicate_conversation_history(conversation_history)
             
             # Appel du système hybride
+            print(f"[BOTLIVE] 🚀 Appel botlive_hybrid.process_request()...")
+            print(f"[BOTLIVE]    - user_id: {req.user_id}")
+            print(f"[BOTLIVE]    - company_id: {req.company_id}")
+            print(f"[BOTLIVE]    - message: {req.message}")
+            print(f"[BOTLIVE]    - context keys: {list(context.keys())}")
+            
             hybrid_result = await botlive_hybrid.process_request(
                 user_id=req.user_id,
                 message=req.message or "",
                 context=context,
-                conversation_history=conversation_history
+                conversation_history=conversation_history,
+                company_id=req.company_id  # ← AJOUT: Passer company_id
             )
+            
+            print(f"[BOTLIVE] ✅ Réponse reçue du système hybride")
             
             response = {
                 "response": hybrid_result['response'],
@@ -1555,7 +1597,17 @@ async def chat_endpoint(req: ChatRequest, request: Request):
                 logger.error(f"❌ Erreur sauvegarde JSON: {json_log_error}")
             
         except Exception as hybrid_error:
-            print(f"❌ [HYBRID] Erreur système hybride: {hybrid_error}")
+            import traceback
+            print(f"\n{'='*80}")
+            print(f"❌ [HYBRID] ERREUR SYSTÈME HYBRIDE:")
+            print(f"{'='*80}")
+            print(f"Message: {hybrid_error}")
+            print(f"Type: {type(hybrid_error).__name__}")
+            print(f"\nTraceback complet:")
+            traceback.print_exc()
+            print(f"{'='*80}\n")
+            logger.error(f"❌ [HYBRID] Erreur: {hybrid_error}", exc_info=True)
+            
             # Fallback vers ancien système
             botlive_text = await _botlive_handle(req.company_id, req.user_id, req.message or "", req.images or [], conversation_history)
             response = {"response": botlive_text, "fallback_used": True}
@@ -1643,14 +1695,24 @@ async def chat_endpoint(req: ChatRequest, request: Request):
                     
                     # Sauvegarder dans notepad
                     try:
-                        from core.conversation_notepad import get_conversation_notepad
-                        notepad = get_conversation_notepad()
+                        from core.conversation_notepad import ConversationNotepad
+                        notepad = ConversationNotepad.get_instance()
                         
-                        for key, value in extracted.items():
-                            if key == 'produit':
-                                notepad.add_product(value, req.user_id, req.company_id)
-                            elif key in ['zone', 'frais_livraison', 'telephone', 'paiement', 'acompte', 'prix_produit', 'total']:
-                                notepad.add_info(key, value, req.user_id, req.company_id)
+                        # Sauvegarder les données extraites
+                        if extracted.get('produit'):
+                            # Extraire prix si disponible
+                            prix = float(extracted.get('prix_produit', 0)) if extracted.get('prix_produit') else 0.0
+                            notepad.update_product(req.user_id, req.company_id, extracted['produit'], 300, prix)
+                        
+                        if extracted.get('zone') and extracted.get('frais_livraison'):
+                            notepad.update_delivery(req.user_id, req.company_id, extracted['zone'], float(extracted['frais_livraison']))
+                        
+                        if extracted.get('telephone'):
+                            notepad_data = notepad.get_notepad(req.user_id, req.company_id)
+                            notepad_data['phone_number'] = extracted['telephone']
+                        
+                        if extracted.get('paiement'):
+                            notepad.update_payment(req.user_id, req.company_id, extracted['paiement'])
                         
                         print(f"✅ [CONTEXT] Contexte sauvegardé dans notepad")
                     except Exception as notepad_error:
@@ -1665,11 +1727,141 @@ async def chat_endpoint(req: ChatRequest, request: Request):
             print(f"🔍 [CHAT_ENDPOINT] Erreur sauvegarde réponse: {e}")
         
         # === SAUVEGARDE EN CACHE REDIS ===
+        # Extraire thinking et validation depuis response (dict ou string)
+        try:
+            print(f"🔍 [DEBUG] Type de response: {type(response)}")
+            print(f"🔍 [DEBUG] Contenu response: {str(response)[:200]}")
+            
+            thinking_data = ""
+            validation_data = None
+            if isinstance(response, dict):
+                thinking_data = response.get('thinking', '')
+                validation_data = response.get('validation', None)
+                response_text = response.get('response', str(response))
+                print(f"🔍 [DEBUG] Thinking extrait: {len(thinking_data)} chars")
+                print(f"🔍 [DEBUG] Validation: {validation_data is not None}")
+            else:
+                response_text = str(response) if response else "Erreur: réponse vide"
+                print(f"🔍 [DEBUG] Response est une string, pas de thinking")
+        except Exception as debug_error:
+            print(f"❌ [DEBUG] Erreur extraction thinking: {debug_error}")
+            thinking_data = ""
+            validation_data = None
+            response_text = str(response) if response else "Erreur"
+        
+        # ═══════════════════════════════════════════════════════════════
+        # 📊 ENRICHISSEMENT CONTEXTE COMPLET POUR DEBUGGING
+        # ═══════════════════════════════════════════════════════════════
+        
+        # Récupérer TOUS les contextes système
+        debug_contexts = {}
+        
+        try:
+            # 1. STATE TRACKER (complétude commande)
+            from core.order_state_tracker import order_tracker
+            state = order_tracker.get_state(req.user_id)
+            debug_contexts["state_tracker"] = {
+                "completion_rate": state.get_completion_rate(),
+                "missing_fields": state.get_missing_fields(),
+                "collected_data": state.to_dict()
+            }
+        except Exception as e:
+            debug_contexts["state_tracker"] = {"error": str(e)}
+        
+        try:
+            # 2. NOTEPAD (mémoire conversationnelle)
+            from core.conversation_notepad import ConversationNotepad
+            notepad = ConversationNotepad()
+            notepad_content = notepad.get_content(req.user_id, req.company_id)
+            debug_contexts["notepad"] = {
+                "content": notepad_content,
+                "length": len(notepad_content)
+            }
+        except Exception as e:
+            debug_contexts["notepad"] = {"error": str(e)}
+        
+        try:
+            # 3. ENHANCED MEMORY (buffer conversationnel)
+            from core.enhanced_memory import get_enhanced_memory
+            enhanced_mem = get_enhanced_memory()
+            recent_interactions = enhanced_mem.get_recent_interactions(req.user_id, limit=3)
+            debug_contexts["enhanced_memory"] = {
+                "recent_count": len(recent_interactions),
+                "buffer_size": enhanced_mem.buffer_size
+            }
+        except Exception as e:
+            debug_contexts["enhanced_memory"] = {"error": str(e)}
+        
+        try:
+            # 4. THINKING PARSER (données structurées)
+            if thinking_data:
+                from core.thinking_parser import get_thinking_parser
+                parser = get_thinking_parser()
+                thinking_parsed = parser.parse_full_thinking(thinking_data)
+                debug_contexts["thinking_parsed"] = {
+                    "phase2_collected": thinking_parsed.get("phase2_collecte", {}),
+                    "phase5_decision": thinking_parsed.get("phase5_decision", {}),
+                    "completeness": thinking_parsed.get("completeness", "unknown")
+                }
+        except Exception as e:
+            debug_contexts["thinking_parsed"] = {"error": str(e)}
+        
+        try:
+            # 5. ANTI-HALLUCINATION (validation sources)
+            debug_contexts["anti_hallucination"] = {
+                "confidence_score": hallucination_check.confidence_score,
+                "is_grounded": hallucination_check.is_grounded,
+                "sources_used": getattr(hallucination_check, 'sources_count', 0)
+            }
+        except Exception as e:
+            debug_contexts["anti_hallucination"] = {"error": str(e)}
+        
+        try:
+            # 6. SECURITY CHECK
+            debug_contexts["security"] = {
+                "risk_level": security_check.risk_level,
+                "is_safe": security_check.is_safe,
+                "threats_detected": getattr(security_check, 'threats', [])
+            }
+        except Exception as e:
+            debug_contexts["security"] = {"error": str(e)}
+        
+        try:
+            # 7. CONVERSATION HISTORY (historique complet)
+            from core.conversation_manager import get_conversation_manager
+            conv_manager = get_conversation_manager()
+            history = conv_manager.get_history(req.user_id, req.company_id, limit=5)
+            debug_contexts["conversation_history"] = {
+                "message_count": len(history),
+                "last_messages": [{
+                    "role": msg.get("role", "unknown"),
+                    "content_preview": msg.get("content", "")[:100]
+                } for msg in history[-3:]]
+            }
+        except Exception as e:
+            debug_contexts["conversation_history"] = {"error": str(e)}
+        
+        try:
+            # 8. CHECKPOINT (sauvegarde état)
+            import os
+            checkpoint_dir = "data/checkpoints"
+            if os.path.exists(checkpoint_dir):
+                checkpoints = [f for f in os.listdir(checkpoint_dir) if req.user_id in f]
+                debug_contexts["checkpoints"] = {
+                    "count": len(checkpoints),
+                    "last_checkpoint": checkpoints[-1] if checkpoints else None
+                }
+        except Exception as e:
+            debug_contexts["checkpoints"] = {"error": str(e)}
+        
         final_response = {
-            "response": response, 
+            "response": response_text, 
             "cached": False,
             "security_score": security_check.risk_level,
-            "hallucination_score": hallucination_check.confidence_score
+            "hallucination_score": hallucination_check.confidence_score,
+            "thinking": thinking_data,
+            "validation": validation_data,
+            "debug_contexts": debug_contexts  # ✅ TOUS LES CONTEXTES SYSTÈME
         }
         
         # Sauvegarder la réponse en cache pour les requêtes futures identiques
@@ -1715,7 +1907,8 @@ async def chat_endpoint(req: ChatRequest, request: Request):
             from core.json_request_logger import get_json_request_logger
             
             processing_time_ms = (time.time() - start_time) * 1000
-            response_text = response.get("response", str(response)) if isinstance(response, dict) else str(response)
+            # Utiliser response_text déjà extrait plus haut
+            log_response_text = response_text if 'response_text' in locals() else (response.get("response", str(response)) if isinstance(response, dict) else str(response))
             
             # Préparer metadata avec performance
             metadata = {
@@ -1738,7 +1931,7 @@ async def chat_endpoint(req: ChatRequest, request: Request):
                 user_id=req.user_id,
                 company_id=req.company_id,
                 message=req.message,
-                response=response_text,
+                response=log_response_text,
                 metadata=metadata
             )
             logger.debug(f"📝 Log JSON sauvegardé: {request_id}")
@@ -1831,6 +2024,70 @@ async def save_message(payload: ConversationPayload):
 @app.get("/health/groq")
 async def groq_health():
     return groq_resilience.get_health_status()
+
+# --- Endpoint Auto-Learning Insights ---
+@app.get("/auto-learning/insights/{company_id}")
+async def get_auto_learning_insights(company_id: str, days: int = 7):
+    """
+    🧠 Récupère les insights d'auto-learning pour une company
+    
+    Args:
+        company_id: ID entreprise
+        days: Période d'analyse (défaut: 7 jours)
+    
+    Returns:
+        {
+            'enabled': true/false,
+            'patterns_learned': [...],
+            'thinking_analytics': {...},
+            'top_documents': [...],
+            'pending_improvements': [...],
+            'summary': {...}
+        }
+    """
+    try:
+        from core.auto_learning_wrapper import get_company_insights
+        insights = await get_company_insights(company_id, days)
+        return insights
+    except Exception as e:
+        logger.error(f"❌ Erreur récupération insights: {e}")
+        return {
+            "enabled": False,
+            "error": str(e),
+            "company_id": company_id
+        }
+
+@app.get("/auto-learning/faq-suggestions/{company_id}")
+async def get_faq_suggestions(company_id: str, min_occurrences: int = 5):
+    """
+    🤖 Génère suggestions de FAQ depuis questions fréquentes
+    
+    Args:
+        company_id: ID entreprise
+        min_occurrences: Min occurrences pour créer FAQ
+    """
+    try:
+        from core.supabase_learning_engine import get_learning_engine
+        engine = get_learning_engine()
+        
+        if not engine.supabase:
+            return {"enabled": False, "error": "Supabase non disponible"}
+        
+        faqs = await engine.generate_faq_suggestions(company_id, min_occurrences)
+        
+        return {
+            "enabled": True,
+            "company_id": company_id,
+            "total_suggestions": len(faqs),
+            "faqs": faqs
+        }
+    except Exception as e:
+        logger.error(f"❌ Erreur génération FAQ: {e}")
+        return {
+            "enabled": False,
+            "error": str(e),
+            "company_id": company_id
+        }
 
 # --- Endpoint d'onboarding d'entreprise ---
 from database.supabase_client import onboard_company_to_supabase
@@ -2042,18 +2299,37 @@ class ProcessOrderRequest(BaseModel):
     user_id: str
 
 @app.post("/toggle-live-mode")
-def toggle_live_mode(req: ToggleLiveRequest):
-    """Active/désactive le mode Live via LiveModeManager."""
+async def toggle_live_mode(req: ToggleLiveRequest):
+    """Active/désactive le mode Live + logger dans bot_sessions."""
     try:
         from core.live_mode_manager import LiveModeManager
+        from core.sessions_manager import start_session, end_session, get_active_session
+        
         manager = LiveModeManager()
+        
         if req.enable:
+            # Activer mode LIVE
             manager.enable_live_mode()
-            status = "enabled"
+            
+            # Créer session dans bot_sessions
+            session_id = await start_session(req.company_id, "live")
+            
+            return {
+                "status": "enabled",
+                "session_id": session_id
+            }
         else:
+            # Désactiver mode LIVE
             manager.disable_live_mode()
-            status = "disabled"
-        return {"status": status}
+            
+            # Terminer session active
+            active_session = await get_active_session(req.company_id)
+            if active_session:
+                await end_session(active_session["id"], req.company_id)
+            
+            return {
+                "status": "disabled"
+            }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"toggle-live-mode error: {e}")
 

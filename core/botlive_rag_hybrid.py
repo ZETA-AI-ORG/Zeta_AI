@@ -27,7 +27,18 @@ class BotliveRAGHybrid:
     def __init__(self, company_id: str = None):
         self.router = hyde_router
         self.company_id = company_id  # ← NOUVEAU: Stocker company_id
-        self.prompts_manager = get_prompts_manager()  # ← NOUVEAU: Gestionnaire Supabase
+        
+        # Initialiser le gestionnaire de prompts avec fallback
+        try:
+            self.prompts_manager = get_prompts_manager()
+            if self.prompts_manager:
+                logger.info("✅ [BOTLIVE_HYBRID] Prompts manager Supabase activé")
+            else:
+                logger.warning("⚠️ [BOTLIVE_HYBRID] Prompts manager None - Utilisation hardcodés")
+        except Exception as e:
+            logger.error(f"❌ [BOTLIVE_HYBRID] Erreur init prompts_manager: {e}")
+            self.prompts_manager = None
+        
         self.stats = {
             'total_requests': 0,
             'deepseek_requests': 0,
@@ -40,7 +51,8 @@ class BotliveRAGHybrid:
                             user_id: str,
                             message: str, 
                             context: Dict[str, Any],
-                            conversation_history: str = "") -> Dict[str, Any]:
+                            conversation_history: str = "",
+                            company_id: str = None) -> Dict[str, Any]:
         """
         Traite une requête avec le système hybride
         
@@ -53,6 +65,14 @@ class BotliveRAGHybrid:
         Returns:
             Dict: Réponse complète avec métadonnées
         """
+        import os
+        print("\n========== DEBUG BOTLIVE SUPABASE ==========")
+        print(f"SUPABASE_URL: {os.getenv('SUPABASE_URL')}")
+        print(f"SUPABASE_SERVICE_KEY: {os.getenv('SUPABASE_SERVICE_KEY')}")
+        print(f"prompts_manager: {self.prompts_manager}")
+        print(f"company_id reçu: {company_id} | self.company_id: {self.company_id}")
+        print("============================================\n")
+
         start_time = datetime.now()
         timings = {}  # Track temps par étape
         
@@ -90,6 +110,13 @@ class BotliveRAGHybrid:
                 
                 # Ajouter au contexte pour le prompt
                 context['payment_validation'] = payment_validation
+                
+                # 🔥 CORRECTION CRITIQUE: Persister le paiement validé dans order_state
+                if payment_validation.get('valid'):
+                    from core.order_state_tracker import order_tracker
+                    total_received = payment_validation.get('total_received', 0)
+                    order_tracker.update_paiement(user_id, f"validé_{total_received}F")
+                    logger.info(f"✅ [PERSISTENCE] Paiement {total_received}F sauvegardé pour {user_id}")
             
             # ═══ ÉTAPE 2: GÉNÉRATION PROMPT SPÉCIALISÉ ═══
             step_start = datetime.now()
@@ -125,20 +152,71 @@ class BotliveRAGHybrid:
 4. Si tous ✅ → Finaliser: "Commande OK ! on vous reviens pour la livraison 😊"
 """
             
+            logger.info(f"📊 [ORDER_STATE] État pour {user_id}:")
+            logger.info(f"   - Produit: {state.produit or 'NON COLLECTÉ'}")
+            logger.info(f"   - Paiement: {state.paiement or 'NON COLLECTÉ'}")
+            logger.info(f"   - Zone: {state.zone or 'NON COLLECTÉ'}")
+            logger.info(f"   - Numéro: {state.numero or 'NON COLLECTÉ'}")
+            
             # ← NOUVEAU: Récupérer prompt depuis Supabase
-            if not self.company_id:
+            # Utiliser company_id du paramètre ou de l'instance
+            active_company_id = company_id or self.company_id
+            if not active_company_id:
                 raise ValueError("❌ company_id requis pour récupérer les prompts Botlive")
             
-            prompt = self.prompts_manager.format_prompt(
-                company_id=self.company_id,
-                llm_choice=llm_choice,
-                conversation_history=conversation_history,
-                question=message,
-                detected_objects=self._format_detected_objects(context.get('detected_objects', [])),
-                filtered_transactions=formatted_transactions,
-                expected_deposit=context.get('expected_deposit', '2000'),
-                order_state=state_resume  # ← AJOUT MÉMOIRE CONTEXTE
-            )
+            logger.info(f"🔍 [BOTLIVE] Récupération prompt pour company_id={active_company_id}, llm={llm_choice}")
+            
+            # Vérifier si prompts_manager est disponible
+            if not self.prompts_manager:
+                logger.error("❌ [BOTLIVE] prompts_manager est None - Impossible de récupérer le prompt")
+                raise ValueError("Prompts manager non initialisé - Utiliser fallback _botlive_handle")
+            
+            # ═══ RÉCUPÉRATION PROMPT AVEC DEBUG COMPLET ═══
+            try:
+                print(f"[DEBUG] Avant appel format_prompt...")
+                prompt = self.prompts_manager.format_prompt(
+                    company_id=active_company_id,
+                    llm_choice=llm_choice,
+                    conversation_history=conversation_history,
+                    question=message,
+                    detected_objects=self._format_detected_objects(context.get('detected_objects', [])),
+                    filtered_transactions=formatted_transactions,
+                    expected_deposit=context.get('expected_deposit', '2000'),
+                    order_state=state_resume  # ← AJOUT MÉMOIRE CONTEXTE
+                )
+                print(f"[DEBUG] Après appel format_prompt: {len(prompt)} chars")
+                
+                # Vérifier que le prompt n'est pas vide ou trop court
+                if not prompt or len(prompt) < 100:
+                    raise ValueError(f"❌ Prompt Supabase invalide ou vide: {len(prompt) if prompt else 0} chars")
+                
+                print(f"[DEBUG] ✅ Prompt Supabase valide: {len(prompt)} chars")
+                
+            except Exception as prompt_error:
+                import traceback
+                print(f"\n{'='*80}")
+                print(f"❌ [ERREUR RÉCUPÉRATION PROMPT SUPABASE]")
+                print(f"{'='*80}")
+                print(f"Company ID: {active_company_id}")
+                print(f"LLM Choice: {llm_choice}")
+                print(f"Erreur: {prompt_error}")
+                print(f"Type: {type(prompt_error).__name__}")
+                print(f"\nTraceback complet:")
+                traceback.print_exc()
+                print(f"{'='*80}\n")
+                logger.error(f"❌ Erreur récupération prompt Supabase: {prompt_error}", exc_info=True)
+                raise
+            
+            logger.info(f"✅ [BOTLIVE] Prompt récupéré: {len(prompt)} caractères")
+            # === PRINT PROMPT EFFECTIF (stdout, visible même si niveau de logs élevé) ===
+            try:
+                print("\n" + "="*100)
+                print(f"PROMPT (EFFECTIF) → {llm_choice}: {len(prompt)} chars")
+                print("="*100 + "\n")
+                print(prompt)
+                print("\n" + "="*100 + "\n")
+            except Exception:
+                pass
             timings['prompt_generation'] = (datetime.now() - step_start).total_seconds()
             
             # ═══════════════════════════════════════════════════════════════
@@ -217,7 +295,57 @@ class BotliveRAGHybrid:
                     # Si pas de balise response, prendre tout après thinking
                     final_response = re.sub(r'<thinking>.*?</thinking>', '', raw_response, flags=re.DOTALL).strip()
             
-            # ═══ ÉTAPE 6: EXÉCUTION OUTILS ═══
+            # ═══ ÉTAPE 6: VALIDATION ANTI-HALLUCINATION ═══
+            from core.llm_response_validator import validator as llm_validator
+            from core.order_state_tracker import order_tracker
+            
+            validation_result = llm_validator.validate(
+                response=final_response,
+                thinking=thinking,
+                order_state=order_tracker.get_state(user_id),
+                payment_validation=payment_validation,
+                context_documents=[context.get('context_used', '')]
+            )
+            
+            # Si hallucination détectée, régénérer
+            if validation_result.should_regenerate:
+                logger.warning(f"🚨 [HALLUCINATION] Régénération requise pour {user_id}")
+                logger.warning(f"   Erreurs: {validation_result.errors}")
+                
+                # Régénérer avec prompt corrigé
+                corrected_prompt = prompt + "\n\n" + validation_result.correction_prompt
+                
+                logger.info(f"🔄 [REGENERATION] Appel LLM avec correction...")
+                if llm_choice == "deepseek-v3":
+                    response_data = await self._call_deepseek(corrected_prompt, user_id)
+                else:
+                    response_data = await self._call_groq(corrected_prompt, user_id)
+                
+                # Extraire nouvelle réponse
+                raw_response = response_data.get('response', '')
+                thinking_match = re.search(r'<thinking>(.*?)</thinking>', raw_response, re.DOTALL)
+                response_match = re.search(r'<response>(.*?)</response>', raw_response, re.DOTALL)
+                
+                if thinking_match:
+                    thinking = thinking_match.group(1).strip()
+                if response_match:
+                    final_response = response_match.group(1).strip()
+                else:
+                    final_response = re.sub(r'<thinking>.*?</thinking>', '', raw_response, flags=re.DOTALL).strip()
+                
+                # Valider à nouveau
+                validation_result2 = llm_validator.validate(
+                    response=final_response,
+                    thinking=thinking,
+                    order_state=order_tracker.get_state(user_id),
+                    payment_validation=payment_validation,
+                    context_documents=[context.get('context_used', '')]
+                )
+                
+                if not validation_result2.valid:
+                    logger.error("❌ [REGENERATION] Échec après correction, réponse conservée")
+            
+            # ═══ ÉTAPE 7: EXÉCUTION OUTILS ═══
             processed_response = execute_tools_in_response(final_response, user_id)
             timings['tools_execution'] = (datetime.now() - step_start).total_seconds()
             
@@ -361,6 +489,12 @@ class BotliveRAGHybrid:
                 'response': processed_response,
                 'thinking': thinking,
                 'llm_used': llm_choice,
+                'validation': {  # ← NOUVEAU: Résultats validation
+                    'valid': validation_result.valid,
+                    'errors': validation_result.errors,
+                    'warnings': validation_result.warnings,
+                    'should_regenerate': validation_result.should_regenerate
+                } if 'validation_result' in locals() else None,
                 'routing_reason': routing_reason,
                 'processing_time': processing_time,
                 'timings': timings,
@@ -567,18 +701,23 @@ class BotliveRAGHybrid:
         return ", ".join(formatted) if formatted else "[AUCUN OBJET DÉTECTÉ]"
     
     def _format_transactions(self, transactions: list) -> str:
-        """Formate les transactions pour le prompt"""
+        """Formate les transactions pour le prompt (optimisé tokens)"""
         if not transactions:
-            return "[AUCUNE TRANSACTION VALIDE]"
+            return "0F"
         
         formatted = []
         for trans in transactions:
             if isinstance(trans, dict):
                 amount = trans.get('amount', '0')
                 phone = trans.get('phone', '')
-                formatted.append(f"{amount}F -> +225{phone}")
+                # Tronquer numéro pour économiser tokens (garder 4 derniers chiffres)
+                if phone and len(phone) >= 4:
+                    phone_short = f"...{phone[-4:]}"
+                else:
+                    phone_short = phone
+                formatted.append(f"{amount}F -> +225{phone_short}")
         
-        return ", ".join(formatted) if formatted else "[AUCUNE TRANSACTION VALIDE]"
+        return ", ".join(formatted) if formatted else "0F"
     
     def get_stats(self) -> Dict[str, Any]:
         """

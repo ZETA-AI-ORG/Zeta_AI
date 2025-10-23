@@ -1,0 +1,112 @@
+{
+  "scenario": "light_client_informe",
+  "start_time": 1760959761.2778792,
+  "end_time": 1760959883.4098282,
+  "total_duration_ms": 122131.9489479065,
+  "total_rag_time_ms": 82407,
+  "total_turns": 5,
+  "total_tokens": 1597,
+  "total_cost_usd": 0.0012616300000000001,
+  "turns": [
+    {
+      "turn": 1,
+      "timestamp": "2025-10-20T13:30:36.118578",
+      "user_message": "Bonjour, combien coûte un lot de 300 couches taille 3?",
+      "llm_response": "Noté ! 📦 On a plusieurs types de couches en lot 300:\n- Couches culottes (24 000 F)\n- Couches à pression taille 1 (17 900 F)\n- Couches à pression taille 2 (18 900 F)\n\nLequel te convient ? 🤔",
+      "thinking": {},
+      "contexts": [
+        {
+          "type": "context",
+          "content": "\n⚠️ AMBIGUÏTÉ DÉTECTÉE pour la requête utilisateur:\nType de produit non précisé. Options disponibles:\n  - couches culottes\n  - couches à pression\n\nACTION REQUISE: Demander au client de préciser le typ"
+        }
+      ],
+      "execution_time_ms": 41998,
+      "tokens": {
+        "prompt": 276,
+        "completion": 53,
+        "total": 330
+      },
+      "cost_usd": 0.0002607
+    },
+    {
+      "turn": 2,
+      "timestamp": "2025-10-20T13:30:48.245675",
+      "user_message": "Ok parfait. Je suis à Yopougon, c'est combien la livraison?",
+      "llm_response": "```yaml\nPHASE 1 EXTRACTION\nquestion_exacte: \"Ok parfait. Je suis à Yopougon, c'est combien la livraison?\"\nintentions:\n  demande_livraison: 95\nmots_cles: [Yopougon, livraison]\n\nPHASE 2 COLLECTE\ndeja_collecte:\n  zone: \"Yopougon\"\n  frais_livraison: 1500\nnouvelles_donnees:\n  - cle: zone\n    valeur: \"Yopougon\"\n    confiance: HAUTE\n\nPHASE 3 VALIDATION\nverification:\n  zone_confirme: true\n  frais_livraison_confirme: true\nconfiance_globale: 95\n\nPHASE 4 ANTI_REPETITION\ncheck_repetition:\n  zone: true\n  frais_livraison: true\n\nPHASE 5 DECISION\nprogression:\n  completude: \"2/5\"\n  donnees_manquantes: [produit, telephone, paiement]\n  prochaine_etape: \"Demander type de couches\"\n```\n\n<response>\nNoté ! 📦 Livraison à Yopougon, c'est 1500 FCFA.\nPour finaliser ta commande, il me manque le type de couches que tu veux...\nOn a plusieurs types de couches en lot 300:\n- Couches culottes (24 000 F)\n- Couches à pression (22 900 F)\nLequel tu veux ? 📦",
+      "thinking": {},
+      "contexts": [
+        {
+          "type": "context",
+          "content": "LIVRAISON - ZONES CENTRALES ABIDJAN\n- Yopougon : 1 500 FCFA\nDélais de livraison Abidjan :\n• Commande avant 13 h → Livraison le jour même\n\nLIVRAISON - ZONES PÉRIPHÉRIQUES ABIDJAN\nDélais de livraison Ab"
+        }
+      ],
+      "execution_time_ms": 10954,
+      "tokens": {
+        "prompt": 111,
+        "completion": 158,
+        "total": 270
+      },
+      "cost_usd": 0.0002133
+    },
+    {
+      "turn": 3,
+      "timestamp": "2025-10-20T13:31:00.651687",
+      "user_message": "Super! Je veux commander alors. Comment faire?",
+      "llm_response": "```yaml\nPHASE 1 EXTRACTION\nquestion_exacte: \"Super! Je veux commander alors. Comment faire?\"\nintentions:\n  demande_procedure: 90\nmots_cles: [commander, procedure]\n\nPHASE 2 COLLECTE\ndeja_collecte:\n  zone: \"Yopougon\"\n  frais_livraison: 1500\n  paiement: \"pending\"\nnouvelles_donnees: []\n\nPHASE 3 VALIDATION\nverification:\n  recadrage_necessaire: false\n  ambiguite: false\nconfiance_globale: 80\n\nPHASE 4 ANTI_REPETITION\ncheck_repetition:\n  zone: true\n  paiement: false\n  telephone: false\n  produit: false\n\nPHASE 5 DECISION\nprogression:\n  completude: \"2/5\"\n  donnees_manquantes: [produit, telephone, paiement]\n  prochaine_etape: \"Demander type de couches\"\n```\n\n<response>\nNoté ! Pour finaliser ta commande, il me manque le type de couches que tu veux, ton numéro de téléphone et le paiement. On a plusieurs types de couches en lot 300: \n- Couches culottes (24 000 F)\n- Couches à pression (22 900 F)\nLequel te convient ? Et as-tu déjà envoyé l'acompte de 2000 F ? 📞 Je t'attends !",
+      "thinking": {},
+      "contexts": [
+        {
+          "type": "context",
+          "content": "MODES DE PAIEMENT ACCEPTÉS:\nWave\n\nNUMÉROS DE PAIEMENT:\nWAVE: +225 0787360757\n\n⚠️ ACOMPTE OBLIGATOIRE: 2000 FCFA pour valider la commande\n\nLIVRAISON - ZONES CENTRALES ABIDJAN\n\n- Yopougon : 1 500 FCFA\n-"
+        }
+      ],
+      "execution_time_ms": 10310,
+      "tokens": {
+        "prompt": 275,
+        "completion": 170,
+        "total": 445
+      },
+      "cost_usd": 0.00035155
+    },
+    {
+      "turn": 4,
+      "timestamp": "2025-10-20T13:31:11.149433",
+      "user_message": "Mon numéro c'est le 0708123456. Je paie par Wave",
+      "llm_response": "Reçu ! 📱 Tu as déjà donné ton numéro et choisi le paiement par Wave.\nIl nous manque juste le type de couches pour valider ta commande. \nTu veux des couches culottes ou des couches à pression ? 🤔",
+      "thinking": {},
+      "contexts": [
+        {
+          "type": "context",
+          "content": "MODES DE PAIEMENT ACCEPTÉS:\nWave\n\nNUMÉROS DE PAIEMENT:\nWAVE: +225 0787360757\n\n⚠️ ACOMPTE OBLIGATOIRE: 2000 FCFA pour valider la commande\n\n"
+        }
+      ],
+      "execution_time_ms": 9422,
+      "tokens": {
+        "prompt": 37,
+        "completion": 50,
+        "total": 88
+      },
+      "cost_usd": 6.952e-05
+    },
+    {
+      "turn": 5,
+      "timestamp": "2025-10-20T13:31:21.892758",
+      "user_message": "Oui je confirme ma commande. Livraison demain ok",
+      "llm_response": "```yaml\nPHASE 1 EXTRACTION\nquestion_exacte: \"Oui je confirme ma commande. Livraison demain ok\"\nintentions:\n  confirmation_commande: 90\nmots_cles: [confirme, commande, livraison]\n\nPHASE 2 COLLECTE\ndeja_collecte:\n  type_produit: null\n  quantite: 300\n  zone: \"Yopougon\"\n  telephone: \"0708123456\"\n  paiement: \"pending\"\nnouvelles_donnees:\n  - cle: confirmation_commande\n    valeur: true\n    confiance: HAUTE\n\nPHASE 3 VALIDATION\nverification:\n  recadrage_necessaire: false\n  ambiguite: false\nconfiance_globale: 90\n\nPHASE 4 ANTI_REPETITION\ncheck_repetition:\n  type_produit: false\n  quantite: true\n  zone: true\n  telephone: true\n  paiement: false\n\nPHASE 5 DECISION\nprogression:\n  completude: \"4/5\"\n  donnees_manquantes: [type_produit, paiement]\n  prochaine_etape: \"Demander type de produit\"\n```\n\n<response>\nReçu ! Tu as déjà confirmé ta commande et nous avons ton numéro. Il nous manque juste le type de couches que tu veux commander. Tu veux des couches à pression ou des couches culottes ?",
+      "thinking": {},
+      "contexts": [
+        {
+          "type": "context",
+          "content": "LIVRAISON - HORS ABIDJAN (TOUTE CÔTE D'IVOIRE)\n\nTarif : 3 500 à 5 000 FCFA (confirmé par téléphone)\n\nDélais de livraison :\n- Localités proches : 24 heures\n- Autres villes de Côte d'Ivoire : 48 à 72 he"
+        }
+      ],
+      "execution_time_ms": 9723,
+      "tokens": {
+        "prompt": 310,
+        "completion": 153,
+        "total": 464
+      },
+      "cost_usd": 0.00036656000000000004
+    }
+  ]
+}

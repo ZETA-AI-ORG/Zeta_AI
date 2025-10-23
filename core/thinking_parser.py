@@ -165,15 +165,17 @@ Returns:
     
     def extract_deja_collecte(self, thinking_content: str) -> Dict[str, Optional[str]]:
         """
-        📦 Extrait le dict 'deja_collecte' de PHASE 2
+ Extrait le dict 'deja_collecte' de PHASE 2
         
-        Returns:
+Returns:
             Dict avec clés: type_produit, quantite, zone, telephone, paiement
         """
-        # Essayer avec et sans deux-points
+        # Essayer plusieurs variantes de format
         phase2 = self.parse_yaml_section(thinking_content, "PHASE 2 COLLECTE")
         if not phase2:
             phase2 = self.parse_yaml_section(thinking_content, "PHASE 2: COLLECTE")
+        if not phase2:
+            phase2 = self.parse_yaml_section(thinking_content, "PHASE 2:")
         
         if phase2 and "deja_collecte" in phase2:
             deja_collecte = phase2["deja_collecte"]
@@ -197,10 +199,12 @@ Returns:
         Returns:
             Liste de dicts avec clés: cle, valeur, source, confiance
         """
-        # Essayer avec et sans deux-points
+        # Essayer plusieurs variantes de format
         phase2 = self.parse_yaml_section(thinking_content, "PHASE 2 COLLECTE")
         if not phase2:
             phase2 = self.parse_yaml_section(thinking_content, "PHASE 2: COLLECTE")
+        if not phase2:
+            phase2 = self.parse_yaml_section(thinking_content, "PHASE 2:")
         
         if phase2 and "nouvelles_donnees" in phase2:
             nouvelles_donnees = phase2["nouvelles_donnees"]
@@ -229,16 +233,21 @@ Returns:
         if phase3 and "confiance_globale" in phase3:
             confiance = phase3["confiance_globale"]
             
-            # Extraire le score (format: "90%" ou 90)
-            score_raw = confiance.get("score", "0%")
+            # Gérer les deux formats: int direct ou dict avec score/raison
+            if isinstance(confiance, dict):
+                # Format: {score: 90, raison: "..."}
+                score_raw = confiance.get("score", "0%")
+                raison = confiance.get("raison", "")
+            else:
+                # Format: 85 (int direct)
+                score_raw = confiance
+                raison = ""
             
             # Nettoyer le score
             if isinstance(score_raw, str):
                 score = int(re.sub(r'[^\d]', '', score_raw))
             else:
                 score = int(score_raw)
-            
-            raison = confiance.get("raison", "")
             
             log3("[THINKING_PARSER]", f"✅ confiance_globale: {score}% - {raison}")
             return (score, raison)

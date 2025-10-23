@@ -45,7 +45,9 @@ class ImageAnalyzer:
         self,
         image_data: str,
         user_id: str,
-        context: str = ""
+        context: str = "",
+        company_phone: str = None,
+        required_amount: int = None
     ) -> Dict[str, Any]:
         """
         Analyse une image et retourne données structurées
@@ -76,7 +78,7 @@ class ImageAnalyzer:
         print("📭 [CACHE MISS] Appel Botlive nécessaire")
         
         # Appel Botlive pour analyse
-        result = await self._call_botlive(image_data, user_id, context)
+        result = await self._call_botlive(image_data, user_id, context, company_phone, required_amount)
         
         # Mettre en cache 24h
         self._save_to_cache(image_hash, result)
@@ -88,7 +90,9 @@ class ImageAnalyzer:
         self,
         image_data: str,
         user_id: str,
-        context: str
+        context: str,
+        company_phone: str = None,
+        required_amount: int = None
     ) -> Dict[str, Any]:
         """
         Appelle Botlive pour analyser l'image
@@ -99,11 +103,13 @@ class ImageAnalyzer:
         try:
             from core.botlive_integration import analyze_image_with_botlive
             
-            # Appel Botlive
+            # Appel Botlive avec config entreprise
             botlive_result = await analyze_image_with_botlive(
                 image_data=image_data,
                 user_id=user_id,
-                context=context
+                context=context,
+                company_phone=company_phone,
+                required_amount=required_amount
             )
             
             # Classifier et structurer
@@ -153,9 +159,9 @@ class ImageAnalyzer:
         
         raw_text = botlive_result.get("analysis", "")
         
-        # Extraire montant
-        amount_match = re.search(r'(\d+[\s\u202f]?\d{3})\s*(?:FCFA|F|CFA)', raw_text)
-        amount = int(amount_match.group(1).replace(" ", "").replace("\u202f", "")) if amount_match else 0
+        # Extraire montant (accepte 3 à 5 chiffres : 202, 1000, 2020, etc.)
+        amount_match = re.search(r'(\d{3,5})\s*(?:FCFA|F|CFA)', raw_text)
+        amount = int(amount_match.group(1)) if amount_match else 0
         
         # Extraire numéro téléphone
         phone_match = re.search(r'(\+?225\s?)?0?([0-9]{10})', raw_text)
@@ -268,7 +274,9 @@ def get_image_analyzer() -> ImageAnalyzer:
 async def analyze_image_for_rag(
     image_data: str,
     user_id: str,
-    context: str = ""
+    context: str = "",
+    company_phone: str = None,
+    required_amount: int = None
 ) -> Dict[str, Any]:
     """
     Interface simple pour le RAG
@@ -281,4 +289,4 @@ async def analyze_image_for_rag(
             # Traiter produit
     """
     analyzer = get_image_analyzer()
-    return await analyzer.analyze(image_data, user_id, context)
+    return await analyzer.analyze(image_data, user_id, context, company_phone, required_amount)

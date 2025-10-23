@@ -1,0 +1,68 @@
+{
+  "checkpoint_id": "test_client_simulator_20251021_133901",
+  "user_id": "test_client_simulator",
+  "company_id": "default",
+  "timestamp": "2025-10-21T13:39:01.319376",
+  "thinking": {
+    "success": true,
+    "deja_collecte": {
+      "type_produit": "lot 150",
+      "quantite": 300,
+      "zone": "Yopougon",
+      "telephone": "0708123456",
+      "paiement": "paid"
+    },
+    "nouvelles_donnees": [
+      {
+        "cle": "paiement",
+        "valeur": "paid",
+        "confiance": "HAUTE"
+      }
+    ],
+    "confiance": {
+      "score": 100,
+      "raison": ""
+    },
+    "progression": {
+      "completude": "5/5",
+      "prochaine_etape": {
+        "type": "collecte",
+        "action": "Continuer la collecte d'informations"
+      }
+    },
+    "strategie_qualification": {
+      "phase": "decouverte",
+      "objectif": "Identifier le besoin",
+      "technique": "clarification"
+    },
+    "parsing_errors": []
+  },
+  "notepad": {
+    "created_at": "2025-10-21T13:19:58.203232",
+    "products": [],
+    "quantities": {},
+    "delivery_zone": null,
+    "delivery_cost": null,
+    "payment_method": null,
+    "payment_number": null,
+    "phone_number": null,
+    "calculated_totals": [],
+    "last_updated": "2025-10-21T13:19:58.203245",
+    "conversation_count": 0
+  },
+  "conversation_history": [],
+  "metrics": {
+    "confiance_score": 100,
+    "completude": "5/5",
+    "phase_qualification": "decouverte"
+  },
+  "metadata": {},
+  "statistics": {
+    "notepad_completude": "0/6",
+    "notepad_completude_pct": 0.0,
+    "conversation_length": 0,
+    "thinking_parsed": true,
+    "deja_collecte_count": 5,
+    "nouvelles_donnees_count": 1
+  }
+}
