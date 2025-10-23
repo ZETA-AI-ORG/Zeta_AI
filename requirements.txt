@@ -45,5 +45,40 @@ google-auth>=2.0.0
 google-auth-oauthlib>=1.0.0
 google-auth-httplib2>=0.1.0
 
+# Qdrant (doublon supprimé)
+#qdrant-client>=1.7.0
+
+redis>=5.0.1
+
+# ML/Embeddings dependencies
+sentence-transformers>=2.2.2
+numpy>=1.26.0
+transformers>=4.37.0
+# Pour accélérer le modèle (optionnel, CPU/GPU):
+torch>=2.0.0
+
+# Image search/vector store
+open-clip-torch>=2.23.0
+qdrant-client>=1.7.0
+pillow>=10.0.0
+
+# HTTP/Network dependencies
+aiohttp>=3.9.0
+httpx>=0.25.0
+
+# Monitoring dependencies
+prometheus-fastapi-instrumentator>=6.1.0
+
+# Security/rate limiting
+slowapi>=0.1.8
+
+# Load testing
+locust>=2.24.0
+
+# Google auth
+google-auth>=2.0.0
+google-auth-oauthlib>=1.0.0
+google-auth-httplib2>=0.1.0
+
 # Qdrant
 qdrant-client>=1.7.0
