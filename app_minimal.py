@@ -94,7 +94,7 @@ async def rag_test(query: str = "Bonjour"):
         
         # Test simple
         result = await engine.process_query(
-            message=query,
+            query=query,
             company_id="test_company",
             user_id="test_user",
             company_name="Test Company"
