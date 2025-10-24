@@ -69,12 +69,12 @@ async def process_botlive_message(req: BotliveMessageRequest, background_tasks: 
     logger.info(f"[BOTLIVE][{request_id}] Message reçu: user={req.user_id}, company={req.company_id}")
     
     try:
-        # Importer la fonction de traitement Botlive
-        from app import _botlive_handle
-        
         # Traiter le message
         start_time = time.time()
-        response = await _botlive_handle(
+        
+        # Import lazy pour éviter circular import
+        import app
+        response = await app._botlive_handle(
             company_id=req.company_id,
             user_id=req.user_id,
             message=req.message,
