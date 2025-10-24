@@ -88,7 +88,7 @@ class OptimizedSemanticSearchEngine:
         # OPTIMISATION: Utilise modèle léger au lieu du lourd (1.11 GB → 90 MB)
         self.model_name = "sentence-transformers/all-MiniLM-L6-v2"  # Modifié pour performance
         self.french_model_name = "dangvantuan/sentence-camembert-large"
-        self.client = httpx.AsyncClient(timeout=30.0)
+        self._client = None  # Lazy init to prevent blocking on import
         
         # txtai pour recherche sémantique avancée
         self.txtai_index = None
@@ -107,6 +107,13 @@ class OptimizedSemanticSearchEngine:
             'toujours', 'jamais', 'souvent', 'parfois', 'quelquefois', 'bien', 'mal',
             'mieux', 'pire', 'beaucoup', 'peu', 'assez', 'trop', 'tant', 'autant'
         }
+    
+    @property
+    def client(self):
+        """Lazy initialization of httpx client"""
+        if self._client is None:
+            self._client = httpx.AsyncClient(timeout=30.0)
+        return self._client
         
     def initialize(self):
         """Initialisation du moteur avec cache global et txtai"""
@@ -135,7 +142,8 @@ class OptimizedSemanticSearchEngine:
     
     async def cleanup(self):
         """Nettoyage des ressources"""
-        await self.client.aclose()
+        if self._client is not None:
+            await self._client.aclose()
     
     @timing_metric("embedding_generation")
     async def generate_embedding(self, text: str) -> List[float]:
