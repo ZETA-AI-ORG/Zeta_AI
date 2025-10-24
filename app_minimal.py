@@ -65,4 +65,21 @@ async def db_test():
             "type": type(e).__name__
         }
 
+# Étape 2 : Authentification
+try:
+    from routes.auth import router as auth_router
+    app.include_router(auth_router, prefix="/auth", tags=["Auth"])
+    logger.info("✅ Routes d'authentification chargées")
+except Exception as e:
+    logger.warning(f"⚠️ Erreur chargement auth routes: {e}")
+
+@app.get("/auth-test")
+async def auth_test():
+    """Test que les routes auth sont chargées"""
+    return {
+        "status": "success",
+        "message": "Auth routes loaded",
+        "endpoints": ["/auth/login", "/auth/register", "/auth/refresh"]
+    }
+
 logger.info("✅ App minimal initialisée avec succès")
