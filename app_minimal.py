@@ -43,4 +43,26 @@ async def health():
 async def test():
     return {"test": "success", "imports": "minimal"}
 
+@app.get("/db-test")
+async def db_test():
+    """Test de connexion Supabase"""
+    try:
+        from database.supabase_client import get_supabase_client
+        supabase = get_supabase_client()
+        
+        # Test simple : récupérer 1 ligne de company_mapping
+        result = supabase.table("company_mapping").select("*").limit(1).execute()
+        
+        return {
+            "status": "success",
+            "message": "Supabase connected",
+            "data_count": len(result.data) if result.data else 0
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": str(e),
+            "type": type(e).__name__
+        }
+
 logger.info("✅ App minimal initialisée avec succès")
