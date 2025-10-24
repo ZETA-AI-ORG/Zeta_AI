@@ -170,8 +170,10 @@ from api.image_search import router as image_search_router
 
 # --- Botlive API Routes ---
 print("🔍 [DEBUG] Importing botlive router...")
-from routes.botlive import router as botlive_router
-app.include_router(botlive_router)
+# TEMPORAIREMENT DÉSACTIVÉ POUR DEBUG
+# from routes.botlive import router as botlive_router
+# app.include_router(botlive_router)
+print("⚠️ [DEBUG] Botlive router SKIPPED (debugging)")
 print("✅ [DEBUG] All imports completed!")
 
 # --- Models for prompt admin ---
