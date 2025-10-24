@@ -166,7 +166,9 @@ import traceback
 
 # --- Image search API ---
 print("🔍 [DEBUG] Importing image_search...")
-from api.image_search import router as image_search_router
+# TEMPORAIREMENT DÉSACTIVÉ - Bloque le démarrage
+# from api.image_search import router as image_search_router
+print("⚠️ [DEBUG] Image search router SKIPPED (debugging)")
 
 # --- Botlive API Routes ---
 print("🔍 [DEBUG] Importing botlive router...")
@@ -330,7 +332,7 @@ app.include_router(meili_router)
 # NOTE: Removed duplicate include of meili_explorer_router; it is already mounted at prefix /meili above
 app.include_router(ingestion_router)
 app.include_router(auth_router, prefix="/auth", tags=["Auth"])
-app.include_router(image_search_router)
+# app.include_router(image_search_router)  # DÉSACTIVÉ - Bloque le démarrage
 
 # 🚀 NOUVEAU: Monitoring des caches optimisés
 try:
