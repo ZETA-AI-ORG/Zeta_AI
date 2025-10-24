@@ -82,4 +82,37 @@ async def auth_test():
         "endpoints": ["/auth/login", "/auth/register", "/auth/refresh"]
     }
 
+# Étape 3 : RAG Engine (Lazy Loading)
+@app.get("/rag-test")
+async def rag_test(query: str = "Bonjour"):
+    """Test du RAG Engine avec lazy loading"""
+    try:
+        from core.universal_rag_engine import get_universal_rag_engine
+        
+        # Lazy init du RAG engine
+        engine = get_universal_rag_engine()
+        
+        # Test simple
+        result = await engine.process_query(
+            message=query,
+            company_id="test_company",
+            user_id="test_user",
+            company_name="Test Company"
+        )
+        
+        return {
+            "status": "success",
+            "message": "RAG Engine loaded",
+            "query": query,
+            "response_preview": result.response[:200] + "..." if len(result.response) > 200 else result.response,
+            "confidence": result.confidence,
+            "processing_time_ms": result.processing_time_ms
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": str(e),
+            "type": type(e).__name__
+        }
+
 logger.info("✅ App minimal initialisée avec succès")
