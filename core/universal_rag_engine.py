@@ -2092,8 +2092,15 @@ INSTRUCTION SPÉCIALE PAIEMENT:
         else:
             return "🌟⭐⭐⭐⭐"
 
-# Instance globale
-universal_rag = UniversalRAGEngine()
+# Instance globale (lazy init)
+universal_rag = None
+
+def get_universal_rag_engine():
+    """Lazy initialization of the global RAG engine"""
+    global universal_rag
+    if universal_rag is None:
+        universal_rag = UniversalRAGEngine()
+    return universal_rag
 
 # Fonction d'interface simple
 async def get_universal_rag_response(
@@ -2125,7 +2132,8 @@ async def get_universal_rag_response(
     print(f"🔍 [RAG_ENTRY] Contient Cocody: {'Cocody' in conversation_history}")
     print()
     
-    result = await universal_rag.process_query(message, company_id, user_id, company_name, skip_faq_cache, request_id, images=images)
+    engine = get_universal_rag_engine()
+    result = await engine.process_query(message, company_id, user_id, company_name, skip_faq_cache, request_id, images=images)
     
     return {
         'response': result.response,
