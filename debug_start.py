@@ -11,9 +11,16 @@ print("=" * 80)
 
 try:
     print("📦 Importing app module...")
+    import sys
+    sys.stdout.flush()  # Force flush
+    
     import app
+    sys.stdout.flush()  # Force flush
+    
     print("✅ App module imported successfully!")
+    sys.stdout.flush()
     print("=" * 80)
+    sys.stdout.flush()
     
     # Vérifier que l'objet app existe
     if hasattr(app, 'app'):
