@@ -84,15 +84,23 @@ async def auth_test():
 
 # Étape 3 : RAG Engine (Lazy Loading)
 @app.get("/rag-test")
-async def rag_test(query: str = "Bonjour"):
+async def rag_test(query: str = "Bonjour", full_test: bool = False):
     """Test du RAG Engine avec lazy loading"""
     try:
         from core.universal_rag_engine import get_universal_rag_engine
         
-        # Lazy init du RAG engine
+        # Test 1 : Vérifier que l'import fonctionne
+        if not full_test:
+            return {
+                "status": "success",
+                "message": "RAG Engine import OK (use ?full_test=true for full test)",
+                "query": query,
+                "note": "Full test disabled to avoid timeout"
+            }
+        
+        # Test 2 : Full test (peut être long)
         engine = get_universal_rag_engine()
         
-        # Test simple
         result = await engine.process_query(
             query=query,
             company_id="test_company",
@@ -102,7 +110,7 @@ async def rag_test(query: str = "Bonjour"):
         
         return {
             "status": "success",
-            "message": "RAG Engine loaded",
+            "message": "RAG Engine full test OK",
             "query": query,
             "response_preview": result.response[:200] + "..." if len(result.response) > 200 else result.response,
             "confidence": result.confidence,
