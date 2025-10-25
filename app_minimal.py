@@ -82,45 +82,26 @@ async def auth_test():
         "endpoints": ["/auth/login", "/auth/register", "/auth/refresh"]
     }
 
-# Étape 3 : RAG Engine (Lazy Loading)
-@app.get("/rag-test")
-async def rag_test(query: str = "Bonjour", full_test: bool = False):
-    """Test du RAG Engine avec lazy loading"""
-    try:
-        from core.universal_rag_engine import get_universal_rag_engine
-        
-        # Test 1 : Vérifier que l'import fonctionne
-        if not full_test:
-            return {
-                "status": "success",
-                "message": "RAG Engine import OK (use ?full_test=true for full test)",
-                "query": query,
-                "note": "Full test disabled to avoid timeout"
-            }
-        
-        # Test 2 : Full test (peut être long)
-        engine = get_universal_rag_engine()
-        
-        result = await engine.process_query(
-            query=query,
-            company_id="test_company",
-            user_id="test_user",
-            company_name="Test Company"
-        )
-        
-        return {
-            "status": "success",
-            "message": "RAG Engine full test OK",
-            "query": query,
-            "response_preview": result.response[:200] + "..." if len(result.response) > 200 else result.response,
-            "confidence": result.confidence,
-            "processing_time_ms": result.processing_time_ms
-        }
-    except Exception as e:
-        return {
-            "status": "error",
-            "message": str(e),
-            "type": type(e).__name__
-        }
+# Étape 3 : Botlive (Vision AI - Pas de RAG nécessaire)
+try:
+    from routes.botlive import router as botlive_router
+    app.include_router(botlive_router, prefix="/botlive", tags=["Botlive"])
+    logger.info("✅ Routes Botlive chargées")
+except Exception as e:
+    logger.warning(f"⚠️ Erreur chargement Botlive routes: {e}")
+
+@app.get("/botlive-test")
+async def botlive_test():
+    """Test que les routes Botlive sont chargées"""
+    return {
+        "status": "success",
+        "message": "Botlive routes loaded",
+        "endpoints": [
+            "/botlive/health",
+            "/botlive/process-order",
+            "/botlive/toggle-live-mode"
+        ],
+        "note": "Botlive uses Vision AI, no RAG needed"
+    }
 
 logger.info("✅ App minimal initialisée avec succès")
