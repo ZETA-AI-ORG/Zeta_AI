@@ -28,6 +28,7 @@ app.add_middleware(
 )
 
 @app.get("/")
+@app.head("/")
 async def root():
     return {"status": "ok", "message": "ZETA AI Backend - Minimal Mode"}
 
