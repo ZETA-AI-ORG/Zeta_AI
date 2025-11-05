@@ -725,10 +725,10 @@ async def _botlive_handle(company_id: str, user_id: str, message: str, images: l
         # ═══════════════════════════════════════════════════════════════
         print(f"[BOTLIVE][PROMPT] 🔧 UTILISATION PROMPTS HARDCODÉS (MODE TEST)")
         
-        # Utiliser les prompts hardcodés au lieu de Supabase
-        from core.botlive_prompts_hardcoded import GROQ_70B_PROMPT, DEEPSEEK_V3_PROMPT
-        botlive_prompt_template = DEEPSEEK_V3_PROMPT  # Par défaut DeepSeek V3
-        print(f"[BOTLIVE][PROMPT] ✅ Prompt hardcodé chargé ({len(botlive_prompt_template)} chars)")
+        # Charger dynamiquement le prompt Supabase
+        from database.supabase_client import get_botlive_prompt
+        botlive_prompt_template = await get_botlive_prompt(company_id)
+        print(f"[BOTLIVE][PROMPT] ✅ Prompt Supabase chargé ({len(botlive_prompt_template)} chars)")
         
         # ═══════════════════════════════════════════════════════════════
         # INITIALISATION DES VARIABLES (portée globale fonction)
@@ -737,6 +737,7 @@ async def _botlive_handle(company_id: str, user_id: str, message: str, images: l
         detected_type = "unknown"
         confidence = 0.0
         raw_text = ""
+        filtered_transactions = []
         
         # ═══════════════════════════════════════════════════════════════
         # ÉTAPE 1: ANALYSE VISION (si image présente)
@@ -814,7 +815,84 @@ async def _botlive_handle(company_id: str, user_id: str, message: str, images: l
                     botlive_engine = BotliveEngine()
                     # Utiliser les méthodes disponibles: detect_product et verify_payment sur la même image
                     product = botlive_engine.detect_product(temp_file_path) or {}
-                    payment = botlive_engine.verify_payment(temp_file_path) or {}
+                    # Extraire le numéro entreprise du prompt AVANT l'OCR
+                    # Format fixe dans le prompt : wave: "+225 0787360757"
+                    company_phone_for_ocr = None
+                    if botlive_prompt_template:
+                        # Pattern robuste pour le format fixe YAML
+                        wave_pattern = r'wave:\s*["\']?([+\d\s\-\.]+)["\']?'
+                        phone_match = re.search(wave_pattern, botlive_prompt_template, re.IGNORECASE)
+                        if phone_match:
+                            raw_phone = phone_match.group(1).strip()
+                            # Utiliser la fonction de normalisation robuste de BotliveEngine
+                            company_phone_for_ocr = botlive_engine._normalize_phone(raw_phone)
+                            if len(company_phone_for_ocr) == 10:
+                                print(f"[BOTLIVE][OCR] ✅ Numéro WAVE normalisé pour filtrage: {company_phone_for_ocr}")
+                                print(f"[BOTLIVE][OCR]    Format original: {raw_phone}")
+                        
+                        # Fallback ultime si extraction échoue (hardcodé)
+                        if not company_phone_for_ocr:
+                            company_phone_for_ocr = "0787360757"
+                            print(f"[BOTLIVE][OCR][FALLBACK] ⚠️ Numéro hardcodé utilisé: {company_phone_for_ocr}")
+
+                    # Appeler l'OCR avec validation stricte du numéro
+                    payment = botlive_engine.verify_payment(temp_file_path, company_phone=company_phone_for_ocr) or {}
+
+                    # ═══════════════════════════════════════════════════════════════
+                    # SYSTÈME DE VALIDATION PAIEMENT COMPLET (payment_validator.py)
+                    # ═══════════════════════════════════════════════════════════════
+                    expected_deposit_int = 2000  # Défaut
+                    try:
+                        pattern = r"acompte[:\s]+(\d{1,6})"
+                        m = re.search(pattern, botlive_prompt_template, re.IGNORECASE)
+                        if m:
+                            expected_deposit_int = int(m.group(1))
+                    except Exception:
+                        pass
+                    
+                    # Préparer les transactions pour validation cumulative
+                    all_transactions_ocr = payment.get('all_transactions', [])
+                    
+                    # Convertir format OCR vers format attendu par validate_payment_cumulative
+                    current_transactions = []
+                    if all_transactions_ocr:
+                        for tx in all_transactions_ocr:
+                            # Convertir amount en int (peut être string depuis OCR)
+                            amount_raw = tx.get('amount', 0)
+                            try:
+                                amount_int = int(amount_raw) if amount_raw else 0
+                            except (ValueError, TypeError):
+                                print(f"[BOTLIVE][PAYMENT_VALIDATOR] ⚠️ Montant invalide ignoré: {amount_raw}")
+                                continue
+                            
+                            current_transactions.append({
+                                'amount': amount_int,
+                                'currency': 'FCFA',
+                                'phone': tx.get('phone', ''),
+                                'date': tx.get('date', '')
+                            })
+                    
+                    # Appeler le validateur cumulatif
+                    from core.payment_validator import validate_payment_cumulative, format_payment_for_prompt
+                    
+                    payment_validation_result = validate_payment_cumulative(
+                        current_transactions=current_transactions,
+                        conversation_history=conversation_history,
+                        required_amount=expected_deposit_int
+                    )
+                    
+                    print(f"[BOTLIVE][PAYMENT_VALIDATOR] Résultat validation:")
+                    print(f"   Valid: {payment_validation_result['valid']}")
+                    print(f"   Total reçu: {payment_validation_result['total_received']} FCFA")
+                    print(f"   Paiements: {payment_validation_result['payments_history']}")
+                    print(f"   Message: {payment_validation_result['message']}")
+                    
+                    # Formater pour injection dans le prompt
+                    payment_validation_text = format_payment_for_prompt(payment_validation_result)
+                    
+                    # Ajouter les transactions filtrées (pour compatibilité)
+                    if current_transactions:
+                        filtered_transactions.extend(current_transactions)
 
                     # "Yeux" uniquement: collecter ce que voient YOLO/EasyOCR, laisser l'LLM décider
                     import re
@@ -960,51 +1038,14 @@ async def _botlive_handle(company_id: str, user_id: str, message: str, images: l
                         print(f"[BOTLIVE][TEMP][CLEAN ERROR] {type(rm_e).__name__}: {rm_e}")
         
         # ═══════════════════════════════════════════════════════════════
-        # ÉTAPE 2: FILTRAGE DES TRANSACTIONS (si OCR disponible)
+        # ÉTAPE 2: VALIDATION PAIEMENT (transactions déjà filtrées par OCR)
         # ═══════════════════════════════════════════════════════════════
-        filtered_transactions = []
-        company_phone = ""
+        # Les transactions sont déjà dans filtered_transactions (issues du moteur OCR)
+        print(f"[BOTLIVE][FILTER] Transactions déjà filtrées par OCR: {len(filtered_transactions)}")
         
-        # Numéro Wave entreprise (hardcodé car prompt ne le contient plus)
-        company_phone = "0787360757"  # Rue du Grossiste
-        print(f"[BOTLIVE][FILTER] Numéro entreprise: {company_phone}")
-        
-        try:
-                
-                # Parser l'OCR pour trouver les transactions
-                if raw_text:
-                    lines = raw_text.split('\n')
-                    for i, line in enumerate(lines):
-                        if company_phone in line.replace(" ", ""):
-                            transaction_context = []
-                            if i > 0:
-                                transaction_context.append(lines[i-1].strip())
-                            transaction_context.append(line.strip())
-                            if i < len(lines) - 1:
-                                transaction_context.append(lines[i+1].strip())
-                            if i < len(lines) - 2:
-                                transaction_context.append(lines[i+2].strip())
-                            
-                            transaction_text = " ".join(transaction_context)
-                            amount_pattern = r"(\d{1,6}(?:[.,]\d{3})*(?:[.,]\d{2})?)\s*F"
-                            amount_match = re.search(amount_pattern, transaction_text)
-                            if amount_match:
-                                raw_amount = amount_match.group(1)
-                                # Normalisation: décimales vs milliers
-                                if re.match(r"^\d+[.,]\d{2}$", raw_amount):
-                                    amount = raw_amount.split('.')[0].split(',')[0]
-                                elif re.match(r"^\d+[.,]\d{3}", raw_amount):
-                                    amount = raw_amount.replace(",", "").replace(".", "")
-                                else:
-                                    amount = raw_amount
-                                filtered_transactions.append({
-                                    "amount": amount,
-                                    "context": " | ".join(transaction_context),
-                                    "phone": company_phone
-                                })
-                                print(f"[BOTLIVE][FILTER] Transaction: {amount}F vers {company_phone}")
-        except Exception as filter_e:
-            print(f"[BOTLIVE][FILTER][ERROR] {filter_e}")
+        # Vérifier si payment_validation_text existe (créé lors de l'analyse image)
+        if 'payment_validation_text' not in locals():
+            payment_validation_text = ""
         
         # ═══════════════════════════════════════════════════════════════
         # ÉTAPE 3: APPEL LLM CONVERSATIONNEL (toujours, avec ou sans image)
@@ -1045,10 +1086,14 @@ async def _botlive_handle(company_id: str, user_id: str, message: str, images: l
             print(f"🔧 [PROMPT MODE] SUPABASE DIRECT")
             
             # Préparer les variables pour formatage
-            detected_objects_str = ", ".join(detected_objects) if detected_objects else "[AUCUN OBJET DÉTECTÉ]"
-            filtered_transactions_str = ", ".join([
-                f"{t.get('amount','?')}F -> +225{t.get('phone','????')}" for t in (filtered_transactions or [])
-            ]) or "[AUCUNE TRANSACTION VALIDE]"
+            # NE PLUS INJECTER DE DONNÉES VISION POUR LA VALIDATION PAIEMENT
+            detected_objects_str = ""  # Vision ignorée pour paiement
+            
+            # INJECTER UNIQUEMENT LE VERDICT OCR
+            if payment_validation_text:
+                filtered_transactions_str = payment_validation_text
+            else:
+                filtered_transactions_str = "[AUCUNE TRANSACTION VALIDE]"
             
             # DEBUG: Vérifier les transactions avant formatage
             print(f"🔍 [DEBUG] filtered_transactions = {filtered_transactions}")
@@ -1056,13 +1101,17 @@ async def _botlive_handle(company_id: str, user_id: str, message: str, images: l
             
             # Formater le prompt Supabase directement avec gestion d'erreur
             try:
-                formatted_prompt = botlive_prompt_template.format(
-                    question=question_text or "",
-                    conversation_history=history_text or "",
-                    detected_objects=detected_objects_str,
-                    filtered_transactions=filtered_transactions_str,
-                    expected_deposit=str(expected_deposit or "2000 FCFA")
-                )
+                # Injection context_text vide si attendu dans le template
+                format_vars = {
+                    "question": question_text or "",
+                    "conversation_history": history_text or "",
+                    "detected_objects": detected_objects_str,
+                    "filtered_transactions": filtered_transactions_str,
+                    "expected_deposit": str(expected_deposit or "2000 FCFA"),
+                }
+                if "{context_text}" in botlive_prompt_template:
+                    format_vars["context_text"] = ""
+                formatted_prompt = botlive_prompt_template.format(**format_vars)
             except KeyError as ke:
                 print(f"⚠️ [PROMPT] Variable manquante dans template: {ke}")
                 # Fallback: remplacer manuellement
@@ -1144,12 +1193,12 @@ Commence MAINTENANT par <thinking> puis <response>.
             import os  # Import nécessaire pour getenv
             from core.llm_health_check import complete as generate_response
             # Utiliser le modèle Groq défini dans l'env, sinon défaut 70B versatile
-            groq_model = os.getenv("DEFAULT_LLM_MODEL", "llama-3.3-70b-versatile")
+            groq_model = "llama-3.3-70b-versatile"  # Forcé, plus jamais d'auto ou 8B
             llm_text, token_usage = await generate_response(
                 formatted_prompt,
                 model_name=groq_model,
-                max_tokens=1000,  # ✅ Augmenté pour permettre thinking + response
-                temperature=0.7
+                max_tokens=1000,  # Suffisant pour <thinking> + <response>
+                temperature=0.5  # Plus naturel, évite le côté robot
             )
             
             # ═══════════════════════════════════════════════════════════════

@@ -1,0 +1,34 @@
+{
+  "checkpoint_id": "test_botlive_micro_20251025_081635",
+  "user_id": "test_botlive_micro",
+  "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+  "timestamp": "2025-10-25T08:16:35.280225",
+  "thinking": {
+    "raw": "Le client a envoyé un message avec une preuve de paiement Wave. Les données de vision détectent des montants, mais seul le montant de 202.00 FCFA est pertinent pour la validation du paiement. Puisque l'acompte requis est de 2000 FCFA et que le montant payé est de 202.00 FCFA, qui est inférieur à l'acompte, le paiement doit être rejeté et le client doit être informé qu'il doit compléter le paiement. Il est important de rappeler que les données à collecter sont : PRODUIT, PAIEMENT, ZONE et TÉLÉPHONE, et que le paiement est l'une de ces données obligatoires qui doit être validée avant de poursuivre avec la commande."
+  },
+  "notepad": {},
+  "conversation_history": [
+    {
+      "role": "user",
+      "content": "Voici mon paiement Wave"
+    },
+    {
+      "role": "assistant",
+      "content": "Votre paiement de 202.00 FCFA a été détecté, mais il est inférieur à l'acompte requis de 2000 FCFA. Vous devez compléter le paiement de 1798 FCFA pour valider votre commande. Veuillez effectuer le paiement complémentaire et me fournir la preuve de paiement."
+    }
+  ],
+  "metrics": {
+    "confiance_score": 0,
+    "completude": "0/5",
+    "phase_qualification": "decouverte"
+  },
+  "metadata": {},
+  "statistics": {
+    "notepad_completude": "0/6",
+    "notepad_completude_pct": 0.0,
+    "conversation_length": 2,
+    "thinking_parsed": false,
+    "deja_collecte_count": 0,
+    "nouvelles_donnees_count": 0
+  }
+}

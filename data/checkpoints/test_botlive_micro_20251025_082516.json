@@ -1,0 +1,34 @@
+{
+  "checkpoint_id": "test_botlive_micro_20251025_082516",
+  "user_id": "test_botlive_micro",
+  "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+  "timestamp": "2025-10-25T08:25:16.885554",
+  "thinking": {
+    "raw": "Pour valider le paiement, il faut vérifier si le montant versé est égal ou supérieur à l'acompte requis de 2000 FCFA. Le client a envoyé un message indiquant qu'il renvoie le bon montant, mais sans fournir le détail du montant versé. Il est donc nécessaire de demander la preuve de paiement pour vérifier le montant et valider le paiement. Les données collectées jusqu'à présent sont insuffisantes pour procéder à la validation du paiement."
+  },
+  "notepad": {},
+  "conversation_history": [
+    {
+      "role": "user",
+      "content": "Ok je renvoie le bon montant"
+    },
+    {
+      "role": "assistant",
+      "content": "Pour valider votre commande, merci de nous fournir la capture de l'écran de votre transaction WAVE en tant que preuve de paiement. Cela nous permettra de vérifier si le montant versé correspond à l'acompte requis de 2000 FCFA."
+    }
+  ],
+  "metrics": {
+    "confiance_score": 0,
+    "completude": "0/5",
+    "phase_qualification": "decouverte"
+  },
+  "metadata": {},
+  "statistics": {
+    "notepad_completude": "0/6",
+    "notepad_completude_pct": 0.0,
+    "conversation_length": 2,
+    "thinking_parsed": false,
+    "deja_collecte_count": 0,
+    "nouvelles_donnees_count": 0
+  }
+}

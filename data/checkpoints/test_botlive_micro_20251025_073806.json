@@ -1,0 +1,34 @@
+{
+  "checkpoint_id": "test_botlive_micro_20251025_073806",
+  "user_id": "test_botlive_micro",
+  "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+  "timestamp": "2025-10-25T07:38:06.649625",
+  "thinking": {
+    "raw": "Pour commencer, je vais analyser les données fournies et comprendre quelles sont les informations obligatoires nécessaires pour valider la commande. Les quatre données obligatoires sont : PRODUIT, PAIEMENT, ZONE et TÉLÉPHONE. Puisque les données collectées sont vides, je vais demander au client de fournir la première donnée, qui peut être n'importe laquelle de ces quatre options. Je vais choisir de demander le produit, car c'est souvent la première étape dans le processus de commande."
+  },
+  "notepad": {},
+  "conversation_history": [
+    {
+      "role": "user",
+      "content": "Ok je renvoie le bon montant"
+    },
+    {
+      "role": "assistant",
+      "content": "Bonjour, pour commencer votre commande, pouviez-vous me fournir une photo du produit que vous souhaitez commander ?"
+    }
+  ],
+  "metrics": {
+    "confiance_score": 0,
+    "completude": "0/5",
+    "phase_qualification": "decouverte"
+  },
+  "metadata": {},
+  "statistics": {
+    "notepad_completude": "0/6",
+    "notepad_completude_pct": 0.0,
+    "conversation_length": 2,
+    "thinking_parsed": false,
+    "deja_collecte_count": 0,
+    "nouvelles_donnees_count": 0
+  }
+}

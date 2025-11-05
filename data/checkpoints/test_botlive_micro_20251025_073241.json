@@ -1,0 +1,34 @@
+{
+  "checkpoint_id": "test_botlive_micro_20251025_073241",
+  "user_id": "test_botlive_micro",
+  "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+  "timestamp": "2025-10-25T07:32:41.902556",
+  "thinking": {
+    "raw": "Je vais commencer par analyser les données collectées jusqu'à présent. Le NOTEPAD est vide, ce qui signifie qu'aucune donnée n'a été collectée. Je vais demander au client de fournir les informations nécessaires pour la commande. Il faut collecter 4 données obligatoires : PRODUIT, PAIEMENT, ZONE et TÉLÉPHONE. Je vais commencer par demander au client de fournir le PRODUIT désiré."
+  },
+  "notepad": {},
+  "conversation_history": [
+    {
+      "role": "user",
+      "content": "Voici mon paiement Wave"
+    },
+    {
+      "role": "assistant",
+      "content": "Bonjour, je suis Jessica, votre agent IA de validation de commandes. Pour commencer, pouvez-vous me fournir une photo du produit que vous souhaitez commander ?"
+    }
+  ],
+  "metrics": {
+    "confiance_score": 0,
+    "completude": "0/5",
+    "phase_qualification": "decouverte"
+  },
+  "metadata": {},
+  "statistics": {
+    "notepad_completude": "0/6",
+    "notepad_completude_pct": 0.0,
+    "conversation_length": 2,
+    "thinking_parsed": false,
+    "deja_collecte_count": 0,
+    "nouvelles_donnees_count": 0
+  }
+}

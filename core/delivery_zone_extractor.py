@@ -71,84 +71,84 @@ ZONE_PATTERNS = {
         "cost": 1500,
         "category": "centrale",
         "name": "Yopougon",
-        "delais": "Commande avant 11h → jour même | après 11h → lendemain"
+        "delais": "Commande avant 13h → jour même | après 13h → lendemain"
     },
     "cocody": {
         "patterns": [r"cocody", r"coco\b", r"kokody", r"kocody"],
         "cost": 1500,
         "category": "centrale",
         "name": "Cocody",
-        "delais": "Commande avant 11h → jour même | après 11h → lendemain"
+        "delais": "Commande avant 13h → jour même | après 13h → lendemain"
     },
     "plateau": {
         "patterns": [r"plateau", r"plato", r"platau"],
         "cost": 1500,
         "category": "centrale",
         "name": "Plateau",
-        "delais": "Commande avant 11h → jour même | après 11h → lendemain"
+        "delais": "Commande avant 13h → jour même | après 13h → lendemain"
     },
     "adjame": {
         "patterns": [r"adjam[eé]", r"adja\b"],
         "cost": 1500,
         "category": "centrale",
         "name": "Adjamé",
-        "delais": "Commande avant 11h → jour même | après 11h → lendemain"
+        "delais": "Commande avant 13h → jour même | après 13h → lendemain"
     },
     "abobo": {
         "patterns": [r"abobo", r"abobbo", r"abo\b"],
         "cost": 1500,
         "category": "centrale",
         "name": "Abobo",
-        "delais": "Commande avant 11h → jour même | après 11h → lendemain"
+        "delais": "Commande avant 13h → jour même | après 13h → lendemain"
     },
     "marcory": {
         "patterns": [r"marcory", r"markory", r"marco\b"],
         "cost": 1500,
         "category": "centrale",
         "name": "Marcory",
-        "delais": "Commande avant 11h → jour même | après 11h → lendemain"
+        "delais": "Commande avant 13h → jour même | après 13h → lendemain"
     },
     "koumassi": {
         "patterns": [r"koumassi", r"koumasi", r"koumassis"],
         "cost": 1500,
         "category": "centrale",
         "name": "Koumassi",
-        "delais": "Commande avant 11h → jour même | après 11h → lendemain"
+        "delais": "Commande avant 13h → jour même | après 13h → lendemain"
     },
     "treichville": {
         "patterns": [r"treichville", r"treischville", r"treich"],
         "cost": 1500,
         "category": "centrale",
         "name": "Treichville",
-        "delais": "Commande avant 11h → jour même | après 11h → lendemain"
+        "delais": "Commande avant 13h → jour même | après 13h → lendemain"
     },
     "angre": {
         "patterns": [r"angr[eé]"],
         "cost": 1500,
         "category": "centrale",
         "name": "Angré",
-        "delais": "Commande avant 11h → jour même | après 11h → lendemain"
+        "delais": "Commande avant 13h → jour même | après 13h → lendemain"
     },
     "riviera": {
         "patterns": [r"riviera", r"rivi[eé]ra"],
         "cost": 1500,
         "category": "centrale",
         "name": "Riviera",
-        "delais": "Commande avant 11h → jour même | après 11h → lendemain"
+        "delais": "Commande avant 13h → jour même | après 13h → lendemain"
     },
     "zone_4": {
         "patterns": [r"zone\s*4", r"zone-4", r"zone4"],
         "cost": 1500,
         "category": "centrale",
         "name": "Zone 4",
-        "delais": "Commande avant 11h → jour même | après 11h → lendemain"
+        "delais": "Commande avant 13h → jour même | après 13h → lendemain"
     },
     "220_logement": {
         "patterns": [r"220\s*logement", r"220-logement", r"220logement"],
         "cost": 1500,
         "category": "centrale",
         "name": "220 Logements",
-        "delais": "Commande avant 11h → jour même | après 11h → lendemain"
+        "delais": "Commande avant 13h → jour même | après 13h → lendemain"
     },
     
     # Zones périphériques (2 000 - 2 500 FCFA)
@@ -157,56 +157,56 @@ ZONE_PATTERNS = {
         "cost": 2000,
         "category": "peripherique",
         "name": "Port-Bouët",
-        "delais": "Commande avant 11h → jour même | après 11h → lendemain"
+        "delais": "Commande avant 13h → jour même | après 13h → lendemain"
     },
     "attecoube": {
         "patterns": [r"att[eé]coub[eé]", r"atecoube"],
         "cost": 2000,
         "category": "peripherique",
         "name": "Attécoubé",
-        "delais": "Commande avant 11h → jour même | après 11h → lendemain"
+        "delais": "Commande avant 13h → jour même | après 13h → lendemain"
     },
     "bingerville": {
         "patterns": [r"bingerville", r"bingereville", r"binger\b"],
         "cost": 2500,
         "category": "peripherique",
         "name": "Bingerville",
-        "delais": "Commande avant 11h → jour même | après 11h → lendemain"
+        "delais": "Commande avant 13h → jour même | après 13h → lendemain"
     },
     "songon": {
         "patterns": [r"songon", r"songon[\s-]?agban"],
         "cost": 2500,
         "category": "peripherique",
         "name": "Songon",
-        "delais": "Commande avant 11h → jour même | après 11h → lendemain"
+        "delais": "Commande avant 13h → jour même | après 13h → lendemain"
     },
     "anyama": {
         "patterns": [r"anyama", r"aniama", r"anyamma"],
         "cost": 2500,
         "category": "peripherique",
         "name": "Anyama",
-        "delais": "Commande avant 11h → jour même | après 11h → lendemain"
+        "delais": "Commande avant 13h → jour même | après 13h → lendemain"
     },
     "brofodoume": {
         "patterns": [r"brofodoum[eé]", r"brofo\b"],
         "cost": 2500,
         "category": "peripherique",
         "name": "Brofodoumé",
-        "delais": "Commande avant 11h → jour même | après 11h → lendemain"
+        "delais": "Commande avant 13h → jour même | après 13h → lendemain"
     },
     "grand_bassam": {
         "patterns": [r"grand[\s-]?bassam", r"bassam", r"grandbassam"],
         "cost": 2500,
         "category": "peripherique",
         "name": "Grand-Bassam",
-        "delais": "Commande avant 11h → jour même | après 11h → lendemain"
+        "delais": "Commande avant 13h → jour même | après 13h → lendemain"
     },
     "dabou": {
         "patterns": [r"dabou", r"dabu\b", r"daboux"],
         "cost": 2500,
         "category": "peripherique",
         "name": "Dabou",
-        "delais": "Commande avant 11h → jour même | après 11h → lendemain"
+        "delais": "Commande avant 13h → jour même | après 13h → lendemain"
     }
 }
 

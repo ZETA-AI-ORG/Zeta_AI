@@ -1,0 +1,34 @@
+{
+  "checkpoint_id": "test_botlive_micro_20251025_073927",
+  "user_id": "test_botlive_micro",
+  "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+  "timestamp": "2025-10-25T07:39:27.002847",
+  "thinking": {
+    "raw": "Je suis Jessica, agent IA de validation de commandes. Mon objectif est de collecter 4 données obligatoires : PRODUIT, PAIEMENT, ZONE et TÉLÉPHONE. Je vais commencer par analyser les données disponibles dans le notepad et le contexte actuel pour déterminer quelles données sont déjà disponibles et quelles données il me reste à collecter."
+  },
+  "notepad": {},
+  "conversation_history": [
+    {
+      "role": "user",
+      "content": "Voilà 2000 FCFA"
+    },
+    {
+      "role": "assistant",
+      "content": "Bonjour ! Pour commencer, pourriez-vous me fournir une capture photo du produit que vous souhaitez commander ?"
+    }
+  ],
+  "metrics": {
+    "confiance_score": 0,
+    "completude": "0/5",
+    "phase_qualification": "decouverte"
+  },
+  "metadata": {},
+  "statistics": {
+    "notepad_completude": "0/6",
+    "notepad_completude_pct": 0.0,
+    "conversation_length": 2,
+    "thinking_parsed": false,
+    "deja_collecte_count": 0,
+    "nouvelles_donnees_count": 0
+  }
+}

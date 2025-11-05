@@ -1,0 +1,37 @@
+{
+  "checkpoint_id": "test_botlive_simulator_20251025_062046",
+  "user_id": "test_botlive_simulator",
+  "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+  "timestamp": "2025-10-25T06:20:46.426953",
+  "thinking": {
+    "raw": "Analyse de la situation :\n\n- L'utilisateur a lancé une commande sans fournir les données obligatoires.\n- La configuration indique que les données obligatoires sont : PRODUIT, PAIEMENT, ZONE et TÉLÉPHONE.\n- Le système doit collecter ces données avant de procéder à la validation et à la livraison.\n\nÉtapes à suivre :\n\n1. Demander à l'utilisateur de fournir la description du produit désiré (PRODUIT).\n2. Vérifier si le paiement a été effectué et demander la preuve de paiement (PAIEMENT).\n3. Demandé à l'utilisateur de fournir la commune et le quartier précis pour déterminer la zone (ZONE).\n4. Demander le numéro de téléphone à joindre pour la livraison (TÉLÉPHONE).\n\nSi les données sont fournies, le système peut procéder à la validation et à la livraison."
+  },
+  "notepad": {
+    "zone": "Angré",
+    "frais_livraison": "1500"
+  },
+  "conversation_history": [
+    {
+      "role": "user",
+      "content": "LA LIVRAISON POUR ANGRE EST A COMBIEN"
+    },
+    {
+      "role": "assistant",
+      "content": "Bonjour, merci de votre commande ! Pour que nous puissions traiter votre demande, nous avons besoin de quelques informations supplémentaires. Veuillez fournir la description du produit que vous souhaitez acheter, ainsi que la preuve de paiement. De plus, nous avons besoin de la commune et du quartier précis pour déterminer la zone de livraison. Enfin, veuillez nous donner votre numéro de téléphone pour que nous puissions vous contacter pour la livraison. Nous allons nous occuper de votre commande dès que nous aurons ces informations."
+    }
+  ],
+  "metrics": {
+    "confiance_score": 0,
+    "completude": "0/5",
+    "phase_qualification": "decouverte"
+  },
+  "metadata": {},
+  "statistics": {
+    "notepad_completude": "2/6",
+    "notepad_completude_pct": 33.33333333333333,
+    "conversation_length": 2,
+    "thinking_parsed": false,
+    "deja_collecte_count": 0,
+    "nouvelles_donnees_count": 0
+  }
+}

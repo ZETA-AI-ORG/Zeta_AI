@@ -1,0 +1,37 @@
+{
+  "checkpoint_id": "test_botlive_simulator_20251025_071321",
+  "user_id": "test_botlive_simulator",
+  "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+  "timestamp": "2025-10-25T07:13:21.982333",
+  "thinking": {
+    "raw": "Pour répondre à la question sur la livraison, il est important de prendre en compte les informations fournies dans l'état actuel de la livraison. La zone demandée est Abobo, avec un tarif exact de 1500 FCFA. Étant donné que l'heure actuelle est 05h13, la livraison est prévue pour aujourd'hui. Il est essentiel de considérer ces détails pour fournir une réponse précise et utile au client."
+  },
+  "notepad": {
+    "zone": "Abobo",
+    "frais_livraison": "1500"
+  },
+  "conversation_history": [
+    {
+      "role": "user",
+      "content": "livraison abobo"
+    },
+    {
+      "role": "assistant",
+      "content": "Votre livraison à Abobo est prévue pour aujourd'hui, avec un tarif de 1500 FCFA. Nous nous assurerons qu'elle soit effectuée dans les délais. Merci de votre confiance."
+    }
+  ],
+  "metrics": {
+    "confiance_score": 0,
+    "completude": "0/5",
+    "phase_qualification": "decouverte"
+  },
+  "metadata": {},
+  "statistics": {
+    "notepad_completude": "2/6",
+    "notepad_completude_pct": 33.33333333333333,
+    "conversation_length": 2,
+    "thinking_parsed": false,
+    "deja_collecte_count": 0,
+    "nouvelles_donnees_count": 0
+  }
+}

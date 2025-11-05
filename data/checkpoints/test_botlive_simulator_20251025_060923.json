@@ -1,0 +1,37 @@
+{
+  "checkpoint_id": "test_botlive_simulator_20251025_060923",
+  "user_id": "test_botlive_simulator",
+  "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+  "timestamp": "2025-10-25T06:09:23.080268",
+  "thinking": {
+    "raw": "J'ai reçu la mission de collecter 4 données obligatoires dans n'importe quel ordre. Les données à collecter sont : PRODUIT, PAIEMENT, ZONE et TÉLÉPHONE. Pour commencer, je vais demander au client de me fournir les informations suivantes :\n\n* PRODUIT : je vais demander au client de prendre une photo du produit désiré.\n* PAIEMENT : je vais demander au client de me fournir une preuve du versement du dépôt de validation.\n* ZONE : je vais demander au client de me fournir la commune et le quartier précis où il souhaite que le produit soit livré. Le système fournira ensuite le tarif correspondant.\n* TÉLÉPHONE : je vais demander au client de me fournir son numéro de téléphone pour la livraison.\n\nJe vais utiliser le format obligatoire pour analyser les données et prendre une décision finale.\n\nJe vais d'abord analyser les données actuelles dans le contexte actuel :\n- produit : null\n- paiement : null\n- zone : null\n- téléphone : null\n\nJe vais ensuite analyser les nouvelles données que le client me fournira.\n- champ : nom\n- valeur : valeur\n- source : [VISION|TRANSACTIONS|MESSAGE|NOTEPAD|LIVRAISON]\n\nJe vais ensuite valider la complétude des données. Puisque 4 données sont nécessaires et que seulement 0 sont actuellement fournies, je vais afficher que 0/4 sont complétées et que les données manquantes sont [PRODUIT, PAIEMENT, ZONE, TÉLÉPHONE].\n\nEnfin, je vais prendre une décision en fonction de la validation. Puisque les données nécessaires ne sont pas encore fournies, je vais demander au client de fournir les informations manquantes.\n\nLa réponse du client sera :\n\n* Si le client fournit les informations manquantes, je vais finaliser la commande.\n* Si le client ne fournit pas les informations manquantes, je vais demander au client de fournir les informations manquantes.\n\nJe vais mettre à jour le notepad en fonction des informations fournies par le client."
+  },
+  "notepad": {
+    "zone": "Cocody",
+    "frais_livraison": "1500"
+  },
+  "conversation_history": [
+    {
+      "role": "user",
+      "content": "Combien la livraison a cocody ?"
+    },
+    {
+      "role": "assistant",
+      "content": "Je vous demande de fournir les informations suivantes pour finaliser votre commande : PRODUIT (photo du produit), PAIEMENT (preuve du versement du dépôt de validation), ZONE (commune et quartier précis) et TÉLÉPHONE (Votre numéro de téléphone pour la livraison). Merci !\n\nSi vous avez déjà fourni certaines informations, veuillez me les fournir maintenant pour que je puisse les mettre à jour dans votre dossier."
+    }
+  ],
+  "metrics": {
+    "confiance_score": 0,
+    "completude": "0/5",
+    "phase_qualification": "decouverte"
+  },
+  "metadata": {},
+  "statistics": {
+    "notepad_completude": "2/6",
+    "notepad_completude_pct": 33.33333333333333,
+    "conversation_length": 2,
+    "thinking_parsed": false,
+    "deja_collecte_count": 0,
+    "nouvelles_donnees_count": 0
+  }
+}

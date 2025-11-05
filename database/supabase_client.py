@@ -44,7 +44,7 @@ async def get_botlive_prompt(company_id: str) -> str:
         url = f"{supabase_url}/rest/v1/company_rag_configs"
         params = {
             "company_id": f"eq.{company_id}",
-            "select": "botlive_prompt_template"
+            "select": "prompt_botlive_groq_70b"
         }
         
         print(f"🔍 [BOTLIVE_PROMPT] Requête Supabase pour company_id={company_id}")
@@ -58,7 +58,7 @@ async def get_botlive_prompt(company_id: str) -> str:
                 print(f"🔍 [BOTLIVE_PROMPT] Données reçues: {len(data)} ligne(s)")
                 
                 if data:
-                    prompt = data[0].get("botlive_prompt_template", "")
+                    prompt = data[0].get("prompt_botlive_groq_70b", "")
                     print(f"🔍 [BOTLIVE_PROMPT] Taille prompt: {len(prompt)} chars")
                     print(f"🔍 [BOTLIVE_PROMPT] Contient '═══ 1. ANALYSE': {'═══ 1. ANALYSE' in prompt}")
                     print(f"🔍 [BOTLIVE_PROMPT] Premiers 200 chars: {prompt[:200]}")

@@ -1,0 +1,37 @@
+{
+  "checkpoint_id": "test_botlive_simulator_20251025_062923",
+  "user_id": "test_botlive_simulator",
+  "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+  "timestamp": "2025-10-25T06:29:23.692044",
+  "thinking": {
+    "raw": "Je vais suivre la procédure de validation de commande telle que spécifiée. Tout d'abord, je vais collecter les 4 données obligatoires nécessaires pour valider la commande. \n\n- Je vais demander au client de me fournir une capture photo du produit désiré, qui correspond à la première donnée obligatoire : PRODUIT.\n- Ensuite, je vais demander au client de me fournir une capture de preuve du versement du dépôt de validation, qui correspond à la deuxième donnée obligatoire : PAIEMENT.\n- Après cela, je vais demander au client de me fournir la commune et le quartier précis où la livraison doit avoir lieu, ce qui correspond à la troisième donnée obligatoire : ZONE.\n- Enfin, je vais demander au client de me fournir son numéro de téléphone pour la livraison, qui correspond à la quatrième donnée obligatoire : TÉLÉPHONE.\n\nUne fois que je possède toutes ces informations, je vais les analyser pour vérifier leur validité et complétude.\n\nSi tout est correct, je vais finaliser la commande et informer le client que la commande est validée."
+  },
+  "notepad": {
+    "zone": "Treichville",
+    "frais_livraison": "1500"
+  },
+  "conversation_history": [
+    {
+      "role": "user",
+      "content": "livraison Treichville ?"
+    },
+    {
+      "role": "assistant",
+      "content": "Je vous demande de me fournir une capture photo du produit désiré, une capture de preuve du versement du dépôt de validation, la commune et le quartier précis où la livraison doit avoir lieu, ainsi que votre numéro de téléphone pour la livraison. Veuillez les envoyer à +225 0160924560 ou +225 0787360757.\n\nJe vous tiendrai informé de l'état de votre commande."
+    }
+  ],
+  "metrics": {
+    "confiance_score": 0,
+    "completude": "0/5",
+    "phase_qualification": "decouverte"
+  },
+  "metadata": {},
+  "statistics": {
+    "notepad_completude": "2/6",
+    "notepad_completude_pct": 33.33333333333333,
+    "conversation_length": 2,
+    "thinking_parsed": false,
+    "deja_collecte_count": 0,
+    "nouvelles_donnees_count": 0
+  }
+}

@@ -1,0 +1,34 @@
+{
+  "checkpoint_id": "test_botlive_micro_20251025_081645",
+  "user_id": "test_botlive_micro",
+  "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+  "timestamp": "2025-10-25T08:16:45.525181",
+  "thinking": {
+    "raw": "L'objectif est de valider le paiement en vérifiant si le montant envoyé par le client correspond à l'acompte requis. Le client a mentionné qu'il renvoie le bon montant, mais il n'y a pas d'information sur le montant exact envoyé. Il est nécessaire de demander une preuve de paiement pour valider le montant et déterminer si cela correspond à l'acompte requis de 2000 FCFA."
+  },
+  "notepad": {},
+  "conversation_history": [
+    {
+      "role": "user",
+      "content": "Ok je renvoie le bon montant"
+    },
+    {
+      "role": "assistant",
+      "content": "Pour valider votre commande, veuillez envoyer une capture de l'écran de transaction ou une preuve de paiement pour vérification."
+    }
+  ],
+  "metrics": {
+    "confiance_score": 0,
+    "completude": "0/5",
+    "phase_qualification": "decouverte"
+  },
+  "metadata": {},
+  "statistics": {
+    "notepad_completude": "0/6",
+    "notepad_completude_pct": 0.0,
+    "conversation_length": 2,
+    "thinking_parsed": false,
+    "deja_collecte_count": 0,
+    "nouvelles_donnees_count": 0
+  }
+}

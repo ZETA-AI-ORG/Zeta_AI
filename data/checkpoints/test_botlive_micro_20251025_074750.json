@@ -1,0 +1,34 @@
+{
+  "checkpoint_id": "test_botlive_micro_20251025_074750",
+  "user_id": "test_botlive_micro",
+  "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+  "timestamp": "2025-10-25T07:47:50.837564",
+  "thinking": {
+    "raw": "Le client a envoyé une preuve de paiement via Wave, mais il faut vérifier si le montant payé est suffisant pour valider la commande. Les données vision détectent plusieurs montants, mais seul celui qui correspond à l'acompte requis est pertinent. L'acompte requis est de 2000 FCFA. Il faut donc comparer les montants détectés à cet acompte pour déterminer la prochaine étape. Le montant de 202.00 FCFA est supérieur à l'acompte requis, ce qui signifie que le paiement peut être validé automatiquement. Cependant, comme il s'agit d'une commande, il est important de confirmer que les autres informations nécessaires (produit, zone, téléphone) soient également disponibles avant de finaliser la commande."
+  },
+  "notepad": {},
+  "conversation_history": [
+    {
+      "role": "user",
+      "content": "Voici mon paiement Wave"
+    },
+    {
+      "role": "assistant",
+      "content": "Votre paiement de 202.00 FCFA a été validé. Pour poursuivre, veuillez fournir les informations suivantes : le produit désiré, votre zone de livraison (commune et quartier) et votre numéro de téléphone."
+    }
+  ],
+  "metrics": {
+    "confiance_score": 0,
+    "completude": "0/5",
+    "phase_qualification": "decouverte"
+  },
+  "metadata": {},
+  "statistics": {
+    "notepad_completude": "0/6",
+    "notepad_completude_pct": 0.0,
+    "conversation_length": 2,
+    "thinking_parsed": false,
+    "deja_collecte_count": 0,
+    "nouvelles_donnees_count": 0
+  }
+}

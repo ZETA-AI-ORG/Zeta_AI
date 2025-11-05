@@ -1,0 +1,34 @@
+{
+  "checkpoint_id": "test_botlive_micro_20251025_074759",
+  "user_id": "test_botlive_micro",
+  "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+  "timestamp": "2025-10-25T07:47:59.708176",
+  "thinking": {
+    "raw": "Le client a envoyé un message indiquant qu'il renvoie le bon montant, mais il n'y a pas d'information sur le montant exact envoyé. Les règles de validation du paiement spécifient qu'un acompte de 2000 FCFA est requis. Puisque le client n'a pas fourni de preuve de paiement ni de montant, je ne peux pas valider le paiement automatiquement. Il est nécessaire de demander au client de fournir la preuve de paiement ou de confirmer le montant envoyé pour procéder à la validation."
+  },
+  "notepad": {},
+  "conversation_history": [
+    {
+      "role": "user",
+      "content": "Ok je renvoie le bon montant"
+    },
+    {
+      "role": "assistant",
+      "content": "Pour valider votre commande, je besoin de la preuve de paiement de 2000 FCFA. Pouvez-vous me fournir la capture de l'opération de versement ou confirmer le montant que vous avez envoyé ?"
+    }
+  ],
+  "metrics": {
+    "confiance_score": 0,
+    "completude": "0/5",
+    "phase_qualification": "decouverte"
+  },
+  "metadata": {},
+  "statistics": {
+    "notepad_completude": "0/6",
+    "notepad_completude_pct": 0.0,
+    "conversation_length": 2,
+    "thinking_parsed": false,
+    "deja_collecte_count": 0,
+    "nouvelles_donnees_count": 0
+  }
+}

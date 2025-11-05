@@ -1,0 +1,34 @@
+{
+  "checkpoint_id": "test_botlive_micro_20251025_080516",
+  "user_id": "test_botlive_micro",
+  "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+  "timestamp": "2025-10-25T08:05:16.238560",
+  "thinking": {
+    "raw": "L'analyse de la conversation indique que le client a envoyé un message avec une capture d'écran d'un paiement de 2000 FCFA. Les règles de validation de paiement spécifient qu'un acompte de 2000 FCFA est requis pour valider la commande. Étant donné que le montant du paiement est égal à l'acompte requis, le paiement est validé automatiquement. Cependant, il est important de noter que les autres informations obligatoires telles que le produit, la zone et le numéro de téléphone pour la livraison ne sont pas encore fournies. La prochaine étape consisterait à demander ces informations manquantes au client."
+  },
+  "notepad": {},
+  "conversation_history": [
+    {
+      "role": "user",
+      "content": "Voilà 2000 FCFA"
+    },
+    {
+      "role": "assistant",
+      "content": "Votre paiement de 2000 FCFA a été validé avec succès. Pour poursuivre, veuillez nous fournir une photo du produit que vous souhaitez commander, ainsi que votre numéro de téléphone et votre adresse de livraison (commune et quartier)."
+    }
+  ],
+  "metrics": {
+    "confiance_score": 0,
+    "completude": "0/5",
+    "phase_qualification": "decouverte"
+  },
+  "metadata": {},
+  "statistics": {
+    "notepad_completude": "0/6",
+    "notepad_completude_pct": 0.0,
+    "conversation_length": 2,
+    "thinking_parsed": false,
+    "deja_collecte_count": 0,
+    "nouvelles_donnees_count": 0
+  }
+}
