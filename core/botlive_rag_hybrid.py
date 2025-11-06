@@ -118,6 +118,26 @@ class BotliveRAGHybrid:
                     order_tracker.update_paiement(user_id, f"validé_{total_received}F")
                     logger.info(f"✅ [PERSISTENCE] Paiement {total_received}F sauvegardé pour {user_id}")
             
+            # ═══ ÉTAPE 1.7: SYSTÈME DELIVERY (DÉTECTION + INJECTION) ═══
+            delivery_context = ""
+            try:
+                from core.delivery_zone_extractor import extract_delivery_zone_and_cost, format_delivery_info
+                
+                # Détecter si la question concerne la livraison
+                zone_info = extract_delivery_zone_and_cost(message)
+                
+                if zone_info:
+                    # Zone détectée → Formater le contexte avec heure CI
+                    delivery_context = format_delivery_info(zone_info)
+                    logger.info(f"🚚 [DELIVERY] Zone détectée: {zone_info['name']} = {zone_info['cost']} FCFA")
+                    logger.info(f"📋 [DELIVERY] Contexte injecté dans le prompt ({len(delivery_context)} chars)")
+                    
+                    # Ajouter au contexte pour le prompt
+                    context['delivery_info'] = zone_info
+                    context['delivery_context'] = delivery_context
+            except Exception as e:
+                logger.warning(f"⚠️ [DELIVERY] Erreur extraction: {e}")
+            
             # ═══ ÉTAPE 2: GÉNÉRATION PROMPT SPÉCIALISÉ ═══
             step_start = datetime.now()
             
@@ -164,6 +184,12 @@ class BotliveRAGHybrid:
             if not active_company_id:
                 raise ValueError("❌ company_id requis pour récupérer les prompts Botlive")
             
+            # Injecter le contexte delivery dans la question si disponible
+            question_with_delivery = message
+            if delivery_context:
+                question_with_delivery = f"{delivery_context}\n\n{message}"
+                logger.info(f"📋 [DELIVERY] Question enrichie avec contexte delivery ({len(question_with_delivery)} chars)")
+            
             logger.info(f"🔍 [BOTLIVE] Récupération prompt pour company_id={active_company_id}, llm={llm_choice}")
             
             # Vérifier si prompts_manager est disponible
@@ -178,7 +204,7 @@ class BotliveRAGHybrid:
                     company_id=active_company_id,
                     llm_choice=llm_choice,
                     conversation_history=conversation_history,
-                    question=message,
+                    question=question_with_delivery,  # ← UTILISER QUESTION ENRICHIE AVEC DELIVERY
                     detected_objects=self._format_detected_objects(context.get('detected_objects', [])),
                     filtered_transactions=formatted_transactions,
                     expected_deposit=context.get('expected_deposit', '2000'),

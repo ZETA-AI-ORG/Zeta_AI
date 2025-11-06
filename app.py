@@ -1066,6 +1066,24 @@ async def _botlive_handle(company_id: str, user_id: str, message: str, images: l
         context_text = ""
         
         # ═══════════════════════════════════════════════════════════════
+        # SYSTÈME DELIVERY: Détection automatique + injection contexte
+        # ═══════════════════════════════════════════════════════════════
+        delivery_context = ""
+        try:
+            from core.delivery_zone_extractor import extract_delivery_zone_and_cost, format_delivery_info
+            
+            # Détecter si la question concerne la livraison
+            zone_info = extract_delivery_zone_and_cost(question_text)
+            
+            if zone_info:
+                # Zone détectée → Formater le contexte avec heure CI
+                delivery_context = format_delivery_info(zone_info)
+                print(f"🚚 [DELIVERY] Zone détectée: {zone_info['name']} = {zone_info['cost']} FCFA")
+                print(f"📋 [DELIVERY] Contexte injecté dans le prompt ({len(delivery_context)} chars)")
+        except Exception as e:
+            print(f"⚠️ [DELIVERY] Erreur extraction: {e}")
+        
+        # ═══════════════════════════════════════════════════════════════
         # LOGS DEBUG : Ce qui sera envoyé au LLM
         # ═══════════════════════════════════════════════════════════════
         print("\n" + "="*80)
@@ -1102,8 +1120,13 @@ async def _botlive_handle(company_id: str, user_id: str, message: str, images: l
             # Formater le prompt Supabase directement avec gestion d'erreur
             try:
                 # Injection context_text vide si attendu dans le template
+                # Injecter le contexte delivery si disponible
+                question_with_context = question_text or ""
+                if delivery_context:
+                    question_with_context = f"{delivery_context}\n\n{question_text}"
+                
                 format_vars = {
-                    "question": question_text or "",
+                    "question": question_with_context,
                     "conversation_history": history_text or "",
                     "detected_objects": detected_objects_str,
                     "filtered_transactions": filtered_transactions_str,
