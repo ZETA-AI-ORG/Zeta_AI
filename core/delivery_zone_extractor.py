@@ -336,26 +336,10 @@ def format_delivery_info(zone_info: Dict[str, any]) -> str:
         logger.warning(f"⚠️ Impossible de récupérer l'heure CI: {e}")
         time_context = ""
     
+    # 📊 OPTIMISÉ TOKENS: Version condensée (-83% tokens)
+    # Avant: ~700 chars = ~300 tokens | Après: ~120 chars = ~50 tokens
     return f"""
-═══════════════════════════════════════════════════════════════════════════════
-⚠️ INFORMATION PRIORITAIRE - FRAIS DE LIVRAISON DÉTECTÉS
-═══════════════════════════════════════════════════════════════════════════════
-
-🚚 ZONE: {zone_info['name']}
-💰 FRAIS EXACTS: {cost_formatted} FCFA
-📍 CATÉGORIE: {zone_info['category']}
-⏰ DÉLAIS: {delais}
-
-{time_context}
-
-⚠️ RÈGLE ABSOLUE:
-- UTILISE CES FRAIS EXACTS ({cost_formatted} FCFA)
-- NE CHERCHE PAS dans les autres documents
-- NE DEMANDE PAS de clarification sur la zone
-- La zone "{zone_info['name']}" est CONFIRMÉE
-- CALCULE le délai de livraison basé sur l'heure actuelle ci-dessus
-
-═══════════════════════════════════════════════════════════════════════════════
+🚚 LIVRAISON: {zone_info['name']} = {cost_formatted} FCFA (confirmé, ne pas redemander){time_context}
 """
 
 

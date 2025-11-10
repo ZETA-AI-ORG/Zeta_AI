@@ -429,17 +429,33 @@ def deduplicate_conversation_history(history: str) -> str:
     1. Limite aux 5 derniers échanges (10 messages max)
     2. Remplace 'assistant:' par 'IA:'
     3. Supprime les doublons consécutifs
+    4. 📊 NOUVEAU: Raccourcit les URLs longues (-70% tokens)
     """
     if not history:
         return ""
     
-    # Remplacer "assistant:" par "IA:"
+    # 📊 OPTIMISATION TOKENS: Raccourcir URLs longues
+    # Avant: https://scontent-atl3-3.xx.fbcdn.net/v/t1.15752-9/553786504_1339650347521010_7584722332323008254_n.jpg?_nc_cat=108&ccb=1-7&_nc_sid=eb2e90&_nc_ohc=wI6F404RotMQ7kNvwEnhydb&_nc_oc=AdmqrPkDq5bTSUqR3fv3g0PrvQbXW9_9Frci7xyQgQ0werBvu95Sz_8rw99dCA-tpPzw_VcH2vgb6kW0y9q-RJI2&_nc_ad=z-m&_nc_cid=0&_nc_zt=23&_nc_ht=scontent-atl3-3.xx&oh=03_Q7cD3wFOCg_nyFNqiAFZ2JtXL-o6TYQJotUYQ0L6mr8mM1BA7g&oe=6938095A
+    # Après: [IMAGE]
+    # Gain: ~400 chars → ~7 chars = -98% (-170 tokens par URL)
+    import re
+    # Pattern URLs images (Facebook, autres CDN)
+    url_pattern = r'https?://[^\s]{50,}'
+    history = re.sub(url_pattern, '[IMAGE]', history)
+    
+    # Normaliser les formats (ASSISTANT → IA, USER → user)
+    history = history.replace('ASSISTANT:', 'IA:')
     history = history.replace('assistant:', 'IA:')
+    history = history.replace('USER:', 'user:')
     
     lines = [line.strip() for line in history.split('\n') if line.strip()]
     
-    # Filtrer uniquement les messages user/IA
-    messages = [line for line in lines if line.startswith('user:') or line.startswith('IA:')]
+    # Filtrer uniquement les messages user/IA (case-insensitive)
+    messages = []
+    for line in lines:
+        line_lower = line.lower()
+        if line_lower.startswith('user:') or line_lower.startswith('ia:') or line_lower.startswith('assistant:'):
+            messages.append(line)
     
     # Limiter aux 10 derniers messages (5 échanges user/IA)
     if len(messages) > 10:
@@ -719,6 +735,59 @@ async def _botlive_handle(company_id: str, user_id: str, message: str, images: l
     # DÉDUPLICATION HISTORIQUE (évite pollution tokens)
     # ═══════════════════════════════════════════════════════════════
     conversation_history = deduplicate_conversation_history(conversation_history)
+    
+    # ═══════════════════════════════════════════════════════════════
+    # SYSTÈMES DE CONTEXTE (Notepad + Extraction + Checkpoint)
+    # ═══════════════════════════════════════════════════════════════
+    from core.conversation_notepad import ConversationNotepad
+    from FIX_CONTEXT_LOSS_COMPLETE import extract_from_last_exchanges, build_smart_context_summary
+    from core.conversation_checkpoint import ConversationCheckpoint
+    
+    # 1. Récupérer le notepad (mémoire persistante)
+    notepad_manager = ConversationNotepad.get_instance()
+    notepad_data = notepad_manager.get_notepad(user_id, company_id)
+    print(f"📋 [NOTEPAD] Données chargées: {list(notepad_data.keys())}")
+    
+    # 2. Extraire infos depuis l'historique
+    print(f"\n{'='*80}")
+    print(f"🔍 [CONTEXT DEBUG] EXTRACTION DEPUIS HISTORIQUE")
+    print(f"{'='*80}")
+    print(f"📝 Historique reçu: {len(conversation_history)} chars")
+    print(f"📝 Contenu historique:\n{conversation_history}")
+    print(f"{'='*80}\n")
+    
+    extracted_info = extract_from_last_exchanges(conversation_history)
+    if extracted_info:
+        print(f"✅ [EXTRACT] Infos extraites: {extracted_info}")
+        
+        # Mettre à jour le notepad avec les infos extraites
+        if extracted_info.get('produit'):
+            notepad_data['last_product_mentioned'] = extracted_info['produit']
+            print(f"📦 [NOTEPAD] Produit sauvegardé: {extracted_info['produit']}")
+        if extracted_info.get('zone'):
+            notepad_data['delivery_zone'] = extracted_info['zone']
+            notepad_data['delivery_cost'] = extracted_info.get('frais_livraison')
+            print(f"🚚 [NOTEPAD] Zone sauvegardée: {extracted_info['zone']} ({extracted_info.get('frais_livraison')} FCFA)")
+        if extracted_info.get('telephone'):
+            notepad_data['phone_number'] = extracted_info['telephone']
+            print(f"📞 [NOTEPAD] Téléphone sauvegardé: {extracted_info['telephone']}")
+    else:
+        print(f"⚠️ [EXTRACT] Aucune info extraite de l'historique")
+    
+    # 3. Construire résumé contexte intelligent
+    print(f"\n🧠 [CONTEXT] Construction résumé intelligent...")
+    try:
+        context_summary = build_smart_context_summary(
+            conversation_history=conversation_history,
+            user_id=user_id,
+            company_id=company_id
+        )
+        print(f"🧠 [CONTEXT] Résumé généré ({len(context_summary)} chars):\n{context_summary}")
+    except Exception as ctx_error:
+        print(f"⚠️ [CONTEXT] Erreur construction résumé: {ctx_error}")
+        context_summary = ""
+    print(f"{'='*80}\n")
+    
     try:
         # ═══════════════════════════════════════════════════════════════
         # ÉTAPE 0: UTILISER LES PROMPTS HARDCODÉS (PRIORITÉ)
@@ -738,6 +807,48 @@ async def _botlive_handle(company_id: str, user_id: str, message: str, images: l
         confidence = 0.0
         raw_text = ""
         filtered_transactions = []
+        image_status_for_llm = ""  # Statut compact pour injection LLM
+        image_analysis_type = None  # PRODUIT/PAIEMENT/INVALIDE/None
+        
+        # ═══════════════════════════════════════════════════════════════
+        # TRACKING DEMANDES IGNORÉES (Optimisé - Économie tokens)
+        # ═══════════════════════════════════════════════════════════════
+        tracking = {'produit_demandes': 0, 'paiement_demandes': 0, 'suggest_alternative': False}
+        try:
+            lines = conversation_history.split('\n')
+            prod_ignored, pay_ignored = 0, 0
+            last_prod_req, last_pay_req = False, False
+            
+            for line in lines:
+                ll = line.lower()
+                if line.startswith('IA:') or line.startswith('assistant:'):
+                    last_prod_req = ('photo' in ll and 'produit' in ll) or 'image du produit' in ll
+                    last_pay_req = 'capture' in ll or 'screenshot' in ll or 'preuve de paiement' in ll
+                elif line.startswith('user:') or line.startswith('User:'):
+                    if last_prod_req and '[image]' not in ll:
+                        prod_ignored += 1
+                        last_prod_req = False
+                    if last_pay_req and '[image]' not in ll:
+                        pay_ignored += 1
+                        last_pay_req = False
+            
+            tracking = {
+                'produit_demandes': min(prod_ignored, 3),
+                'paiement_demandes': min(pay_ignored, 3),
+                'suggest_alternative': prod_ignored >= 2
+            }
+            print(f"[TRACKING] Demandes ignorées: Produit={tracking['produit_demandes']}, Paiement={tracking['paiement_demandes']}")
+        except Exception as e:
+            print(f"[TRACKING] Erreur: {e}")
+        
+        # ═══════════════════════════════════════════════════════════════
+        # INJECTION ALERTE ÉTAPE IGNORÉE (5 lignes - Solution optimale)
+        # ═══════════════════════════════════════════════════════════════
+        etape_alert = ""
+        for etape, count in tracking.items():
+            if count >= 2 and etape.endswith('_demandes'):
+                etape_name = etape.replace('_demandes', '').upper()
+                etape_alert += f"⚠️ ALERTE: {etape_name} demandé {count}x, ignoré → PASSER À AUTRE ÉTAPE\n"
         
         # ═══════════════════════════════════════════════════════════════
         # ÉTAPE 1: ANALYSE VISION (si image présente)
@@ -809,46 +920,86 @@ async def _botlive_handle(company_id: str, user_id: str, message: str, images: l
                 except Exception as up_e:
                     print(f"[BOTLIVE][SUPABASE][UPLOAD ERROR] {type(up_e).__name__}: {up_e}")
                 
-                # 2. Analyser avec BotliveEngine (YOLOv9 + EasyOCR)
+                # 2. Analyser avec BotliveEngine - PARALLÈLE (Gain 50% temps)
                 try:
+                    import asyncio
                     from core.botlive_engine import BotliveEngine
-                    botlive_engine = BotliveEngine()
-                    # Utiliser les méthodes disponibles: detect_product et verify_payment sur la même image
-                    product = botlive_engine.detect_product(temp_file_path) or {}
+                    botlive_engine = BotliveEngine.get_instance()
+                    print(f"[BOTLIVE] ✅ Singleton récupéré (pas de rechargement modèles)")
+                    
                     # Extraire le numéro entreprise du prompt AVANT l'OCR
-                    # Format fixe dans le prompt : wave: "+225 0787360757"
                     company_phone_for_ocr = None
+                    expected_deposit_int = 2000  # Valeur par défaut
+                    
                     if botlive_prompt_template:
-                        # Pattern robuste pour le format fixe YAML
                         wave_pattern = r'wave:\s*["\']?([+\d\s\-\.]+)["\']?'
                         phone_match = re.search(wave_pattern, botlive_prompt_template, re.IGNORECASE)
                         if phone_match:
                             raw_phone = phone_match.group(1).strip()
-                            # Utiliser la fonction de normalisation robuste de BotliveEngine
                             company_phone_for_ocr = botlive_engine._normalize_phone(raw_phone)
                             if len(company_phone_for_ocr) == 10:
-                                print(f"[BOTLIVE][OCR] ✅ Numéro WAVE normalisé pour filtrage: {company_phone_for_ocr}")
-                                print(f"[BOTLIVE][OCR]    Format original: {raw_phone}")
+                                print(f"[PARALLEL] ✅ Numéro WAVE: {company_phone_for_ocr}")
                         
-                        # Fallback ultime si extraction échoue (hardcodé)
                         if not company_phone_for_ocr:
                             company_phone_for_ocr = "0787360757"
-                            print(f"[BOTLIVE][OCR][FALLBACK] ⚠️ Numéro hardcodé utilisé: {company_phone_for_ocr}")
-
-                    # Appeler l'OCR avec validation stricte du numéro
-                    payment = botlive_engine.verify_payment(temp_file_path, company_phone=company_phone_for_ocr) or {}
-
-                    # ═══════════════════════════════════════════════════════════════
-                    # SYSTÈME DE VALIDATION PAIEMENT COMPLET (payment_validator.py)
-                    # ═══════════════════════════════════════════════════════════════
-                    expected_deposit_int = 2000  # Défaut
-                    try:
-                        pattern = r"acompte[:\s]+(\d{1,6})"
-                        m = re.search(pattern, botlive_prompt_template, re.IGNORECASE)
-                        if m:
-                            expected_deposit_int = int(m.group(1))
-                    except Exception:
-                        pass
+                            print(f"[PARALLEL] ⚠️ Fallback numéro: {company_phone_for_ocr}")
+                        
+                        # Extraire acompte
+                        try:
+                            pattern = r"acompte[:\s]+(\d{1,6})"
+                            m = re.search(pattern, botlive_prompt_template, re.IGNORECASE)
+                            if m:
+                                expected_deposit_int = int(m.group(1))
+                        except Exception:
+                            pass
+                    
+                    # 🔥 APPELER LES FONCTIONS D'ANALYSE (AVANT de les utiliser)
+                    print(f"[BOTLIVE] 🔍 Analyse image avec BLIP-2 pour détection type...")
+                    
+                    # ÉTAPE 1: Détecter type image avec BLIP-2 D'ABORD
+                    product = botlive_engine.detect_product(temp_file_path)
+                    product_name = product.get('name', '').lower()
+                    print(f"[BOTLIVE] BLIP-2 terminé: {product.get('name', 'N/A')}")
+                    
+                    # ÉTAPE 2: Déterminer si c'est un PAIEMENT ou un PRODUIT
+                    is_payment_image = any(keyword in product_name for keyword in [
+                        'wave', 'paiement', 'payment', 'transaction', 'transfert', 
+                        'screenshot', 'capture', 'mobile money', 'solde', 'balance'
+                    ])
+                    
+                    # ÉTAPE 3: Analyser selon le type
+                    if is_payment_image:
+                        print(f"[BOTLIVE] 💳 Image détectée: PAIEMENT → Analyse OCR...")
+                        payment = botlive_engine.verify_payment(
+                            image_path=temp_file_path,
+                            company_phone=company_phone_for_ocr,
+                            required_amount=expected_deposit_int
+                        )
+                        print(f"[BOTLIVE] OCR terminé: {payment.get('amount', 'N/A')} FCFA")
+                    else:
+                        print(f"[BOTLIVE] 📦 Image détectée: PRODUIT → Pas d'OCR paiement")
+                        # 🔥 NOUVEAU: Sauvegarder photo produit dans le Notepad
+                        from datetime import datetime
+                        notepad = notepad_manager.get_notepad(user_id, company_id)
+                        notepad['photo_produit'] = 'reçue'
+                        notepad['photo_produit_description'] = product_name
+                        notepad['last_updated'] = datetime.now().isoformat()
+                        print(f"💾 [NOTEPAD] Photo produit sauvegardée: {product_name}")
+                        
+                        # 🔥 RECONSTRUIRE LE CONTEXTE après sauvegarde
+                        context_summary = build_smart_context_summary(
+                            conversation_history=conversation_history,
+                            user_id=user_id,
+                            company_id=company_id
+                        )
+                        print(f"🔄 [CONTEXT] Contexte mis à jour après photo produit ({len(context_summary)} chars)")
+                        
+                        payment = {
+                            'valid': False,
+                            'amount': 0,
+                            'all_transactions': [],
+                            'message': 'Image produit (pas de paiement détecté)'
+                        }
                     
                     # Préparer les transactions pour validation cumulative
                     all_transactions_ocr = payment.get('all_transactions', [])
@@ -886,6 +1037,23 @@ async def _botlive_handle(company_id: str, user_id: str, message: str, images: l
                     print(f"   Total reçu: {payment_validation_result['total_received']} FCFA")
                     print(f"   Paiements: {payment_validation_result['payments_history']}")
                     print(f"   Message: {payment_validation_result['message']}")
+                    
+                    # 🔥 NOUVEAU: Sauvegarder paiement validé dans le Notepad
+                    if payment_validation_result['valid']:
+                        from datetime import datetime
+                        notepad = notepad_manager.get_notepad(user_id, company_id)
+                        notepad['paiement'] = 'Validé'
+                        notepad['acompte'] = str(payment_validation_result['total_received'])
+                        notepad['last_updated'] = datetime.now().isoformat()
+                        print(f"💾 [NOTEPAD] Paiement sauvegardé: {payment_validation_result['total_received']} FCFA")
+                        
+                        # 🔥 RECONSTRUIRE LE CONTEXTE après sauvegarde
+                        context_summary = build_smart_context_summary(
+                            conversation_history=conversation_history,
+                            user_id=user_id,
+                            company_id=company_id
+                        )
+                        print(f"🔄 [CONTEXT] Contexte mis à jour après paiement ({len(context_summary)} chars)")
                     
                     # Formater pour injection dans le prompt
                     payment_validation_text = format_payment_for_prompt(payment_validation_result)
@@ -958,6 +1126,42 @@ async def _botlive_handle(company_id: str, user_id: str, message: str, images: l
 2. 💡 Améliorer la luminosité / éviter les reflets
 3. 🔄 Envoyer une nouvelle photo
 </response>"""
+                    
+                    # GÉNÉRATION STATUT COMPACT POUR LLM (Économie 60% tokens)
+                    try:
+                        # Déterminer le type d'analyse
+                        if prod_label and prod_label.lower() != "inconnu" and prod_conf > 0.5:
+                            image_analysis_type = 'PRODUIT'
+                            image_status_for_llm = f"📦IMG:OK[{prod_label}|{prod_conf*100:.0f}%] 💳PAY:ATTENTE"
+                            print(f"[STATUS] Type: PRODUIT | Statut: {image_status_for_llm}")
+                        
+                        elif filtered_transactions and len(filtered_transactions) > 0:
+                            image_analysis_type = 'PAIEMENT'
+                            tx_count = len(filtered_transactions)
+                            # Déterminer statut paiement
+                            if any(tx.get('error_message') for tx in filtered_transactions):
+                                status = 'INVALIDE'
+                            elif any(tx.get('amount', 0) >= 2000 for tx in filtered_transactions):
+                                status = 'VALIDÉ'
+                            else:
+                                status = 'INSUFFISANT'
+                            image_status_for_llm = f"📦IMG:ATTENTE 💳PAY:{status}[{tx_count}tx]"
+                            print(f"[STATUS] Type: PAIEMENT | Statut: {image_status_for_llm}")
+                        
+                        elif (not detected_objects) and (not raw_text):
+                            image_analysis_type = 'INVALIDE'
+                            image_status_for_llm = "⚠️IMG:ILLISIBLE→redemander_image_nette"
+                            print(f"[STATUS] Type: INVALIDE | Statut: {image_status_for_llm}")
+                        
+                        else:
+                            # Aucune image ou analyse non concluante
+                            image_analysis_type = None
+                            image_status_for_llm = ""
+                            print(f"[STATUS] Type: NONE | Pas de statut généré")
+                        
+                    except Exception as status_error:
+                        print(f"[STATUS] Erreur génération statut: {status_error}")
+                        image_status_for_llm = ""
                     
                     # Analyse vision terminée - le traitement LLM se fait à la fin de la fonction
                     
@@ -1120,10 +1324,20 @@ async def _botlive_handle(company_id: str, user_id: str, message: str, images: l
             # Formater le prompt Supabase directement avec gestion d'erreur
             try:
                 # Injection context_text vide si attendu dans le template
-                # Injecter le contexte delivery si disponible
+                # Injecter le contexte delivery ET le contexte intelligent
                 question_with_context = question_text or ""
+                
+                # Ajouter statut images compact (économie tokens)
+                if image_status_for_llm:
+                    question_with_context = f"📸 {image_status_for_llm}\n\n{question_with_context}"
+                
+                # Ajouter contexte intelligent (notepad + extraction) si disponible
+                if context_summary:
+                    question_with_context = f"🧠 CONTEXTE MÉMOIRE:\n{context_summary}\n\n{question_with_context}"
+                
+                # Ajouter contexte delivery si disponible
                 if delivery_context:
-                    question_with_context = f"{delivery_context}\n\n{question_text}"
+                    question_with_context = f"{delivery_context}\n\n{question_with_context}"
                 
                 format_vars = {
                     "question": question_with_context,
@@ -1188,6 +1402,16 @@ async def _botlive_handle(company_id: str, user_id: str, message: str, images: l
         
         # Afficher un extrait du prompt formaté
         print(f"\n📄 [PROMPT EXTRAIT] (500 premiers chars):\n{formatted_prompt[:500]}...\n")
+        
+        # 🔍 AFFICHER LE PROMPT COMPLET POUR DEBUG
+        print(f"\n{'='*80}")
+        print(f"🔍 [DEBUG] PROMPT COMPLET ENVOYÉ AU LLM")
+        print(f"{'='*80}")
+        print(f"Longueur totale: {len(formatted_prompt)} chars")
+        print(f"\n--- DÉBUT PROMPT ---\n")
+        print(formatted_prompt)
+        print(f"\n--- FIN PROMPT ---\n")
+        print(f"{'='*80}\n")
         
         # ═══════════════════════════════════════════════════════════════
         # FORCER LE FORMAT DE RÉPONSE
@@ -1258,8 +1482,13 @@ Commence MAINTENANT par <thinking> puis <response>.
                 print(f"\n\033[92m🟢 RÉPONSE AU CLIENT:\033[0m")
                 print(f"\033[92m{client_response}\033[0m")
             else:
-                # Pas de balises → retourner texte brut
+                # 🐛 BUG FIX: Supprimer <thinking> même si pas de <response>
+                # Cas: LLM génère <thinking>...</thinking> sans <response>
                 client_response = llm_text.strip()
+                # Supprimer balise <thinking> si présente
+                client_response = re.sub(r'<thinking>.*?</thinking>', '', client_response, flags=re.DOTALL).strip()
+                # Supprimer balise <response> si présente
+                client_response = re.sub(r'</?response>', '', client_response).strip()
                 print(f"\n\033[92m🟢 RÉPONSE AU CLIENT (sans balise):\033[0m")
                 print(f"\033[92m{client_response}\033[0m")
             
@@ -1336,7 +1565,7 @@ async def chat_endpoint(req: ChatRequest, request: Request):
     # ═════════════════════════════════════════════════════════════
     # NORMALISATION MESSAGE : Si image présente, forcer message générique
     # (Impossible d'envoyer image + texte simultanément donc pas de conflit)
-    # ═════════════════════════════════════════════════════════════
+    # ═══════════════════════════════════════════════════════════════
     if req.images and len(req.images) > 0 and (not req.message or req.message.strip() == ""):
         req.message = "Voici la capture"
         print(f"📸 [CHAT_ENDPOINT] Image détectée sans texte → Message forcé: 'Voici la capture'")
@@ -1801,7 +2030,7 @@ async def chat_endpoint(req: ChatRequest, request: Request):
                     # Sauvegarder dans notepad
                     try:
                         from core.conversation_notepad import ConversationNotepad
-                        notepad = ConversationNotepad.get_instance()
+                        notepad = ConversationNotepad()
                         
                         # Sauvegarder les données extraites
                         if extracted.get('produit'):
@@ -2459,9 +2688,9 @@ async def live_process_order(req: ProcessOrderRequest):
         product_path = _download(req.product_url)
         payment_path = _download(req.payment_url)
 
-        # Import paresseux
+        # Import paresseux (SINGLETON)
         from core.botlive_engine import BotliveEngine
-        engine = BotliveEngine()
+        engine = BotliveEngine.get_instance()
         message = engine.process_live_order(product_path, payment_path)
 
         from uuid import uuid4

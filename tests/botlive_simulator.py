@@ -129,8 +129,15 @@ class BotliveSimulator:
                     print("\n🔄 Conversation réinitialisée\n")
                     continue
                 
-                # Envoyer le message
-                await self.send_message(user_input)
+                # 🔥 DÉTECTION URL IMAGE (comme dans l'appli réelle)
+                images = []
+                if user_input.startswith('http://') or user_input.startswith('https://'):
+                    # C'est une URL d'image
+                    images = [user_input]
+                    print(f"📸 [SIMULATOR] URL image détectée: {user_input[:80]}...")
+                
+                # Envoyer le message avec images si détectées
+                await self.send_message(user_input, images=images)
                 
             except KeyboardInterrupt:
                 print("\n\n👋 Interruption - Au revoir !\n")

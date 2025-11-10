@@ -2,11 +2,28 @@ import os
 import easyocr
 from transformers import BlipProcessor, BlipForConditionalGeneration
 from PIL import Image
+import threading
 
 
 class BotliveEngine:
+    """Singleton pour éviter rechargement des modèles lourds (BLIP-2 + EasyOCR)"""
+    _instance = None
+    _lock = threading.Lock()
+    
+    def __new__(cls):
+        if cls._instance is None:
+            with cls._lock:
+                if cls._instance is None:
+                    cls._instance = super().__new__(cls)
+        return cls._instance
+    
     def __init__(self):
+        # Éviter réinitialisation si déjà chargé
+        if hasattr(self, '_initialized') and self._initialized:
+            return
+        
         print("[BOTLIVE_ENGINE] Initialisation...")
+        self._initialized = False
         
         # Initialiser EasyOCR (fr + en pour robustesse)
         try:
@@ -29,6 +46,14 @@ class BotliveEngine:
             self.blip_model = None
         
         print("[BOTLIVE_ENGINE] ✅ Initialisation terminée")
+        self._initialized = True
+    
+    @classmethod
+    def get_instance(cls):
+        """Retourne l'instance singleton (thread-safe)"""
+        if cls._instance is None:
+            cls()
+        return cls._instance
 
     
     def detect_product(self, image_path: str) -> dict:

@@ -35,7 +35,9 @@ if __name__ == "__main__":
             host="0.0.0.0",
             port=port,
             log_level="info",
-            access_log=True
+            access_log=True,
+            reload=True,  # ✅ AUTO-RELOAD ACTIVÉ
+            reload_dirs=[".", "core", "database"]  # Surveille ces dossiers
         )
     except Exception as e:
         print(f"❌ Error starting server: {e}")

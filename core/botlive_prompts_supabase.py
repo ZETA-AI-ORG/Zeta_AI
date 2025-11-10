@@ -26,9 +26,12 @@ class BotlivePromptsManager:
         
         self.supabase: Client = create_client(supabase_url, supabase_key)
         self._cache = {}  # Cache en mémoire pour performance
+        self._cache_timestamps = {}  # Timestamps pour TTL
+        self._cache_ttl = 300  # TTL 5 minutes (300 secondes) - RÉDUIT pour dev
         
         logger.info("✅ BotlivePromptsManager initialisé avec Supabase")
         logger.info("🗑️ Cache prompts vidé (démarrage propre)")
+        logger.info(f"⏰ TTL cache: {self._cache_ttl}s (5 min)")
     
     def get_prompt(self, company_id: str, llm_choice: str) -> str:
         """
