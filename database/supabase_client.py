@@ -10,8 +10,17 @@ SUPABASE_KEY = os.getenv('SUPABASE_KEY')
 if not SUPABASE_KEY or not SUPABASE_URL:
     print(f"[SUPABASE][CRITIQUE] Variable SUPABASE_KEY ou SUPABASE_URL absente !")
 
-from utils import log3, timing_metric
+import logging
 import httpx
+import sys
+import os
+
+# Ajouter le répertoire parent au path pour importer app_utils
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from app_utils import log3, timing_metric
+
+# Logger standard comme fallback
+logger = logging.getLogger(__name__)
 async def get_company_system_prompt(company_id: str) -> str:
     """
     Récupère le prompt système avec cache optimisé
@@ -69,7 +78,7 @@ async def get_botlive_prompt(company_id: str) -> str:
                     
                     return prompt
             else:
-                log3("[SUPABASE][BOTLIVE_PROMPT]", f"HTTP {response.status_code}: {response.text}")
+                logger.warning(f"[SUPABASE][BOTLIVE_PROMPT] HTTP {response.status_code}: {response.text}")
     except Exception as e:
         log3("[SUPABASE][BOTLIVE_PROMPT_EXC]", f"{type(e).__name__}: {e}")
     

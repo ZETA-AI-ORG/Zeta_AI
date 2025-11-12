@@ -1611,9 +1611,14 @@ INSTRUCTION SPÉCIALE PAIEMENT:
         elif "adultes" in text_lower:
             product_type = "Couches adultes"
         
-        # Extraction taille
+        # Extraction taille (numérique ET alphabétique)
         size = "Non spécifiée"
         size_patterns = [
+            # Tailles alphabétiques (XL, L, M, S, etc.)
+            r"taille\s*(xl|xxl|l|m|s|xs)",
+            r"size\s*(xl|xxl|l|m|s|xs)",
+            r"\b(xl|xxl|l|m|s|xs)\b",
+            # Tailles numériques (1, 2, 3, 4, etc.)
             r"taille\s*(\d+)",
             r"size\s*(\d+)",
             r"t(\d+)"
@@ -1622,7 +1627,12 @@ INSTRUCTION SPÉCIALE PAIEMENT:
         for pattern in size_patterns:
             match = re.search(pattern, text_lower)
             if match:
-                size = f"Taille {match.group(1)}"
+                extracted_size = match.group(1).upper()
+                # Formatage selon le type
+                if extracted_size.isdigit():
+                    size = f"Taille {extracted_size}"
+                else:
+                    size = f"Taille {extracted_size}"
                 break
         
         # Extraction prix depuis le contexte (dynamique)

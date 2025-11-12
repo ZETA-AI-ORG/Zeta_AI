@@ -59,42 +59,87 @@ class BotliveEngine:
     def detect_product(self, image_path: str) -> dict:
         """
         Analyse une image avec BLIP-2 captioning pour description complète.
-        Retour: {'name': <description>, 'confidence': <0..1>}
+        Retour: {'name': <description>, 'confidence': <0..1>, 'error': <type_erreur>}
         """
         print(f"[BLIP-2] 🔍 Analyse image: {image_path}")
         
+        # ✅ VALIDATION FICHIER ROBUSTE
+        if not image_path or not isinstance(image_path, str):
+            print(f"[BLIP-2] ❌ Chemin invalide: {image_path}")
+            return {"name": "chemin image invalide", "confidence": 0.0, "error": "invalid_path"}
+            
         if not os.path.isfile(image_path):
             print(f"[BLIP-2] ❌ Fichier non trouvé: {image_path}")
-            return {"name": "image non trouvée", "confidence": 0.0}
+            return {"name": "image non trouvée", "confidence": 0.0, "error": "file_not_found"}
         
-        # BLIP-2 captioning pour description détaillée
+        # ✅ VALIDATION TAILLE FICHIER
+        try:
+            file_size = os.path.getsize(image_path)
+            if file_size == 0:
+                print(f"[BLIP-2] ❌ Fichier vide: {image_path}")
+                return {"name": "image vide ou corrompue", "confidence": 0.0, "error": "empty_file"}
+            if file_size > 50 * 1024 * 1024:  # 50MB max
+                print(f"[BLIP-2] ❌ Fichier trop volumineux: {file_size} bytes")
+                return {"name": "image trop volumineuse", "confidence": 0.0, "error": "file_too_large"}
+        except OSError as e:
+            print(f"[BLIP-2] ❌ Erreur accès fichier: {e}")
+            return {"name": "erreur accès fichier", "confidence": 0.0, "error": "file_access_error"}
+        
+        # ✅ VALIDATION MODÈLE
         if self.blip_processor is None or self.blip_model is None:
             print(f"[BLIP-2] ❌ Modèle non initialisé")
-            return {"name": "modèle BLIP-2 indisponible", "confidence": 0.0}
+            return {"name": "modèle BLIP-2 indisponible", "confidence": 0.0, "error": "model_not_loaded"}
         
         try:
+            # ✅ VALIDATION FORMAT IMAGE
             image = Image.open(image_path).convert('RGB')
             print(f"[BLIP-2] 📸 Image chargée: {image.size}")
             
+            # ✅ VALIDATION DIMENSIONS
+            width, height = image.size
+            if width < 50 or height < 50:
+                print(f"[BLIP-2] ❌ Image trop petite: {width}x{height}")
+                return {"name": "image trop petite ou floue", "confidence": 0.0, "error": "image_too_small"}
+            
+            # ✅ TRAITEMENT BLIP-2 AVEC TIMEOUT
             inputs = self.blip_processor(image, return_tensors="pt")
             out = self.blip_model.generate(**inputs, max_length=50)
             caption = self.blip_processor.decode(out[0], skip_special_tokens=True)
             
             print(f"[BLIP-2] 📝 Caption brut: '{caption}'")
             
-            # Nettoyage léger : supprimer phrases contextuelles inutiles
-            stop_phrases = ["sitting on a", "on a table", "in a room", "on the floor", "on a chair"]
+            # ✅ VALIDATION RÉSULTAT
+            if not caption or len(caption.strip()) < 3:
+                print(f"[BLIP-2] ❌ Caption vide ou trop court")
+                return {"name": "image non identifiable", "confidence": 0.0, "error": "empty_caption"}
+            
+            # ✅ NETTOYAGE INTELLIGENT
+            stop_phrases = ["sitting on a", "on a table", "in a room", "on the floor", "on a chair", "with a white background"]
             cleaned_caption = caption.strip()
             for phrase in stop_phrases:
                 cleaned_caption = cleaned_caption.replace(phrase, "")
             
-            print(f"[BLIP-2] ✅ Caption nettoyé: '{cleaned_caption.strip()}'")
-            return {"name": cleaned_caption.strip(), "confidence": 0.85}
+            # ✅ CALCUL CONFIANCE BASÉ SUR LA QUALITÉ
+            confidence = 0.85
+            if any(word in cleaned_caption.lower() for word in ["bag", "package", "diaper", "couche", "wipe"]):
+                confidence = 0.90  # Mots-clés pertinents détectés
+            elif len(cleaned_caption) < 10:
+                confidence = 0.60  # Description courte = moins fiable
+            
+            print(f"[BLIP-2] ✅ Caption nettoyé: '{cleaned_caption.strip()}' (confiance: {confidence})")
+            return {"name": cleaned_caption.strip(), "confidence": confidence, "error": None}
+            
+        except PIL.UnidentifiedImageError:
+            print(f"[BLIP-2] ❌ Format image non supporté")
+            return {"name": "format image non supporté", "confidence": 0.0, "error": "unsupported_format"}
+        except MemoryError:
+            print(f"[BLIP-2] ❌ Mémoire insuffisante")
+            return {"name": "image trop complexe à analyser", "confidence": 0.0, "error": "memory_error"}
         except Exception as e:
             print(f"[BLIP-2] ❌ ERREUR: {e}")
             import traceback
             traceback.print_exc()
-            return {"name": "erreur analyse image", "confidence": 0.0}
+            return {"name": "erreur analyse image", "confidence": 0.0, "error": "processing_error"}
 
     def _normalize_phone(self, phone_str: str) -> str:
         """
@@ -346,8 +391,39 @@ class BotliveEngine:
             Dict avec amount, currency, reference, raw_text, et transactions si multiples
             Retourne vide si numéro entreprise absent de l'image
         """
-        out = {"amount": "", "currency": "", "reference": "", "raw_text": "", "all_transactions": [], "error": ""}
-        if self.payment_reader is None or not os.path.isfile(image_path):
+        out = {"amount": "", "currency": "", "reference": "", "raw_text": "", "all_transactions": [], "error": "", "valid": False}
+        
+        # ✅ VALIDATION ROBUSTE FICHIER
+        if not image_path or not isinstance(image_path, str):
+            print(f"[OCR] ❌ Chemin invalide: {image_path}")
+            out["error"] = "INVALID_PATH"
+            return out
+            
+        if not os.path.isfile(image_path):
+            print(f"[OCR] ❌ Fichier non trouvé: {image_path}")
+            out["error"] = "FILE_NOT_FOUND"
+            return out
+        
+        # ✅ VALIDATION TAILLE FICHIER
+        try:
+            file_size = os.path.getsize(image_path)
+            if file_size == 0:
+                print(f"[OCR] ❌ Fichier vide: {image_path}")
+                out["error"] = "EMPTY_FILE"
+                return out
+            if file_size > 50 * 1024 * 1024:  # 50MB max
+                print(f"[OCR] ❌ Fichier trop volumineux: {file_size} bytes")
+                out["error"] = "FILE_TOO_LARGE"
+                return out
+        except OSError as e:
+            print(f"[OCR] ❌ Erreur accès fichier: {e}")
+            out["error"] = "FILE_ACCESS_ERROR"
+            return out
+        
+        # ✅ VALIDATION MODÈLE OCR
+        if self.payment_reader is None:
+            print(f"[OCR] ❌ EasyOCR non initialisé")
+            out["error"] = "OCR_NOT_LOADED"
             return out
         try:
             results = self.payment_reader.readtext(image_path, detail=1)

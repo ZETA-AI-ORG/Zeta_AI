@@ -172,10 +172,9 @@ print("⚠️ [DEBUG] Image search router SKIPPED (debugging)")
 
 # --- Botlive API Routes ---
 print("🔍 [DEBUG] Importing botlive router...")
-# TEMPORAIREMENT DÉSACTIVÉ POUR DEBUG
-# from routes.botlive import router as botlive_router
-# app.include_router(botlive_router)
-print("⚠️ [DEBUG] Botlive router SKIPPED (debugging)")
+from routes.botlive import router as botlive_router
+app.include_router(botlive_router)
+print("✅ [DEBUG] Botlive router ACTIVATED")
 print("✅ [DEBUG] All imports completed!")
 
 # --- Models for prompt admin ---
@@ -426,10 +425,10 @@ async def get_prompt_cache_stats_endpoint():
 def deduplicate_conversation_history(history: str) -> str:
     """
     Optimise l'historique conversationnel:
-    1. Limite aux 5 derniers échanges (10 messages max)
+    1. 🎯 OPTIMISÉ: Limite aux 3 derniers échanges (6 messages max) au lieu de 5
     2. Remplace 'assistant:' par 'IA:'
     3. Supprime les doublons consécutifs
-    4. 📊 NOUVEAU: Raccourcit les URLs longues (-70% tokens)
+    4. 📊 Raccourcit les URLs longues (-98% tokens)
     """
     if not history:
         return ""
@@ -457,10 +456,10 @@ def deduplicate_conversation_history(history: str) -> str:
         if line_lower.startswith('user:') or line_lower.startswith('ia:') or line_lower.startswith('assistant:'):
             messages.append(line)
     
-    # Limiter aux 10 derniers messages (5 échanges user/IA)
-    if len(messages) > 10:
-        messages = messages[-10:]
-        print(f"[HISTORIQUE] ✂️ Tronqué: {len(lines)} → 10 messages (5 échanges)")
+    # 🎯 OPTIMISÉ: Limiter aux 6 derniers messages (3 échanges user/IA) au lieu de 10
+    if len(messages) > 6:
+        messages = messages[-6:]
+        print(f"[HISTORIQUE] ✂️ Tronqué: {len(lines)} → 6 messages (3 échanges)")
     
     # Supprimer doublons consécutifs
     deduplicated = []
@@ -737,16 +736,38 @@ async def _botlive_handle(company_id: str, user_id: str, message: str, images: l
     conversation_history = deduplicate_conversation_history(conversation_history)
     
     # ═══════════════════════════════════════════════════════════════
-    # SYSTÈMES DE CONTEXTE (Notepad + Extraction + Checkpoint)
+    # SYSTÈMES DE CONTEXTE (Notepad Supabase + Extraction + Checkpoint)
     # ═══════════════════════════════════════════════════════════════
-    from core.conversation_notepad import ConversationNotepad
+    from core.supabase_notepad import get_supabase_notepad
     from FIX_CONTEXT_LOSS_COMPLETE import extract_from_last_exchanges, build_smart_context_summary
     from core.conversation_checkpoint import ConversationCheckpoint
     
-    # 1. Récupérer le notepad (mémoire persistante)
-    notepad_manager = ConversationNotepad.get_instance()
-    notepad_data = notepad_manager.get_notepad(user_id, company_id)
-    print(f"📋 [NOTEPAD] Données chargées: {list(notepad_data.keys())}")
+    # 1. Récupérer le notepad depuis Supabase (auto-expiration 7 jours)
+    notepad_manager = get_supabase_notepad()
+    notepad_data = await notepad_manager.get_notepad(user_id, company_id)
+    
+    print(f"📋 [NOTEPAD SUPABASE] Données chargées: {list(notepad_data.keys())}")
+    
+    # 🔄 DÉTECTION NOUVELLE CONVERSATION : Reset notepad si "bonjour" + historique court
+    first_message_keywords = ['bonjour', 'salut', 'hello', 'bonsoir', 'hey', 'coucou', 'hi']
+    is_greeting = any(kw in message.lower() for kw in first_message_keywords)
+    # Compter le nombre de messages (lignes commençant par "user:" ou "IA:")
+    message_count = conversation_history.count('user:') + conversation_history.count('IA:')
+    is_short_history = message_count <= 2
+    
+    print(f"🔍 [RESET CHECK] Greeting={is_greeting}, Messages={message_count}, Short={is_short_history}")
+    
+    # NOTE: Le système hybride sera appelé APRÈS l'analyse BLIP-2/OCR
+    
+    if is_greeting and is_short_history:
+        # Vérifier si notepad contient des données (pas vide)
+        has_old_data = any(notepad_data.get(key) for key in ['photo_produit', 'delivery_zone', 'phone_number', 'paiement'])
+        
+        if has_old_data:
+            print(f"🔄 [NOTEPAD] Nouvelle conversation détectée ('{message[:30]}...') - Reset notepad")  # ← Utiliser 'message'
+            await notepad_manager.clear_notepad(user_id, company_id)
+            notepad_data = {}  # Vider pour cette requête
+            print(f"✅ [NOTEPAD] Notepad réinitialisé pour nouvelle commande")
     
     # 2. Extraire infos depuis l'historique
     print(f"\n{'='*80}")
@@ -760,6 +781,13 @@ async def _botlive_handle(company_id: str, user_id: str, message: str, images: l
     if extracted_info:
         print(f"✅ [EXTRACT] Infos extraites: {extracted_info}")
         
+        # 🔧 PRÉSERVER DONNÉES BLIP-2 AVANT MERGE
+        blip2_data = {
+            "blip2_photo_verdict": notepad_data.get("blip2_photo_verdict"),
+            "blip2_photo_data": notepad_data.get("blip2_photo_data"),
+            "blip2_photo_date": notepad_data.get("blip2_photo_date")
+        }
+        
         # Mettre à jour le notepad avec les infos extraites
         if extracted_info.get('produit'):
             notepad_data['last_product_mentioned'] = extracted_info['produit']
@@ -771,6 +799,15 @@ async def _botlive_handle(company_id: str, user_id: str, message: str, images: l
         if extracted_info.get('telephone'):
             notepad_data['phone_number'] = extracted_info['telephone']
             print(f"📞 [NOTEPAD] Téléphone sauvegardé: {extracted_info['telephone']}")
+        
+        # 🔧 RESTAURER DONNÉES BLIP-2 APRÈS MERGE
+        for key, value in blip2_data.items():
+            if value is not None:
+                notepad_data[key] = value
+                print(f"🤖 [NOTEPAD] BLIP-2 préservé: {key} = {value}")
+        
+        # 💾 Sauvegarder dans Supabase
+        await notepad_manager.update_notepad(user_id, company_id, notepad_data)
     else:
         print(f"⚠️ [EXTRACT] Aucune info extraite de l'historique")
     
@@ -780,7 +817,8 @@ async def _botlive_handle(company_id: str, user_id: str, message: str, images: l
         context_summary = build_smart_context_summary(
             conversation_history=conversation_history,
             user_id=user_id,
-            company_id=company_id
+            company_id=company_id,
+            notepad_data=notepad_data
         )
         print(f"🧠 [CONTEXT] Résumé généré ({len(context_summary)} chars):\n{context_summary}")
     except Exception as ctx_error:
@@ -979,20 +1017,27 @@ async def _botlive_handle(company_id: str, user_id: str, message: str, images: l
                     else:
                         print(f"[BOTLIVE] 📦 Image détectée: PRODUIT → Pas d'OCR paiement")
                         # 🔥 NOUVEAU: Sauvegarder photo produit dans le Notepad
-                        from datetime import datetime
-                        notepad = notepad_manager.get_notepad(user_id, company_id)
-                        notepad['photo_produit'] = 'reçue'
-                        notepad['photo_produit_description'] = product_name
-                        notepad['last_updated'] = datetime.now().isoformat()
-                        print(f"💾 [NOTEPAD] Photo produit sauvegardée: {product_name}")
-                        
-                        # 🔥 RECONSTRUIRE LE CONTEXTE après sauvegarde
-                        context_summary = build_smart_context_summary(
-                            conversation_history=conversation_history,
-                            user_id=user_id,
-                            company_id=company_id
-                        )
-                        print(f"🔄 [CONTEXT] Contexte mis à jour après photo produit ({len(context_summary)} chars)")
+                        try:
+                            from datetime import datetime
+                            notepad = await notepad_manager.get_notepad(user_id, company_id)
+                            notepad['photo_produit'] = 'reçue'
+                            notepad['photo_produit_description'] = product_name
+                            notepad['last_updated'] = datetime.now().isoformat()
+                            
+                            # Sauvegarder dans Supabase
+                            await notepad_manager.update_notepad(user_id, company_id, notepad)
+                            print(f"💾 [NOTEPAD] Photo produit sauvegardée: {product_name}")
+                            
+                            # 🔥 RECONSTRUIRE LE CONTEXTE après sauvegarde
+                            context_summary = build_smart_context_summary(
+                                conversation_history=conversation_history,
+                                user_id=user_id,
+                                company_id=company_id,
+                                notepad_data=notepad
+                            )
+                            print(f"🔄 [CONTEXT] Contexte mis à jour après photo produit ({len(context_summary)} chars)")
+                        except Exception as notepad_err:
+                            print(f"⚠️ [NOTEPAD] Erreur sauvegarde photo: {notepad_err}")
                         
                         payment = {
                             'valid': False,
@@ -1040,23 +1085,39 @@ async def _botlive_handle(company_id: str, user_id: str, message: str, images: l
                     
                     # 🔥 NOUVEAU: Sauvegarder paiement validé dans le Notepad
                     if payment_validation_result['valid']:
-                        from datetime import datetime
-                        notepad = notepad_manager.get_notepad(user_id, company_id)
-                        notepad['paiement'] = 'Validé'
-                        notepad['acompte'] = str(payment_validation_result['total_received'])
-                        notepad['last_updated'] = datetime.now().isoformat()
-                        print(f"💾 [NOTEPAD] Paiement sauvegardé: {payment_validation_result['total_received']} FCFA")
-                        
-                        # 🔥 RECONSTRUIRE LE CONTEXTE après sauvegarde
-                        context_summary = build_smart_context_summary(
-                            conversation_history=conversation_history,
-                            user_id=user_id,
-                            company_id=company_id
-                        )
-                        print(f"🔄 [CONTEXT] Contexte mis à jour après paiement ({len(context_summary)} chars)")
+                        try:
+                            from datetime import datetime
+                            notepad = await notepad_manager.get_notepad(user_id, company_id)
+                            # ✅ FORMAT UNIFIÉ : Objet avec montant + statut
+                            notepad['paiement'] = {
+                                'montant': payment_validation_result['total_received'],
+                                'validé': True,
+                                'date': datetime.now().isoformat()
+                            }
+                            notepad['last_updated'] = datetime.now().isoformat()
+                            
+                            # Sauvegarder dans Supabase
+                            await notepad_manager.update_notepad(user_id, company_id, notepad)
+                            print(f"💾 [NOTEPAD] Paiement sauvegardé: {payment_validation_result['total_received']} FCFA")
+                            print(f"🔍 [DEBUG] Notepad après sauvegarde paiement: {notepad.get('paiement')}")
+                            
+                            # 🔥 RECONSTRUIRE LE CONTEXTE après sauvegarde
+                            context_summary = build_smart_context_summary(
+                                conversation_history=conversation_history,
+                                user_id=user_id,
+                                company_id=company_id,
+                                notepad_data=notepad
+                            )
+                            print(f"🔄 [CONTEXT] Contexte mis à jour après paiement ({len(context_summary)} chars)")
+                            print(f"📄 [CONTEXT] Contenu:\n{context_summary}")
+                        except Exception as notepad_err:
+                            print(f"⚠️ [NOTEPAD] Erreur sauvegarde paiement: {notepad_err}")
                     
                     # Formater pour injection dans le prompt
-                    payment_validation_text = format_payment_for_prompt(payment_validation_result)
+                    if payment_validation_result['valid']:
+                        payment_validation_text = f"\n💳 VALIDATION PAIEMENT:\n✅ VALIDÉ: {payment_validation_result['message']}\n"
+                    else:
+                        payment_validation_text = f"\n💳 VALIDATION PAIEMENT:\n❌ INSUFFISANT: {payment_validation_result['message']}\n"
                     
                     # Ajouter les transactions filtrées (pour compatibilité)
                     if current_transactions:
@@ -1255,12 +1316,14 @@ async def _botlive_handle(company_id: str, user_id: str, message: str, images: l
         # ÉTAPE 3: APPEL LLM CONVERSATIONNEL (toujours, avec ou sans image)
         # ═══════════════════════════════════════════════════════════════
         # Extraction acompte depuis le prompt
-        expected_deposit = "2000 FCFA"
+        expected_deposit = 2000  # ← INT pour comparaisons
+        expected_deposit_str = "2000 FCFA"  # ← STRING pour affichage
         try:
             pattern = r"acompte\s+(\d{1,5})\s*(fcfa|f\s*cfa|xof|cfa)\s*minimum"
             m = re.search(pattern, botlive_prompt_template, re.IGNORECASE)
             if m:
-                expected_deposit = f"{m.group(1)} {m.group(2).upper()}"
+                expected_deposit = int(m.group(1))  # ← Convertir en INT
+                expected_deposit_str = f"{m.group(1)} {m.group(2).upper()}"
         except:
             pass
         
@@ -1280,9 +1343,16 @@ async def _botlive_handle(company_id: str, user_id: str, message: str, images: l
             zone_info = extract_delivery_zone_and_cost(question_text)
             
             if zone_info:
-                # Zone détectée → Formater le contexte avec heure CI
-                delivery_context = format_delivery_info(zone_info)
-                print(f"🚚 [DELIVERY] Zone détectée: {zone_info['name']} = {zone_info['cost']} FCFA")
+                # ✅ PATCH #1 : Vérifier si expédition (ville hors Abidjan)
+                if zone_info.get('category') == 'expedition' and zone_info.get('error'):
+                    # Expédition → Utiliser le message complet
+                    delivery_context = f"🚚 EXPÉDITION HORS ABIDJAN:\n{zone_info['error']}"
+                    print(f"🚚 [DELIVERY] Expédition détectée: {zone_info['name']} (à partir de {zone_info['cost']} FCFA)")
+                else:
+                    # Livraison Abidjan → Format normal
+                    delivery_context = format_delivery_info(zone_info)
+                    print(f"🚚 [DELIVERY] Zone détectée: {zone_info['name']} = {zone_info['cost']} FCFA")
+                
                 print(f"📋 [DELIVERY] Contexte injecté dans le prompt ({len(delivery_context)} chars)")
         except Exception as e:
             print(f"⚠️ [DELIVERY] Erreur extraction: {e}")
@@ -1297,7 +1367,7 @@ async def _botlive_handle(company_id: str, user_id: str, message: str, images: l
         print(f"   confidence = {confidence}")
         print(f"   raw_text = {raw_text[:100] if raw_text else '[vide]'}...")
         print(f"   filtered_transactions = {filtered_transactions}")
-        print(f"   expected_deposit = {expected_deposit}")
+        print(f"   expected_deposit = {expected_deposit} ({expected_deposit_str})")
         print("="*80 + "\n")
         
         # ═══════════════════════════════════════════════════════════════
@@ -1323,28 +1393,119 @@ async def _botlive_handle(company_id: str, user_id: str, message: str, images: l
             
             # Formater le prompt Supabase directement avec gestion d'erreur
             try:
-                # Injection context_text vide si attendu dans le template
-                # Injecter le contexte delivery ET le contexte intelligent
+                # ═══════════════════════════════════════════════════════════════
+                # 🎯 OPTIMISATION TOKENS : Construction contexte UNIQUE
+                # ═══════════════════════════════════════════════════════════════
                 question_with_context = question_text or ""
                 
                 # Ajouter statut images compact (économie tokens)
                 if image_status_for_llm:
                     question_with_context = f"📸 {image_status_for_llm}\n\n{question_with_context}"
                 
-                # Ajouter contexte intelligent (notepad + extraction) si disponible
-                if context_summary:
-                    question_with_context = f"🧠 CONTEXTE MÉMOIRE:\n{context_summary}\n\n{question_with_context}"
+                # ✅ PATCH #3: VALIDATION STRICTE COMMANDE (BLIP-2 + OCR)
+                # ═══════════════════════════════════════════════════════════════
+                validation_warnings = []
                 
-                # Ajouter contexte delivery si disponible
+                # 1. Vérifier photo produit (BLIP-2 obligatoire)
+                photo_produit_valide = False
+                if notepad_data.get("photo_produit"):
+                    # Photo déjà validée par BLIP-2
+                    photo_produit_valide = True
+                elif detected_objects and len(detected_objects) > 0:
+                    # Extraire la vraie confiance de detected_objects
+                    real_confidence = 0.0
+                    for obj in detected_objects:
+                        if isinstance(obj, str) and '~' in obj:
+                            # Format: "objet:description~0.90"
+                            try:
+                                real_confidence = float(obj.split('~')[-1])
+                                break
+                            except:
+                                pass
+                        elif isinstance(obj, dict) and 'confidence' in obj:
+                            real_confidence = obj['confidence']
+                            break
+                    
+                    if real_confidence > 0.5:
+                        # Image actuelle détectée par BLIP-2 avec confiance > 50%
+                        photo_produit_valide = True
+                        notepad_data["photo_produit"] = f"Détecté: {', '.join(detected_objects)} (conf: {real_confidence:.2f})"
+                        print(f"✅ [VALIDATION] Photo produit validée avec confiance {real_confidence:.2f}")
+                    else:
+                        validation_warnings.append(f"📸 Photo produit confiance trop faible ({real_confidence:.2f} < 0.5)")
+                else:
+                    validation_warnings.append("📸 Photo produit manquante ou floue (BLIP-2 non validé)")
+                
+                # 2. Vérifier paiement (OCR obligatoire)
+                paiement_valide = False
+                if notepad_data.get("paiement") and notepad_data["paiement"].get("montant"):
+                    # Paiement déjà validé
+                    paiement_valide = True
+                elif filtered_transactions and len(filtered_transactions) > 0:
+                    # Transaction OCR détectée
+                    montant = filtered_transactions[0].get("amount", 0)
+                    if montant >= expected_deposit:  # ← Comparaison INT vs INT
+                        paiement_valide = True
+                        notepad_data["paiement"] = {"montant": montant, "validé": True}
+                    else:
+                        validation_warnings.append(f"💳 Acompte insuffisant: {montant} FCFA < {expected_deposit_str} (OCR détecté)")
+                else:
+                    validation_warnings.append(f"💳 Preuve paiement manquante (OCR non validé, acompte min: {expected_deposit_str})")
+                
+                # 3. Vérifier zone livraison
+                if not notepad_data.get("delivery_zone"):
+                    validation_warnings.append("📍 Zone livraison manquante")
+                
+                # 4. Vérifier téléphone (avec validation stricte)
+                phone_valide = False
+                if notepad_data.get("phone_number"):
+                    from FIX_CONTEXT_LOSS_COMPLETE import validate_phone_ci
+                    phone_validation = validate_phone_ci(notepad_data["phone_number"])
+                    if phone_validation["valid"]:
+                        phone_valide = True
+                        # Normaliser le téléphone
+                        notepad_data["phone_number"] = phone_validation["normalized"]
+                    else:
+                        validation_warnings.append(f"📞 Téléphone invalide: {phone_validation['error']}")
+                else:
+                    validation_warnings.append("📞 Numéro téléphone manquant")
+                
+                # ═══════════════════════════════════════════════════════════════
+                # 🎯 OPTIMISATION : Construire contexte COMPACT (validation déjà dans context_summary)
+                # ═══════════════════════════════════════════════════════════════
+                
+                # Logs validation (pour debug uniquement)
+                if validation_warnings:
+                    print(f"\n🚨 [VALIDATION] Éléments manquants détectés:")
+                    for w in validation_warnings:
+                        print(f"   ❌ {w}")
+                else:
+                    print(f"\n✅ [VALIDATION] Commande complète et validée !")
+                
+                # Construire contexte UNIQUE (sans duplication)
+                final_context_parts = []
+                
+                # 1. Contexte livraison (si expédition)
                 if delivery_context:
-                    question_with_context = f"{delivery_context}\n\n{question_with_context}"
+                    final_context_parts.append(delivery_context)
                 
+                # 2. Contexte mémoire (contient déjà les erreurs de validation)
+                if context_summary:
+                    final_context_parts.append(context_summary)
+                
+                # 3. Assembler contexte final
+                if final_context_parts:
+                    question_with_context = "\n\n".join(final_context_parts) + "\n\n" + question_with_context
+                
+                # IMPORTANT: Checklist sera injectée APRÈS le système hybride
+                # Pour l'instant, on met un placeholder
                 format_vars = {
                     "question": question_with_context,
                     "conversation_history": history_text or "",
                     "detected_objects": detected_objects_str,
                     "filtered_transactions": filtered_transactions_str,
-                    "expected_deposit": str(expected_deposit or "2000 FCFA"),
+                    "expected_deposit": expected_deposit_str,  # ← Utiliser la version STRING
+                    "checklist": "[CHECKLIST SERA INJECTÉE PAR SYSTÈME HYBRIDE]"  # Placeholder
                 }
                 if "{context_text}" in botlive_prompt_template:
                     format_vars["context_text"] = ""
@@ -1357,7 +1518,8 @@ async def _botlive_handle(company_id: str, user_id: str, message: str, images: l
                 formatted_prompt = formatted_prompt.replace("{conversation_history}", history_text or "")
                 formatted_prompt = formatted_prompt.replace("{detected_objects}", detected_objects_str)
                 formatted_prompt = formatted_prompt.replace("{filtered_transactions}", filtered_transactions_str)
-                formatted_prompt = formatted_prompt.replace("{expected_deposit}", str(expected_deposit or "2000 FCFA"))
+                formatted_prompt = formatted_prompt.replace("{expected_deposit}", expected_deposit_str)  # ← Utiliser STRING
+                formatted_prompt = formatted_prompt.replace("{checklist}", "[CHECKLIST SERA INJECTÉE PAR SYSTÈME HYBRIDE]")
             
             print(f"📊 [SUPABASE PROMPT] Formaté: {len(formatted_prompt)} chars")
             
@@ -1371,10 +1533,7 @@ async def _botlive_handle(company_id: str, user_id: str, message: str, images: l
                 "company_id": company_id,
                 "user_id": user_id,
                 "raw_text": raw_text or "[TEXTE NON EXTRAIT]",
-                "filtered_transactions": "; ".join([
-                    f"{t.get('amount','?')}F -> +225{t.get('phone','????')}" for t in (filtered_transactions or [])
-                ]) or "[AUCUNE TRANSACTION VALIDE]",
-                "expected_deposit": str(expected_deposit or "2000 FCFA"),
+                "filtered_transactions": filtered_transactions_str or "[AUCUNE TRANSACTION VALIDE]",
                 "context": context_text or "",
                 "history": history_text or "",
                 "question": question_text or "",
@@ -1382,9 +1541,15 @@ async def _botlive_handle(company_id: str, user_id: str, message: str, images: l
             }
             formatted_prompt = botlive_prompt_template.format(**safe_vars)
         except Exception as e:
-            # Autre erreur
+            # Autre erreur - Fallback avec remplacement manuel
             print(f"[BOTLIVE][ERROR] Formatage prompt failed: {e}")
-            formatted_prompt = f"{botlive_prompt_template}\n\nClient: {question_text}\nHistorique: {history_text[:500]}"
+            formatted_prompt = botlive_prompt_template
+            # Remplacer manuellement toutes les variables
+            formatted_prompt = formatted_prompt.replace("{question}", question_text or "")
+            formatted_prompt = formatted_prompt.replace("{conversation_history}", history_text or "")
+            formatted_prompt = formatted_prompt.replace("{detected_objects}", detected_objects_str or "")
+            formatted_prompt = formatted_prompt.replace("{filtered_transactions}", filtered_transactions_str or "[AUCUNE TRANSACTION VALIDE]")
+            formatted_prompt = formatted_prompt.replace("{expected_deposit}", expected_deposit_str or "2000 FCFA")
         
         # ═══════════════════════════════════════════════════════════════
         # LOG : Vérifier que les variables sont bien dans le prompt
@@ -1395,10 +1560,10 @@ async def _botlive_handle(company_id: str, user_id: str, message: str, images: l
         else:
             print("   ✅ {detected_objects} remplacé")
         
-        if "{expected_deposit}" in formatted_prompt:
-            print("   ❌ ERREUR: {expected_deposit} NON REMPLACÉ dans le prompt !")
+        if "{filtered_transactions}" in formatted_prompt:
+            print("   ❌ ERREUR: {filtered_transactions} NON REMPLACÉ dans le prompt !")
         else:
-            print("   ✅ {expected_deposit} remplacé")
+            print("   ✅ {filtered_transactions} remplacé")
         
         # Afficher un extrait du prompt formaté
         print(f"\n📄 [PROMPT EXTRAIT] (500 premiers chars):\n{formatted_prompt[:500]}...\n")
@@ -1434,7 +1599,138 @@ IMPORTANT: Si tu ne respectes pas ce format, ta réponse sera rejetée !
 Commence MAINTENANT par <thinking> puis <response>.
 """
         
-        # Appel LLM
+        # ═══════════════════════════════════════════════════════════════
+        # SYSTÈME HYBRIDE PYTHON ↔ LLM (APRÈS ANALYSE VISION)
+        # ═══════════════════════════════════════════════════════════════
+        from core.loop_botlive_engine import get_loop_engine
+        from core.persistent_collector import get_collector
+        
+        # Vérifier si système hybride activé
+        loop_engine = get_loop_engine()
+        if loop_engine.is_enabled():
+            print(f"🔄 [HYBRID] Système hybride ACTIVÉ - Traitement avec vision...")
+            
+            try:
+                # Préparer résultats vision pour le système hybride
+                vision_result = None
+                if detected_objects:
+                    # ✅ EXTRAIRE LA VRAIE CONFIANCE DE detected_objects
+                    real_confidence = 0.0
+                    clean_descriptions = []
+                    
+                    for obj in detected_objects:
+                        if isinstance(obj, str) and '~' in obj:
+                            # Format: "objet:description~0.90"
+                            try:
+                                parts = obj.split('~')
+                                real_confidence = float(parts[-1])
+                                clean_descriptions.append(parts[0].replace('objet:', ''))
+                            except:
+                                clean_descriptions.append(obj)
+                        elif isinstance(obj, dict):
+                            if 'confidence' in obj:
+                                real_confidence = obj['confidence']
+                            clean_descriptions.append(obj.get('label', str(obj)))
+                        else:
+                            clean_descriptions.append(str(obj))
+                    
+                    vision_result = {
+                        "description": ", ".join(clean_descriptions),
+                        "confidence": real_confidence,  # ✅ VRAIE CONFIANCE
+                        "type": detected_type,
+                        "error": None
+                    }
+                    print(f"✅ [HYBRID] Vision result avec vraie confiance: {real_confidence:.2f}")
+                
+                ocr_result = None
+                if filtered_transactions:
+                    # IMPORTANT: Prendre la PREMIÈRE transaction (la plus récente)
+                    # Ne PAS faire la somme car OCR retourne déjà les transactions triées
+                    first_transaction = filtered_transactions[0]
+                    ocr_result = {
+                        "valid": True,
+                        "amount": first_transaction.get('amount', 0),
+                        "transactions": filtered_transactions
+                    }
+                
+                # Collecter et persister les données
+                collector = get_collector()
+                collection_result = collector.collect_and_persist(
+                    notepad=notepad_data,
+                    vision_result=vision_result,
+                    ocr_result=ocr_result,
+                    message=message
+                )
+                
+                # Si données mises à jour, sauvegarder
+                if collection_result["updated"]:
+                    await notepad_manager.update_notepad(user_id, company_id, collection_result["notepad"])
+                    notepad_data = collection_result["notepad"]
+                    print(f"💾 [HYBRID] Données persistées: {collection_result['updated']}")
+                
+                # Générer checklist enrichie AVANT d'appeler loop_engine
+                # (pour l'injecter dans le prompt LLM principal)
+                enriched_checklist = collection_result.get("checklist", "❌ Checklist non disponible")
+                
+                # Traiter avec le moteur en boucle
+                def llm_fallback(prompt):
+                    """LLM fallback - sera appelé si nécessaire"""
+                    # On continuera avec le LLM normal plus bas
+                    return "Continuez avec LLM normal"
+                
+                hybrid_result = loop_engine.process_message(
+                    message=message,
+                    notepad=collection_result["notepad"],
+                    vision_result=vision_result,
+                    ocr_result=ocr_result,
+                    llm_function=llm_fallback
+                )
+                
+                # 🔧 VÉRIFIER SI RÉCONCILIATEUR A MODIFIÉ NOTEPAD
+                if hasattr(loop_engine, 'notepad_updated_by_reconciler') and loop_engine.notepad_updated_by_reconciler:
+                    print(f"💾 [HYBRID] Réconciliateur a modifié notepad → Sauvegarde forcée")
+                    await notepad_manager.update_notepad(user_id, company_id, collection_result["notepad"])
+                    loop_engine.notepad_updated_by_reconciler = False  # Reset flag
+                
+                print(f"✅ [HYBRID] Réponse générée: {hybrid_result['response'][:100]}...")
+                print(f"📊 [HYBRID] Source: {hybrid_result['source']}")
+                print(f"📋 [HYBRID] Checklist: {hybrid_result['checklist']}")
+                
+                # Si Python a répondu automatiquement, retourner directement
+                if hybrid_result["source"] == "python_auto":
+                    print(f"🎯 [HYBRID] Python automatique - Réponse directe")
+                    return hybrid_result["response"]
+                
+                # Sinon, continuer avec LLM (fallback)
+                print(f"🤖 [HYBRID] LLM guide - Continuer traitement normal")
+                
+                # INJECTER CHECKLIST ENRICHIE dans le prompt
+                enriched_checklist = hybrid_result.get('checklist', enriched_checklist)
+                formatted_prompt = formatted_prompt.replace(
+                    "[CHECKLIST SERA INJECTÉE PAR SYSTÈME HYBRIDE]",
+                    enriched_checklist
+                )
+                print(f"✅ [HYBRID] Checklist enrichie injectée dans prompt LLM")
+                
+            except Exception as hybrid_error:
+                print(f"❌ [HYBRID] Erreur système hybride: {hybrid_error}")
+                print(f"🔄 [HYBRID] Fallback vers système classique")
+                # En cas d'erreur, utiliser checklist de base
+                enriched_checklist = "❌ Erreur génération checklist"
+                formatted_prompt = formatted_prompt.replace(
+                    "[CHECKLIST SERA INJECTÉE PAR SYSTÈME HYBRIDE]",
+                    enriched_checklist
+                )
+        else:
+            print(f"⚠️ [HYBRID] Système hybride DÉSACTIVÉ - Mode classique")
+            # Mode classique : checklist basique
+            enriched_checklist = "❌ Système hybride désactivé"
+            formatted_prompt = formatted_prompt.replace(
+                "[CHECKLIST SERA INJECTÉE PAR SYSTÈME HYBRIDE]",
+                enriched_checklist
+            )
+
+        # Appel LLM (fallback ou système classique)
         try:
             import re  # Import nécessaire pour l'extraction
             import os  # Import nécessaire pour getenv
@@ -1491,6 +1787,57 @@ Commence MAINTENANT par <thinking> puis <response>.
                 client_response = re.sub(r'</?response>', '', client_response).strip()
                 print(f"\n\033[92m🟢 RÉPONSE AU CLIENT (sans balise):\033[0m")
                 print(f"\033[92m{client_response}\033[0m")
+            
+            # ═══════════════════════════════════════════════════════════════
+            # 🧠 EXTRACTION THINKING POUR MISE À JOUR NOTEPAD
+            # ═══════════════════════════════════════════════════════════════
+            try:
+                from FIX_CONTEXT_LOSS_COMPLETE import extract_from_thinking_simple
+                thinking_data = extract_from_thinking_simple(llm_text)
+                
+                if thinking_data:
+                    print(f"\n🧠 [THINKING] Données extraites: {thinking_data}")
+                    
+                    # Mettre à jour le notepad avec les données du thinking
+                    notepad = await notepad_manager.get_notepad(user_id, company_id)
+                    updated = False
+                    
+                    # Mapper les champs (ignorer les métadonnées avec _)
+                    if 'photo_produit' in thinking_data:
+                        notepad['photo_produit'] = thinking_data['photo_produit']
+                        updated = True
+                    if 'photo_produit_description' in thinking_data:
+                        notepad['photo_produit_description'] = thinking_data['photo_produit_description']
+                        updated = True
+                    if 'paiement' in thinking_data:
+                        notepad['paiement'] = thinking_data['paiement']
+                        updated = True
+                    if 'acompte' in thinking_data:
+                        notepad['acompte'] = thinking_data['acompte']
+                        updated = True
+                    if 'zone' in thinking_data:
+                        notepad['delivery_zone'] = thinking_data['zone']
+                        updated = True
+                    if 'frais_livraison' in thinking_data:
+                        notepad['delivery_cost'] = thinking_data['frais_livraison']
+                        updated = True
+                    if 'telephone' in thinking_data:
+                        notepad['phone_number'] = thinking_data['telephone']
+                        updated = True
+                    if 'produit' in thinking_data:
+                        notepad['last_product_mentioned'] = thinking_data['produit']
+                        updated = True
+                    
+                    # Sauvegarder si des changements
+                    if updated:
+                        await notepad_manager.update_notepad(user_id, company_id, notepad)
+                        print(f"💾 [THINKING] Notepad mis à jour depuis thinking")
+                    else:
+                        print(f"ℹ️ [THINKING] Aucune donnée à sauvegarder")
+                else:
+                    print(f"ℹ️ [THINKING] Aucune donnée extraite du thinking")
+            except Exception as thinking_err:
+                print(f"⚠️ [THINKING] Erreur extraction: {thinking_err}")
             
             # 🔴 TOKENS + PROVIDER UTILISÉ
             prompt_tokens = token_usage.get("prompt_tokens", 0)

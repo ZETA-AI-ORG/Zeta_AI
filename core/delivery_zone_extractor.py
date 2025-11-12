@@ -212,6 +212,87 @@ ZONE_PATTERNS = {
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# VILLES HORS ABIDJAN (EXPÉDITION)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+VILLES_HORS_ABIDJAN = {
+    # Grandes villes CI hors Abidjan
+    "man": [r"\bman\b", r"ville de man"],
+    "yamoussoukro": [r"yamoussoukro", r"yamou\b", r"yamous"],
+    "bouake": [r"bouak[eé]", r"bouaké"],
+    "daloa": [r"daloa"],
+    "korhogo": [r"korhogo", r"korogo"],
+    "san_pedro": [r"san[\s-]?pedro", r"sanpedro"],
+    "gagnoa": [r"gagnoa"],
+    "abengourou": [r"abengourou", r"abengrou"],
+    "divo": [r"divo"],
+    "soubre": [r"soubr[eé]"],
+    "agboville": [r"agboville", r"agbovil"],
+    "adzope": [r"adzop[eé]"],
+    "dimbokro": [r"dimbokro"],
+    "issia": [r"issia"],
+    "sinfra": [r"sinfra"],
+    "bondoukou": [r"bondoukou"],
+    "oume": [r"oum[eé]"],
+    "duekoue": [r"duekou[eé]"],
+    "guiglo": [r"guiglo"],
+    "sassandra": [r"sassandra"],
+    "tiassale": [r"tiasal[eé]", r"tiassalé"],
+    "toumodi": [r"toumodi"],
+    "bongouanou": [r"bongouanou"],
+    "lakota": [r"lakota"],
+    "vavoua": [r"vavoua"],
+    "zuenoula": [r"zu[eé]noula", r"zuenoula"],
+    "ferkessedougou": [r"ferkess[eé]dougou", r"ferke\b"],
+    "odienne": [r"odienn[eé]"],
+    "seguela": [r"s[eé]gu[eé]la", r"seguela"],
+    "boundiali": [r"boundiali"],
+    "tengrela": [r"tengr[eé]la"],
+    "touba": [r"touba"],
+    "danane": [r"danan[eé]"],
+    "bangolo": [r"bangolo"],
+    "biankouma": [r"biankouma"],
+    "mankono": [r"mankono"],
+    "katiola": [r"katiola"],
+    "dabakala": [r"dabakala"],
+    "bocanda": [r"bocanda"],
+    "mbahiakro": [r"mbahiakro", r"m'bahiakro"],
+    "prikro": [r"prikro"],
+    "daoukro": [r"daoukro"],
+    "bettie": [r"betti[eé]"],
+    "tanda": [r"tanda"],
+    "bouna": [r"bouna"],
+    "nassian": [r"nassian"],
+    "tehini": [r"t[eé]hini"],
+    "grand_lahou": [r"grand[\s-]?lahou", r"grandlahou"],
+    "jacqueville": [r"jacqueville"],
+    "tiebissou": [r"ti[eé]bissou"],
+    "didievi": [r"didi[eé]vi"],
+}
+
+
+def is_ville_hors_abidjan(text: str) -> Optional[str]:
+    """
+    Vérifie si le texte mentionne une ville hors Abidjan (expédition)
+    
+    Returns:
+        Nom de la ville si détectée, None sinon
+    """
+    if not text:
+        return None
+    
+    text_normalized = normalize_text(text)
+    
+    for ville_key, patterns in VILLES_HORS_ABIDJAN.items():
+        for pattern in patterns:
+            if re.search(pattern, text_normalized, re.IGNORECASE):
+                # Retourner nom formaté
+                return ville_key.replace("_", " ").title()
+    
+    return None
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # FONCTION EXTRACTION
 # ═══════════════════════════════════════════════════════════════════════════════
 
@@ -224,13 +305,28 @@ def extract_delivery_zone_and_cost(text: str) -> Optional[Dict[str, any]]:
         
     Returns:
         Dict avec zone, cost, category, name ou None
+        Si ville hors Abidjan: category="expedition", cost=3500+
         
     Example:
         >>> extract_delivery_zone_and_cost("Je suis à Yopougon")
         {'zone': 'yopougon', 'cost': 1500, 'category': 'centrale', 'name': 'Yopougon'}
+        >>> extract_delivery_zone_and_cost("Je suis à Man")
+        {'zone': 'hors_abidjan', 'cost': 3500, 'category': 'expedition', 'name': 'Man', 'error': '...'}
     """
     if not text:
         return None
+    
+    # ✅ PATCH #1: Vérifier d'abord si ville hors Abidjan (expédition)
+    ville_hors = is_ville_hors_abidjan(text)
+    if ville_hors:
+        return {
+            "zone": "hors_abidjan",
+            "cost": 3500,
+            "category": "expedition",
+            "name": ville_hors,
+            "delais": None,
+            "error": f"{ville_hors}, c'est une expédition (pas livraison classique) 📦\nFrais: à partir de 3500 FCFA selon la ville.\nAppelez notre service client +225 0787360757 pour le prix exact 😊"
+        }
     
     # ✅ NORMALISATION (accepte fautes, accents, casse)
     text_normalized = normalize_text(text)
@@ -239,14 +335,22 @@ def extract_delivery_zone_and_cost(text: str) -> Optional[Dict[str, any]]:
     for zone_key, zone_data in ZONE_PATTERNS.items():
         for pattern in zone_data["patterns"]:
             if re.search(pattern, text_normalized):
-                logger.info(f"🎯 Zone détectée: {zone_data['name']} ({zone_data['cost']} FCFA)")
+                # ✅ CALCUL DU DÉLAI EN TEMPS RÉEL
+                try:
+                    from core.timezone_helper import is_same_day_delivery_possible
+                    delai_calcule = "aujourd'hui" if is_same_day_delivery_possible() else "demain"
+                except Exception:
+                    delai_calcule = "selon délais standard"
+                
+                logger.info(f"🎯 Zone détectée: {zone_data['name']} ({zone_data['cost']} FCFA) - Livraison {delai_calcule}")
                 return {
                     "zone": zone_key,
                     "cost": zone_data["cost"],
                     "category": zone_data["category"],
                     "name": zone_data["name"],
                     "source": "regex",
-                    "confidence": "high"
+                    "confidence": "high",
+                    "delai_calcule": delai_calcule  # ✅ NOUVEAU: délai calculé en temps réel
                 }
     
     logger.debug(f"❌ Aucune zone détectée dans: '{text[:50]}...'")
@@ -328,19 +432,27 @@ def format_delivery_info(zone_info: Dict[str, any]) -> str:
     cost_formatted = f"{zone_info['cost']:,}".replace(',', ' ')
     delais = zone_info.get('delais', 'Délais standard')
     
-    # ✅ AJOUTER HEURE ACTUELLE CÔTE D'IVOIRE
+    # ✅ CALCUL INTELLIGENT DU DÉLAI DE LIVRAISON
     try:
-        from core.timezone_helper import get_delivery_context_with_time
-        time_context = get_delivery_context_with_time()
+        from core.timezone_helper import get_current_time_ci, is_same_day_delivery_possible
+        now = get_current_time_ci()
+        
+        # Calcul précis du délai selon l'heure actuelle
+        if is_same_day_delivery_possible():
+            delai_reel = "aujourd'hui"
+            heure_info = f"Il est {now.strftime('%Hh%M')}. Livraison prévue aujourd'hui."
+        else:
+            delai_reel = "demain"
+            heure_info = f"Il est {now.strftime('%Hh%M')}. Livraison prévue demain."
+            
     except Exception as e:
-        logger.warning(f"⚠️ Impossible de récupérer l'heure CI: {e}")
-        time_context = ""
+        logger.warning(f"⚠️ Impossible de calculer le délai: {e}")
+        delai_reel = "selon délais standard"
+        heure_info = ""
     
-    # 📊 OPTIMISÉ TOKENS: Version condensée (-83% tokens)
-    # Avant: ~700 chars = ~300 tokens | Après: ~120 chars = ~50 tokens
-    return f"""
-🚚 LIVRAISON: {zone_info['name']} = {cost_formatted} FCFA (confirmé, ne pas redemander){time_context}
-"""
+    # 📊 FORMAT OPTIMISÉ avec délai calculé en temps réel
+    return f"""🚚 LIVRAISON: {zone_info['name']} = {cost_formatted} FCFA (confirmé, ne pas redemander)
+⏰ DÉLAI: {heure_info}"""
 
 
 def extract_from_meilisearch_doc(doc: Dict) -> Optional[Dict[str, any]]:

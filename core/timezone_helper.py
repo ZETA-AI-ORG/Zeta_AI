@@ -47,19 +47,19 @@ def get_delivery_context_with_time() -> str:
     hour = now.hour
     minute = now.minute
     
-    # Déterminer si avant ou après 13h (nouvelle heure limite)
-    is_before_11h = hour < 13
+    # Déterminer si avant ou après 13h (heure limite pour livraison jour même)
+    is_before_13h = hour < 13
     
-    # Calculer temps restant jusqu'à 11h
-    if is_before_11h:
-        hours_left = 10 - hour
+    # Calculer temps restant jusqu'à 13h
+    if is_before_13h:
+        hours_left = 13 - hour
         minutes_left = 60 - minute
         if minutes_left == 60:
             hours_left += 1
             minutes_left = 0
-        time_until_11h = f"{hours_left}h{minutes_left:02d}" if hours_left > 0 else f"{minutes_left}min"
+        time_until_13h = f"{hours_left}h{minutes_left:02d}" if hours_left > 0 else f"{minutes_left}min"
     else:
-        time_until_11h = None
+        time_until_13h = None
     
     # Jour de la semaine
     day_name = now.strftime("%A")
@@ -78,7 +78,7 @@ def get_delivery_context_with_time() -> str:
     date_str = now.strftime("%d/%m/%Y")
     
     # Calcul simple du délai
-    if is_before_11h:
+    if is_before_13h:
         delai_message = "Livraison prévue aujourd'hui"
     else:
         delai_message = "Livraison prévue demain"
