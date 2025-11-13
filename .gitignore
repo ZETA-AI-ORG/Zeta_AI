@@ -49,9 +49,11 @@ service_account*.json
 
 # ===== LOGS =====
 *.log
-logs/
+# logs/  # Temporairement désactivé pour analyse
 *.log.*
 rag_detailed_logs_*.json
+# Temporairement débloqué pour analyse
+# tests/logs/
 
 # ===== CACHES =====
 .cache/

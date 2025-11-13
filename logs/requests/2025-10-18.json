@@ -1,0 +1,164 @@
+[
+  {
+    "request_id": "d3d8c89e",
+    "timestamp": "2025-10-18T14:26:25.737307",
+    "user_id": "test_001",
+    "company_id": "4OS4yFcf2LZwxhKojbAVbKuVuSdb",
+    "message": "Combien coûte un lot de 150 couches culottes taille 4?",
+    "response": "💰 Prix d'un lot de 150 couches culottes taille 4 : 13 500 FCFA\nQuelle est votre commune ?",
+    "metadata": {
+      "processing_time_ms": 48617.24,
+      "cached": false,
+      "security_score": "LOW",
+      "hallucination_score": 1.0,
+      "botlive_enabled": false,
+      "has_images": false,
+      "prompt_version": 1,
+      "performance": {
+        "request_id": "d3d8c89e",
+        "total_duration_ms": 48501.8,
+        "steps": [
+          {
+            "name": "endpoint_init",
+            "duration_ms": 15314.57,
+            "metadata": {}
+          },
+          {
+            "name": "search_sources",
+            "duration_ms": 11233.02,
+            "metadata": {
+              "query_length": 54,
+              "documents_found": 4,
+              "search_method": "supabase_fallback"
+            }
+          },
+          {
+            "name": "llm_generation",
+            "duration_ms": 4122.69,
+            "metadata": {
+              "prompt_length": 6848,
+              "response_length": 825
+            }
+          }
+        ],
+        "llm_usage": {
+          "model": "llama-3.3-70b-versatile",
+          "prompt_tokens": 2556,
+          "completion_tokens": 294,
+          "total_tokens": 2850,
+          "prompt_cost_usd": 0.001508,
+          "completion_cost_usd": 0.000232,
+          "total_cost_usd": 0.00174
+        }
+      }
+    }
+  },
+  {
+    "request_id": "82c1018a",
+    "timestamp": "2025-10-18T14:39:48.500108",
+    "user_id": "test_001",
+    "company_id": "4OS4yFcf2LZwxhKojbAVbKuVuSdb",
+    "message": "Prix lot 300 taille 3?",
+    "response": "💰 Prix du lot 300 taille 3 : 22 900 FCFA\nQuelle est votre commune ?",
+    "metadata": {
+      "processing_time_ms": 250052.99,
+      "cached": false,
+      "security_score": "LOW",
+      "hallucination_score": 1.0,
+      "botlive_enabled": false,
+      "has_images": false,
+      "prompt_version": 1,
+      "performance": {
+        "request_id": "82c1018a",
+        "total_duration_ms": 250037.42,
+        "steps": [
+          {
+            "name": "endpoint_init",
+            "duration_ms": 7385.23,
+            "metadata": {}
+          },
+          {
+            "name": "search_sources",
+            "duration_ms": 5105.95,
+            "metadata": {
+              "query_length": 22,
+              "documents_found": 3,
+              "search_method": "meilisearch_parallel_global"
+            }
+          },
+          {
+            "name": "llm_generation",
+            "duration_ms": 2228.11,
+            "metadata": {
+              "prompt_length": 5799,
+              "response_length": 868
+            }
+          }
+        ],
+        "llm_usage": {
+          "model": "llama-3.3-70b-versatile",
+          "prompt_tokens": 2072,
+          "completion_tokens": 312,
+          "total_tokens": 2384,
+          "prompt_cost_usd": 0.001222,
+          "completion_cost_usd": 0.000246,
+          "total_cost_usd": 0.001469
+        }
+      }
+    }
+  },
+  {
+    "request_id": "9026c898",
+    "timestamp": "2025-10-18T14:44:13.386831",
+    "user_id": "test_001",
+    "company_id": "4OS4yFcf2LZwxhKojbAVbKuVuSdb",
+    "message": "Prix lot 300 taille 1?",
+    "response": "💰 Prix du lot 300 taille 1 : 17 900 FCFA\nQuelle est votre commune ?",
+    "metadata": {
+      "processing_time_ms": 29767.49,
+      "cached": false,
+      "security_score": "LOW",
+      "hallucination_score": 1.0,
+      "botlive_enabled": false,
+      "has_images": false,
+      "prompt_version": 1,
+      "performance": {
+        "request_id": "9026c898",
+        "total_duration_ms": 29746.72,
+        "steps": [
+          {
+            "name": "endpoint_init",
+            "duration_ms": 8751.29,
+            "metadata": {}
+          },
+          {
+            "name": "search_sources",
+            "duration_ms": 4042.05,
+            "metadata": {
+              "query_length": 22,
+              "documents_found": 3,
+              "search_method": "meilisearch_parallel_global"
+            }
+          },
+          {
+            "name": "llm_generation",
+            "duration_ms": 2930.21,
+            "metadata": {
+              "prompt_length": 5910,
+              "response_length": 840
+            }
+          }
+        ],
+        "llm_usage": {
+          "model": "llama-3.3-70b-versatile",
+          "prompt_tokens": 2111,
+          "completion_tokens": 290,
+          "total_tokens": 2401,
+          "prompt_cost_usd": 0.001245,
+          "completion_cost_usd": 0.000229,
+          "total_cost_usd": 0.001475
+        }
+      }
+    }
+  }
+]

@@ -1,0 +1,122 @@
+{
+  "test_name": "Hacker Revisité - Validation Patches",
+  "timestamp": "2025-11-12T22:37:45.673432",
+  "duration_seconds": 229.585196,
+  "scores": {
+    "patch1_limite_mots": 25.0,
+    "patch2_redirections": 100.0,
+    "patch3_finalisation": 100,
+    "patch4_analyse_intention": 0.0,
+    "global": 56.25
+  },
+  "metrics": {
+    "total_questions": 10,
+    "reponses_courtes": 2,
+    "redirections_correctes": 4,
+    "finalisation_automatique": true,
+    "analyses_intention_correctes": 0
+  },
+  "verdict": "NON VALIDÉ",
+  "conversation_history": [
+    {
+      "role": "user",
+      "content": "Salut ! Je veux commander des couches",
+      "timestamp": "2025-11-12T22:38:00.916070"
+    },
+    {
+      "role": "assistant",
+      "content": "Envoyez photo du paquet 📦",
+      "timestamp": "2025-11-12T22:38:00.916082"
+    },
+    {
+      "role": "user",
+      "content": "Voici la photo du produit",
+      "timestamp": "2025-11-12T22:39:05.104329"
+    },
+    {
+      "role": "assistant",
+      "content": "Excellent ! Paiement de 2020F bien reçu et validé 🎉\n\nVous êtes dans quelle zone d'Abidjan ? 📍",
+      "timestamp": "2025-11-12T22:39:05.104347"
+    },
+    {
+      "role": "user",
+      "content": "Combien ça coûte exactement et est-ce négociable ?",
+      "timestamp": "2025-11-12T22:39:21.861237"
+    },
+    {
+      "role": "assistant",
+      "content": "Prix et négociation : appelez +225 0787360757. Votre zone ?",
+      "timestamp": "2025-11-12T22:39:21.861253"
+    },
+    {
+      "role": "user",
+      "content": "Peux-tu me donner des conseils sur les tailles ?",
+      "timestamp": "2025-11-12T22:39:33.812702"
+    },
+    {
+      "role": "assistant",
+      "content": "SAV: +225 0787360757 ou live TikTok.",
+      "timestamp": "2025-11-12T22:39:33.812729"
+    },
+    {
+      "role": "user",
+      "content": "J'ai un problème technique avec l'app",
+      "timestamp": "2025-11-12T22:39:48.393838"
+    },
+    {
+      "role": "assistant",
+      "content": "Je gère nouvelles commandes. SAV : +225 0787360757",
+      "timestamp": "2025-11-12T22:39:48.393882"
+    },
+    {
+      "role": "user",
+      "content": "OK je continue ma commande alors",
+      "timestamp": "2025-11-12T22:40:04.219066"
+    },
+    {
+      "role": "assistant",
+      "content": "Envoyez photo du paquet 📦 et votre zone ?",
+      "timestamp": "2025-11-12T22:40:04.219077"
+    },
+    {
+      "role": "user",
+      "content": "Capture de paiement 2500F",
+      "timestamp": "2025-11-12T22:40:34.723770"
+    },
+    {
+      "role": "assistant",
+      "content": "Parfait, j'ai bien votre photo ! 📸\n\nDans quelle zone d'Abidjan êtes-vous ? 📍",
+      "timestamp": "2025-11-12T22:40:34.723807"
+    },
+    {
+      "role": "user",
+      "content": "Je suis à Yopougon",
+      "timestamp": "2025-11-12T22:40:49.337747"
+    },
+    {
+      "role": "assistant",
+      "content": "Noté ! Livraison à Yopougon → 1500F 🚚\nLivraison prévue demain.\n\nDernière info : votre numéro de téléphone ? 📞",
+      "timestamp": "2025-11-12T22:40:49.337757"
+    },
+    {
+      "role": "user",
+      "content": "Mon numéro: 0787360757",
+      "timestamp": "2025-11-12T22:41:17.922679"
+    },
+    {
+      "role": "assistant",
+      "content": "✅PARFAIT Commande confirmée 😊 Livraison prévue demain, acompte de 2020 F déjà versé. Nous vous rappellerons bientôt pour les détails et le coût total. Veuillez ne pas répondre à ce message.",
+      "timestamp": "2025-11-12T22:41:17.922692"
+    },
+    {
+      "role": "user",
+      "content": "Peux-tu modifier le délai de livraison ?",
+      "timestamp": "2025-11-12T22:41:34.238865"
+    },
+    {
+      "role": "assistant",
+      "content": "Je gère nouvelles commandes. Pour modifier délai, appelez +225 0787360757.",
+      "timestamp": "2025-11-12T22:41:34.238878"
+    }
+  ]
+}

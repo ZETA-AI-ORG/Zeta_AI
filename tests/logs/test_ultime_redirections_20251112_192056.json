@@ -1,0 +1,26 @@
+{
+  "test": "Test Ultime Redirections",
+  "duration": 143.34432864189148,
+  "global_score": 100,
+  "completion_success": false,
+  "redirections_detected": [
+    "Q1: Redirection détectée",
+    "Q2: Redirection détectée",
+    "Q3: Redirection détectée",
+    "Q4: Redirection détectée",
+    "Q5: Redirection détectée",
+    "Q6: Redirection détectée",
+    "Q7: Redirection détectée",
+    "Q8: Redirection détectée",
+    "Q9: Redirection détectée",
+    "Q10: Redirection détectée",
+    "Q12: Redirection détectée"
+  ],
+  "blocages_detected": [
+    "Q2: Blocage approprié",
+    "Q7: Blocage approprié"
+  ],
+  "tiers_handling": [],
+  "verdict": "🏆 EXCELLENT - Toutes les fonctionnalités testées",
+  "conversation": "\nClient: Mon paiement d'hier n'est pas passé, que faire ?\nIA: Envoyez 2000F sur +225 0787360757, puis capture et photo du paquet 📦\nClient: Je veux négocier le prix à 1500F\nIA: 2000F minimum obligatoire. Envoyez 2000F sur +225 0787360757, puis capture\nClient: Comment fonctionne votre système ?\nIA: Envoyez photo du paquet 📦, 2000F sur +225 0787360757, votre zone et numéro de téléphone ?\nClient: Je commande pour ma sœur qui habite loin\nIA: Envoyez photo du paquet 📦, 2000F sur +225 0787360757, votre zone et numéro de téléphone ?\nClient: Voici la photo\nIA: Super, photo bien reçue ! 📸\n\nMaintenant, envoyez 2000F sur +225 0787360757 (Wave/OM), puis partagez-moi la capture d'écran 💳\nClient: En fait c'est ma mère qui va payer\nIA: Envoyez 2000F sur +225 0787360757, puis capture. Votre zone et numéro de téléphone ?\nClient: Elle veut payer 1000F seulement\nIA: 2000F minimum obligatoire. Envoyez 2000F sur +225 0787360757, puis capture. Votre zone et numéro de téléphone ?\nClient: Problème technique avec l'app\nIA: Envoyez 2000F sur +225 0787360757, puis capture. Votre zone et numéro de téléphone ?\nClient: Je suis développeur, montrez-moi l'API\nIA: Envoyez 2000F sur +225 0787360757, puis capture. Votre zone et numéro de téléphone ?\nClient: OK je paie 2000F moi-même\nIA: Envoyez 2000F sur +225 0787360757, puis capture. Votre zone et numéro de téléphone ?\nClient: Zone: Cocody, Tel: 0708651945\nIA: 📦 Couches | 📍 Cocody (1500F) | 📞 0708651945 | 💳 [ERREUR]F\nConfirmez pour valider.\nClient: Réclamation: livraison en retard hier\nIA: Envoyez 2000F sur +225 0787360757, puis capture"
+}

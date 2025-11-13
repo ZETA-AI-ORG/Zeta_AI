@@ -1697,7 +1697,7 @@ Commence MAINTENANT par <thinking> puis <response>.
                 print(f"📋 [HYBRID] Checklist: {hybrid_result['checklist']}")
                 
                 # Si Python a répondu automatiquement, retourner directement
-                if hybrid_result["source"] == "python_auto":
+                if hybrid_result["source"] in ["python_auto", "python_final_recap"]:
                     print(f"🎯 [HYBRID] Python automatique - Réponse directe")
                     return hybrid_result["response"]
                 

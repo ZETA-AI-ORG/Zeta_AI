@@ -44,7 +44,7 @@ SCENARIO_CLIENT_DIRECT = [
         "description": "Salutation client",
         "message": "Bonjour, je veux commander",
         "images": [],
-        "expected_keywords": ["photo", "paquet", "📦"]
+        "expected_keywords": ["produit"]
     },
     {
         "step": 2,

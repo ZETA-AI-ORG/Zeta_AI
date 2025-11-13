@@ -1,0 +1,1752 @@
+[
+  {
+    "timestamp": "2025-11-12T23:53:34.024199",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[BOTLIVE][PROMPT] ✅ Prompt Supabase chargé (8416 chars)",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:53:34.026307",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[TRACKING] Demandes ignorées: Produit=0, Paiement=0",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:53:34.036267",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[BOTLIVE] Téléchargement image: https://scontent-atl3-2.xx.fbcdn.net/v/t1.15752-9/556908482_1314851517042795_6410429215345539018_n.j...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:53:36.129647",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[BOTLIVE][FETCH] URL finale: https://scontent-atl3-2.xx.fbcdn.net/v/t1.15752-9/556908482_1314851517042795_6410429215345539018_n.jpg?_nc_cat=105&ccb=1-7&_nc_sid=eb2e90&_nc_ohc=NL64Tr-lCD8Q7kNvwErQP-W&_nc_oc=Adl-2TTfwDiQ5oV7zD-apLFr6CXVJRBTBS-bGX0OviLygK6yEzKDt_DLemHYyuo4jsHi52BxJLiX6eXRztPxh2Dk&_nc_ad=z-m&_nc_cid=0&_nc_zt=23&_nc_ht=scontent-atl3-2.xx&oh=03_Q7cD3wHQnpKrTBJ4ECMmlxUMRVy5tPvbnhlsvGwaT0Dt2xJwcg&oe=6937FBCA",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:53:36.129975",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[BOTLIVE][FETCH] Content-Type: image/jpeg | Content-Length: 37848",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:53:36.141812",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[BOTLIVE] Image téléchargée: C:\\Users\\hp\\AppData\\Local\\Temp\\botlive_hagj3qia.jpg",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:53:36.166341",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[BOTLIVE][DEBUG] Copie image sauvegardée: /tmp/botlive_debug\\1762988016_botlive_hagj3qia.jpg",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:53:39.762940",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[BOTLIVE] Fichier temporaire supprimé: C:\\Users\\hp\\AppData\\Local\\Temp\\botlive_hagj3qia.jpg",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:53:39.972586",
+    "level": "ERROR",
+    "source": "stderr",
+    "message": "Traceback (most recent call last):",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:53:39.973684",
+    "level": "ERROR",
+    "source": "stderr",
+    "message": "File \"C:\\Users\\hp\\Documents\\ZETA APP\\chatbot\\CHATBOT2.0\\tests\\botlive_test_hacker_revisited.py\", line 314, in <module>",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:53:40.186061",
+    "level": "ERROR",
+    "source": "stderr",
+    "message": "asyncio.run(main())",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:53:40.186467",
+    "level": "ERROR",
+    "source": "stderr",
+    "message": "File \"C:\\Python313\\Lib\\asyncio\\runners.py\", line 195, in run",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:53:40.187161",
+    "level": "ERROR",
+    "source": "stderr",
+    "message": "return runner.run(main)",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:53:40.187528",
+    "level": "ERROR",
+    "source": "stderr",
+    "message": "File \"C:\\Python313\\Lib\\asyncio\\runners.py\", line 118, in run",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:53:40.188181",
+    "level": "ERROR",
+    "source": "stderr",
+    "message": "return self._loop.run_until_complete(task)",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:53:40.188556",
+    "level": "ERROR",
+    "source": "stderr",
+    "message": "File \"C:\\Python313\\Lib\\asyncio\\base_events.py\", line 712, in run_until_complete",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:53:40.189489",
+    "level": "ERROR",
+    "source": "stderr",
+    "message": "self.run_forever()",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:53:40.189837",
+    "level": "ERROR",
+    "source": "stderr",
+    "message": "File \"C:\\Python313\\Lib\\asyncio\\base_events.py\", line 683, in run_forever",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:53:40.190589",
+    "level": "ERROR",
+    "source": "stderr",
+    "message": "self._run_once()",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:53:40.190899",
+    "level": "ERROR",
+    "source": "stderr",
+    "message": "File \"C:\\Python313\\Lib\\asyncio\\base_events.py\", line 2042, in _run_once",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:53:40.220492",
+    "level": "ERROR",
+    "source": "stderr",
+    "message": "handle._run()",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:53:40.220801",
+    "level": "ERROR",
+    "source": "stderr",
+    "message": "File \"C:\\Python313\\Lib\\asyncio\\events.py\", line 89, in _run",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:53:40.221541",
+    "level": "ERROR",
+    "source": "stderr",
+    "message": "self._context.run(self._callback, *self._args)",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:53:40.221990",
+    "level": "ERROR",
+    "source": "stderr",
+    "message": "File \"C:\\Users\\hp\\Documents\\ZETA APP\\chatbot\\CHATBOT2.0\\tests\\botlive_test_hacker_revisited.py\", line 311, in main",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:53:40.223052",
+    "level": "ERROR",
+    "source": "stderr",
+    "message": "await test.run_test()",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:53:40.223399",
+    "level": "ERROR",
+    "source": "stderr",
+    "message": "File \"C:\\Users\\hp\\Documents\\ZETA APP\\chatbot\\CHATBOT2.0\\tests\\botlive_test_hacker_revisited.py\", line 147, in run_test",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:53:40.224096",
+    "level": "ERROR",
+    "source": "stderr",
+    "message": "response = await app._botlive_handle(",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:53:40.224579",
+    "level": "ERROR",
+    "source": "stderr",
+    "message": "File \"C:\\Users\\hp\\Documents\\ZETA APP\\chatbot\\CHATBOT2.0\\app.py\", line 956, in _botlive_handle",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:53:40.229279",
+    "level": "ERROR",
+    "source": "stderr",
+    "message": "public_url = upload_image_to_supabase(storage_path, file_bytes)",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:53:40.233813",
+    "level": "ERROR",
+    "source": "stderr",
+    "message": "File \"C:\\Users\\hp\\Documents\\ZETA APP\\chatbot\\CHATBOT2.0\\database\\supabase_client.py\", line 566, in upload_image_to_supabase",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:53:40.258685",
+    "level": "ERROR",
+    "source": "stderr",
+    "message": "res = client.storage.from_(bucket).upload(path, file_bytes, {'upsert': 'true', 'content-type': 'image/jpeg'})",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:53:40.265250",
+    "level": "ERROR",
+    "source": "stderr",
+    "message": "File \"C:\\Users\\hp\\Documents\\ZETA APP\\chatbot\\CHATBOT2.0\\.venv\\Lib\\site-packages\\storage3\\_sync\\file_api.py\", line 545, in upload",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:53:40.266205",
+    "level": "ERROR",
+    "source": "stderr",
+    "message": "return self._upload_or_update(\"POST\", path_parts, file, file_options)",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:53:40.269183",
+    "level": "ERROR",
+    "source": "stderr",
+    "message": "File \"C:\\Users\\hp\\Documents\\ZETA APP\\chatbot\\CHATBOT2.0\\.venv\\Lib\\site-packages\\storage3\\_sync\\file_api.py\", line 517, in _upload_or_update",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:53:40.270041",
+    "level": "ERROR",
+    "source": "stderr",
+    "message": "response = self._request(",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:53:40.270542",
+    "level": "ERROR",
+    "source": "stderr",
+    "message": "File \"C:\\Users\\hp\\Documents\\ZETA APP\\chatbot\\CHATBOT2.0\\.venv\\Lib\\site-packages\\storage3\\_sync\\file_api.py\", line 68, in _request",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:53:40.271510",
+    "level": "ERROR",
+    "source": "stderr",
+    "message": "response = self._client.request(",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:53:40.272161",
+    "level": "ERROR",
+    "source": "stderr",
+    "message": "File \"C:\\Users\\hp\\Documents\\ZETA APP\\chatbot\\CHATBOT2.0\\.venv\\Lib\\site-packages\\httpx\\_client.py\", line 825, in request",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:53:40.318797",
+    "level": "ERROR",
+    "source": "stderr",
+    "message": "return self.send(request, auth=auth, follow_redirects=follow_redirects)",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:53:40.319233",
+    "level": "ERROR",
+    "source": "stderr",
+    "message": "File \"C:\\Users\\hp\\Documents\\ZETA APP\\chatbot\\CHATBOT2.0\\.venv\\Lib\\site-packages\\httpx\\_client.py\", line 914, in send",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:53:40.344979",
+    "level": "ERROR",
+    "source": "stderr",
+    "message": "response = self._send_handling_auth(",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:53:40.348083",
+    "level": "ERROR",
+    "source": "stderr",
+    "message": "File \"C:\\Users\\hp\\Documents\\ZETA APP\\chatbot\\CHATBOT2.0\\.venv\\Lib\\site-packages\\httpx\\_client.py\", line 942, in _send_handling_auth",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:53:40.349619",
+    "level": "ERROR",
+    "source": "stderr",
+    "message": "response = self._send_handling_redirects(",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:53:40.351332",
+    "level": "ERROR",
+    "source": "stderr",
+    "message": "File \"C:\\Users\\hp\\Documents\\ZETA APP\\chatbot\\CHATBOT2.0\\.venv\\Lib\\site-packages\\httpx\\_client.py\", line 979, in _send_handling_redirects",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:53:40.352878",
+    "level": "ERROR",
+    "source": "stderr",
+    "message": "response = self._send_single_request(request)",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:53:40.354198",
+    "level": "ERROR",
+    "source": "stderr",
+    "message": "File \"C:\\Users\\hp\\Documents\\ZETA APP\\chatbot\\CHATBOT2.0\\.venv\\Lib\\site-packages\\httpx\\_client.py\", line 1014, in _send_single_request",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:53:40.356226",
+    "level": "ERROR",
+    "source": "stderr",
+    "message": "response = transport.handle_request(request)",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:53:40.357252",
+    "level": "ERROR",
+    "source": "stderr",
+    "message": "File \"C:\\Users\\hp\\Documents\\ZETA APP\\chatbot\\CHATBOT2.0\\.venv\\Lib\\site-packages\\httpx\\_transports\\default.py\", line 250, in handle_request",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:53:40.418706",
+    "level": "ERROR",
+    "source": "stderr",
+    "message": "resp = self._pool.handle_request(req)",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:53:40.419324",
+    "level": "ERROR",
+    "source": "stderr",
+    "message": "File \"C:\\Users\\hp\\Documents\\ZETA APP\\chatbot\\CHATBOT2.0\\.venv\\Lib\\site-packages\\httpcore\\_sync\\connection_pool.py\", line 256, in handle_request",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:53:40.617596",
+    "level": "ERROR",
+    "source": "stderr",
+    "message": "raise exc from None",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:53:40.699036",
+    "level": "ERROR",
+    "source": "stderr",
+    "message": "File \"C:\\Users\\hp\\Documents\\ZETA APP\\chatbot\\CHATBOT2.0\\.venv\\Lib\\site-packages\\httpcore\\_sync\\connection_pool.py\", line 236, in handle_request",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:53:40.801127",
+    "level": "ERROR",
+    "source": "stderr",
+    "message": "response = connection.handle_request(",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:53:40.834841",
+    "level": "ERROR",
+    "source": "stderr",
+    "message": "File \"C:\\Users\\hp\\Documents\\ZETA APP\\chatbot\\CHATBOT2.0\\.venv\\Lib\\site-packages\\httpcore\\_sync\\connection.py\", line 103, in handle_request",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:53:40.932843",
+    "level": "ERROR",
+    "source": "stderr",
+    "message": "return self._connection.handle_request(request)",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:53:40.936788",
+    "level": "ERROR",
+    "source": "stderr",
+    "message": "File \"C:\\Users\\hp\\Documents\\ZETA APP\\chatbot\\CHATBOT2.0\\.venv\\Lib\\site-packages\\httpcore\\_sync\\http2.py\", line 187, in handle_request",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:53:41.003473",
+    "level": "ERROR",
+    "source": "stderr",
+    "message": "raise exc",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:53:41.005215",
+    "level": "ERROR",
+    "source": "stderr",
+    "message": "File \"C:\\Users\\hp\\Documents\\ZETA APP\\chatbot\\CHATBOT2.0\\.venv\\Lib\\site-packages\\httpcore\\_sync\\http2.py\", line 150, in handle_request",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:53:41.006113",
+    "level": "ERROR",
+    "source": "stderr",
+    "message": "status, headers = self._receive_response(",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:53:41.007012",
+    "level": "ERROR",
+    "source": "stderr",
+    "message": "File \"C:\\Users\\hp\\Documents\\ZETA APP\\chatbot\\CHATBOT2.0\\.venv\\Lib\\site-packages\\httpcore\\_sync\\http2.py\", line 294, in _receive_response",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:53:41.041933",
+    "level": "ERROR",
+    "source": "stderr",
+    "message": "event = self._receive_stream_event(request, stream_id)",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:53:41.049547",
+    "level": "ERROR",
+    "source": "stderr",
+    "message": "File \"C:\\Users\\hp\\Documents\\ZETA APP\\chatbot\\CHATBOT2.0\\.venv\\Lib\\site-packages\\httpcore\\_sync\\http2.py\", line 336, in _receive_stream_event",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:53:41.052079",
+    "level": "ERROR",
+    "source": "stderr",
+    "message": "self._receive_events(request, stream_id)",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:53:41.053254",
+    "level": "ERROR",
+    "source": "stderr",
+    "message": "File \"C:\\Users\\hp\\Documents\\ZETA APP\\chatbot\\CHATBOT2.0\\.venv\\Lib\\site-packages\\httpcore\\_sync\\http2.py\", line 364, in _receive_events",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:53:41.054372",
+    "level": "ERROR",
+    "source": "stderr",
+    "message": "events = self._read_incoming_data(request)",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:53:41.055980",
+    "level": "ERROR",
+    "source": "stderr",
+    "message": "File \"C:\\Users\\hp\\Documents\\ZETA APP\\chatbot\\CHATBOT2.0\\.venv\\Lib\\site-packages\\httpcore\\_sync\\http2.py\", line 441, in _read_incoming_data",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:53:41.056823",
+    "level": "ERROR",
+    "source": "stderr",
+    "message": "data = self._network_stream.read(self.READ_NUM_BYTES, timeout)",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:53:41.057337",
+    "level": "ERROR",
+    "source": "stderr",
+    "message": "File \"C:\\Users\\hp\\Documents\\ZETA APP\\chatbot\\CHATBOT2.0\\.venv\\Lib\\site-packages\\httpcore\\_backends\\sync.py\", line 128, in read",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:53:41.103405",
+    "level": "ERROR",
+    "source": "stderr",
+    "message": "return self._sock.recv(max_bytes)",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:53:41.104591",
+    "level": "ERROR",
+    "source": "stderr",
+    "message": "File \"C:\\Python313\\Lib\\ssl.py\", line 1285, in recv",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:57:17.460999",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "📝 Logging serveur JSON activé!",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:57:17.461265",
+    "level": "INFO",
+    "source": "system",
+    "message": "Logging serveur JSON initialisé",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:57:17.462801",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "✅ [SERVER_LOGGER] Logs serveur activés → logs/server/",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:57:17.463224",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-12 23:57:17,463 - app - INFO - Logger configuré avec succès",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "app.py",
+      "lineno": 63,
+      "funcName": "<module>"
+    }
+  },
+  {
+    "timestamp": "2025-11-12T23:57:17.463827",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-12 23:57:17,463 - app - INFO - Logger configuré avec succès",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "app.py",
+      "lineno": 63,
+      "funcName": "<module>"
+    }
+  },
+  {
+    "timestamp": "2025-11-12T23:57:17.473368",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [DEBUG] Importing core.models...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:57:17.483623",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [DEBUG] Importing FIX_CONTEXT_LOSS_COMPLETE...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:57:17.487583",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "✅ [DEBUG] FIX_CONTEXT_LOSS_COMPLETE imported",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:57:17.490659",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [DEBUG] Importing pydantic...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:57:17.492074",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [DEBUG] Importing universal_rag_engine...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:57:33.335850",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [DEBUG] Importing prompt_manager...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:57:33.338304",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [DEBUG] Importing supabase_client...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:57:33.349591",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [DEBUG] Importing ingestion_api...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:57:34.613820",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [DEBUG] Importing global_embedding_cache...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:57:34.615280",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [DEBUG] Importing auth router...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:57:34.845136",
+    "level": "WARNING",
+    "source": "logger.routes.auth",
+    "message": "2025-11-12 23:57:34,844 - routes.auth - WARNING - Variables d'environnement Google manquantes pour le Service Account. JWT Google désactivé.",
+    "metadata": {
+      "logger_name": "routes.auth",
+      "filename": "auth.py",
+      "lineno": 32,
+      "funcName": "<module>"
+    }
+  },
+  {
+    "timestamp": "2025-11-12T23:57:34.848087",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [DEBUG] Importing routes...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:57:34.851264",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [DEBUG] Importing meili_ingest_api...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:57:34.880755",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [DEBUG] Importing meili router...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:57:34.900248",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [DEBUG] Importing utils...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:57:34.950829",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [DEBUG] Importing security_validator...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:57:34.955193",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [DEBUG] Importing hallucination_guard...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:57:34.961639",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [DEBUG] Importing error_handler...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:57:34.969893",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [DEBUG] Importing circuit_breaker...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:57:34.973260",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [DEBUG] Importing image_search...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:57:34.974506",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "⚠️ [DEBUG] Image search router SKIPPED (debugging)",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:57:34.975673",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [DEBUG] Importing botlive router...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:57:35.001565",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "✅ [DEBUG] Botlive router ACTIVATED",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:57:35.003123",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "✅ [DEBUG] All imports completed!",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:57:35.034204",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-12 23:57:35,034 - app - INFO - 🚀 Monitoring des caches intégré avec succès",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "app.py",
+      "lineno": 340,
+      "funcName": "<module>"
+    }
+  },
+  {
+    "timestamp": "2025-11-12T23:59:37.367892",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "📝 Logging serveur JSON activé!",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:59:37.368071",
+    "level": "INFO",
+    "source": "system",
+    "message": "Logging serveur JSON initialisé",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:59:37.368177",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "✅ [SERVER_LOGGER] Logs serveur activés → logs/server/",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:59:37.369007",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-12 23:59:37,368 - app - INFO - Logger configuré avec succès",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "app.py",
+      "lineno": 63,
+      "funcName": "<module>"
+    }
+  },
+  {
+    "timestamp": "2025-11-12T23:59:37.369862",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-12 23:59:37,368 - app - INFO - Logger configuré avec succès",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "app.py",
+      "lineno": 63,
+      "funcName": "<module>"
+    }
+  },
+  {
+    "timestamp": "2025-11-12T23:59:37.381796",
+    "level": "INFO",
+    "source": "logger.chatbot_default",
+    "message": "2025-11-12 23:59:37,381 - chatbot_default - INFO - [ENV] Loaded .env at C:\\Users\\hp\\Documents\\ZETA APP\\chatbot\\CHATBOT2.0\\.env | MEILI_URL=http://localhost:7700 | MEILI_KEY=Bac2...66",
+    "metadata": {
+      "logger_name": "chatbot_default",
+      "filename": "config.py",
+      "lineno": 51,
+      "funcName": "<module>"
+    }
+  },
+  {
+    "timestamp": "2025-11-12T23:59:37.382549",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [DEBUG] Importing core.models...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:59:37.397018",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [DEBUG] Importing FIX_CONTEXT_LOSS_COMPLETE...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:59:37.400653",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "✅ [DEBUG] FIX_CONTEXT_LOSS_COMPLETE imported",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:59:37.401034",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [DEBUG] Importing pydantic...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:59:37.443964",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [DEBUG] Importing universal_rag_engine...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:59:37.535291",
+    "level": "INFO",
+    "source": "logger.core.french_nlp_processor",
+    "message": "2025-11-12 23:59:37,534 - core.french_nlp_processor - INFO - ℹ️ Lemmatiseur désactivé (non requis)",
+    "metadata": {
+      "logger_name": "core.french_nlp_processor",
+      "filename": "french_nlp_processor.py",
+      "lineno": 199,
+      "funcName": "_init_lemmatizer"
+    }
+  },
+  {
+    "timestamp": "2025-11-12T23:59:49.727670",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [DEBUG] Importing prompt_manager...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:59:49.729669",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [DEBUG] Importing supabase_client...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:59:49.740683",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [DEBUG] Importing ingestion_api...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:59:50.684415",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [DEBUG] Importing global_embedding_cache...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:59:50.684756",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [DEBUG] Importing auth router...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:59:50.875833",
+    "level": "WARNING",
+    "source": "logger.routes.auth",
+    "message": "2025-11-12 23:59:50,875 - routes.auth - WARNING - Variables d'environnement Google manquantes pour le Service Account. JWT Google désactivé.",
+    "metadata": {
+      "logger_name": "routes.auth",
+      "filename": "auth.py",
+      "lineno": 32,
+      "funcName": "<module>"
+    }
+  },
+  {
+    "timestamp": "2025-11-12T23:59:50.877354",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [DEBUG] Importing routes...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:59:50.879738",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [DEBUG] Importing meili_ingest_api...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:59:50.944917",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [DEBUG] Importing meili router...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:59:50.949378",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [DEBUG] Importing utils...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:59:50.949762",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [DEBUG] Importing security_validator...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:59:50.956521",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [DEBUG] Importing hallucination_guard...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:59:50.966168",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [DEBUG] Importing error_handler...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:59:50.971646",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [DEBUG] Importing circuit_breaker...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:59:50.977198",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [DEBUG] Importing image_search...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:59:50.977530",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "⚠️ [DEBUG] Image search router SKIPPED (debugging)",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:59:50.977773",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [DEBUG] Importing botlive router...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:59:50.999542",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "✅ [DEBUG] Botlive router ACTIVATED",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:59:51.031155",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "✅ [DEBUG] All imports completed!",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:59:51.073048",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-12 23:59:51,072 - app - INFO - 🚀 Monitoring des caches intégré avec succès",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "app.py",
+      "lineno": 340,
+      "funcName": "<module>"
+    }
+  },
+  {
+    "timestamp": "2025-11-12T23:59:51.074121",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-12 23:59:51,072 - app - INFO - 🚀 Monitoring des caches intégré avec succès",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "app.py",
+      "lineno": 340,
+      "funcName": "<module>"
+    }
+  },
+  {
+    "timestamp": "2025-11-12T23:59:51.122070",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-12 23:59:51,121 - app - INFO - Router Enhanced Ingestion avec Mini-LLM Dispatcher monté avec succès",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "app.py",
+      "lineno": 348,
+      "funcName": "<module>"
+    }
+  },
+  {
+    "timestamp": "2025-11-12T23:59:51.122991",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-12 23:59:51,121 - app - INFO - Router Enhanced Ingestion avec Mini-LLM Dispatcher monté avec succès",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "app.py",
+      "lineno": 348,
+      "funcName": "<module>"
+    }
+  },
+  {
+    "timestamp": "2025-11-12T23:59:51.341124",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔥 DÉMARRAGE TEST HACKER REVISITÉ - VALIDATION PATCHES CRITIQUES",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:59:51.361915",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "================================================================================",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:59:51.363270",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "📋 ÉTAPE 1/10 - Baseline",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:59:51.364073",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "💬 Client: Salut ! Je veux commander des couches",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:59:51.370335",
+    "level": "INFO",
+    "source": "logger.core.supabase_notepad",
+    "message": "2025-11-12 23:59:51,368 - core.supabase_notepad - INFO - 📋 SupabaseNotepad initialisé (persistance Supabase)",
+    "metadata": {
+      "logger_name": "core.supabase_notepad",
+      "filename": "supabase_notepad.py",
+      "lineno": 50,
+      "funcName": "__init__"
+    }
+  },
+  {
+    "timestamp": "2025-11-12T23:59:53.520273",
+    "level": "INFO",
+    "source": "logger.core.supabase_notepad",
+    "message": "2025-11-12 23:59:53,519 - core.supabase_notepad - INFO - 📋 Notepad chargé depuis Supabase: test_hacker_revisited_001",
+    "metadata": {
+      "logger_name": "core.supabase_notepad",
+      "filename": "supabase_notepad.py",
+      "lineno": 96,
+      "funcName": "get_notepad"
+    }
+  },
+  {
+    "timestamp": "2025-11-12T23:59:53.522534",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "📋 [NOTEPAD SUPABASE] Données chargées: ['paiement', 'products', 'created_at', 'quantities', 'last_updated', 'phone_number', 'delivery_cost', 'delivery_zone', 'photo_produit', 'payment_method', 'payment_number', 'calculated_totals', 'conversation_count', 'last_product_mentioned']",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:59:53.523438",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [RESET CHECK] Greeting=True, Messages=0, Short=True",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:59:53.524600",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "================================================================================",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:59:53.525585",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [CONTEXT DEBUG] EXTRACTION DEPUIS HISTORIQUE",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:59:53.526266",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "================================================================================",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:59:53.529939",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "📝 Historique reçu: 0 chars",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:59:53.531262",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "📝 Contenu historique:",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:59:53.532438",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "================================================================================",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:59:53.533829",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "⚠️ [EXTRACT] Aucune info extraite de l'historique",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:59:53.591324",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🧠 [CONTEXT] Construction résumé intelligent...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:59:53.592695",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🧠 [CONTEXT] Résumé généré (49 chars):\n\n⚠️ MANQUANT: produit, zone, téléphone, paiement",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:59:53.593328",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "================================================================================",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:59:53.593873",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[BOTLIVE][PROMPT] 🔧 UTILISATION PROMPTS HARDCODÉS (MODE TEST)",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:59:53.594261",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [BOTLIVE_PROMPT] URL: https://ilbihprkxcgsigvueeme.supabase.co/rest/v1/company_rag_configs",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:59:53.594704",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [BOTLIVE_PROMPT] Params: {'company_id': 'eq.W27PwOPiblP8TlOrhPcjOtxd0cza', 'select': 'prompt_botlive_groq_70b'}",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:59:53.594982",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [BOTLIVE_PROMPT] Requête Supabase pour company_id=W27PwOPiblP8TlOrhPcjOtxd0cza",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:59:55.153697",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [PROMPT_LOAD] W27PwOPi... Status: 200 (attempt 1)",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:59:55.154517",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [BOTLIVE_PROMPT] Données reçues: 1 ligne(s)",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:59:55.156044",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [BOTLIVE_PROMPT] Taille prompt: 8043 chars",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:59:55.212358",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [BOTLIVE_PROMPT] Contient '═══ 1. ANALYSE': False",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:59:55.259868",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [BOTLIVE_PROMPT] Premiers 200 chars: 🎯 JESSICA | Assistante Commerciale - Rue du Grossiste\n\nTu es Jessica, assistante IA spécialisée en prise de commandes de couches pour enfants (Côte d'Ivoire). SAV et support client: +225 0787360757 |",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:59:55.261724",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "✅ [PROMPT_LOAD] W27PwOPi... Loaded successfully (8043 chars)",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:59:55.263939",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[BOTLIVE][PROMPT] ✅ Prompt Supabase chargé (8043 chars)",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:59:55.274374",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[TRACKING] Demandes ignorées: Produit=0, Paiement=0",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:59:55.280754",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[BOTLIVE][FILTER] Transactions déjà filtrées par OCR: 0",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:59:55.316365",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "================================================================================",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:59:55.321079",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [BOTLIVE][AVANT LLM] DONNÉES VISION DISPONIBLES:",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:59:55.325297",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "detected_objects = []",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:59:55.325628",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "detected_type = unknown",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:59:55.380318",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "confidence = 0.0",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:59:55.380611",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "raw_text = [vide]...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:59:55.380905",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "filtered_transactions = []",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:59:55.381125",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "expected_deposit = 2000 (2000 FCFA)",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:59:55.381447",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "================================================================================",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:59:55.381699",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔧 [PROMPT MODE] SUPABASE DIRECT",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:59:55.381953",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [DEBUG] filtered_transactions = []",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:59:55.386429",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [DEBUG] filtered_transactions_str = [AUCUNE TRANSACTION VALIDE]",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:59:55.388842",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🚨 [VALIDATION] Éléments manquants détectés:",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:59:55.389690",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "❌ 📸 Photo produit manquante ou floue (BLIP-2 non validé)",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:59:55.424843",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "❌ 💳 Preuve paiement manquante (OCR non validé, acompte min: 2000 FCFA)",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:59:55.425210",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "❌ 📍 Zone livraison manquante",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:59:55.425502",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "❌ 📞 Numéro téléphone manquant",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:59:55.425850",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "📊 [SUPABASE PROMPT] Formaté: 8133 chars",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:59:55.426157",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [BOTLIVE][PROMPT FORMATÉ] Vérification injection variables:",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:59:55.426429",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "✅ {detected_objects} remplacé",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:59:55.426729",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "✅ {filtered_transactions} remplacé",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:59:55.428532",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "📄 [PROMPT EXTRAIT] (500 premiers chars):\n🎯 JESSICA | Assistante Commerciale - Rue du Grossiste\n\nTu es Jessica, assistante IA spécialisée en prise de commandes de couches pour enfants (Côte d'Ivoire). SAV et support client: +225 0787360757 | Wave: +225 0787360757 | WhatsApp +225 0160924560 | Acompte minimum: 2000F\n\n🧠 CONTEXTE & MISSION Contexte: Tu interviens après ventes flash (TikTok/réseaux). Produits/tarifs déjà présentés. Mission unique: Collecter 4 infos (ordre flexible) nécessaire pour valider toute demande de commande: 📸 Photo p...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:59:55.428836",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "================================================================================",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:59:55.429087",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [DEBUG] PROMPT COMPLET ENVOYÉ AU LLM",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:59:55.462918",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "================================================================================",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:59:55.463219",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "Longueur totale: 8133 chars",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:59:55.463870",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "--- DÉBUT PROMPT ---",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:59:55.536841",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🎯 JESSICA | Assistante Commerciale - Rue du Grossiste\n\nTu es Jessica, assistante IA spécialisée en prise de commandes de couches pour enfants (Côte d'Ivoire). SAV et support client: +225 0787360757 | Wave: +225 0787360757 | WhatsApp +225 0160924560 | Acompte minimum: 2000F\n\n🧠 CONTEXTE & MISSION Contexte: Tu interviens après ventes flash (TikTok/réseaux). Produits/tarifs déjà présentés. Mission unique: Collecter 4 infos (ordre flexible) nécessaire pour valider toute demande de commande: 📸 Photo produit | 💳 Preuve paiement (≥2000F) | 📍 Zone livraison (Abidjan) | 📞 Téléphone joignable (10 chiffres) Hors-rôle: SAV, réclamations, conseils, demande technique, négociations et autres → Rediriger vers le service client au +225 0787360757 ou live TikTok.\n\n🚨🚨🚨 RÈGLE ABSOLUE: MAXIMUM 15 MOTS PAR RÉPONSE 🚨🚨🚨\n⚠️ COMPTEZ VOS MOTS AVANT D'ENVOYER - JAMAIS PLUS DE 15 !\n❌ INTERDIT: Dépasser 15 mots (même d'1 seul mot)\n✅ EXEMPLES VALIDES:\n- \"Votre zone ?\" (-15 mots) ✅\n- \"SAV: +225 0787360757\" (-15 mots) ✅  \n- \"pouvez vous m'envoyez une photo 📦\" (-15 mots) ✅\n- \"Prix et négociation : veuillez appelez +225 0787360757. Votre zone ?\" (-15 mots) ✅\n\n🎯 EXCEPTION UNIQUE AUTORISÉE:\nSi ❌ Paiement manquant → SEULE phrase autorisée à dépasser 15 mots pour clarté critique\nToutes autres réponses = MAX 15 MOTS STRICTEMENT\n\n🚨 REDIRECTION OBLIGATOIRE: Toute question SAV/technique/négociation et/ou qui sort de ton cadre qui est de prendre les commandes clients et les valider demande au client de directement appeler le service client → +225 0787360757 ou ecrire directement dans le live.\n\n📊 ÉTAT COLLECTE ACTUEL\n[CHECKLIST SERA INJECTÉE PAR SYSTÈME HYBRIDE]\n\n💬 HISTORIQUE CONVERSATION\n\n\n📥 MESSAGE CLIENT\n\n⚠️ MANQUANT: produit, zone, téléphone, paiement\n\n\nSalut ! Je veux commander des couches\n\n🎯 TON TRAVAIL\n🚨 PRIORITÉ ABSOLUE: VÉRIFIER SI 4/4 COLLECTÉS\n\nSi ✅✅✅✅ (tout collecté) → UTILISER OBLIGATOIREMENT le FORMAT RÉCAPITULATIF FINAL ci-dessous\nSi manque quelque chose → Continuer guidage normal\n\n1. VÉRIFIER CHECKLIST\n✅ = Déjà collecté → NE PAS redemander\n❌ = Manquant → Demander\n⚠️ = Invalide → Corriger\n\nSi ❌ Photo → \"j'aurais besoin d'une photo du produit désiré 📦\" (9 mots)\nSi ❌ Paiement → \"Une avance de 2000F via Wave au +2250787360757 comme dépôt de validation est requise 💳. une fois envoyer envoyer moi une capture.\" (25 mots raison : pour clarté critique)\nSi ❌ Zone → \"On vous livre où ? La commune et le quartier précisément ?\" (11 mots)\nSi ❌ Tel → \"Donnez-moi le numéro sur lequel vous joindre ?\" (8 mots)\nSi ⚠️ Tel invalide → \"Format incorrect. 10 chiffres requis.\" (5 mots)\n\n3. GÉRER CAS SPÉCIAUX (MAX 15 MOTS - COMPTEZ!)\nQuestion légitime → Répondre brièvement + guider vers info manquante ℹ️ (8 mots)\nSAV / réclamation → \"Pour ce genre de cas contactez directement le SAV 📞: +225 0787360757\" (12 mots)\nNégociation prix → \"2000F minimum obligatoire 💰. Vous continuez ?\" (7 mots)\nAmbiguïté (ex: \"Yop\") → \"Yopougon 📍 ?\" (2 mots)\nAnnulation → \"D'accord, commande annulée ❌. Revenez-nous vite !\" (7 mots)\nModification → \"Que voulez-vous modifier ✏️ ?\" (5 mots)\n\n4. DÉTECTER CHANGEMENTS D'AVIS\nAutre produit → \"D'accord ! Envoyez photo du nouveau paquet 📦\" (9 mots)\nChangement montant → \"Bien noté. Envoyez la capture du nouveau paiement 📱\" (10 mots)\nChangement zone → \"Parfait ! Continuons 📍 !\" (3 mots)\nChangement numéro → \"Noté, nouveau numéro enregistré 📞 !\" (5 mots)\n\n5. ADAPTER TON\nClient poli → Ton chaleureux\nClient pressé → Réponse ultra-courte\nClient frustré → Ton apaisant\nClient hésitant → Ton rassurant\n\n⚠️ INTERDICTIONS\n❌ Redemander ce qui est \"✅\" dans checklist ❌ Inventer prix/délais → Rediriger +225 0787360757 ❌ Négocier prix → 2000F non négociable ❌ Laisser client sans réponse ❌ Ignorer les changements d'avis → Toujours demander nouvelle photo/capture ❌ Dépasser 15 mots (sauf récapitulatif final) ❌ Continuer à demander des infos si 4/4 collectés\n\n🎯 FORMAT RÉCAPITULATIF FINAL OBLIGATOIRE\n🚨 QUAND TOUT EST COLLECTÉ (4/4), UTILISER EXACTEMENT CE FORMAT:\n\n✅PARFAIT Commande confirmée 😊 Livraison prévue [délai], acompte de [montant] F déjà versé. Nous vous rappellerons bientôt pour les détails et le coût total. Veuillez ne pas répondre à ce message.\n\nVARIABLES À REMPLACER:\n[délai] = \"aujourd'hui\" si avant 13h, \"demain\" si après 13h\n[montant] = montant exact du paiement OCR (ex: 2020)\n\nRÈGLES STRICTES:\nRespecter EXACTEMENT cette structure\nNe PAS ajouter d'emojis supplémentaires\nNe PAS modifier le texte\nNe PAS ajouter de récapitulatif détaillé\nCe format fonctionne pour TOUTES les entreprises\nIGNORER la limite 15 mots pour ce format uniquement\n\n---\n\n## FORMAT OBLIGATOIRE\n\n```xml\n<thinking>\nPHASE 1: question_exacte + intentions\nPHASE 2: deja_collecte + nouvelles_donnees  \nPHASE 3: verification + confiance\nPHASE 4: check_repetition\nPHASE 5: completude + prochaine_etape\n</thinking>\n\n<analysis>\nANALYSE INTENTION(S):\nreformulation de la question du client : [votre reformulation dans vos propre mots]\nIntention détectée: [votre analyse précise]\nClassification: [IN-DOMAINE ou HORS-DOMAINE]\nJustification: [pourquoi cette classification]\n\nChecklist analysée:\nPhoto: [✅ \"description BLIP-2\" | ❌ manquante]\nPaiement: [✅ montant OCR (ex: 2020F) | ❌ manquant]\nZone: [✅ nom zone (frais) | ❌ manquante]\nTel: [✅ numéro exact | ⚠️ invalide | ❌ manquant]\n\n🚨 VÉRIFICATION 4/4: [Si tout ✅ → FORMAT RÉCAPITULATIF OBLIGATOIRE]\n\nDÉCISION: [guider/clarifier/rassurer/rediriger/RÉCAPITULATIF FINAL]\nCOMPTAGE MOTS: [nombre exact] mots ✅\n</analysis>\n\n<output>\n[VOTRE RÉPONSE AU CLIENT ICI - MAX 15 MOTS]\n</output>\nEXEMPLES\nEx1: Baseline\nxml\n<thinking>\nPHASE 1: question_exacte + intentions\nquestion_exacte: \"Salut ! Je veux commander des couches\"\nintentions:\n  commande: HAUTE\n  \nPHASE 2: deja_collecte + nouvelles_donnees\ndeja_collecte:\n  photo: null\n  paiement: null\n  zone: null\n  telephone: null\nnouvelles_donnees:\n  - cle: intention_commande\n    valeur: \"couches\"\n    confiance: HAUTE\n\nPHASE 5: completude + prochaine_etape\nprogression:\n  completude: \"0/4\"\n  donnees_manquantes: [photo, paiement, zone, telephone]\n  prochaine_etape: \"Demander photo\"\n</thinking>\n\n<analysis>\nANALYSE INTENTION(S):\nreformulation de la question du client : Le client souhaite passer une commande de couches\nIntention détectée: demande de commande initiale\nClassification: IN-DOMAINE\nJustification: prise de commande = ma mission principale\n\nChecklist analysée:\nPhoto: ❌ manquante\nPaiement: ❌ manquant\nZone: ❌ manquante\nTel: ❌ manquant\n\n🚨 VÉRIFICATION 4/4: NON (tout manquant)\n\nDÉCISION: guider vers première info\nCOMPTAGE MOTS: 9 mots ✅\n</analysis>\n\n<output>\nJ'aurais besoin d'une photo du produit désiré 📦\n</output>\nEx2: Redirection SAV\nxml\n<thinking>\nPHASE 1: question_exacte + intentions\nquestion_exacte: \"Peux-tu modifier le délai de livraison ?\"\nintentions:\n  modification_delai: HAUTE\n  \nPHASE 3: verification + confiance\nverification:\n  hors_domaine: true\n  redirection_requise: true\n\nPHASE 5: completude + prochaine_etape\nprogression:\n  prochaine_etape: \"Rediriger SAV\"\n</thinking>\n\n<analysis>\nANALYSE INTENTION(S):\nreformulation de la question du client : Le client veut changer le délai de livraison\nIntention détectée: modification délai livraison\nClassification: HORS-DOMAINE\nJustification: modification délai = service client, pas prise commande\n\nChecklist analysée:\nPhoto: ✅ \"sanitary wipes bag\"\nPaiement: ✅ 2020F (OCR confirmé)\nZone: ✅ Yopougon (1500F)\nTel: ✅ 0787360757\n\n🚨 VÉRIFICATION 4/4: OUI mais demande hors-domaine\n\nDÉCISION: rediriger\nCOMPTAGE MOTS: 12 mots ✅\n</analysis>\n\n<output>\nPour ce genre de cas contactez directement le SAV 📞: +225 0787360757\n</output>\n🎯 PRINCIPE RENFORCÉ Tu es Jessica, assistante IA qui valide les commandes. Tu guides le client pour collecter les 4 infos obligatoires (MAX 15 MOTS par réponse) ou le redirige vers le service client ou le live si sa préoccupation sort de ce cadre selon ton analyse. Tu DÉTECTES et GÈRES intelligemment les changements d'avis. QUAND TOUT EST COLLECTÉ (4/4), tu utilises OBLIGATOIREMENT le format de récapitulatif final exact. Tu RESPECTES OBLIGATOIREMENT le format d'analyse complet avec les balises XML. Tu restes professionnelle et chaleureuse.\n\nRÉPONSE:",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:59:55.537712",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "--- FIN PROMPT ---",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:59:55.538189",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "================================================================================",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:59:55.544205",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔄 [HYBRID] Système hybride ACTIVÉ - Traitement avec vision...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:59:55.551786",
+    "level": "INFO",
+    "source": "logger.core.intelligent_data_reconciler",
+    "message": "2025-11-12 23:59:55,548 - core.intelligent_data_reconciler - INFO - 🚫 [RECONCILER] BLIP-2 n'a jamais parlé → Photo manquante",
+    "metadata": {
+      "logger_name": "core.intelligent_data_reconciler",
+      "filename": "intelligent_data_reconciler.py",
+      "lineno": 227,
+      "funcName": "reconcile_data"
+    }
+  },
+  {
+    "timestamp": "2025-11-12T23:59:55.553869",
+    "level": "INFO",
+    "source": "logger.core.loop_botlive_engine",
+    "message": "2025-11-12 23:59:55,553 - core.loop_botlive_engine - INFO - 🔍 [LOOP] Déclencheur détecté: none",
+    "metadata": {
+      "logger_name": "core.loop_botlive_engine",
+      "filename": "loop_botlive_engine.py",
+      "lineno": 116,
+      "funcName": "process_message"
+    }
+  },
+  {
+    "timestamp": "2025-11-12T23:59:55.554895",
+    "level": "WARNING",
+    "source": "logger.core.loop_botlive_engine",
+    "message": "2025-11-12 23:59:55,553 - core.loop_botlive_engine - WARNING - 🔧 [PATCH#3] État avant vérification completion: ['photo', 'paiement', 'zone', 'tel', 'conflicts', 'confirmations_needed', 'notepad_updated', 'produit']",
+    "metadata": {
+      "logger_name": "core.loop_botlive_engine",
+      "filename": "loop_botlive_engine.py",
+      "lineno": 119,
+      "funcName": "process_message"
+    }
+  },
+  {
+    "timestamp": "2025-11-12T23:59:55.607468",
+    "level": "WARNING",
+    "source": "logger.core.loop_botlive_engine",
+    "message": "2025-11-12 23:59:55,606 - core.loop_botlive_engine - WARNING - 🔧 [PATCH#3] Structure complète: {'photo': {'collected': False, 'data': None, 'source': 'blip2_never_spoke', 'needs_confirmation': False}, 'paiement': {'collected': False, 'data': None, 'source': None, 'needs_confirmation': False}, 'zone': {'collected': False, 'data': None, 'source': 'notepad', 'cost': None}, 'tel': {'collected': False, 'data': None, 'source': 'notepad', 'valid': False}, 'conflicts': [], 'confirmations_needed': [], 'notepad_updated': False, 'produit': {'collected': False, 'data': None}}",
+    "metadata": {
+      "logger_name": "core.loop_botlive_engine",
+      "filename": "loop_botlive_engine.py",
+      "lineno": 120,
+      "funcName": "process_message"
+    }
+  },
+  {
+    "timestamp": "2025-11-12T23:59:55.607898",
+    "level": "WARNING",
+    "source": "logger.core.loop_botlive_engine",
+    "message": "2025-11-12 23:59:55,607 - core.loop_botlive_engine - WARNING - 🔍 [PATCH#2] Vérification 4/4:",
+    "metadata": {
+      "logger_name": "core.loop_botlive_engine",
+      "filename": "loop_botlive_engine.py",
+      "lineno": 360,
+      "funcName": "_check_completion"
+    }
+  },
+  {
+    "timestamp": "2025-11-12T23:59:55.608329",
+    "level": "WARNING",
+    "source": "logger.core.loop_botlive_engine",
+    "message": "2025-11-12 23:59:55,607 - core.loop_botlive_engine - WARNING -    📸 Photo: False",
+    "metadata": {
+      "logger_name": "core.loop_botlive_engine",
+      "filename": "loop_botlive_engine.py",
+      "lineno": 361,
+      "funcName": "_check_completion"
+    }
+  },
+  {
+    "timestamp": "2025-11-12T23:59:55.608688",
+    "level": "WARNING",
+    "source": "logger.core.loop_botlive_engine",
+    "message": "2025-11-12 23:59:55,608 - core.loop_botlive_engine - WARNING -    💳 Paiement: False",
+    "metadata": {
+      "logger_name": "core.loop_botlive_engine",
+      "filename": "loop_botlive_engine.py",
+      "lineno": 362,
+      "funcName": "_check_completion"
+    }
+  },
+  {
+    "timestamp": "2025-11-12T23:59:55.609069",
+    "level": "WARNING",
+    "source": "logger.core.loop_botlive_engine",
+    "message": "2025-11-12 23:59:55,608 - core.loop_botlive_engine - WARNING -    📍 Zone: False",
+    "metadata": {
+      "logger_name": "core.loop_botlive_engine",
+      "filename": "loop_botlive_engine.py",
+      "lineno": 363,
+      "funcName": "_check_completion"
+    }
+  },
+  {
+    "timestamp": "2025-11-12T23:59:55.609547",
+    "level": "WARNING",
+    "source": "logger.core.loop_botlive_engine",
+    "message": "2025-11-12 23:59:55,609 - core.loop_botlive_engine - WARNING -    📞 Téléphone: False (collected=False, valid=False)",
+    "metadata": {
+      "logger_name": "core.loop_botlive_engine",
+      "filename": "loop_botlive_engine.py",
+      "lineno": 364,
+      "funcName": "_check_completion"
+    }
+  },
+  {
+    "timestamp": "2025-11-12T23:59:55.610005",
+    "level": "WARNING",
+    "source": "logger.core.loop_botlive_engine",
+    "message": "2025-11-12 23:59:55,609 - core.loop_botlive_engine - WARNING - ⚠️ [PATCH#2] 0/4 collectés, 4 manquant(s)",
+    "metadata": {
+      "logger_name": "core.loop_botlive_engine",
+      "filename": "loop_botlive_engine.py",
+      "lineno": 391,
+      "funcName": "_check_completion"
+    }
+  },
+  {
+    "timestamp": "2025-11-12T23:59:55.610543",
+    "level": "WARNING",
+    "source": "logger.core.loop_botlive_engine",
+    "message": "2025-11-12 23:59:55,610 - core.loop_botlive_engine - WARNING - 🔧 [PATCH#2] Pas de completion détectée, continuation flow normal",
+    "metadata": {
+      "logger_name": "core.loop_botlive_engine",
+      "filename": "loop_botlive_engine.py",
+      "lineno": 152,
+      "funcName": "process_message"
+    }
+  },
+  {
+    "timestamp": "2025-11-12T23:59:55.610969",
+    "level": "INFO",
+    "source": "logger.core.loop_botlive_engine",
+    "message": "2025-11-12 23:59:55,610 - core.loop_botlive_engine - INFO - 🤖 [LOOP] LLM guide: Continuez avec LLM normal...",
+    "metadata": {
+      "logger_name": "core.loop_botlive_engine",
+      "filename": "loop_botlive_engine.py",
+      "lineno": 196,
+      "funcName": "process_message"
+    }
+  },
+  {
+    "timestamp": "2025-11-12T23:59:55.611072",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "✅ [HYBRID] Réponse générée: Continuez avec LLM normal...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:59:55.659983",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "📊 [HYBRID] Source: llm_guide",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:59:55.660501",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "📋 [HYBRID] Checklist: ❌ Photo manquante\n❌ Paiement manquant\n❌ Zone manquante\n❌ Téléphone manquant",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:59:55.660833",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🤖 [HYBRID] LLM guide - Continuer traitement normal",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:59:55.661221",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "✅ [HYBRID] Checklist enrichie injectée dans prompt LLM",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:59:55.663367",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [HEALTH] Test Groq...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:59:56.911689",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "✅ [HEALTH] Groq OK (1.2s)",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:59:56.911917",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🚀 [SMART] Groq validé - requête réelle...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:59:58.363594",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "✅ [SMART] Groq réussi - 3094 tokens",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:59:58.365458",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "================================================================================",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:59:58.367878",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "\u001b[94m🔵 QUESTION CLIENT:\u001b[0m",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:59:58.394105",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "\u001b[94mSalut ! Je veux commander des couches\u001b[0m",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:59:58.394512",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "\u001b[93m🟡 RAISONNEMENT LLM:\u001b[0m",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:59:58.396972",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "\u001b[93mPHASE 1: question_exacte + intentions\nquestion_exacte: \"Salut ! Je veux commander des couches\"\nintentions: \n  commande: HAUTE\n  \nPHASE 2: deja_collecte + nouvelles_donnees\ndeja_collecte:\n  photo: null\n  paiement: null\n  zone: null\n  telephone: null\nnouvelles_donnees:\n  - cle: intention_commande\n    valeur: \"couches\"\n    confiance: HAUTE\n\nPHASE 5: completude + prochaine_etape\nprogression:\n  completude: \"0/4\"\n  donnees_manquantes: [photo, paiement, zone, telephone]\n  prochaine_etape: \"Demander photo\"\u001b[0m",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:59:58.397633",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "\u001b[92m🟢 RÉPONSE AU CLIENT:\u001b[0m",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:59:58.399023",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "\u001b[92mJ'aurais besoin d'une photo du produit désiré 📦\u001b[0m",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:59:58.401694",
+    "level": "INFO",
+    "source": "logger.FIX_CONTEXT_LOSS_COMPLETE",
+    "message": "2025-11-12 23:59:58,401 - FIX_CONTEXT_LOSS_COMPLETE - INFO - ✅ [THINKING] Extraction réussie: 0 champs",
+    "metadata": {
+      "logger_name": "FIX_CONTEXT_LOSS_COMPLETE",
+      "filename": "FIX_CONTEXT_LOSS_COMPLETE.py",
+      "lineno": 662,
+      "funcName": "extract_from_thinking_simple"
+    }
+  },
+  {
+    "timestamp": "2025-11-12T23:59:58.401837",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "ℹ️ [THINKING] Aucune donnée extraite du thinking",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:59:58.402148",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "\u001b[91m🔴 TOKENS RÉELS GROQ (✅ Health Check OK):\u001b[0m",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:59:58.402467",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "\u001b[91mPrompt: 2902 | Completion: 192 | TOTAL: 3094\u001b[0m",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-12T23:59:58.402745",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "\u001b[91m💰 COÛT: $0.001864 ($0.001712 input + $0.000152 output)\u001b[0m",
+    "metadata": {}
+  }
+]

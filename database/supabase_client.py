@@ -14,6 +14,8 @@ import logging
 import httpx
 import sys
 import os
+import asyncio
+import time
 
 # Ajouter le répertoire parent au path pour importer app_utils
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -39,7 +41,7 @@ async def get_company_system_prompt(company_id: str) -> str:
 async def get_botlive_prompt(company_id: str) -> str:
     """
     Récupère le prompt Botlive spécifique à l'entreprise depuis Supabase.
-    Fallback sur un prompt par défaut en cas d'erreur ou de champ vide.
+    Système robuste avec validation et retry pour TOUTES les entreprises.
     """
     try:
         # Utilisation du même accès direct que _fetch_prompt_from_database pour robustesse
@@ -56,11 +58,25 @@ async def get_botlive_prompt(company_id: str) -> str:
             "select": "prompt_botlive_groq_70b"
         }
         
+        print(f"🔍 [BOTLIVE_PROMPT] URL: {url}")
+        print(f"🔍 [BOTLIVE_PROMPT] Params: {params}")
+        
         print(f"🔍 [BOTLIVE_PROMPT] Requête Supabase pour company_id={company_id}")
         
-        async with httpx.AsyncClient() as client:
-            response = await client.get(url, headers=headers, params=params)
-            print(f"🔍 [BOTLIVE_PROMPT] Status: {response.status_code}")
+        # 🔧 SYSTÈME ROBUSTE POUR TOUTES LES ENTREPRISES
+        timeout_config = httpx.Timeout(connect=5.0, read=10.0, write=5.0, pool=15.0)
+        async with httpx.AsyncClient(timeout=timeout_config) as client:
+            max_retries = 3
+            for attempt in range(max_retries):
+                try:
+                    response = await client.get(url, headers=headers, params=params)
+                    print(f"🔍 [PROMPT_LOAD] {company_id[:8]}... Status: {response.status_code} (attempt {attempt + 1})")
+                    break
+                except Exception as retry_error:
+                    print(f"⚠️ [PROMPT_LOAD] {company_id[:8]}... Retry {attempt + 1} failed: {retry_error}")
+                    if attempt == max_retries - 1:
+                        raise retry_error
+                    await asyncio.sleep(0.5 * (attempt + 1))  # Backoff progressif
             
             if response.status_code == 200:
                 data = response.json() or []
@@ -72,18 +88,26 @@ async def get_botlive_prompt(company_id: str) -> str:
                     print(f"🔍 [BOTLIVE_PROMPT] Contient '═══ 1. ANALYSE': {'═══ 1. ANALYSE' in prompt}")
                     print(f"🔍 [BOTLIVE_PROMPT] Premiers 200 chars: {prompt[:200]}")
                     
-                    if not prompt:
-                        print("❌ [BOTLIVE_PROMPT] PROMPT VIDE dans Supabase!")
-                        return "Vous êtes un assistant de vente en direct. Analysez les images et guidez les clients à travers les étapes de commande. Soyez concis et professionnel."
+                    # 🔧 VALIDATION UNIVERSELLE POUR TOUTES LES ENTREPRISES
+                    if not prompt or len(prompt.strip()) == 0:
+                        print(f"❌ [PROMPT_LOAD] {company_id[:8]}... Empty prompt in database!")
+                        # Fallback générique pour toutes les entreprises
+                        return "Vous êtes un assistant IA professionnel. Aidez les clients avec leurs demandes de manière courtoise et efficace."
                     
+                    if len(prompt) < 100:
+                        print(f"⚠️ [PROMPT_LOAD] {company_id[:8]}... Short prompt ({len(prompt)} chars) - using anyway")
+                    
+                    print(f"✅ [PROMPT_LOAD] {company_id[:8]}... Loaded successfully ({len(prompt)} chars)")
                     return prompt
             else:
                 logger.warning(f"[SUPABASE][BOTLIVE_PROMPT] HTTP {response.status_code}: {response.text}")
     except Exception as e:
         log3("[SUPABASE][BOTLIVE_PROMPT_EXC]", f"{type(e).__name__}: {e}")
-    
-    print("❌ [BOTLIVE_PROMPT] FALLBACK utilisé!")
-    return "Vous êtes un assistant de vente en direct. Analysez les images et guidez les clients à travers les étapes de commande. Soyez concis et professionnel."
+        print(f"❌ [BOTLIVE_PROMPT] ERREUR CRITIQUE: {e}")
+        
+        # 🔧 FALLBACK UNIVERSEL POUR TOUTES LES ENTREPRISES
+        print(f"🔧 [PROMPT_LOAD] {company_id[:8]}... Using universal fallback")
+        return "Vous êtes un assistant IA professionnel. Aidez les clients avec leurs demandes de manière courtoise et efficace. En cas de problème technique, dirigez-les vers le support client."
 
 
 async def _fetch_prompt_from_database(company_id: str) -> str:

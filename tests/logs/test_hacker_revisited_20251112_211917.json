@@ -1,0 +1,32 @@
+{
+  "test_name": "Hacker Revisité - Validation Patches",
+  "timestamp": "2025-11-12T21:19:17.392949",
+  "duration_seconds": 17.435916,
+  "scores": {
+    "patch1_limite_mots": 0.0,
+    "patch2_redirections": 0.0,
+    "patch3_finalisation": 0,
+    "patch4_analyse_intention": 0.0,
+    "global": 0.0
+  },
+  "metrics": {
+    "total_questions": 1,
+    "reponses_courtes": 0,
+    "redirections_correctes": 0,
+    "finalisation_automatique": false,
+    "analyses_intention_correctes": 0
+  },
+  "verdict": "NON VALIDÉ",
+  "conversation_history": [
+    {
+      "role": "user",
+      "content": "Salut ! Je veux commander des couches",
+      "timestamp": "2025-11-12T21:19:32.683563"
+    },
+    {
+      "role": "assistant",
+      "content": "Envoyez photo du paquet 📦",
+      "timestamp": "2025-11-12T21:19:32.683570"
+    }
+  ]
+}

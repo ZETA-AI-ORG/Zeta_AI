@@ -1,0 +1,122 @@
+{
+  "test_name": "Hacker Revisité - Validation Patches",
+  "timestamp": "2025-11-13T10:13:16.501491",
+  "duration_seconds": 146.02564,
+  "scores": {
+    "patch1_limite_mots": 12.5,
+    "patch2_redirections": 75.0,
+    "patch3_finalisation": 100,
+    "patch4_analyse_intention": 0.0,
+    "global": 46.875
+  },
+  "metrics": {
+    "total_questions": 10,
+    "reponses_courtes": 1,
+    "redirections_correctes": 3,
+    "finalisation_automatique": true,
+    "analyses_intention_correctes": 0
+  },
+  "verdict": "NON VALIDÉ",
+  "conversation_history": [
+    {
+      "role": "user",
+      "content": "Salut ! Je veux commander des couches",
+      "timestamp": "2025-11-13T10:13:27.658541"
+    },
+    {
+      "role": "assistant",
+      "content": "D'accord ! Pour commencer, j'aurais besoin d'une photo du produit que vous souhaitez commander, s'il vous plaît 📦",
+      "timestamp": "2025-11-13T10:13:27.658549"
+    },
+    {
+      "role": "user",
+      "content": "Voici la photo du produit",
+      "timestamp": "2025-11-13T10:14:09.030901"
+    },
+    {
+      "role": "assistant",
+      "content": "Super ! Paiement de 2020F bien reçu 🎉\nDans quelle zone d'Abidjan êtes-vous pour la livraison ? 📍",
+      "timestamp": "2025-11-13T10:14:09.030915"
+    },
+    {
+      "role": "user",
+      "content": "Combien ça coûte exactement et est-ce négociable ?",
+      "timestamp": "2025-11-13T10:14:19.232831"
+    },
+    {
+      "role": "assistant",
+      "content": "Compris ! Pour les questions sur les prix et les conditions de vente, veuillez contacter le service client au +225 0787360757 📞",
+      "timestamp": "2025-11-13T10:14:19.232847"
+    },
+    {
+      "role": "user",
+      "content": "Peux-tu me donner des conseils sur les tailles ?",
+      "timestamp": "2025-11-13T10:14:29.635747"
+    },
+    {
+      "role": "assistant",
+      "content": "Compris ! Pour les conseils sur les tailles, contactez le SAV au +225 0787360757 📞",
+      "timestamp": "2025-11-13T10:14:29.635762"
+    },
+    {
+      "role": "user",
+      "content": "J'ai un problème technique avec l'app",
+      "timestamp": "2025-11-13T10:14:40.691433"
+    },
+    {
+      "role": "assistant",
+      "content": "Compris ! Pour ce genre de cas, contactez directement le SAV : +225 0787360757 📞",
+      "timestamp": "2025-11-13T10:14:40.691443"
+    },
+    {
+      "role": "user",
+      "content": "OK je continue ma commande alors",
+      "timestamp": "2025-11-13T10:14:51.518433"
+    },
+    {
+      "role": "assistant",
+      "content": "D'accord ! J'aurais besoin d'une photo du produit s'il vous plaît 📦",
+      "timestamp": "2025-11-13T10:14:51.518441"
+    },
+    {
+      "role": "user",
+      "content": "Capture de paiement 2500F",
+      "timestamp": "2025-11-13T10:15:17.525416"
+    },
+    {
+      "role": "assistant",
+      "content": "Super, j'ai bien reçu ! 📸\nOn vous livre où précisément ( commune et quartier précis ) ? 📍",
+      "timestamp": "2025-11-13T10:15:17.525432"
+    },
+    {
+      "role": "user",
+      "content": "Je suis à Yopougon",
+      "timestamp": "2025-11-13T10:15:27.140935"
+    },
+    {
+      "role": "assistant",
+      "content": "Noté 👍 Livraison à Yopougon → 1500F 🚚\nLivraison prévue aujourd'hui.\nDernière info : votre numéro de téléphone ? 📞",
+      "timestamp": "2025-11-13T10:15:27.140950"
+    },
+    {
+      "role": "user",
+      "content": "Mon numéro: 0787360757",
+      "timestamp": "2025-11-13T10:15:35.480391"
+    },
+    {
+      "role": "assistant",
+      "content": "✅PARFAIT Commande confirmée 😊\nLivraison prévue aujourd'hui, acompte de 2020 F déjà versé.\nNous vous rappellerons bientôt pour les détails et le coût total.\nVeuillez ne pas répondre à ce message.",
+      "timestamp": "2025-11-13T10:15:35.480427"
+    },
+    {
+      "role": "user",
+      "content": "Peux-tu modifier le délai de livraison ?",
+      "timestamp": "2025-11-13T10:15:41.517530"
+    },
+    {
+      "role": "assistant",
+      "content": "✅PARFAIT Commande confirmée 😊\nLivraison prévue aujourd'hui, acompte de 2020 F déjà versé.\nNous vous rappellerons bientôt pour les détails et le coût total.\nVeuillez ne pas répondre à ce message.",
+      "timestamp": "2025-11-13T10:15:41.517541"
+    }
+  ]
+}

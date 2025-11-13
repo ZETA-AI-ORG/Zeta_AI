@@ -49,6 +49,7 @@ LLM a TOUJOURS accès à:
 
 import logging
 from typing import Dict, Optional, Any, Tuple
+from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
@@ -114,22 +115,19 @@ class LoopBotliveEngine:
             
             logger.info(f"🔍 [LOOP] Déclencheur détecté: {trigger['type']}")
             
-            # 4. VÉRIFIER SI 4/4 COLLECTÉ (PATCH #2) - PRIORITÉ ABSOLUE
-            logger.warning(f"🔧 [PATCH#2] État avant vérification completion: {list(state.keys())}")
-            logger.warning(f"🔧 [PATCH#2] Structure complète: {state}")
+            # 4. VÉRIFIER SI 4/4 COLLECTÉ (PATCH #3) - PRIORITÉ ABSOLUE
+            logger.warning(f"🔧 [PATCH#3] État avant vérification completion: {list(state.keys())}")
+            logger.warning(f"🔧 [PATCH#3] Aperçu état: photo={bool(state.get('photo', {}).get('collected'))}, paiement={bool(state.get('paiement', {}).get('collected'))}, zone={bool(state.get('zone', {}).get('collected'))}, tel={bool(state.get('tel', {}).get('collected'))}")
             completion_check = self._check_completion(state)
-            if completion_check == "llm_takeover":
-                logger.warning("🎯 [PATCH#2] 4/4 collecté détecté → LLM takeover forcé")
-                response = self._llm_guide_response(
-                    message, state, checklist, llm_function, mode="final_recap"
-                )
-                self.stats["llm_guide"] += 1
+            if completion_check and completion_check.get("action") == "SEND_FINAL_RECAP":
+                logger.warning("🎯 [PATCH#3] 4/4 collecté détecté → Récapitulatif final automatique")
                 return {
-                    "response": response,
+                    "response": completion_check["message"],
                     "state": state,
-                    "source": "llm_guide_final",
+                    "source": "python_final_recap",
                     "trigger": "completion_detected",
                     "checklist": checklist,
+                    "final_data": completion_check["data"],
                     "stats": self.stats
                 }
             
@@ -342,12 +340,12 @@ class LoopBotliveEngine:
             }
         }
     
-    def _check_completion(self, state: Dict[str, Any]) -> Optional[str]:
+    def _check_completion(self, state: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """
-        🔧 PATCH #2: Vérifie si 4/4 éléments sont collectés
+        🔧 PATCH #3: Vérifie si 4/4 éléments sont collectés et génère récapitulatif final automatique
         
         Returns:
-            "llm_takeover" si tout est collecté, None sinon
+            Dict avec message final hardcodé si tout collecté, None sinon
         """
         try:
             # Gestion robuste des différentes structures de données
@@ -366,8 +364,39 @@ class LoopBotliveEngine:
             logger.warning(f"   📞 Téléphone: {tel_ok} (collected={tel_collected}, valid={tel_valid})")
             
             if photo_ok and payment_ok and zone_ok and tel_ok:
-                logger.warning("✅ [PATCH#2] 4/4 collectés → Force LLM takeover")
-                return "llm_takeover"
+                logger.warning("✅ [PATCH#3] 4/4 collectés → Génération récapitulatif final automatique")
+                
+                # 🎯 FORMAT HARDCODÉ AVEC PLACEHOLDERS INTELLIGENTS
+                montant = state.get("paiement", {}).get("data", 2000)
+                
+                # ✅ UTILISER LE MÊME SYSTÈME QUE DELIVERY_ZONE_EXTRACTOR
+                try:
+                    from core.timezone_helper import is_same_day_delivery_possible
+                    delai = "aujourd'hui" if is_same_day_delivery_possible() else "demain"
+                    logger.warning(f"🕐 [DEBUG] Délai calculé via timezone_helper: {delai}")
+                except Exception as e:
+                    # Fallback si timezone_helper échoue
+                    heure_actuelle = datetime.now().hour
+                    delai = "aujourd'hui" if heure_actuelle < 13 else "demain"
+                    logger.warning(f"🕐 [DEBUG] Fallback - Heure actuelle: {heure_actuelle}h - Délai calculé: {delai}")
+                    logger.error(f"❌ Erreur timezone_helper: {e}")
+                
+                message_final = f"""✅PARFAIT Commande confirmée 😊
+Livraison prévue {delai}, acompte de {montant} F déjà versé.
+Nous vous rappellerons bientôt pour les détails et le coût total.
+Veuillez ne pas répondre à ce message."""
+                
+                return {
+                    "action": "SEND_FINAL_RECAP",
+                    "message": message_final,
+                    "data": {
+                        "montant": montant,
+                        "delai": delai,
+                        "photo": state.get("photo", {}).get("data", ""),
+                        "zone": state.get("zone", {}).get("data", ""),
+                        "telephone": state.get("tel", {}).get("data", "")
+                    }
+                }
             
             missing_count = sum([not photo_ok, not payment_ok, not zone_ok, not tel_ok])
             logger.warning(f"⚠️ [PATCH#2] {4-missing_count}/4 collectés, {missing_count} manquant(s)")
@@ -590,7 +619,7 @@ class LoopBotliveEngine:
             from core.trigger_validator import validate_trigger_before_python
             if not validate_trigger_before_python(trigger_type, trigger_data):
                 logger.error(f"❌ [PYTHON_AUTO] Données déclencheur invalides pour {trigger_type}")
-                return "Je rencontre un problème technique. Pouvez-vous réessayer ? 🔄"
+                return "Petit souci technique de mon côté 😅 Pouvez-vous réessayer dans un instant ? 🔄"
         except Exception as e:
             logger.warning(f"⚠️ [PYTHON_AUTO] Validation échouée: {e}")
             # Continue quand même (fallback gracieux)
@@ -600,7 +629,7 @@ class LoopBotliveEngine:
             return self._generate_response_by_type(trigger_type, trigger, state, message)
         except Exception as e:
             logger.error(f"❌ [PYTHON_AUTO] Erreur génération réponse: {e}")
-            return "Une erreur s'est produite. Pouvez-vous réessayer ? 🔄"
+            return "Oops, une erreur s'est glissée 😅 Pouvez-vous renvoyer votre message ? 🔄"
     
     def _generate_response_by_type(
         self,
@@ -620,29 +649,29 @@ class LoopBotliveEngine:
             if photo_data.get("error"):
                 error_type = photo_data["error"]
                 if error_type == "image_too_small":
-                    return "Cette image semble trop petite ou floue. Pouvez-vous prendre une photo plus nette du paquet ? 📸"
+                    return "La photo est un peu floue 😅 Pouvez-vous reprendre une image plus nette du produit ? 📸"
                 elif error_type == "empty_caption":
-                    return "Je n'arrive pas à identifier le produit sur cette photo. Pouvez-vous prendre une photo plus claire ? 📸"
+                    return "Je ne distingue pas bien le produit sur cette photo 😕 Pouvez-vous la reprendre plus claire ? 📸"
                 elif error_type == "unsupported_format":
-                    return "Format d'image non supporté. Pouvez-vous envoyer une photo JPG ou PNG ? 📸"
+                    return "Ce format d'image n'est pas reconnu 😅 Essayez plutôt en JPG ou PNG 📸"
                 else:
-                    return "J'ai du mal à analyser cette photo. Pouvez-vous réessayer avec une image plus nette ? 📸"
+                    return "Je n'arrive pas à bien analyser la photo 😕 Pouvez-vous en prendre une plus nette ? 📸"
             
             # Vérifier si produit détecté
             if not photo_data.get("product_detected", False):
-                return "Je ne vois pas de produit couches/lingettes sur cette photo. Pouvez-vous photographier le paquet ? 📦"
+                return "Je ne vois pas de produit sur cette photo 😅 Pouvez-vous photographier le bon article ? 📦"
             
             # Confiance faible
             if photo_data.get("confidence", 0) < 0.6:
-                return "Photo un peu floue. Je vois le produit mais pouvez-vous prendre une photo plus nette ? 📸"
+                return "Je vois le produit, mais la photo est un peu floue 😅 Pouvez-vous la reprendre plus nette ? 📸"
             
             # Photo OK → Continuer le processus
             if not state["paiement"]["collected"]:
-                return "Super, photo bien reçue ! 📸\n\nMaintenant, envoyez 2000F sur +225 0787360757 (Wave/OM), puis partagez-moi la capture d'écran 💳"
+                return "Parfait ! Une avance de 2000F via Wave au +225 0787360757 comme dépôt de validation est requise 💳. Une fois envoyée, envoyez-moi la capture s'il vous plaît."
             elif not state["zone"]["collected"]:
-                return "Parfait, j'ai bien votre photo ! 📸\n\nDans quelle zone d'Abidjan êtes-vous ? 📍"
+                return "Super, j'ai bien reçu ! 📸\nOn vous livre où précisément ( commune et quartier précis ) ? 📍"
             elif not state["tel"]["collected"]:
-                return "Photo bien enregistrée ! 📸\n\nIl me faut maintenant votre numéro de téléphone pour la livraison 📞"
+                return "Photo ok ! 📸\nIl me faut maintenant votre numéro pour la livraison 📞"
             else:
                 return self._generate_recap(state)
         
@@ -655,33 +684,33 @@ class LoopBotliveEngine:
             if paiement_data.get("error"):
                 error_type = paiement_data["error"]
                 if error_type == "NUMERO_ABSENT":
-                    return "Cette capture ne semble pas être un paiement vers notre numéro. Vérifiez que vous avez envoyé vers +225 0787360757 💳"
+                    return "Je ne vois pas de paiement vers notre numéro. Vérifiez bien que c'est +225 0787360757 💳"
                 elif error_type == "OCR_NOT_LOADED":
-                    return "Système de lecture temporairement indisponible. Réessayez dans quelques instants 🔄"
+                    return "Petit souci de lecture 🔄 Réessayez d'envoyer la capture dans un instant."
                 elif error_type == "EMPTY_FILE":
-                    return "L'image semble vide ou corrompue. Pouvez-vous renvoyer la capture ? 📱"
+                    return "L'image semble vide ou illisible 😅 Pouvez-vous renvoyer la capture ? 📱"
                 else:
-                    return "Je n'arrive pas à lire votre capture de paiement. Pouvez-vous prendre une photo plus nette ? 📱"
+                    return "Je ne parviens pas à lire votre capture 😅 Pouvez-vous prendre une photo plus claire ? 📱"
             
             # Vérifier validité
             if not paiement_data.get("valid", False):
-                return "Je n'arrive pas à détecter un paiement valide sur cette capture. Vérifiez que c'est bien un screenshot de paiement Wave/OM 📱"
+                return "Je ne détecte pas de paiement valide 😕 Assurez-vous que c'est bien un reçu Wave 📱"
             
             # Vérifier montant
             montant = paiement_data.get("amount", 0)
             if not montant or montant <= 0:
-                return "Je n'arrive pas à lire le montant sur votre capture. Pouvez-vous prendre une photo plus nette de votre écran de paiement ? 📱"
+                return "Je n'arrive pas à lire le montant sur votre capture 😅 Pouvez-vous refaire la photo ? 📱"
             
             # Vérifier suffisance
             if not paiement_data.get("sufficient", False):
                 manque = 2000 - montant
-                return f"J'ai bien reçu {montant}F, mais il manque encore {manque}F pour atteindre l'acompte de 2000F minimum. Pouvez-vous compléter ? 💳"
+                return f"Reçu {montant}F ✅, mais il manque encore {manque}F pour atteindre 2000F minimum 💳\nPouvez-vous compléter le paiement ?"
             
             # Paiement OK → Continuer le processus
             if not state["zone"]["collected"]:
-                return f"Excellent ! Paiement de {montant}F bien reçu et validé 🎉\n\nVous êtes dans quelle zone d'Abidjan ? 📍"
+                return f"Super ! Paiement de {montant}F bien reçu 🎉\nDans quelle zone d'Abidjan êtes-vous pour la livraison ? 📍"
             elif not state["tel"]["collected"]:
-                return f"Parfait ! Paiement de {montant}F confirmé 🎉\n\nVotre numéro de téléphone pour qu'on vous livre ? 📞"
+                return f"Excellent ! Paiement de {montant}F confirmé 🎉\nPouvez-vous me donner votre numéro pour la livraison ? 📞"
             else:
                 return self._generate_recap(state)
         
@@ -702,7 +731,7 @@ class LoopBotliveEngine:
                 delai = "selon délais standard"
             
             if not state["tel"]["collected"]:
-                return f"Noté ! Livraison à {zone_nom} → {frais}F 🚚\nLivraison prévue {delai}.\n\nDernière info : votre numéro de téléphone ? 📞"
+                return f"Noté 👍 Livraison à {zone_nom} → {frais}F 🚚\nLivraison prévue {delai}.\nDernière info : votre numéro de téléphone ? 📞"
             else:
                 return self._generate_recap(state)
         
@@ -715,21 +744,21 @@ class LoopBotliveEngine:
             if tel_data.get("format_error"):
                 error_type = tel_data["format_error"]
                 if error_type == "TOO_SHORT":
-                    return f"Le numéro semble incomplet ({tel_data.get('length', 0)} chiffres). Il me faut 10 chiffres (ex: 0787360757) 📞"
+                    return f"Le numéro est incomplet ({tel_data.get('length', 0)} chiffres). Il faut 10 chiffres, ex: 0787360757 📞"
                 elif error_type == "TOO_LONG":
-                    return f"Le numéro semble trop long ({tel_data.get('length', 0)} chiffres). Il me faut exactement 10 chiffres (ex: 0787360757) 📞"
+                    return f"Le numéro semble trop long ({tel_data.get('length', 0)} chiffres). Il doit faire 10 chiffres exacts 📞"
                 elif error_type == "WRONG_PREFIX":
-                    return "Le numéro doit commencer par 0 (ex: 0787360757). Pouvez-vous le corriger ? 📞"
+                    return "Le numéro doit commencer par 0, ex: 0787360757 📞"
                 else:
-                    return "Format de numéro invalide. Il me faut 10 chiffres commençant par 0 (ex: 0787360757) 📞"
+                    return "Format de numéro invalide 😅 Il me faut 10 chiffres commençant par 0 📞"
             
             # Vérifier validité
             if not tel_data.get("valid", False):
-                return "Je n'ai pas pu détecter un numéro valide. Pouvez-vous l'écrire clairement ? (ex: 0787360757) 📞"
+                return "Je n'ai pas pu détecter de numéro valide 😕 Pouvez-vous l'écrire clairement (ex: 0787360757) ? 📞"
             
             # Numéro OK
             tel_clean = tel_data.get("clean", "")
-            return f"Parfait, {tel_clean} bien enregistré ! 📞\n\nIl nous manque encore quelques infos pour finaliser."
+            return f"Parfait 👍 {tel_clean} bien noté ! 📞\nEncore un petit détail et on finalise la commande."
         
         # Téléphone final (dernier élément) → PASSER AU LLM POUR RÉCAP CHALEUREUX
         elif trigger_type == "telephone_final":
@@ -739,13 +768,13 @@ class LoopBotliveEngine:
             if not tel_data.get("valid", False):
                 error_type = tel_data.get("format_error", "INVALID_FORMAT")
                 if error_type == "TOO_SHORT":
-                    return f"Le numéro semble incomplet ({tel_data.get('length', 0)} chiffres). Il me faut 10 chiffres (ex: 0787360757) 📞"
+                    return f"Le numéro est incomplet ({tel_data.get('length', 0)} chiffres). Il faut 10 chiffres, ex: 0787360757 📞"
                 elif error_type == "TOO_LONG":
-                    return f"Le numéro semble trop long ({tel_data.get('length', 0)} chiffres). Il me faut exactement 10 chiffres (ex: 0787360757) 📞"
+                    return f"Le numéro semble trop long ({tel_data.get('length', 0)} chiffres). Il doit faire 10 chiffres exacts 📞"
                 elif error_type == "WRONG_PREFIX":
-                    return "Le numéro doit commencer par 0 (ex: 0787360757). Pouvez-vous le corriger ? 📞"
+                    return "Le numéro doit commencer par 0, ex: 0787360757 📞"
                 else:
-                    return "Format de numéro invalide. Il me faut 10 chiffres commençant par 0 (ex: 0787360757) 📞"
+                    return "Format de numéro invalide 😅 Il me faut 10 chiffres commençant par 0 📞"
             
             # Numéro OK → PASSER AU LLM POUR RÉCAP CHALEUREUX
             return "llm_takeover"  # Signal spécial pour passer au LLM
@@ -914,13 +943,13 @@ RÉPONSE:"""
         """Fallback si LLM échoue: demander prochaine info manquante"""
         
         if not state["photo"]["collected"]:
-            return "Envoyez photo du paquet 📦"
+            return "Pouvez-vous m'envoyer la photo du produit souhaité ? 📦"
         elif not state["paiement"]["collected"]:
-            return "Envoyez 2000F sur +225 0787360757, puis capture."
+            return "Parfait ! Une avance de 2000F via Wave au +225 0787360757 comme dépôt de validation est requise 💳. Une fois envoyée, envoyez-moi la capture s'il vous plaît."
         elif not state["zone"]["collected"]:
-            return "Votre zone ?"
+            return "Dans quelle communes êtes-vous ? 📍"
         elif not state["tel"]["collected"]:
-            return "Votre numéro (10 chiffres) ?"
+            return "Pouvez-vous me donner votre numéro (10 chiffres) ? 📞"
         else:
             return self._generate_recap(state)
     

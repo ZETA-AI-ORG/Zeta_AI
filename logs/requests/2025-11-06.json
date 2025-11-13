@@ -1,0 +1,209 @@
+[
+  {
+    "request_id": "f4297438",
+    "timestamp": "2025-11-06T13:38:49.673780",
+    "user_id": "test_delivery_001",
+    "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+    "message": "Combien coute la livraison a Cocody ?",
+    "response": "```xml\n<thinking>\n```yaml\nextraction: question: \"Combien coute la livraison a Cocody ?\" intention: zone contexte_actuel: notepad: produit: null paiement: null zone: \"Cocody\" telephone: null vision: null transactions: null livraison: null analyse: nouvelles_donnees: - champ: zone valeur: Cocody source: MESSAGE validation: completude: 1/4 manquants: [produit, paiement, telephone] decision: action: demander_produit notepad_update: write zone\nPour valider votre commande, nous avons besoin de quelques informations supplémentaires. Pouvez-vous nous fournir une photo du produit que vous souhaitez commander ?\n```",
+    "metadata": {
+      "processing_time_ms": 23636.43,
+      "cached": false,
+      "security_score": "LOW",
+      "hallucination_score": 1.0,
+      "botlive_enabled": true,
+      "has_images": false,
+      "prompt_version": 1,
+      "performance": {
+        "request_id": "f4297438",
+        "total_duration_ms": 23625.25,
+        "steps": [],
+        "llm_usage": null
+      }
+    }
+  },
+  {
+    "request_id": "431c7c57",
+    "timestamp": "2025-11-06T13:51:06.744319",
+    "user_id": "test_delivery_001",
+    "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+    "message": "Combien coute la livraison a Cocody ?",
+    "response": "```xml\n<thinking>\n```yaml\nextraction: question: \"Combien coute la livraison a Cocody ?\" intention: zone contexte_actuel: notepad: produit: null paiement: null zone: Cocody telephone: null vision: null transactions: null livraison: Cocody - 1 500 FCFA analyse: nouvelles_donnees: - champ: zone valeur: Cocody source: MESSAGE validation: completude: 1/4 manquants: [produit, paiement, telephone] decision: action: demander_produit notepad_update: write zone\n```\nLa zone de livraison est déjà connue, il faut maintenant demander le produit désiré.\nRéponse: Pour valider votre commande, pouvez-vous me fournir une photo du produit que vous souhaitez commander ?",
+    "metadata": {
+      "processing_time_ms": 18417.92,
+      "cached": false,
+      "security_score": "LOW",
+      "hallucination_score": 1.0,
+      "botlive_enabled": true,
+      "has_images": false,
+      "prompt_version": 1,
+      "performance": {
+        "request_id": "431c7c57",
+        "total_duration_ms": 18410.29,
+        "steps": [],
+        "llm_usage": null
+      }
+    }
+  },
+  {
+    "request_id": "c5375dba",
+    "timestamp": "2025-11-06T14:32:06.746535",
+    "user_id": "test_delivery_001",
+    "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+    "message": "Combien coute la livraison a Cocody ?",
+    "response": "Désolé, erreur technique. Réessayez s'il vous plaît.",
+    "metadata": {
+      "processing_time_ms": 22400.3,
+      "cached": false,
+      "security_score": "LOW",
+      "hallucination_score": 1.0,
+      "botlive_enabled": true,
+      "has_images": false,
+      "prompt_version": 1,
+      "performance": {
+        "request_id": "c5375dba",
+        "total_duration_ms": 22391.83,
+        "steps": [],
+        "llm_usage": null
+      }
+    }
+  },
+  {
+    "request_id": "8cb95dc3",
+    "timestamp": "2025-11-06T14:34:03.647302",
+    "user_id": "test_delivery_002",
+    "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+    "message": "Vous livrez a Yopougon ?",
+    "response": "La livraison à Yopougon coûte 1 500 FCFA. Comme il est 13h33, la livraison sera prévue demain. Voulez-vous passer commande ? 😊",
+    "metadata": {
+      "processing_time_ms": 11143.19,
+      "cached": false,
+      "security_score": "LOW",
+      "hallucination_score": 1.0,
+      "botlive_enabled": true,
+      "has_images": false,
+      "prompt_version": 1,
+      "performance": {
+        "request_id": "8cb95dc3",
+        "total_duration_ms": 11143.07,
+        "steps": [],
+        "llm_usage": null
+      }
+    }
+  },
+  {
+    "request_id": "b1d8b9ca",
+    "timestamp": "2025-11-06T14:37:44.484237",
+    "user_id": "test_delivery_003",
+    "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+    "message": "C est combien pour livrer a Bingerville ?",
+    "response": "La livraison à Bingerville coûte 2 500 FCFA. Comme il est 13h37, la livraison sera prévue pour demain. Voulez-vous passer commande ? 😊",
+    "metadata": {
+      "processing_time_ms": 10414.22,
+      "cached": false,
+      "security_score": "LOW",
+      "hallucination_score": 1.0,
+      "botlive_enabled": true,
+      "has_images": false,
+      "prompt_version": 1,
+      "performance": {
+        "request_id": "b1d8b9ca",
+        "total_duration_ms": 10414.18,
+        "steps": [],
+        "llm_usage": null
+      }
+    }
+  },
+  {
+    "request_id": "6687dd1d",
+    "timestamp": "2025-11-06T14:58:02.173526",
+    "user_id": "test_delivery_004",
+    "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+    "message": "Vous livrez a Port-Bouet ?",
+    "response": "La livraison à Port-Bouët coûte 2 000 FCFA. Comme il est 13h57, la livraison sera prévue pour demain. Voulez-vous passer commande ? 😊",
+    "metadata": {
+      "processing_time_ms": 11622.83,
+      "cached": false,
+      "security_score": "LOW",
+      "hallucination_score": 1.0,
+      "botlive_enabled": true,
+      "has_images": false,
+      "prompt_version": 1,
+      "performance": {
+        "request_id": "6687dd1d",
+        "total_duration_ms": 11622.78,
+        "steps": [],
+        "llm_usage": null
+      }
+    }
+  },
+  {
+    "request_id": "ffc28c5e",
+    "timestamp": "2025-11-06T14:58:12.069697",
+    "user_id": "test_delivery_005",
+    "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+    "message": "C est combien pour Grand-Bassam ?",
+    "response": "La livraison à Grand-Bassam coûte 2 500 FCFA. Comme il est 13h58, la livraison sera prévue demain. Voulez-vous passer commande ? 😊",
+    "metadata": {
+      "processing_time_ms": 8534.63,
+      "cached": false,
+      "security_score": "LOW",
+      "hallucination_score": 1.0,
+      "botlive_enabled": true,
+      "has_images": false,
+      "prompt_version": 1,
+      "performance": {
+        "request_id": "ffc28c5e",
+        "total_duration_ms": 8534.59,
+        "steps": [],
+        "llm_usage": null
+      }
+    }
+  },
+  {
+    "request_id": "663c820c",
+    "timestamp": "2025-11-06T14:58:21.902810",
+    "user_id": "test_delivery_006",
+    "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+    "message": "slt c combien livrer a marcory",
+    "response": "La livraison à Marcory coûte 1 500 FCFA. Comme il est 13h58, la livraison sera prévue pour demain. Voulez-vous passer commande ? 😊",
+    "metadata": {
+      "processing_time_ms": 9229.39,
+      "cached": false,
+      "security_score": "LOW",
+      "hallucination_score": 1.0,
+      "botlive_enabled": true,
+      "has_images": false,
+      "prompt_version": 1,
+      "performance": {
+        "request_id": "663c820c",
+        "total_duration_ms": 9229.37,
+        "steps": [],
+        "llm_usage": null
+      }
+    }
+  },
+  {
+    "request_id": "a0e83f93",
+    "timestamp": "2025-11-06T14:58:32.900582",
+    "user_id": "test_delivery_007",
+    "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+    "message": "Vous livrez a Paris ?",
+    "response": "Désolé, nous ne livrons pas à Paris car cela se trouve à l'international. Nous livrons uniquement en Côte d'Ivoire. Pour plus d'informations sur nos zones de livraison, veuillez nous fournir plus de détails.",
+    "metadata": {
+      "processing_time_ms": 10444.91,
+      "cached": false,
+      "security_score": "LOW",
+      "hallucination_score": 1.0,
+      "botlive_enabled": true,
+      "has_images": false,
+      "prompt_version": 1,
+      "performance": {
+        "request_id": "a0e83f93",
+        "total_duration_ms": 10444.88,
+        "steps": [],
+        "llm_usage": null
+      }
+    }
+  }
+]

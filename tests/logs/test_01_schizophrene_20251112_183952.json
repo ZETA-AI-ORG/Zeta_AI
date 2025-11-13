@@ -1,0 +1,14 @@
+{
+  "test": "Client Schizophrène",
+  "duration": 163.27173280715942,
+  "success_rate": 100.0,
+  "success_indicators": [
+    "✅ Photo détectée malgré changements",
+    "✅ Paiement maintenu",
+    "✅ Paiement maintenu",
+    "✅ Paiement maintenu",
+    "✅ Paiement maintenu"
+  ],
+  "verdict": "🏆 EXCELLENT - Système très résistant aux changements",
+  "conversation": "\nClient: Bonjour je veux des couches\nIA: Envoyez photo du paquet 📦\nClient: Ah non finalement des lingettes\nIA: D'accord pour les lingettes ! Envoyez photo du nouveau paquet 📦\nClient: Non attendez, plutôt du lait en poudre\nIA: D'accord pour le lait en poudre ! Envoyez photo du paquet 📦\nClient: Excusez-moi, je reviens aux couches\nIA: Super, photo bien reçue ! 📸\n\nMaintenant, envoyez 2000F sur +225 0787360757 (Wave/OM), puis partagez-moi la capture d'écran 💳\nClient: 2000F envoyé !\nIA: Excellent ! Paiement de 2020F bien reçu et validé 🎉\n\nVous êtes dans quelle zone d'Abidjan ? 📍\nClient: Ah non je me suis trompé, c'était pour ma sœur\nIA: Votre zone ? Et votre numéro de téléphone (10 chiffres) ?\nClient: Non c'est bon c'est pour moi, je suis à Yopougon\nIA: Noté ! Livraison à Yopougon → 1500F 🚚\nLivraison prévue demain.\n\nDernière info : votre numéro de téléphone ? 📞\nClient: Pardon, Cocody pas Yopougon\nIA: Noté ! Livraison à Yopougon → 1500F 🚚\nLivraison prévue demain.\n\nDernière info : votre numéro de téléphone ? 📞\nClient: Mon numéro: 0708651945\nIA: ✅PARFAIT Commande confirmée 😊\nLivraison prévue aujourd'hui, acompte de 2020 F déjà versé.\nNous vous rappellerons bientôt pour les détails et le coût total.\nVeuillez ne pas répondre à ce message.\nClient: Non pardon: 0787360757\nIA: ✅PARFAIT Commande confirmée 😊\nLivraison prévue aujourd'hui, acompte de 2020 F déjà versé.\nNous vous rappellerons bientôt pour les détails et le coût total.\nVeuillez ne pas répondre à ce message.\nClient: Finalement le premier était bon: 0708651945\nIA: ✅PARFAIT Commande confirmée 😊\nLivraison prévue aujourd'hui, acompte de 2020 F déjà versé.\nNous vous rappellerons bientôt pour les détails et le coût total.\nVeuillez ne pas répondre à ce message.\nClient: C'est confirmé ?\nIA: Numéro de téléphone invalide. Votre numéro (10 chiffres) ?"
+}

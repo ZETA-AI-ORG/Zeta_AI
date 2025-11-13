@@ -1,0 +1,5287 @@
+[
+  {
+    "timestamp": "2025-11-04T17:49:24.295132",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "📝 Logging serveur JSON activé!",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:49:24.295222",
+    "level": "INFO",
+    "source": "system",
+    "message": "Logging serveur JSON initialisé",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:49:24.295313",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "✅ [SERVER_LOGGER] Logs serveur activés → logs/server/",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:49:24.295750",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:49:24,295 - app - INFO - Logger configuré avec succès",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "app.py",
+      "lineno": 63,
+      "funcName": "<module>"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:49:24.296209",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:49:24,295 - app - INFO - Logger configuré avec succès",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "app.py",
+      "lineno": 63,
+      "funcName": "<module>"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:49:24.306028",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [DEBUG] Importing core.models...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:49:24.325751",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [DEBUG] Importing FIX_CONTEXT_LOSS_COMPLETE...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:49:24.333273",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "✅ [DEBUG] FIX_CONTEXT_LOSS_COMPLETE imported",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:49:24.346550",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [DEBUG] Importing pydantic...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:49:24.349196",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [DEBUG] Importing universal_rag_engine...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:51:06.447541",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [DEBUG] Importing prompt_manager...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:51:06.453194",
+    "level": "ERROR",
+    "source": "stderr",
+    "message": "Traceback (most recent call last):",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:51:06.455335",
+    "level": "ERROR",
+    "source": "stderr",
+    "message": "File \"C:\\Users\\hp\\Documents\\ZETA APP\\chatbot\\CHATBOT2.0\\tests\\botlive_micro.py\", line 59, in <module>\n    asyncio.run(run_micro())\n    ~~~~~~~~~~~^^^^^^^^^^^^^",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:51:06.455735",
+    "level": "ERROR",
+    "source": "stderr",
+    "message": "File \"C:\\Python313\\Lib\\asyncio\\runners.py\", line 195, in run\n    return runner.run(main)\n           ~~~~~~~~~~^^^^^^",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:51:06.456064",
+    "level": "ERROR",
+    "source": "stderr",
+    "message": "File \"C:\\Python313\\Lib\\asyncio\\runners.py\", line 118, in run\n    return self._loop.run_until_complete(task)\n           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:51:06.458501",
+    "level": "ERROR",
+    "source": "stderr",
+    "message": "File \"C:\\Python313\\Lib\\asyncio\\base_events.py\", line 725, in run_until_complete\n    return future.result()\n           ~~~~~~~~~~~~~^^",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:51:06.459672",
+    "level": "ERROR",
+    "source": "stderr",
+    "message": "File \"C:\\Users\\hp\\Documents\\ZETA APP\\chatbot\\CHATBOT2.0\\tests\\botlive_micro.py\", line 32, in run_micro\n    import app",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:51:06.460602",
+    "level": "ERROR",
+    "source": "stderr",
+    "message": "File \"C:\\Users\\hp\\Documents\\ZETA APP\\chatbot\\CHATBOT2.0\\app.py\", line 138, in <module>\n    from core.prompt_manager import PromptManager",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:51:06.461045",
+    "level": "ERROR",
+    "source": "stderr",
+    "message": "File \"C:\\Users\\hp\\Documents\\ZETA APP\\chatbot\\CHATBOT2.0\\core\\prompt_manager.py\", line 5, in <module>\n    from utils import log3",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:51:06.463527",
+    "level": "ERROR",
+    "source": "stderr",
+    "message": "ImportError: cannot import name 'log3' from 'utils' (C:\\Users\\hp\\AppData\\Roaming\\Python\\Python313\\site-packages\\utils\\__init__.py)",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:56:22.501582",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "📝 Logging serveur JSON activé!",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:56:22.501848",
+    "level": "INFO",
+    "source": "system",
+    "message": "Logging serveur JSON initialisé",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:56:22.502251",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "✅ [SERVER_LOGGER] Logs serveur activés → logs/server/",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:56:22.503266",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:56:22,503 - app - INFO - Logger configuré avec succès",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "app.py",
+      "lineno": 63,
+      "funcName": "<module>"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:56:22.503655",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:56:22,503 - app - INFO - Logger configuré avec succès",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "app.py",
+      "lineno": 63,
+      "funcName": "<module>"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:56:22.517267",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [DEBUG] Importing core.models...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:56:22.552113",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [DEBUG] Importing FIX_CONTEXT_LOSS_COMPLETE...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:56:22.554680",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "✅ [DEBUG] FIX_CONTEXT_LOSS_COMPLETE imported",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:56:22.554992",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [DEBUG] Importing pydantic...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:56:22.556254",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [DEBUG] Importing universal_rag_engine...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:57:22.240577",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [DEBUG] Importing prompt_manager...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:57:22.243064",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [DEBUG] Importing supabase_client...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:57:22.254723",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [DEBUG] Importing ingestion_api...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:57:25.688676",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [DEBUG] Importing global_embedding_cache...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:57:25.689024",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [DEBUG] Importing auth router...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:57:26.683317",
+    "level": "WARNING",
+    "source": "logger.routes.auth",
+    "message": "2025-11-04 17:57:26,682 - routes.auth - WARNING - Variables d'environnement Google manquantes pour le Service Account. JWT Google désactivé.",
+    "metadata": {
+      "logger_name": "routes.auth",
+      "filename": "auth.py",
+      "lineno": 32,
+      "funcName": "<module>"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:57:26.685067",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [DEBUG] Importing routes...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:57:26.688352",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [DEBUG] Importing meili_ingest_api...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:57:26.714660",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [DEBUG] Importing meili router...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:57:26.728631",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [DEBUG] Importing utils...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:57:26.786795",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [DEBUG] Importing security_validator...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:57:26.795161",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [DEBUG] Importing hallucination_guard...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:57:26.804531",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [DEBUG] Importing error_handler...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:57:26.811295",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [DEBUG] Importing circuit_breaker...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:57:26.817320",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [DEBUG] Importing image_search...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:57:26.817668",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "⚠️ [DEBUG] Image search router SKIPPED (debugging)",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:57:26.818257",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [DEBUG] Importing botlive router...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:57:26.818675",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "⚠️ [DEBUG] Botlive router SKIPPED (debugging)",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:57:26.819105",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "✅ [DEBUG] All imports completed!",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:57:26.886353",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:57:26,886 - app - INFO - 🚀 Monitoring des caches intégré avec succès",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "app.py",
+      "lineno": 341,
+      "funcName": "<module>"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:57:26.915085",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:57:26,886 - app - INFO - 🚀 Monitoring des caches intégré avec succès",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "app.py",
+      "lineno": 341,
+      "funcName": "<module>"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:57:27.279095",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:57:27,279 - app - INFO - Router Enhanced Ingestion avec Mini-LLM Dispatcher monté avec succès",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "app.py",
+      "lineno": 349,
+      "funcName": "<module>"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:57:27.279615",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:57:27,279 - app - INFO - Router Enhanced Ingestion avec Mini-LLM Dispatcher monté avec succès",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "app.py",
+      "lineno": 349,
+      "funcName": "<module>"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:57:27.472086",
+    "level": "INFO",
+    "source": "logger.uvicorn.error",
+    "message": "2025-11-04 17:57:27,471 - uvicorn.error - INFO - Started server process [18292]",
+    "metadata": {
+      "logger_name": "uvicorn.error",
+      "filename": "server.py",
+      "lineno": 84,
+      "funcName": "_serve"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:57:27.472512",
+    "level": "INFO",
+    "source": "logger.uvicorn.error",
+    "message": "2025-11-04 17:57:27,472 - uvicorn.error - INFO - Waiting for application startup.",
+    "metadata": {
+      "logger_name": "uvicorn.error",
+      "filename": "on.py",
+      "lineno": 48,
+      "funcName": "startup"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:57:27.473487",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "📝 Logging serveur JSON activé!",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:57:27.473500",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "📝 Logging serveur JSON activé!",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:57:27.473731",
+    "level": "INFO",
+    "source": "system",
+    "message": "Logging serveur JSON initialisé",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:57:27.473851",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[STARTUP] 📝 Logging serveur JSON activé",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:57:27.473862",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[STARTUP] 📝 Logging serveur JSON activé",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:57:27.552380",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[STARTUP] 🚀 ENHANCED - Élimination latence 3.6s en cours...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:57:27.552408",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[STARTUP] 🚀 ENHANCED - Élimination latence 3.6s en cours...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:57:27.561262",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:57:27,561 - app - INFO - [TRACE][[PROMPT_CACHE]] 🚀 Cache prompt global initialisé",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "utils.py",
+      "lineno": 181,
+      "funcName": "log3"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:57:27.561352",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:57:27,561 - app - INFO - [TRACE][[PROMPT_CACHE]] 🚀 Cache prompt global initialisé",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "utils.py",
+      "lineno": 181,
+      "funcName": "log3"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:57:27.568105",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:57:27,561 - app - INFO - [TRACE][[PROMPT_CACHE]] 🚀 Cache prompt global initialisé",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "utils.py",
+      "lineno": 181,
+      "funcName": "log3"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:57:27.568154",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:57:27,561 - app - INFO - [TRACE][[PROMPT_CACHE]] 🚀 Cache prompt global initialisé",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "utils.py",
+      "lineno": 181,
+      "funcName": "log3"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:57:27.570233",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[TRACE][17:57:27][INFO] [PROMPT_CACHE]: 🚀 Cache prompt global initialisé",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:57:27.570257",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[TRACE][17:57:27][INFO] [PROMPT_CACHE]: 🚀 Cache prompt global initialisé",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:57:27.571724",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:57:27,571 - app - INFO - [TRACE][[EMBEDDING_CACHE]] 🚀 Cache embedding optimisé initialisé",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "utils.py",
+      "lineno": 181,
+      "funcName": "log3"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:57:27.571767",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:57:27,571 - app - INFO - [TRACE][[EMBEDDING_CACHE]] 🚀 Cache embedding optimisé initialisé",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "utils.py",
+      "lineno": 181,
+      "funcName": "log3"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:57:27.637488",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:57:27,571 - app - INFO - [TRACE][[EMBEDDING_CACHE]] 🚀 Cache embedding optimisé initialisé",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "utils.py",
+      "lineno": 181,
+      "funcName": "log3"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:57:27.637539",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:57:27,571 - app - INFO - [TRACE][[EMBEDDING_CACHE]] 🚀 Cache embedding optimisé initialisé",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "utils.py",
+      "lineno": 181,
+      "funcName": "log3"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:57:27.639789",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[TRACE][17:57:27][INFO] [EMBEDDING_CACHE]: 🚀 Cache embedding optimisé initialisé",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:57:27.639815",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[TRACE][17:57:27][INFO] [EMBEDDING_CACHE]: 🚀 Cache embedding optimisé initialisé",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:57:27.640772",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:57:27,640 - app - INFO - [TRACE][[MODEL_CACHE]] 🚀 Cache modèle global initialisé",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "utils.py",
+      "lineno": 181,
+      "funcName": "log3"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:57:27.640815",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:57:27,640 - app - INFO - [TRACE][[MODEL_CACHE]] 🚀 Cache modèle global initialisé",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "utils.py",
+      "lineno": 181,
+      "funcName": "log3"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:57:27.641327",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:57:27,640 - app - INFO - [TRACE][[MODEL_CACHE]] 🚀 Cache modèle global initialisé",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "utils.py",
+      "lineno": 181,
+      "funcName": "log3"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:57:27.641367",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:57:27,640 - app - INFO - [TRACE][[MODEL_CACHE]] 🚀 Cache modèle global initialisé",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "utils.py",
+      "lineno": 181,
+      "funcName": "log3"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:57:27.641502",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[TRACE][17:57:27][INFO] [MODEL_CACHE]: 🚀 Cache modèle global initialisé",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:57:27.641516",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[TRACE][17:57:27][INFO] [MODEL_CACHE]: 🚀 Cache modèle global initialisé",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:57:27.672760",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:57:27,672 - app - INFO - [TRACE][[UNIFIED_CACHE]] 🚀 Système de cache unifié initialisé",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "utils.py",
+      "lineno": 181,
+      "funcName": "log3"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:57:27.672810",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:57:27,672 - app - INFO - [TRACE][[UNIFIED_CACHE]] 🚀 Système de cache unifié initialisé",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "utils.py",
+      "lineno": 181,
+      "funcName": "log3"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:57:27.673722",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:57:27,672 - app - INFO - [TRACE][[UNIFIED_CACHE]] 🚀 Système de cache unifié initialisé",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "utils.py",
+      "lineno": 181,
+      "funcName": "log3"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:57:27.673766",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:57:27,672 - app - INFO - [TRACE][[UNIFIED_CACHE]] 🚀 Système de cache unifié initialisé",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "utils.py",
+      "lineno": 181,
+      "funcName": "log3"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:57:27.673996",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[TRACE][17:57:27][INFO] [UNIFIED_CACHE]: 🚀 Système de cache unifié initialisé",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:57:27.674107",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[TRACE][17:57:27][INFO] [UNIFIED_CACHE]: 🚀 Système de cache unifié initialisé",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:57:27.676330",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[STARTUP] ✅ Cache unifié initialisé",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:57:27.676355",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[STARTUP] ✅ Cache unifié initialisé",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:57:27.677077",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[STARTUP] 🧠 Pré-chargement des 2 modèles 768D...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:57:27.677097",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[STARTUP] 🧠 Pré-chargement des 2 modèles 768D...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:57:27.729318",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:57:27,729 - app - INFO - [TRACE][[MODEL_CACHE]] {\n  \"action\": \"model_cache_miss\",\n  \"model_name\": \"sentence-transformers/all-mpnet-base-v2\",\n  \"loading_start\": true\n}",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "utils.py",
+      "lineno": 181,
+      "funcName": "log3"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:57:27.729362",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:57:27,729 - app - INFO - [TRACE][[MODEL_CACHE]] {\n  \"action\": \"model_cache_miss\",\n  \"model_name\": \"sentence-transformers/all-mpnet-base-v2\",\n  \"loading_start\": true\n}",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "utils.py",
+      "lineno": 181,
+      "funcName": "log3"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:57:27.732495",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:57:27,729 - app - INFO - [TRACE][[MODEL_CACHE]] {\n  \"action\": \"model_cache_miss\",\n  \"model_name\": \"sentence-transformers/all-mpnet-base-v2\",\n  \"loading_start\": true\n}",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "utils.py",
+      "lineno": 181,
+      "funcName": "log3"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:57:27.732535",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:57:27,729 - app - INFO - [TRACE][[MODEL_CACHE]] {\n  \"action\": \"model_cache_miss\",\n  \"model_name\": \"sentence-transformers/all-mpnet-base-v2\",\n  \"loading_start\": true\n}",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "utils.py",
+      "lineno": 181,
+      "funcName": "log3"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:57:27.733848",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[TRACE][17:57:27][INFO] [MODEL_CACHE]: {\n  \"action\": \"model_cache_miss\",\n  \"model_name\": \"sentence-transformers/all-mpnet-base-v2\",\n  \"loading_start\": true\n}",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:57:27.733870",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[TRACE][17:57:27][INFO] [MODEL_CACHE]: {\n  \"action\": \"model_cache_miss\",\n  \"model_name\": \"sentence-transformers/all-mpnet-base-v2\",\n  \"loading_start\": true\n}",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:57:27.734538",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:57:27,734 - app - INFO - [TRACE][[MODEL_CACHE]] {\n  \"action\": \"loading_from_huggingface\",\n  \"model_name\": \"sentence-transformers/all-mpnet-base-v2\"\n}",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "utils.py",
+      "lineno": 181,
+      "funcName": "log3"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:57:27.734583",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:57:27,734 - app - INFO - [TRACE][[MODEL_CACHE]] {\n  \"action\": \"loading_from_huggingface\",\n  \"model_name\": \"sentence-transformers/all-mpnet-base-v2\"\n}",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "utils.py",
+      "lineno": 181,
+      "funcName": "log3"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:57:27.736215",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:57:27,734 - app - INFO - [TRACE][[MODEL_CACHE]] {\n  \"action\": \"loading_from_huggingface\",\n  \"model_name\": \"sentence-transformers/all-mpnet-base-v2\"\n}",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "utils.py",
+      "lineno": 181,
+      "funcName": "log3"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:57:27.736293",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:57:27,734 - app - INFO - [TRACE][[MODEL_CACHE]] {\n  \"action\": \"loading_from_huggingface\",\n  \"model_name\": \"sentence-transformers/all-mpnet-base-v2\"\n}",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "utils.py",
+      "lineno": 181,
+      "funcName": "log3"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:57:27.791115",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[TRACE][17:57:27][INFO] [MODEL_CACHE]: {\n  \"action\": \"loading_from_huggingface\",\n  \"model_name\": \"sentence-transformers/all-mpnet-base-v2\"\n}",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:57:27.791139",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[TRACE][17:57:27][INFO] [MODEL_CACHE]: {\n  \"action\": \"loading_from_huggingface\",\n  \"model_name\": \"sentence-transformers/all-mpnet-base-v2\"\n}",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:57:37.052917",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:57:37,052 - app - INFO - [TRACE][[MODEL_CACHE]] {\n  \"action\": \"model_load_complete\",\n  \"model_name\": \"sentence-transformers/all-mpnet-base-v2\",\n  \"load_time_seconds\": \"9.32\"\n}",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "utils.py",
+      "lineno": 181,
+      "funcName": "log3"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:57:37.052944",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:57:37,052 - app - INFO - [TRACE][[MODEL_CACHE]] {\n  \"action\": \"model_load_complete\",\n  \"model_name\": \"sentence-transformers/all-mpnet-base-v2\",\n  \"load_time_seconds\": \"9.32\"\n}",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "utils.py",
+      "lineno": 181,
+      "funcName": "log3"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:57:37.053889",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:57:37,052 - app - INFO - [TRACE][[MODEL_CACHE]] {\n  \"action\": \"model_load_complete\",\n  \"model_name\": \"sentence-transformers/all-mpnet-base-v2\",\n  \"load_time_seconds\": \"9.32\"\n}",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "utils.py",
+      "lineno": 181,
+      "funcName": "log3"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:57:37.053928",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:57:37,052 - app - INFO - [TRACE][[MODEL_CACHE]] {\n  \"action\": \"model_load_complete\",\n  \"model_name\": \"sentence-transformers/all-mpnet-base-v2\",\n  \"load_time_seconds\": \"9.32\"\n}",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "utils.py",
+      "lineno": 181,
+      "funcName": "log3"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:57:37.054402",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[TRACE][17:57:37][INFO] [MODEL_CACHE]: {\n  \"action\": \"model_load_complete\",\n  \"model_name\": \"sentence-transformers/all-mpnet-base-v2\",\n  \"load_time_seconds\": \"9.32\"\n}",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:57:37.054419",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[TRACE][17:57:37][INFO] [MODEL_CACHE]: {\n  \"action\": \"model_load_complete\",\n  \"model_name\": \"sentence-transformers/all-mpnet-base-v2\",\n  \"load_time_seconds\": \"9.32\"\n}",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:57:37.060076",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:57:37,059 - app - INFO - [TRACE][[MODEL_CACHE]] {\n  \"action\": \"model_loaded\",\n  \"model_name\": \"sentence-transformers/all-mpnet-base-v2\",\n  \"estimated_size_mb\": 417.7,\n  \"total_models_cached\": 1,\n  \"memory_usage\": \"56.5%\"\n}",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "utils.py",
+      "lineno": 181,
+      "funcName": "log3"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:57:37.060111",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:57:37,059 - app - INFO - [TRACE][[MODEL_CACHE]] {\n  \"action\": \"model_loaded\",\n  \"model_name\": \"sentence-transformers/all-mpnet-base-v2\",\n  \"estimated_size_mb\": 417.7,\n  \"total_models_cached\": 1,\n  \"memory_usage\": \"56.5%\"\n}",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "utils.py",
+      "lineno": 181,
+      "funcName": "log3"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:57:37.088838",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:57:37,059 - app - INFO - [TRACE][[MODEL_CACHE]] {\n  \"action\": \"model_loaded\",\n  \"model_name\": \"sentence-transformers/all-mpnet-base-v2\",\n  \"estimated_size_mb\": 417.7,\n  \"total_models_cached\": 1,\n  \"memory_usage\": \"56.5%\"\n}",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "utils.py",
+      "lineno": 181,
+      "funcName": "log3"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:57:37.088886",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:57:37,059 - app - INFO - [TRACE][[MODEL_CACHE]] {\n  \"action\": \"model_loaded\",\n  \"model_name\": \"sentence-transformers/all-mpnet-base-v2\",\n  \"estimated_size_mb\": 417.7,\n  \"total_models_cached\": 1,\n  \"memory_usage\": \"56.5%\"\n}",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "utils.py",
+      "lineno": 181,
+      "funcName": "log3"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:57:37.093550",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[TRACE][17:57:37][INFO] [MODEL_CACHE]: {\n  \"action\": \"model_loaded\",\n  \"model_name\": \"sentence-transformers/all-mpnet-base-v2\",\n  \"estimated_size_mb\": 417.7,\n  \"total_models_cached\": 1,\n  \"memory_usage\": \"56.5%\"\n}",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:57:37.093580",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[TRACE][17:57:37][INFO] [MODEL_CACHE]: {\n  \"action\": \"model_loaded\",\n  \"model_name\": \"sentence-transformers/all-mpnet-base-v2\",\n  \"estimated_size_mb\": 417.7,\n  \"total_models_cached\": 1,\n  \"memory_usage\": \"56.5%\"\n}",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:57:37.095660",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:57:37,095 - app - INFO - [TRACE][[UNIFIED_CACHE]] 🆕 Model loaded: all-mpnet-base-v2 | Time: 9.374s",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "utils.py",
+      "lineno": 181,
+      "funcName": "log3"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:57:37.095699",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:57:37,095 - app - INFO - [TRACE][[UNIFIED_CACHE]] 🆕 Model loaded: all-mpnet-base-v2 | Time: 9.374s",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "utils.py",
+      "lineno": 181,
+      "funcName": "log3"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:57:37.098456",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:57:37,095 - app - INFO - [TRACE][[UNIFIED_CACHE]] 🆕 Model loaded: all-mpnet-base-v2 | Time: 9.374s",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "utils.py",
+      "lineno": 181,
+      "funcName": "log3"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:57:37.098596",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:57:37,095 - app - INFO - [TRACE][[UNIFIED_CACHE]] 🆕 Model loaded: all-mpnet-base-v2 | Time: 9.374s",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "utils.py",
+      "lineno": 181,
+      "funcName": "log3"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:57:37.102230",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[TRACE][17:57:37][INFO] [UNIFIED_CACHE]: 🆕 Model loaded: all-mpnet-base-v2 | Time: 9.374s",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:57:37.102258",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[TRACE][17:57:37][INFO] [UNIFIED_CACHE]: 🆕 Model loaded: all-mpnet-base-v2 | Time: 9.374s",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:57:37.146865",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[STARTUP] ✅ mpnet-base-v2: 9.42s",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:57:37.146890",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[STARTUP] ✅ mpnet-base-v2: 9.42s",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:57:37.153612",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:57:37,153 - app - INFO - [TRACE][[MODEL_CACHE]] {\n  \"action\": \"model_cache_miss\",\n  \"model_name\": \"intfloat/e5-base-v2\",\n  \"loading_start\": true\n}",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "utils.py",
+      "lineno": 181,
+      "funcName": "log3"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:57:37.153662",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:57:37,153 - app - INFO - [TRACE][[MODEL_CACHE]] {\n  \"action\": \"model_cache_miss\",\n  \"model_name\": \"intfloat/e5-base-v2\",\n  \"loading_start\": true\n}",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "utils.py",
+      "lineno": 181,
+      "funcName": "log3"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:57:37.156563",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:57:37,153 - app - INFO - [TRACE][[MODEL_CACHE]] {\n  \"action\": \"model_cache_miss\",\n  \"model_name\": \"intfloat/e5-base-v2\",\n  \"loading_start\": true\n}",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "utils.py",
+      "lineno": 181,
+      "funcName": "log3"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:57:37.156618",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:57:37,153 - app - INFO - [TRACE][[MODEL_CACHE]] {\n  \"action\": \"model_cache_miss\",\n  \"model_name\": \"intfloat/e5-base-v2\",\n  \"loading_start\": true\n}",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "utils.py",
+      "lineno": 181,
+      "funcName": "log3"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:57:37.167862",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[TRACE][17:57:37][INFO] [MODEL_CACHE]: {\n  \"action\": \"model_cache_miss\",\n  \"model_name\": \"intfloat/e5-base-v2\",\n  \"loading_start\": true\n}",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:57:37.167886",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[TRACE][17:57:37][INFO] [MODEL_CACHE]: {\n  \"action\": \"model_cache_miss\",\n  \"model_name\": \"intfloat/e5-base-v2\",\n  \"loading_start\": true\n}",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:57:37.168472",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:57:37,168 - app - INFO - [TRACE][[MODEL_CACHE]] {\n  \"action\": \"loading_from_huggingface\",\n  \"model_name\": \"intfloat/e5-base-v2\"\n}",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "utils.py",
+      "lineno": 181,
+      "funcName": "log3"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:57:37.168514",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:57:37,168 - app - INFO - [TRACE][[MODEL_CACHE]] {\n  \"action\": \"loading_from_huggingface\",\n  \"model_name\": \"intfloat/e5-base-v2\"\n}",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "utils.py",
+      "lineno": 181,
+      "funcName": "log3"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:57:37.239380",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:57:37,168 - app - INFO - [TRACE][[MODEL_CACHE]] {\n  \"action\": \"loading_from_huggingface\",\n  \"model_name\": \"intfloat/e5-base-v2\"\n}",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "utils.py",
+      "lineno": 181,
+      "funcName": "log3"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:57:37.239421",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:57:37,168 - app - INFO - [TRACE][[MODEL_CACHE]] {\n  \"action\": \"loading_from_huggingface\",\n  \"model_name\": \"intfloat/e5-base-v2\"\n}",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "utils.py",
+      "lineno": 181,
+      "funcName": "log3"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:57:37.239992",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[TRACE][17:57:37][INFO] [MODEL_CACHE]: {\n  \"action\": \"loading_from_huggingface\",\n  \"model_name\": \"intfloat/e5-base-v2\"\n}",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:57:37.240011",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[TRACE][17:57:37][INFO] [MODEL_CACHE]: {\n  \"action\": \"loading_from_huggingface\",\n  \"model_name\": \"intfloat/e5-base-v2\"\n}",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:57:44.072748",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:57:44,072 - app - INFO - [TRACE][[MODEL_CACHE]] {\n  \"action\": \"model_load_complete\",\n  \"model_name\": \"intfloat/e5-base-v2\",\n  \"load_time_seconds\": \"6.90\"\n}",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "utils.py",
+      "lineno": 181,
+      "funcName": "log3"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:57:44.072785",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:57:44,072 - app - INFO - [TRACE][[MODEL_CACHE]] {\n  \"action\": \"model_load_complete\",\n  \"model_name\": \"intfloat/e5-base-v2\",\n  \"load_time_seconds\": \"6.90\"\n}",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "utils.py",
+      "lineno": 181,
+      "funcName": "log3"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:57:44.073593",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:57:44,072 - app - INFO - [TRACE][[MODEL_CACHE]] {\n  \"action\": \"model_load_complete\",\n  \"model_name\": \"intfloat/e5-base-v2\",\n  \"load_time_seconds\": \"6.90\"\n}",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "utils.py",
+      "lineno": 181,
+      "funcName": "log3"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:57:44.073637",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:57:44,072 - app - INFO - [TRACE][[MODEL_CACHE]] {\n  \"action\": \"model_load_complete\",\n  \"model_name\": \"intfloat/e5-base-v2\",\n  \"load_time_seconds\": \"6.90\"\n}",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "utils.py",
+      "lineno": 181,
+      "funcName": "log3"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:57:44.074142",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[TRACE][17:57:44][INFO] [MODEL_CACHE]: {\n  \"action\": \"model_load_complete\",\n  \"model_name\": \"intfloat/e5-base-v2\",\n  \"load_time_seconds\": \"6.90\"\n}",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:57:44.074160",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[TRACE][17:57:44][INFO] [MODEL_CACHE]: {\n  \"action\": \"model_load_complete\",\n  \"model_name\": \"intfloat/e5-base-v2\",\n  \"load_time_seconds\": \"6.90\"\n}",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:57:44.108008",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:57:44,107 - app - INFO - [TRACE][[MODEL_CACHE]] {\n  \"action\": \"model_loaded\",\n  \"model_name\": \"intfloat/e5-base-v2\",\n  \"estimated_size_mb\": 417.6,\n  \"total_models_cached\": 2,\n  \"memory_usage\": \"56.0%\"\n}",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "utils.py",
+      "lineno": 181,
+      "funcName": "log3"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:57:44.108045",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:57:44,107 - app - INFO - [TRACE][[MODEL_CACHE]] {\n  \"action\": \"model_loaded\",\n  \"model_name\": \"intfloat/e5-base-v2\",\n  \"estimated_size_mb\": 417.6,\n  \"total_models_cached\": 2,\n  \"memory_usage\": \"56.0%\"\n}",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "utils.py",
+      "lineno": 181,
+      "funcName": "log3"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:57:44.108945",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:57:44,107 - app - INFO - [TRACE][[MODEL_CACHE]] {\n  \"action\": \"model_loaded\",\n  \"model_name\": \"intfloat/e5-base-v2\",\n  \"estimated_size_mb\": 417.6,\n  \"total_models_cached\": 2,\n  \"memory_usage\": \"56.0%\"\n}",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "utils.py",
+      "lineno": 181,
+      "funcName": "log3"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:57:44.108984",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:57:44,107 - app - INFO - [TRACE][[MODEL_CACHE]] {\n  \"action\": \"model_loaded\",\n  \"model_name\": \"intfloat/e5-base-v2\",\n  \"estimated_size_mb\": 417.6,\n  \"total_models_cached\": 2,\n  \"memory_usage\": \"56.0%\"\n}",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "utils.py",
+      "lineno": 181,
+      "funcName": "log3"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:57:44.109946",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[TRACE][17:57:44][INFO] [MODEL_CACHE]: {\n  \"action\": \"model_loaded\",\n  \"model_name\": \"intfloat/e5-base-v2\",\n  \"estimated_size_mb\": 417.6,\n  \"total_models_cached\": 2,\n  \"memory_usage\": \"56.0%\"\n}",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:57:44.109967",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[TRACE][17:57:44][INFO] [MODEL_CACHE]: {\n  \"action\": \"model_loaded\",\n  \"model_name\": \"intfloat/e5-base-v2\",\n  \"estimated_size_mb\": 417.6,\n  \"total_models_cached\": 2,\n  \"memory_usage\": \"56.0%\"\n}",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:57:44.110347",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:57:44,110 - app - INFO - [TRACE][[UNIFIED_CACHE]] 🆕 Model loaded: e5-base-v2 | Time: 6.963s",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "utils.py",
+      "lineno": 181,
+      "funcName": "log3"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:57:44.110381",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:57:44,110 - app - INFO - [TRACE][[UNIFIED_CACHE]] 🆕 Model loaded: e5-base-v2 | Time: 6.963s",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "utils.py",
+      "lineno": 181,
+      "funcName": "log3"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:57:44.111265",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:57:44,110 - app - INFO - [TRACE][[UNIFIED_CACHE]] 🆕 Model loaded: e5-base-v2 | Time: 6.963s",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "utils.py",
+      "lineno": 181,
+      "funcName": "log3"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:57:44.111301",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:57:44,110 - app - INFO - [TRACE][[UNIFIED_CACHE]] 🆕 Model loaded: e5-base-v2 | Time: 6.963s",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "utils.py",
+      "lineno": 181,
+      "funcName": "log3"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:57:44.188085",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[TRACE][17:57:44][INFO] [UNIFIED_CACHE]: 🆕 Model loaded: e5-base-v2 | Time: 6.963s",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:57:44.188139",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[TRACE][17:57:44][INFO] [UNIFIED_CACHE]: 🆕 Model loaded: e5-base-v2 | Time: 6.963s",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:57:44.190063",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[STARTUP] ✅ e5-base-v2: 7.04s",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:57:44.190087",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[STARTUP] ✅ e5-base-v2: 7.04s",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:57:44.191004",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[STARTUP] 🔥 WARM-UP - Génération embeddings de test...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:57:44.191066",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[STARTUP] 🔥 WARM-UP - Génération embeddings de test...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:57:44.194728",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:57:44,194 - app - INFO - [TRACE][[EMBEDDING_CACHE]] {\n  \"action\": \"cache_miss\",\n  \"query\": \"Bonjour, combien coûte un paquet de couches?\"\n}",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "utils.py",
+      "lineno": 181,
+      "funcName": "log3"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:57:44.194769",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:57:44,194 - app - INFO - [TRACE][[EMBEDDING_CACHE]] {\n  \"action\": \"cache_miss\",\n  \"query\": \"Bonjour, combien coûte un paquet de couches?\"\n}",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "utils.py",
+      "lineno": 181,
+      "funcName": "log3"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:57:44.197328",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:57:44,194 - app - INFO - [TRACE][[EMBEDDING_CACHE]] {\n  \"action\": \"cache_miss\",\n  \"query\": \"Bonjour, combien coûte un paquet de couches?\"\n}",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "utils.py",
+      "lineno": 181,
+      "funcName": "log3"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:57:44.197374",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:57:44,194 - app - INFO - [TRACE][[EMBEDDING_CACHE]] {\n  \"action\": \"cache_miss\",\n  \"query\": \"Bonjour, combien coûte un paquet de couches?\"\n}",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "utils.py",
+      "lineno": 181,
+      "funcName": "log3"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:57:44.256816",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[TRACE][17:57:44][INFO] [EMBEDDING_CACHE]: {\n  \"action\": \"cache_miss\",\n  \"query\": \"Bonjour, combien coûte un paquet de couches?\"\n}",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:57:44.256880",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[TRACE][17:57:44][INFO] [EMBEDDING_CACHE]: {\n  \"action\": \"cache_miss\",\n  \"query\": \"Bonjour, combien coûte un paquet de couches?\"\n}",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:57:44.273424",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:57:44,271 - app - INFO - [TRACE][[MODEL_CACHE]] {\n  \"action\": \"model_cache_miss\",\n  \"model_name\": \"sentence-transformers/all-MiniLM-L6-v2\",\n  \"loading_start\": true\n}",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "utils.py",
+      "lineno": 181,
+      "funcName": "log3"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:57:44.273643",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:57:44,271 - app - INFO - [TRACE][[MODEL_CACHE]] {\n  \"action\": \"model_cache_miss\",\n  \"model_name\": \"sentence-transformers/all-MiniLM-L6-v2\",\n  \"loading_start\": true\n}",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "utils.py",
+      "lineno": 181,
+      "funcName": "log3"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:57:44.281281",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:57:44,271 - app - INFO - [TRACE][[MODEL_CACHE]] {\n  \"action\": \"model_cache_miss\",\n  \"model_name\": \"sentence-transformers/all-MiniLM-L6-v2\",\n  \"loading_start\": true\n}",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "utils.py",
+      "lineno": 181,
+      "funcName": "log3"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:57:44.281325",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:57:44,271 - app - INFO - [TRACE][[MODEL_CACHE]] {\n  \"action\": \"model_cache_miss\",\n  \"model_name\": \"sentence-transformers/all-MiniLM-L6-v2\",\n  \"loading_start\": true\n}",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "utils.py",
+      "lineno": 181,
+      "funcName": "log3"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:57:44.289349",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[TRACE][17:57:44][INFO] [MODEL_CACHE]: {\n  \"action\": \"model_cache_miss\",\n  \"model_name\": \"sentence-transformers/all-MiniLM-L6-v2\",\n  \"loading_start\": true\n}",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:57:44.289376",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[TRACE][17:57:44][INFO] [MODEL_CACHE]: {\n  \"action\": \"model_cache_miss\",\n  \"model_name\": \"sentence-transformers/all-MiniLM-L6-v2\",\n  \"loading_start\": true\n}",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:57:44.290901",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:57:44,290 - app - INFO - [TRACE][[MODEL_CACHE]] {\n  \"action\": \"loading_from_huggingface\",\n  \"model_name\": \"sentence-transformers/all-MiniLM-L6-v2\"\n}",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "utils.py",
+      "lineno": 181,
+      "funcName": "log3"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:57:44.291003",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:57:44,290 - app - INFO - [TRACE][[MODEL_CACHE]] {\n  \"action\": \"loading_from_huggingface\",\n  \"model_name\": \"sentence-transformers/all-MiniLM-L6-v2\"\n}",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "utils.py",
+      "lineno": 181,
+      "funcName": "log3"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:57:44.340917",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:57:44,290 - app - INFO - [TRACE][[MODEL_CACHE]] {\n  \"action\": \"loading_from_huggingface\",\n  \"model_name\": \"sentence-transformers/all-MiniLM-L6-v2\"\n}",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "utils.py",
+      "lineno": 181,
+      "funcName": "log3"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:57:44.341006",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:57:44,290 - app - INFO - [TRACE][[MODEL_CACHE]] {\n  \"action\": \"loading_from_huggingface\",\n  \"model_name\": \"sentence-transformers/all-MiniLM-L6-v2\"\n}",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "utils.py",
+      "lineno": 181,
+      "funcName": "log3"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:57:44.341425",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[TRACE][17:57:44][INFO] [MODEL_CACHE]: {\n  \"action\": \"loading_from_huggingface\",\n  \"model_name\": \"sentence-transformers/all-MiniLM-L6-v2\"\n}",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:57:44.341443",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[TRACE][17:57:44][INFO] [MODEL_CACHE]: {\n  \"action\": \"loading_from_huggingface\",\n  \"model_name\": \"sentence-transformers/all-MiniLM-L6-v2\"\n}",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:57:51.216655",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:57:51,216 - app - INFO - [TRACE][[MODEL_CACHE]] {\n  \"action\": \"model_load_complete\",\n  \"model_name\": \"sentence-transformers/all-MiniLM-L6-v2\",\n  \"load_time_seconds\": \"6.93\"\n}",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "utils.py",
+      "lineno": 181,
+      "funcName": "log3"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:57:51.216682",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:57:51,216 - app - INFO - [TRACE][[MODEL_CACHE]] {\n  \"action\": \"model_load_complete\",\n  \"model_name\": \"sentence-transformers/all-MiniLM-L6-v2\",\n  \"load_time_seconds\": \"6.93\"\n}",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "utils.py",
+      "lineno": 181,
+      "funcName": "log3"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:57:51.217431",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:57:51,216 - app - INFO - [TRACE][[MODEL_CACHE]] {\n  \"action\": \"model_load_complete\",\n  \"model_name\": \"sentence-transformers/all-MiniLM-L6-v2\",\n  \"load_time_seconds\": \"6.93\"\n}",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "utils.py",
+      "lineno": 181,
+      "funcName": "log3"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:57:51.217465",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:57:51,216 - app - INFO - [TRACE][[MODEL_CACHE]] {\n  \"action\": \"model_load_complete\",\n  \"model_name\": \"sentence-transformers/all-MiniLM-L6-v2\",\n  \"load_time_seconds\": \"6.93\"\n}",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "utils.py",
+      "lineno": 181,
+      "funcName": "log3"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:57:51.217983",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[TRACE][17:57:51][INFO] [MODEL_CACHE]: {\n  \"action\": \"model_load_complete\",\n  \"model_name\": \"sentence-transformers/all-MiniLM-L6-v2\",\n  \"load_time_seconds\": \"6.93\"\n}",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:57:51.218001",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[TRACE][17:57:51][INFO] [MODEL_CACHE]: {\n  \"action\": \"model_load_complete\",\n  \"model_name\": \"sentence-transformers/all-MiniLM-L6-v2\",\n  \"load_time_seconds\": \"6.93\"\n}",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:57:51.257842",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:57:51,257 - app - INFO - [TRACE][[MODEL_CACHE]] {\n  \"action\": \"model_loaded\",\n  \"model_name\": \"sentence-transformers/all-MiniLM-L6-v2\",\n  \"estimated_size_mb\": 86.6,\n  \"total_models_cached\": 3,\n  \"memory_usage\": \"55.8%\"\n}",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "utils.py",
+      "lineno": 181,
+      "funcName": "log3"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:57:51.257880",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:57:51,257 - app - INFO - [TRACE][[MODEL_CACHE]] {\n  \"action\": \"model_loaded\",\n  \"model_name\": \"sentence-transformers/all-MiniLM-L6-v2\",\n  \"estimated_size_mb\": 86.6,\n  \"total_models_cached\": 3,\n  \"memory_usage\": \"55.8%\"\n}",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "utils.py",
+      "lineno": 181,
+      "funcName": "log3"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:57:51.268994",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:57:51,257 - app - INFO - [TRACE][[MODEL_CACHE]] {\n  \"action\": \"model_loaded\",\n  \"model_name\": \"sentence-transformers/all-MiniLM-L6-v2\",\n  \"estimated_size_mb\": 86.6,\n  \"total_models_cached\": 3,\n  \"memory_usage\": \"55.8%\"\n}",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "utils.py",
+      "lineno": 181,
+      "funcName": "log3"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:57:51.269035",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:57:51,257 - app - INFO - [TRACE][[MODEL_CACHE]] {\n  \"action\": \"model_loaded\",\n  \"model_name\": \"sentence-transformers/all-MiniLM-L6-v2\",\n  \"estimated_size_mb\": 86.6,\n  \"total_models_cached\": 3,\n  \"memory_usage\": \"55.8%\"\n}",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "utils.py",
+      "lineno": 181,
+      "funcName": "log3"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:57:51.271982",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[TRACE][17:57:51][INFO] [MODEL_CACHE]: {\n  \"action\": \"model_loaded\",\n  \"model_name\": \"sentence-transformers/all-MiniLM-L6-v2\",\n  \"estimated_size_mb\": 86.6,\n  \"total_models_cached\": 3,\n  \"memory_usage\": \"55.8%\"\n}",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:57:51.272007",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[TRACE][17:57:51][INFO] [MODEL_CACHE]: {\n  \"action\": \"model_loaded\",\n  \"model_name\": \"sentence-transformers/all-MiniLM-L6-v2\",\n  \"estimated_size_mb\": 86.6,\n  \"total_models_cached\": 3,\n  \"memory_usage\": \"55.8%\"\n}",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:57:51.272397",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:57:51,272 - app - INFO - [TRACE][[UNIFIED_CACHE]] 🆕 Model loaded: all-MiniLM-L6-v2 | Time: 7.015s",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "utils.py",
+      "lineno": 181,
+      "funcName": "log3"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:57:51.272472",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:57:51,272 - app - INFO - [TRACE][[UNIFIED_CACHE]] 🆕 Model loaded: all-MiniLM-L6-v2 | Time: 7.015s",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "utils.py",
+      "lineno": 181,
+      "funcName": "log3"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:57:51.273233",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:57:51,272 - app - INFO - [TRACE][[UNIFIED_CACHE]] 🆕 Model loaded: all-MiniLM-L6-v2 | Time: 7.015s",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "utils.py",
+      "lineno": 181,
+      "funcName": "log3"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:57:51.273271",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:57:51,272 - app - INFO - [TRACE][[UNIFIED_CACHE]] 🆕 Model loaded: all-MiniLM-L6-v2 | Time: 7.015s",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "utils.py",
+      "lineno": 181,
+      "funcName": "log3"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:57:51.322564",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[TRACE][17:57:51][INFO] [UNIFIED_CACHE]: 🆕 Model loaded: all-MiniLM-L6-v2 | Time: 7.015s",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:57:51.322588",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[TRACE][17:57:51][INFO] [UNIFIED_CACHE]: 🆕 Model loaded: all-MiniLM-L6-v2 | Time: 7.015s",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:57:51.944496",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:57:51,944 - app - INFO - [TRACE][[EMBEDDING_CACHE]] {\n  \"action\": \"cache_set\",\n  \"query\": \"Bonjour, combien coûte un paquet de couches?\",\n  \"embedding_dims\": 384,\n  \"size_bytes\": 1536\n}",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "utils.py",
+      "lineno": 181,
+      "funcName": "log3"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:57:51.944525",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:57:51,944 - app - INFO - [TRACE][[EMBEDDING_CACHE]] {\n  \"action\": \"cache_set\",\n  \"query\": \"Bonjour, combien coûte un paquet de couches?\",\n  \"embedding_dims\": 384,\n  \"size_bytes\": 1536\n}",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "utils.py",
+      "lineno": 181,
+      "funcName": "log3"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:57:51.945386",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:57:51,944 - app - INFO - [TRACE][[EMBEDDING_CACHE]] {\n  \"action\": \"cache_set\",\n  \"query\": \"Bonjour, combien coûte un paquet de couches?\",\n  \"embedding_dims\": 384,\n  \"size_bytes\": 1536\n}",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "utils.py",
+      "lineno": 181,
+      "funcName": "log3"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:57:51.945429",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:57:51,944 - app - INFO - [TRACE][[EMBEDDING_CACHE]] {\n  \"action\": \"cache_set\",\n  \"query\": \"Bonjour, combien coûte un paquet de couches?\",\n  \"embedding_dims\": 384,\n  \"size_bytes\": 1536\n}",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "utils.py",
+      "lineno": 181,
+      "funcName": "log3"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:57:51.946021",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[TRACE][17:57:51][INFO] [EMBEDDING_CACHE]: {\n  \"action\": \"cache_set\",\n  \"query\": \"Bonjour, combien coûte un paquet de couches?\",\n  \"embedding_dims\": 384,\n  \"size_bytes\": 1536\n}",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:57:51.946035",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[TRACE][17:57:51][INFO] [EMBEDDING_CACHE]: {\n  \"action\": \"cache_set\",\n  \"query\": \"Bonjour, combien coûte un paquet de couches?\",\n  \"embedding_dims\": 384,\n  \"size_bytes\": 1536\n}",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:57:51.946330",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[STARTUP] 🔥 Test 1/3: 384 dims",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:57:51.946346",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[STARTUP] 🔥 Test 1/3: 384 dims",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:57:51.983765",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:57:51,983 - app - INFO - [TRACE][[EMBEDDING_CACHE]] {\n  \"action\": \"cache_miss\",\n  \"query\": \"Livraison à Yopougon possible?\"\n}",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "utils.py",
+      "lineno": 181,
+      "funcName": "log3"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:57:51.983814",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:57:51,983 - app - INFO - [TRACE][[EMBEDDING_CACHE]] {\n  \"action\": \"cache_miss\",\n  \"query\": \"Livraison à Yopougon possible?\"\n}",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "utils.py",
+      "lineno": 181,
+      "funcName": "log3"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:57:51.989340",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:57:51,983 - app - INFO - [TRACE][[EMBEDDING_CACHE]] {\n  \"action\": \"cache_miss\",\n  \"query\": \"Livraison à Yopougon possible?\"\n}",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "utils.py",
+      "lineno": 181,
+      "funcName": "log3"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:57:51.989385",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:57:51,983 - app - INFO - [TRACE][[EMBEDDING_CACHE]] {\n  \"action\": \"cache_miss\",\n  \"query\": \"Livraison à Yopougon possible?\"\n}",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "utils.py",
+      "lineno": 181,
+      "funcName": "log3"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:57:51.990695",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[TRACE][17:57:51][INFO] [EMBEDDING_CACHE]: {\n  \"action\": \"cache_miss\",\n  \"query\": \"Livraison à Yopougon possible?\"\n}",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:57:51.990719",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[TRACE][17:57:51][INFO] [EMBEDDING_CACHE]: {\n  \"action\": \"cache_miss\",\n  \"query\": \"Livraison à Yopougon possible?\"\n}",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:57:51.998817",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:57:51,998 - app - INFO - [TRACE][[MODEL_CACHE]] {\n  \"action\": \"model_cache_hit\",\n  \"model_name\": \"sentence-transformers/all-MiniLM-L6-v2\",\n  \"access_count\": 2,\n  \"memory_usage\": \"55.9%\"\n}",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "utils.py",
+      "lineno": 181,
+      "funcName": "log3"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:57:51.998932",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:57:51,998 - app - INFO - [TRACE][[MODEL_CACHE]] {\n  \"action\": \"model_cache_hit\",\n  \"model_name\": \"sentence-transformers/all-MiniLM-L6-v2\",\n  \"access_count\": 2,\n  \"memory_usage\": \"55.9%\"\n}",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "utils.py",
+      "lineno": 181,
+      "funcName": "log3"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:57:52.003550",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:57:51,998 - app - INFO - [TRACE][[MODEL_CACHE]] {\n  \"action\": \"model_cache_hit\",\n  \"model_name\": \"sentence-transformers/all-MiniLM-L6-v2\",\n  \"access_count\": 2,\n  \"memory_usage\": \"55.9%\"\n}",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "utils.py",
+      "lineno": 181,
+      "funcName": "log3"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:57:52.004086",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:57:51,998 - app - INFO - [TRACE][[MODEL_CACHE]] {\n  \"action\": \"model_cache_hit\",\n  \"model_name\": \"sentence-transformers/all-MiniLM-L6-v2\",\n  \"access_count\": 2,\n  \"memory_usage\": \"55.9%\"\n}",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "utils.py",
+      "lineno": 181,
+      "funcName": "log3"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:57:52.078524",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[TRACE][17:57:52][INFO] [MODEL_CACHE]: {\n  \"action\": \"model_cache_hit\",\n  \"model_name\": \"sentence-transformers/all-MiniLM-L6-v2\",\n  \"access_count\": 2,\n  \"memory_usage\": \"55.9%\"\n}",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:57:52.078549",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[TRACE][17:57:52][INFO] [MODEL_CACHE]: {\n  \"action\": \"model_cache_hit\",\n  \"model_name\": \"sentence-transformers/all-MiniLM-L6-v2\",\n  \"access_count\": 2,\n  \"memory_usage\": \"55.9%\"\n}",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:57:52.078979",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:57:52,078 - app - INFO - [TRACE][[UNIFIED_CACHE]] ✅ Model hit: all-MiniLM-L6-v2 | Saved: 8.212s",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "utils.py",
+      "lineno": 181,
+      "funcName": "log3"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:57:52.079013",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:57:52,078 - app - INFO - [TRACE][[UNIFIED_CACHE]] ✅ Model hit: all-MiniLM-L6-v2 | Saved: 8.212s",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "utils.py",
+      "lineno": 181,
+      "funcName": "log3"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:57:52.079471",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:57:52,078 - app - INFO - [TRACE][[UNIFIED_CACHE]] ✅ Model hit: all-MiniLM-L6-v2 | Saved: 8.212s",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "utils.py",
+      "lineno": 181,
+      "funcName": "log3"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:57:52.079501",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:57:52,078 - app - INFO - [TRACE][[UNIFIED_CACHE]] ✅ Model hit: all-MiniLM-L6-v2 | Saved: 8.212s",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "utils.py",
+      "lineno": 181,
+      "funcName": "log3"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:57:52.079804",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[TRACE][17:57:52][INFO] [UNIFIED_CACHE]: ✅ Model hit: all-MiniLM-L6-v2 | Saved: 8.212s",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:57:52.079820",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[TRACE][17:57:52][INFO] [UNIFIED_CACHE]: ✅ Model hit: all-MiniLM-L6-v2 | Saved: 8.212s",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:57:52.135792",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:57:52,135 - app - INFO - [TRACE][[EMBEDDING_CACHE]] {\n  \"action\": \"cache_set\",\n  \"query\": \"Livraison à Yopougon possible?\",\n  \"embedding_dims\": 384,\n  \"size_bytes\": 1536\n}",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "utils.py",
+      "lineno": 181,
+      "funcName": "log3"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:57:52.135835",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:57:52,135 - app - INFO - [TRACE][[EMBEDDING_CACHE]] {\n  \"action\": \"cache_set\",\n  \"query\": \"Livraison à Yopougon possible?\",\n  \"embedding_dims\": 384,\n  \"size_bytes\": 1536\n}",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "utils.py",
+      "lineno": 181,
+      "funcName": "log3"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:57:52.177691",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:57:52,135 - app - INFO - [TRACE][[EMBEDDING_CACHE]] {\n  \"action\": \"cache_set\",\n  \"query\": \"Livraison à Yopougon possible?\",\n  \"embedding_dims\": 384,\n  \"size_bytes\": 1536\n}",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "utils.py",
+      "lineno": 181,
+      "funcName": "log3"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:57:52.177726",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:57:52,135 - app - INFO - [TRACE][[EMBEDDING_CACHE]] {\n  \"action\": \"cache_set\",\n  \"query\": \"Livraison à Yopougon possible?\",\n  \"embedding_dims\": 384,\n  \"size_bytes\": 1536\n}",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "utils.py",
+      "lineno": 181,
+      "funcName": "log3"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:57:52.178837",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[TRACE][17:57:52][INFO] [EMBEDDING_CACHE]: {\n  \"action\": \"cache_set\",\n  \"query\": \"Livraison à Yopougon possible?\",\n  \"embedding_dims\": 384,\n  \"size_bytes\": 1536\n}",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:57:52.178882",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[TRACE][17:57:52][INFO] [EMBEDDING_CACHE]: {\n  \"action\": \"cache_set\",\n  \"query\": \"Livraison à Yopougon possible?\",\n  \"embedding_dims\": 384,\n  \"size_bytes\": 1536\n}",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:57:52.179211",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[STARTUP] 🔥 Test 2/3: 384 dims",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:57:52.179228",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[STARTUP] 🔥 Test 2/3: 384 dims",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:57:52.179778",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:57:52,179 - app - INFO - [TRACE][[EMBEDDING_CACHE]] {\n  \"action\": \"cache_miss\",\n  \"query\": \"Quels sont vos prix?\"\n}",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "utils.py",
+      "lineno": 181,
+      "funcName": "log3"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:57:52.179864",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:57:52,179 - app - INFO - [TRACE][[EMBEDDING_CACHE]] {\n  \"action\": \"cache_miss\",\n  \"query\": \"Quels sont vos prix?\"\n}",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "utils.py",
+      "lineno": 181,
+      "funcName": "log3"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:57:52.180748",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:57:52,179 - app - INFO - [TRACE][[EMBEDDING_CACHE]] {\n  \"action\": \"cache_miss\",\n  \"query\": \"Quels sont vos prix?\"\n}",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "utils.py",
+      "lineno": 181,
+      "funcName": "log3"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:57:52.180797",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:57:52,179 - app - INFO - [TRACE][[EMBEDDING_CACHE]] {\n  \"action\": \"cache_miss\",\n  \"query\": \"Quels sont vos prix?\"\n}",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "utils.py",
+      "lineno": 181,
+      "funcName": "log3"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:57:52.230982",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[TRACE][17:57:52][INFO] [EMBEDDING_CACHE]: {\n  \"action\": \"cache_miss\",\n  \"query\": \"Quels sont vos prix?\"\n}",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:57:52.231007",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[TRACE][17:57:52][INFO] [EMBEDDING_CACHE]: {\n  \"action\": \"cache_miss\",\n  \"query\": \"Quels sont vos prix?\"\n}",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:57:52.240333",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:57:52,240 - app - INFO - [TRACE][[MODEL_CACHE]] {\n  \"action\": \"model_cache_hit\",\n  \"model_name\": \"sentence-transformers/all-MiniLM-L6-v2\",\n  \"access_count\": 3,\n  \"memory_usage\": \"56.0%\"\n}",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "utils.py",
+      "lineno": 181,
+      "funcName": "log3"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:57:52.240368",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:57:52,240 - app - INFO - [TRACE][[MODEL_CACHE]] {\n  \"action\": \"model_cache_hit\",\n  \"model_name\": \"sentence-transformers/all-MiniLM-L6-v2\",\n  \"access_count\": 3,\n  \"memory_usage\": \"56.0%\"\n}",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "utils.py",
+      "lineno": 181,
+      "funcName": "log3"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:57:52.241358",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:57:52,240 - app - INFO - [TRACE][[MODEL_CACHE]] {\n  \"action\": \"model_cache_hit\",\n  \"model_name\": \"sentence-transformers/all-MiniLM-L6-v2\",\n  \"access_count\": 3,\n  \"memory_usage\": \"56.0%\"\n}",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "utils.py",
+      "lineno": 181,
+      "funcName": "log3"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:57:52.241538",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:57:52,240 - app - INFO - [TRACE][[MODEL_CACHE]] {\n  \"action\": \"model_cache_hit\",\n  \"model_name\": \"sentence-transformers/all-MiniLM-L6-v2\",\n  \"access_count\": 3,\n  \"memory_usage\": \"56.0%\"\n}",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "utils.py",
+      "lineno": 181,
+      "funcName": "log3"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:57:52.245135",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[TRACE][17:57:52][INFO] [MODEL_CACHE]: {\n  \"action\": \"model_cache_hit\",\n  \"model_name\": \"sentence-transformers/all-MiniLM-L6-v2\",\n  \"access_count\": 3,\n  \"memory_usage\": \"56.0%\"\n}",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:57:52.245156",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[TRACE][17:57:52][INFO] [MODEL_CACHE]: {\n  \"action\": \"model_cache_hit\",\n  \"model_name\": \"sentence-transformers/all-MiniLM-L6-v2\",\n  \"access_count\": 3,\n  \"memory_usage\": \"56.0%\"\n}",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:57:52.245701",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:57:52,245 - app - INFO - [TRACE][[UNIFIED_CACHE]] ✅ Model hit: all-MiniLM-L6-v2 | Saved: 8.286s",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "utils.py",
+      "lineno": 181,
+      "funcName": "log3"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:57:52.245746",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:57:52,245 - app - INFO - [TRACE][[UNIFIED_CACHE]] ✅ Model hit: all-MiniLM-L6-v2 | Saved: 8.286s",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "utils.py",
+      "lineno": 181,
+      "funcName": "log3"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:57:52.302342",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:57:52,245 - app - INFO - [TRACE][[UNIFIED_CACHE]] ✅ Model hit: all-MiniLM-L6-v2 | Saved: 8.286s",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "utils.py",
+      "lineno": 181,
+      "funcName": "log3"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:57:52.302397",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:57:52,245 - app - INFO - [TRACE][[UNIFIED_CACHE]] ✅ Model hit: all-MiniLM-L6-v2 | Saved: 8.286s",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "utils.py",
+      "lineno": 181,
+      "funcName": "log3"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:57:52.303913",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[TRACE][17:57:52][INFO] [UNIFIED_CACHE]: ✅ Model hit: all-MiniLM-L6-v2 | Saved: 8.286s",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:57:52.304136",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[TRACE][17:57:52][INFO] [UNIFIED_CACHE]: ✅ Model hit: all-MiniLM-L6-v2 | Saved: 8.286s",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:57:52.352600",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:57:52,352 - app - INFO - [TRACE][[EMBEDDING_CACHE]] {\n  \"action\": \"cache_set\",\n  \"query\": \"Quels sont vos prix?\",\n  \"embedding_dims\": 384,\n  \"size_bytes\": 1536\n}",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "utils.py",
+      "lineno": 181,
+      "funcName": "log3"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:57:52.352650",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:57:52,352 - app - INFO - [TRACE][[EMBEDDING_CACHE]] {\n  \"action\": \"cache_set\",\n  \"query\": \"Quels sont vos prix?\",\n  \"embedding_dims\": 384,\n  \"size_bytes\": 1536\n}",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "utils.py",
+      "lineno": 181,
+      "funcName": "log3"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:57:52.355115",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:57:52,352 - app - INFO - [TRACE][[EMBEDDING_CACHE]] {\n  \"action\": \"cache_set\",\n  \"query\": \"Quels sont vos prix?\",\n  \"embedding_dims\": 384,\n  \"size_bytes\": 1536\n}",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "utils.py",
+      "lineno": 181,
+      "funcName": "log3"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:57:52.355153",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:57:52,352 - app - INFO - [TRACE][[EMBEDDING_CACHE]] {\n  \"action\": \"cache_set\",\n  \"query\": \"Quels sont vos prix?\",\n  \"embedding_dims\": 384,\n  \"size_bytes\": 1536\n}",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "utils.py",
+      "lineno": 181,
+      "funcName": "log3"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:57:52.356499",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[TRACE][17:57:52][INFO] [EMBEDDING_CACHE]: {\n  \"action\": \"cache_set\",\n  \"query\": \"Quels sont vos prix?\",\n  \"embedding_dims\": 384,\n  \"size_bytes\": 1536\n}",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:57:52.356521",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[TRACE][17:57:52][INFO] [EMBEDDING_CACHE]: {\n  \"action\": \"cache_set\",\n  \"query\": \"Quels sont vos prix?\",\n  \"embedding_dims\": 384,\n  \"size_bytes\": 1536\n}",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:57:52.413092",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[STARTUP] 🔥 Test 3/3: 384 dims",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:57:52.413114",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[STARTUP] 🔥 Test 3/3: 384 dims",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:57:52.413497",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[STARTUP] ✅ WARM-UP terminé en 8.22s",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:57:52.413515",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[STARTUP] ✅ WARM-UP terminé en 8.22s",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:57:52.417125",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:57:52,417 - app - INFO - [TRACE][[MODEL_CACHE]] {\n  \"action\": \"preload_complete\",\n  \"loaded_count\": 0,\n  \"total_cached\": 3\n}",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "utils.py",
+      "lineno": 181,
+      "funcName": "log3"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:57:52.417164",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:57:52,417 - app - INFO - [TRACE][[MODEL_CACHE]] {\n  \"action\": \"preload_complete\",\n  \"loaded_count\": 0,\n  \"total_cached\": 3\n}",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "utils.py",
+      "lineno": 181,
+      "funcName": "log3"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:57:52.421736",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:57:52,417 - app - INFO - [TRACE][[MODEL_CACHE]] {\n  \"action\": \"preload_complete\",\n  \"loaded_count\": 0,\n  \"total_cached\": 3\n}",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "utils.py",
+      "lineno": 181,
+      "funcName": "log3"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:57:52.421778",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:57:52,417 - app - INFO - [TRACE][[MODEL_CACHE]] {\n  \"action\": \"preload_complete\",\n  \"loaded_count\": 0,\n  \"total_cached\": 3\n}",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "utils.py",
+      "lineno": 181,
+      "funcName": "log3"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:57:52.422613",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[TRACE][17:57:52][INFO] [MODEL_CACHE]: {\n  \"action\": \"preload_complete\",\n  \"loaded_count\": 0,\n  \"total_cached\": 3\n}",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:57:52.422634",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[TRACE][17:57:52][INFO] [MODEL_CACHE]: {\n  \"action\": \"preload_complete\",\n  \"loaded_count\": 0,\n  \"total_cached\": 3\n}",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:57:52.470051",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[STARTUP] 📈 0 modèles populaires confirmés",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:57:52.470075",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[STARTUP] 📈 0 modèles populaires confirmés",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:57:53.197394",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[STARTUP] 🔥 Pré-chargement modèle 384 dim (fallback Supabase)...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:57:53.197412",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[STARTUP] 🔥 Pré-chargement modèle 384 dim (fallback Supabase)...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:57:53.197734",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "✅ SupabaseOptimized384 initialisé (float16=True)",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:57:53.197754",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "✅ SupabaseOptimized384 initialisé (float16=True)",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:57:53.198168",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔄 [SUPABASE_384] Chargement modèle all-MiniLM-L6-v2 (384 dim)...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:57:53.198187",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔄 [SUPABASE_384] Chargement modèle all-MiniLM-L6-v2 (384 dim)...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:58:00.131558",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "✅ [SUPABASE_384] Modèle chargé et prêt (384 dimensions)",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:58:00.131592",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "✅ [SUPABASE_384] Modèle chargé et prêt (384 dimensions)",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:58:00.197894",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔥 [SUPABASE_384] Modèle pré-chargé - Prêt pour fallback instantané!",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:58:00.197927",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔥 [SUPABASE_384] Modèle pré-chargé - Prêt pour fallback instantané!",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:58:00.198647",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[STARTUP] ✅ Modèle 384 pré-chargé - Fallback instantané activé!",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:58:00.198720",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[STARTUP] ✅ Modèle 384 pré-chargé - Fallback instantané activé!",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:58:00.205066",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "============================================================",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:58:00.205091",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "============================================================",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:58:00.207200",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🎆 STARTUP ENHANCED TERMINÉ AVEC SUCCÈS!",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:58:00.207224",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🎆 STARTUP ENHANCED TERMINÉ AVEC SUCCÈS!",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:58:00.207534",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "============================================================",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:58:00.207550",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "============================================================",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:58:00.268662",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🚀 Temps total: 32.73s",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:58:00.268678",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🚀 Temps total: 32.73s",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:58:00.274087",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🧠 Modèles chargés: 2/2",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:58:00.274115",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🧠 Modèles chargés: 2/2",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:58:00.280091",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "💾 Modèles en cache: 3",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:58:00.280119",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "💾 Modèles en cache: 3",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:58:00.280711",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "📈 Mémoire système: 56.1%",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:58:00.280733",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "📈 Mémoire système: 56.1%",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:58:00.281331",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "⚡ Embeddings en cache: 3",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:58:00.281352",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "⚡ Embeddings en cache: 3",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:58:00.348202",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🎯 Hit rate: 0.0%",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:58:00.348225",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🎯 Hit rate: 0.0%",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:58:00.348677",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "📊 PERFORMANCE ATTENDUE:",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:58:00.348691",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "📊 PERFORMANCE ATTENDUE:",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:58:00.349071",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "- Première requête: ~0.5s (modèles préchargés)",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:58:00.349424",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "- Première requête: ~0.5s (modèles préchargés)",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:58:00.350000",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "- Requêtes suivantes: ~0.01s (cache hits)",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:58:00.350021",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "- Requêtes suivantes: ~0.01s (cache hits)",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:58:00.350468",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "- Latence éliminée: 3.6s → 0.01s (❌ 99.7%)",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:58:00.350485",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "- Latence éliminée: 3.6s → 0.01s (❌ 99.7%)",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:58:46.508838",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "📝 Logging serveur JSON activé!",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:58:46.509473",
+    "level": "INFO",
+    "source": "system",
+    "message": "Logging serveur JSON initialisé",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:58:46.510162",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "✅ [SERVER_LOGGER] Logs serveur activés → logs/server/",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:58:46.511010",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:58:46,510 - app - INFO - Logger configuré avec succès",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "app.py",
+      "lineno": 63,
+      "funcName": "<module>"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:58:46.513465",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:58:46,510 - app - INFO - Logger configuré avec succès",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "app.py",
+      "lineno": 63,
+      "funcName": "<module>"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:58:46.565814",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [DEBUG] Importing core.models...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:58:46.597608",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [DEBUG] Importing FIX_CONTEXT_LOSS_COMPLETE...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:58:46.602479",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "✅ [DEBUG] FIX_CONTEXT_LOSS_COMPLETE imported",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:58:46.602798",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [DEBUG] Importing pydantic...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:58:46.603114",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [DEBUG] Importing universal_rag_engine...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:59:01.694993",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [DEBUG] Importing prompt_manager...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:59:01.697882",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [DEBUG] Importing supabase_client...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:59:01.714874",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [DEBUG] Importing ingestion_api...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:59:03.028772",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [DEBUG] Importing global_embedding_cache...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:59:03.029076",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [DEBUG] Importing auth router...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:59:03.270641",
+    "level": "WARNING",
+    "source": "logger.routes.auth",
+    "message": "2025-11-04 17:59:03,270 - routes.auth - WARNING - Variables d'environnement Google manquantes pour le Service Account. JWT Google désactivé.",
+    "metadata": {
+      "logger_name": "routes.auth",
+      "filename": "auth.py",
+      "lineno": 32,
+      "funcName": "<module>"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:59:03.272093",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [DEBUG] Importing routes...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:59:03.274590",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [DEBUG] Importing meili_ingest_api...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:59:03.423848",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [DEBUG] Importing meili router...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:59:03.535396",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [DEBUG] Importing utils...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:59:03.663183",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [DEBUG] Importing security_validator...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:59:03.666958",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [DEBUG] Importing hallucination_guard...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:59:03.744845",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [DEBUG] Importing error_handler...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:59:03.758775",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [DEBUG] Importing circuit_breaker...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:59:03.761834",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [DEBUG] Importing image_search...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:59:03.762184",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "⚠️ [DEBUG] Image search router SKIPPED (debugging)",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:59:03.762483",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [DEBUG] Importing botlive router...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:59:03.763671",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "⚠️ [DEBUG] Botlive router SKIPPED (debugging)",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:59:03.764015",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "✅ [DEBUG] All imports completed!",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:59:03.810109",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:59:03,809 - app - INFO - 🚀 Monitoring des caches intégré avec succès",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "app.py",
+      "lineno": 341,
+      "funcName": "<module>"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:59:03.853378",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:59:03,809 - app - INFO - 🚀 Monitoring des caches intégré avec succès",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "app.py",
+      "lineno": 341,
+      "funcName": "<module>"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:59:03.904402",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:59:03,904 - app - INFO - Router Enhanced Ingestion avec Mini-LLM Dispatcher monté avec succès",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "app.py",
+      "lineno": 349,
+      "funcName": "<module>"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:59:03.904739",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:59:03,904 - app - INFO - Router Enhanced Ingestion avec Mini-LLM Dispatcher monté avec succès",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "app.py",
+      "lineno": 349,
+      "funcName": "<module>"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:59:04.059126",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "================================================================================\nTOUR 1",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:59:04.059479",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[USER] Voici mon paiement Wave",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:59:04.060354",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[IMAGES] ['https://scontent.xx.fbcdn.net/v/t1.15752-9/553547596_833613639156226_7121847885682360094_n.jpg?_nc_cat=101&ccb=1-7&_nc_sid=eb2e90&_nc_ohc=DamxAq1f9OwQ7kNvwFSbPlg&_nc_oc=AdlYZF2Q2WyPz7SoP6HFp7gZCnmgAysN4ZCziXM2nHv8itrZrced2lMSff1szWQ9V-7WRbl3vV_-uJ9l3-Uxq7ha&_nc_ad=z-m&_nc_cid=0&_nc_zt=23&_nc_ht=scontent.xx&oh=03_Q7cD3gFO-SvfS03vBW39la32NGTcsXuPEGNsnVA6mSvUHOResw&oe=691D864A']",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:59:04.060810",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[BOTLIVE][PROMPT] 🔧 UTILISATION PROMPTS HARDCODÉS (MODE TEST)",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:59:04.061422",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [BOTLIVE_PROMPT] Requête Supabase pour company_id=W27PwOPiblP8TlOrhPcjOtxd0cza",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:59:10.030970",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:59:10,030 - app - INFO - [TRACE][[SUPABASE][BOTLIVE_PROMPT_EXC]] ConnectTimeout: ",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "utils.py",
+      "lineno": 181,
+      "funcName": "log3"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:59:10.031358",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:59:10,030 - app - INFO - [TRACE][[SUPABASE][BOTLIVE_PROMPT_EXC]] ConnectTimeout: ",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "utils.py",
+      "lineno": 181,
+      "funcName": "log3"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:59:10.068425",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[TRACE][17:59:10][INFO] [SUPABASE][BOTLIVE_PROMPT_EXC]: ConnectTimeout:",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:59:10.068729",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "❌ [BOTLIVE_PROMPT] FALLBACK utilisé!",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:59:10.076712",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[BOTLIVE][PROMPT] ✅ Prompt Supabase chargé (149 chars)",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:59:10.077578",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[BOTLIVE] Téléchargement image: https://scontent.xx.fbcdn.net/v/t1.15752-9/553547596_833613639156226_7121847885682360094_n.jpg?_nc_c...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:59:21.471980",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[BOTLIVE] Erreur téléchargement: HTTPSConnectionPool(host='scontent.xx.fbcdn.net', port=443): Max retries exceeded with url: /v/t1.15752-9/553547596_833613639156226_7121847885682360094_n.jpg?_nc_cat=101&ccb=1-7&_nc_sid=eb2e90&_nc_ohc=DamxAq1f9OwQ7kNvwFSbPlg&_nc_oc=AdlYZF2Q2WyPz7SoP6HFp7gZCnmgAysN4ZCziXM2nHv8itrZrced2lMSff1szWQ9V-7WRbl3vV_-uJ9l3-Uxq7ha&_nc_ad=z-m&_nc_cid=0&_nc_zt=23&_nc_ht=scontent.xx&oh=03_Q7cD3gFO-SvfS03vBW39la32NGTcsXuPEGNsnVA6mSvUHOResw&oe=691D864A (Caused by NameResolutionError(\"<urllib3.connection.HTTPSConnection object at 0x000002858CFD6900>: Failed to resolve 'scontent.xx.fbcdn.net' ([Errno 11001] getaddrinfo failed)\"))",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:59:21.472451",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[BOT] Impossible de télécharger l'image. Réessayez avec une autre image.",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:59:21.473139",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "================================================================================\nTOUR 2",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:59:21.473445",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[USER] Ok je renvoie le bon montant",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:59:21.473774",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[HISTORIQUE] ✅ Optimisé: 0 → 0 messages uniques",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:59:21.474077",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[BOTLIVE][PROMPT] 🔧 UTILISATION PROMPTS HARDCODÉS (MODE TEST)",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:59:21.519551",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [BOTLIVE_PROMPT] Requête Supabase pour company_id=W27PwOPiblP8TlOrhPcjOtxd0cza",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:59:27.346851",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:59:27,346 - app - INFO - [TRACE][[SUPABASE][BOTLIVE_PROMPT_EXC]] ConnectTimeout: ",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "utils.py",
+      "lineno": 181,
+      "funcName": "log3"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:59:27.347498",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:59:27,346 - app - INFO - [TRACE][[SUPABASE][BOTLIVE_PROMPT_EXC]] ConnectTimeout: ",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "utils.py",
+      "lineno": 181,
+      "funcName": "log3"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:59:27.347683",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[TRACE][17:59:27][INFO] [SUPABASE][BOTLIVE_PROMPT_EXC]: ConnectTimeout:",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:59:27.348267",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "❌ [BOTLIVE_PROMPT] FALLBACK utilisé!",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:59:27.348688",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[BOTLIVE][PROMPT] ✅ Prompt Supabase chargé (149 chars)",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:59:27.349195",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[BOTLIVE][FILTER] Transactions déjà filtrées par OCR: 0",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:59:27.350334",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "================================================================================",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:59:27.351045",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [BOTLIVE][AVANT LLM] DONNÉES VISION DISPONIBLES:",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:59:27.351405",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "detected_objects = []",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:59:27.418425",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "detected_type = unknown",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:59:27.425521",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "confidence = 0.0",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:59:27.426276",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "raw_text = [vide]...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:59:27.427292",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "filtered_transactions = []",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:59:27.427959",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "expected_deposit = 2000 FCFA",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:59:27.428576",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "================================================================================",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:59:27.428973",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔧 [PROMPT MODE] SUPABASE DIRECT",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:59:27.429314",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [DEBUG] filtered_transactions = []",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:59:27.429718",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [DEBUG] filtered_transactions_str = [AUCUNE TRANSACTION VALIDE]",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:59:27.430090",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "📊 [SUPABASE PROMPT] Formaté: 149 chars",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:59:27.496679",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [BOTLIVE][PROMPT FORMATÉ] Vérification injection variables:",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:59:27.497946",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "✅ {detected_objects} remplacé",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:59:27.499687",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "✅ {expected_deposit} remplacé",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:59:27.515118",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "📄 [PROMPT EXTRAIT] (500 premiers chars):\nVous êtes un assistant de vente en direct. Analysez les images et guidez les clients à travers les étapes de commande. Soyez concis et professionnel....",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:59:27.545959",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [HEALTH] Test Groq...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:59:38.948428",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "❌ [HEALTH] Groq erreur: Erreur requête Groq: HTTPSConnectionPool(host='api.groq.com', port=443): Max retries exceeded with url: /openai/v1/chat/completions (Caused by NameResolutionError(\"<urllib3.connection.HTTPSConnection object at 0x000002858CFD9BD0>: Failed to resolve 'api.groq.com' ([Errno 11001] getaddrinfo failed)\"))",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:59:38.948689",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔄 [SMART] Groq unhealthy - DeepSeek direct",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:59:38.949129",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🟢 [SMART] Utilisation DeepSeek...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:59:54.983683",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "❌ [SMART] DeepSeek ÉCHEC: ❌ DEEPSEEK_API_KEY non définie dans .env",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:59:54.985311",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🆘 [SMART] Réponse d'urgence",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:59:55.073209",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "================================================================================",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:59:55.074678",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "\u001b[94m🔵 QUESTION CLIENT:\u001b[0m",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:59:55.075623",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "\u001b[94mOk je renvoie le bon montant\u001b[0m",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:59:55.082699",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "\u001b[93m🟡 RAISONNEMENT LLM: [Pas de balise <thinking>]\u001b[0m",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:59:55.084445",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "\u001b[92m🟢 RÉPONSE AU CLIENT (sans balise):\u001b[0m",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:59:55.085683",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "\u001b[92mBonjour ! 👋 Envoyez-moi la photo du produit que vous voulez commander.\u001b[0m",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:59:55.086754",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "\u001b[95m🆘 RÉPONSE D'URGENCE:\u001b[0m",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:59:55.087468",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "\u001b[95mErreur: ❌ DEEPSEEK_API_KEY non définie dans .env\u001b[0m",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:59:55.088029",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "\u001b[95m💰 COÛT: $0.000000\u001b[0m",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:59:55.089042",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "\u001b[95m🤖 MODÈLE: emergency\u001b[0m",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:59:55.194176",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "================================================================================",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:59:55.204044",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[BOT] Bonjour ! 👋 Envoyez-moi la photo du produit que vous voulez commander.",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:59:55.208645",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "================================================================================\nTOUR 3",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:59:55.211367",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[USER] Voilà 2000 FCFA",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:59:55.221744",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[IMAGES] ['https://scontent.xx.fbcdn.net/v/t1.15752-9/556908482_1314851517042795_6410429215345539018_n.jpg?_nc_cat=105&ccb=1-7&_nc_sid=eb2e90&_nc_ohc=7oeAkz1vXk4Q7kNvwHsBEm8&_nc_oc=AdkRG6vf8C7mCWK6G0223SycGhXGPZ9S5mn8iK369aoCBNGNFLGSYK0R-yFITkJ-uro_BO7rcX9W2ximO0S4l25C&_nc_ad=z-m&_nc_cid=0&_nc_zt=23&_nc_ht=scontent.xx&oh=03_Q7cD3gFy4KBx2MWFGHs3HzwWsG7vQiUcM4NU3IBpkP2B5ZoWAQ&oe=691D9DCA']",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:59:55.226364",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[HISTORIQUE] ✅ Optimisé: 0 → 0 messages uniques",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:59:55.227719",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[BOTLIVE][PROMPT] 🔧 UTILISATION PROMPTS HARDCODÉS (MODE TEST)",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:59:55.240297",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [BOTLIVE_PROMPT] Requête Supabase pour company_id=W27PwOPiblP8TlOrhPcjOtxd0cza",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:59:58.762339",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:59:58,762 - app - INFO - [TRACE][[SUPABASE][BOTLIVE_PROMPT_EXC]] ConnectError: [Errno 11001] getaddrinfo failed",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "utils.py",
+      "lineno": 181,
+      "funcName": "log3"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:59:58.763536",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 17:59:58,762 - app - INFO - [TRACE][[SUPABASE][BOTLIVE_PROMPT_EXC]] ConnectError: [Errno 11001] getaddrinfo failed",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "utils.py",
+      "lineno": 181,
+      "funcName": "log3"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T18:00:29.923305",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "📝 Logging serveur JSON activé!",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:00:29.923579",
+    "level": "INFO",
+    "source": "system",
+    "message": "Logging serveur JSON initialisé",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:00:29.923681",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "✅ [SERVER_LOGGER] Logs serveur activés → logs/server/",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:00:29.925096",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 18:00:29,924 - app - INFO - Logger configuré avec succès",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "app.py",
+      "lineno": 63,
+      "funcName": "<module>"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T18:00:29.926158",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 18:00:29,924 - app - INFO - Logger configuré avec succès",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "app.py",
+      "lineno": 63,
+      "funcName": "<module>"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T18:00:29.937239",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [DEBUG] Importing core.models...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:00:29.961820",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [DEBUG] Importing FIX_CONTEXT_LOSS_COMPLETE...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:00:29.967686",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "✅ [DEBUG] FIX_CONTEXT_LOSS_COMPLETE imported",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:00:29.973779",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [DEBUG] Importing pydantic...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:00:29.974803",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [DEBUG] Importing universal_rag_engine...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:00:45.216128",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [DEBUG] Importing prompt_manager...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:00:45.218433",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [DEBUG] Importing supabase_client...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:00:45.229110",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [DEBUG] Importing ingestion_api...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:00:46.497652",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [DEBUG] Importing global_embedding_cache...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:00:46.499112",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [DEBUG] Importing auth router...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:00:46.758930",
+    "level": "WARNING",
+    "source": "logger.routes.auth",
+    "message": "2025-11-04 18:00:46,758 - routes.auth - WARNING - Variables d'environnement Google manquantes pour le Service Account. JWT Google désactivé.",
+    "metadata": {
+      "logger_name": "routes.auth",
+      "filename": "auth.py",
+      "lineno": 32,
+      "funcName": "<module>"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T18:00:46.760141",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [DEBUG] Importing routes...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:00:46.762794",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [DEBUG] Importing meili_ingest_api...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:00:46.789692",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [DEBUG] Importing meili router...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:00:46.795959",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [DEBUG] Importing utils...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:00:46.852536",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [DEBUG] Importing security_validator...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:00:46.855848",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [DEBUG] Importing hallucination_guard...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:00:46.861520",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [DEBUG] Importing error_handler...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:00:46.865951",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [DEBUG] Importing circuit_breaker...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:00:46.870268",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [DEBUG] Importing image_search...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:00:46.871941",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "⚠️ [DEBUG] Image search router SKIPPED (debugging)",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:00:46.874562",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [DEBUG] Importing botlive router...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:00:46.875235",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "⚠️ [DEBUG] Botlive router SKIPPED (debugging)",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:00:46.875905",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "✅ [DEBUG] All imports completed!",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:00:46.923761",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 18:00:46,923 - app - INFO - 🚀 Monitoring des caches intégré avec succès",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "app.py",
+      "lineno": 341,
+      "funcName": "<module>"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T18:00:46.968432",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 18:00:46,923 - app - INFO - 🚀 Monitoring des caches intégré avec succès",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "app.py",
+      "lineno": 341,
+      "funcName": "<module>"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T18:00:47.018145",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 18:00:47,018 - app - INFO - Router Enhanced Ingestion avec Mini-LLM Dispatcher monté avec succès",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "app.py",
+      "lineno": 349,
+      "funcName": "<module>"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T18:00:47.018807",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 18:00:47,018 - app - INFO - Router Enhanced Ingestion avec Mini-LLM Dispatcher monté avec succès",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "app.py",
+      "lineno": 349,
+      "funcName": "<module>"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T18:00:47.183627",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "================================================================================\nTOUR 1",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:00:47.183867",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[USER] Voici mon paiement Wave",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:00:47.184859",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[IMAGES] ['https://scontent.xx.fbcdn.net/v/t1.15752-9/553547596_833613639156226_7121847885682360094_n.jpg?_nc_cat=101&ccb=1-7&_nc_sid=eb2e90&_nc_ohc=DamxAq1f9OwQ7kNvwFSbPlg&_nc_oc=AdlYZF2Q2WyPz7SoP6HFp7gZCnmgAysN4ZCziXM2nHv8itrZrced2lMSff1szWQ9V-7WRbl3vV_-uJ9l3-Uxq7ha&_nc_ad=z-m&_nc_cid=0&_nc_zt=23&_nc_ht=scontent.xx&oh=03_Q7cD3gFO-SvfS03vBW39la32NGTcsXuPEGNsnVA6mSvUHOResw&oe=691D864A']",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:00:47.185258",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[BOTLIVE][PROMPT] 🔧 UTILISATION PROMPTS HARDCODÉS (MODE TEST)",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:00:47.185730",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [BOTLIVE_PROMPT] Requête Supabase pour company_id=W27PwOPiblP8TlOrhPcjOtxd0cza",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:00:48.465094",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 18:00:48,464 - app - INFO - [TRACE][[SUPABASE][BOTLIVE_PROMPT_EXC]] ConnectError: [Errno 11001] getaddrinfo failed",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "utils.py",
+      "lineno": 181,
+      "funcName": "log3"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T18:00:48.466062",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 18:00:48,464 - app - INFO - [TRACE][[SUPABASE][BOTLIVE_PROMPT_EXC]] ConnectError: [Errno 11001] getaddrinfo failed",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "utils.py",
+      "lineno": 181,
+      "funcName": "log3"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T18:00:48.538059",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[TRACE][18:00:48][INFO] [SUPABASE][BOTLIVE_PROMPT_EXC]: ConnectError: [Errno 11001] getaddrinfo failed",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:00:48.539157",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "❌ [BOTLIVE_PROMPT] FALLBACK utilisé!",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:00:48.539793",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[BOTLIVE][PROMPT] ✅ Prompt Supabase chargé (149 chars)",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:00:48.541376",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[BOTLIVE] Téléchargement image: https://scontent.xx.fbcdn.net/v/t1.15752-9/553547596_833613639156226_7121847885682360094_n.jpg?_nc_c...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:00:50.289728",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[BOTLIVE][FETCH] URL finale: https://scontent.xx.fbcdn.net/v/t1.15752-9/553547596_833613639156226_7121847885682360094_n.jpg?_nc_cat=101&ccb=1-7&_nc_sid=eb2e90&_nc_ohc=DamxAq1f9OwQ7kNvwFSbPlg&_nc_oc=AdlYZF2Q2WyPz7SoP6HFp7gZCnmgAysN4ZCziXM2nHv8itrZrced2lMSff1szWQ9V-7WRbl3vV_-uJ9l3-Uxq7ha&_nc_ad=z-m&_nc_cid=0&_nc_zt=23&_nc_ht=scontent.xx&oh=03_Q7cD3gFO-SvfS03vBW39la32NGTcsXuPEGNsnVA6mSvUHOResw&oe=691D864A",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:00:50.289998",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[BOTLIVE][FETCH] Content-Type: image/jpeg | Content-Length: 40114",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:00:50.295918",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[BOTLIVE] Image téléchargée: C:\\Users\\hp\\AppData\\Local\\Temp\\botlive_gqdc7pck.jpg",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:00:50.333347",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[BOTLIVE][DEBUG] Copie image sauvegardée: /tmp/botlive_debug\\1762275650_botlive_gqdc7pck.jpg",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:00:52.499630",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 18:00:52,499 - app - INFO - [TRACE][[SUPABASE] Exception upload] ConnectError: [Errno 11001] getaddrinfo failed",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "utils.py",
+      "lineno": 181,
+      "funcName": "log3"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T18:00:52.500147",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 18:00:52,499 - app - INFO - [TRACE][[SUPABASE] Exception upload] ConnectError: [Errno 11001] getaddrinfo failed",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "utils.py",
+      "lineno": 181,
+      "funcName": "log3"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T18:00:52.541337",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[TRACE][18:00:52][INFO] [SUPABASE] Exception upload: ConnectError: [Errno 11001] getaddrinfo failed",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:00:52.542632",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[BOTLIVE][SUPABASE][UPLOAD ERROR] ConnectError: [Errno 11001] getaddrinfo failed",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:00:53.598045",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[BOTLIVE_ENGINE] Initialisation...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:00:53.621037",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[BOTLIVE_ENGINE] Chargement EasyOCR...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:00:58.173559",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[BOTLIVE_ENGINE] ✅ EasyOCR chargé",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:00:58.173782",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[BOTLIVE_ENGINE] Chargement BLIP-2...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:00:58.192472",
+    "level": "ERROR",
+    "source": "stderr",
+    "message": "Using a slow image processor as `use_fast` is unset and a slow processor was saved with this model. `use_fast=True` will be the default behavior in v4.52, even if the model was saved with a slow processor. This will result in minor differences in outputs. You'll still be able to use a slow processor with `use_fast=False`.",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:06.102864",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[BOTLIVE_ENGINE] ✅ BLIP-2 chargé",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:06.103572",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[BOTLIVE_ENGINE] ✅ Initialisation terminée",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:06.104490",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[BLIP-2] 🔍 Analyse image: C:\\Users\\hp\\AppData\\Local\\Temp\\botlive_gqdc7pck.jpg",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:06.271045",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[BLIP-2] 📸 Image chargée: (486, 1080)",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:11.226141",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[BLIP-2] 📝 Caption brut: 'a text message with the words ` ` ' and ` ' ''",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:11.226752",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[BLIP-2] ✅ Caption nettoyé: 'a text message with the words ` ` ' and ` ' ''",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:11.228102",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[BOTLIVE][OCR][FALLBACK] ⚠️ Numéro hardcodé utilisé: 0787360757",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:21.634995",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[OCR] 🎯 Validation stricte pour numéro: 0787360757",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:21.635259",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[OCR] 📱 Format original: 0787360757",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:21.635753",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[OCR] ✅ Numéro entreprise trouvé dans l'image",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:21.638365",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[OCR] 🎯 Montant transfert détecté: 202 FCFA (contexte: transfert/vers)",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:21.639570",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[OCR] 📋 1 transactions détectées",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:21.639922",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "→ 202F vers 0787360757 le",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:21.711198",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[OCR] ✅ 1 transaction(s) vers numéro entreprise",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:21.711636",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[OCR] 🎯 Transaction sélectionnée: 202 FCFA vers 0787360757 (la plus récente)",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:21.727817",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[BOTLIVE][PAYMENT_VALIDATOR] Résultat validation:",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:21.728111",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "Valid: False",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:21.728704",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "Total reçu: 202 FCFA",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:21.729233",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "Paiements: [202]",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:21.729856",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "Message: ❌ Paiement insuffisant ! Client a envoyé 202 FCFA mais il manque encore 1798 FCFA",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:21.731345",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[BOTLIVE] Analyse (brute): type=unknown, prod=a text message with the words ` ` ' and ` ' ':0.85, ocr_len=241 amts=4",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:21.743081",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[BOTLIVE][VISION RAW] raw_text=\n13.29 \n2 ) P P \nall #Ga/ 20 \n8 \n+454 \nLe transfert de \n202.00 FCFA vers \nle 0787360757 est \nun succes. Frais \n0.00 \nFCFA.Solde:3839.0 \n0 FCFA. Reference: \nPP251007.1327.A76 \n780. Orange \nMoney Cl vous \nremercie \n13.28 \nOrange \nMessage \n47 \n2",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:21.744626",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[BOTLIVE][VISION RAW] candidate_amounts=[('13.29', ''), ('202.00', 'FCFA'), ('007.132', ''), ('13.28', '')]",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:21.815304",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[BOTLIVE][VISION RAW] detected_objects=[\"objet:a text message with the words ` ` ' and ` ' '~0.85\", 'montant:13.29', 'montant:202.00 FCFA', 'montant:007.132', 'montant:13.28']",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:21.816233",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[BOTLIVE] Fichier temporaire supprimé: C:\\Users\\hp\\AppData\\Local\\Temp\\botlive_gqdc7pck.jpg",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:21.816931",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[BOTLIVE][FILTER] Transactions déjà filtrées par OCR: 1",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:21.818444",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "================================================================================",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:21.818803",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [BOTLIVE][AVANT LLM] DONNÉES VISION DISPONIBLES:",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:21.819723",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "detected_objects = [\"objet:a text message with the words ` ` ' and ` ' '~0.85\", 'montant:13.29', 'montant:202.00 FCFA', 'montant:007.132', 'montant:13.28']",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:21.823044",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "detected_type = unknown",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:21.824982",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "confidence = 0.0",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:21.826825",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "raw_text = 13.29 \n2 ) P P \nall #Ga/ 20 \n8 \n+454 \nLe transfert de \n202.00 FCFA vers \nle 0787360757 est \nun succe...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:21.827848",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "filtered_transactions = [{'amount': 202, 'currency': 'FCFA', 'phone': '0787360757', 'date': ''}]",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:21.886044",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "expected_deposit = 2000 FCFA",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:21.887863",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "================================================================================",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:21.888589",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔧 [PROMPT MODE] SUPABASE DIRECT",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:21.889491",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [DEBUG] filtered_transactions = [{'amount': 202, 'currency': 'FCFA', 'phone': '0787360757', 'date': ''}]",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:21.892032",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [DEBUG] filtered_transactions_str = \n\n💳 VALIDATION PAIEMENT:\n❌ INSUFFISANT: ❌ Paiement insuffisant ! Client a envoyé 202 FCFA mais il manque encore 1798 FCFA",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:21.892728",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "📊 [SUPABASE PROMPT] Formaté: 149 chars",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:21.893706",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [BOTLIVE][PROMPT FORMATÉ] Vérification injection variables:",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:21.894281",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "✅ {detected_objects} remplacé",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:21.894602",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "✅ {expected_deposit} remplacé",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:21.896437",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "📄 [PROMPT EXTRAIT] (500 premiers chars):\nVous êtes un assistant de vente en direct. Analysez les images et guidez les clients à travers les étapes de commande. Soyez concis et professionnel....",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:21.952740",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [HEALTH] Test Groq...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:23.588763",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "❌ [HEALTH] Groq erreur: Groq API HTTP 401: {\"error\":{\"message\":\"Invalid API Key\",\"type\":\"invalid_request_error\",\"code\":\"invalid_api_key\"}}",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:23.606064",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔄 [SMART] Groq unhealthy - DeepSeek direct",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:23.606405",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🟢 [SMART] Utilisation DeepSeek...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:24.913803",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "❌ [SMART] DeepSeek ÉCHEC: ❌ DEEPSEEK_API_KEY non définie dans .env",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:24.914153",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🆘 [SMART] Réponse d'urgence",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:24.915179",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "================================================================================",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:24.915472",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "\u001b[94m🔵 QUESTION CLIENT:\u001b[0m",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:24.915850",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "\u001b[94mVoici mon paiement Wave\u001b[0m",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:24.917925",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "\u001b[93m🟡 RAISONNEMENT LLM: [Pas de balise <thinking>]\u001b[0m",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:24.971556",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "\u001b[92m🟢 RÉPONSE AU CLIENT (sans balise):\u001b[0m",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:24.972442",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "\u001b[92mBonjour ! 👋 Envoyez-moi la photo du produit que vous voulez commander.\u001b[0m",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:24.975039",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "\u001b[95m🆘 RÉPONSE D'URGENCE:\u001b[0m",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:24.976298",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "\u001b[95mErreur: ❌ DEEPSEEK_API_KEY non définie dans .env\u001b[0m",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:24.977424",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "\u001b[95m💰 COÛT: $0.000000\u001b[0m",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:24.979769",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "\u001b[95m🤖 MODÈLE: emergency\u001b[0m",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:24.991330",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "================================================================================",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:24.992297",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[BOT] Bonjour ! 👋 Envoyez-moi la photo du produit que vous voulez commander.",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:24.993306",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "================================================================================\nTOUR 2",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:24.994070",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[USER] Ok je renvoie le bon montant",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:25.051567",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[HISTORIQUE] ✅ Optimisé: 0 → 0 messages uniques",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:25.052596",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[BOTLIVE][PROMPT] 🔧 UTILISATION PROMPTS HARDCODÉS (MODE TEST)",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:25.057987",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [BOTLIVE_PROMPT] Requête Supabase pour company_id=W27PwOPiblP8TlOrhPcjOtxd0cza",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:26.045470",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 18:01:26,045 - app - INFO - [TRACE][[SUPABASE][BOTLIVE_PROMPT_EXC]] ConnectError: [Errno 11001] getaddrinfo failed",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "utils.py",
+      "lineno": 181,
+      "funcName": "log3"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T18:01:26.046249",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 18:01:26,045 - app - INFO - [TRACE][[SUPABASE][BOTLIVE_PROMPT_EXC]] ConnectError: [Errno 11001] getaddrinfo failed",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "utils.py",
+      "lineno": 181,
+      "funcName": "log3"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T18:01:26.047053",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[TRACE][18:01:26][INFO] [SUPABASE][BOTLIVE_PROMPT_EXC]: ConnectError: [Errno 11001] getaddrinfo failed",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:26.047619",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "❌ [BOTLIVE_PROMPT] FALLBACK utilisé!",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:26.048003",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[BOTLIVE][PROMPT] ✅ Prompt Supabase chargé (149 chars)",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:26.048403",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[BOTLIVE][FILTER] Transactions déjà filtrées par OCR: 0",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:26.048917",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "================================================================================",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:26.096412",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [BOTLIVE][AVANT LLM] DONNÉES VISION DISPONIBLES:",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:26.096756",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "detected_objects = []",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:26.097149",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "detected_type = unknown",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:26.097624",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "confidence = 0.0",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:26.097957",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "raw_text = [vide]...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:26.098285",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "filtered_transactions = []",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:26.098596",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "expected_deposit = 2000 FCFA",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:26.099737",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "================================================================================",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:26.101650",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔧 [PROMPT MODE] SUPABASE DIRECT",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:26.105082",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [DEBUG] filtered_transactions = []",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:26.161110",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [DEBUG] filtered_transactions_str = [AUCUNE TRANSACTION VALIDE]",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:26.161555",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "📊 [SUPABASE PROMPT] Formaté: 149 chars",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:26.162187",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [BOTLIVE][PROMPT FORMATÉ] Vérification injection variables:",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:26.162537",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "✅ {detected_objects} remplacé",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:26.162798",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "✅ {expected_deposit} remplacé",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:26.163802",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "📄 [PROMPT EXTRAIT] (500 premiers chars):\nVous êtes un assistant de vente en direct. Analysez les images et guidez les clients à travers les étapes de commande. Soyez concis et professionnel....",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:26.164279",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔄 [SMART] Groq unhealthy - DeepSeek direct",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:26.164667",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🟢 [SMART] Utilisation DeepSeek...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:26.164992",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "❌ [SMART] DeepSeek ÉCHEC: ❌ DEEPSEEK_API_KEY non définie dans .env",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:26.165310",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🆘 [SMART] Réponse d'urgence",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:26.223753",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "================================================================================",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:26.224066",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "\u001b[94m🔵 QUESTION CLIENT:\u001b[0m",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:26.224440",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "\u001b[94mOk je renvoie le bon montant\u001b[0m",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:26.224896",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "\u001b[93m🟡 RAISONNEMENT LLM: [Pas de balise <thinking>]\u001b[0m",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:26.225577",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "\u001b[92m🟢 RÉPONSE AU CLIENT (sans balise):\u001b[0m",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:26.226300",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "\u001b[92mBonjour ! 👋 Envoyez-moi la photo du produit que vous voulez commander.\u001b[0m",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:26.226915",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "\u001b[95m🆘 RÉPONSE D'URGENCE:\u001b[0m",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:26.227251",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "\u001b[95mErreur: ❌ DEEPSEEK_API_KEY non définie dans .env\u001b[0m",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:26.227623",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "\u001b[95m💰 COÛT: $0.000000\u001b[0m",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:26.228013",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "\u001b[95m🤖 MODÈLE: emergency\u001b[0m",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:26.285873",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "================================================================================",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:26.286918",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[BOT] Bonjour ! 👋 Envoyez-moi la photo du produit que vous voulez commander.",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:26.287954",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "================================================================================\nTOUR 3",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:26.288429",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[USER] Voilà 2000 FCFA",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:26.290578",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[IMAGES] ['https://scontent.xx.fbcdn.net/v/t1.15752-9/556908482_1314851517042795_6410429215345539018_n.jpg?_nc_cat=105&ccb=1-7&_nc_sid=eb2e90&_nc_ohc=7oeAkz1vXk4Q7kNvwHsBEm8&_nc_oc=AdkRG6vf8C7mCWK6G0223SycGhXGPZ9S5mn8iK369aoCBNGNFLGSYK0R-yFITkJ-uro_BO7rcX9W2ximO0S4l25C&_nc_ad=z-m&_nc_cid=0&_nc_zt=23&_nc_ht=scontent.xx&oh=03_Q7cD3gFy4KBx2MWFGHs3HzwWsG7vQiUcM4NU3IBpkP2B5ZoWAQ&oe=691D9DCA']",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:26.291479",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[HISTORIQUE] ✅ Optimisé: 0 → 0 messages uniques",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:26.292152",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[BOTLIVE][PROMPT] 🔧 UTILISATION PROMPTS HARDCODÉS (MODE TEST)",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:26.292865",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [BOTLIVE_PROMPT] Requête Supabase pour company_id=W27PwOPiblP8TlOrhPcjOtxd0cza",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:27.053918",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 18:01:27,053 - app - INFO - [TRACE][[SUPABASE][BOTLIVE_PROMPT_EXC]] ConnectError: [Errno 11001] getaddrinfo failed",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "utils.py",
+      "lineno": 181,
+      "funcName": "log3"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T18:01:27.054484",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 18:01:27,053 - app - INFO - [TRACE][[SUPABASE][BOTLIVE_PROMPT_EXC]] ConnectError: [Errno 11001] getaddrinfo failed",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "utils.py",
+      "lineno": 181,
+      "funcName": "log3"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T18:01:27.102389",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[TRACE][18:01:27][INFO] [SUPABASE][BOTLIVE_PROMPT_EXC]: ConnectError: [Errno 11001] getaddrinfo failed",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:27.103208",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "❌ [BOTLIVE_PROMPT] FALLBACK utilisé!",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:27.103998",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[BOTLIVE][PROMPT] ✅ Prompt Supabase chargé (149 chars)",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:27.108191",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[BOTLIVE] Téléchargement image: https://scontent.xx.fbcdn.net/v/t1.15752-9/556908482_1314851517042795_6410429215345539018_n.jpg?_nc_...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:28.572184",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[BOTLIVE][FETCH] URL finale: https://scontent.xx.fbcdn.net/v/t1.15752-9/556908482_1314851517042795_6410429215345539018_n.jpg?_nc_cat=105&ccb=1-7&_nc_sid=eb2e90&_nc_ohc=7oeAkz1vXk4Q7kNvwHsBEm8&_nc_oc=AdkRG6vf8C7mCWK6G0223SycGhXGPZ9S5mn8iK369aoCBNGNFLGSYK0R-yFITkJ-uro_BO7rcX9W2ximO0S4l25C&_nc_ad=z-m&_nc_cid=0&_nc_zt=23&_nc_ht=scontent.xx&oh=03_Q7cD3gFy4KBx2MWFGHs3HzwWsG7vQiUcM4NU3IBpkP2B5ZoWAQ&oe=691D9DCA",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:28.573768",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[BOTLIVE][FETCH] Content-Type: image/jpeg | Content-Length: 37848",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:28.588866",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[BOTLIVE] Image téléchargée: C:\\Users\\hp\\AppData\\Local\\Temp\\botlive_bk43hkm3.jpg",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:28.623340",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[BOTLIVE][DEBUG] Copie image sauvegardée: /tmp/botlive_debug\\1762275688_botlive_bk43hkm3.jpg",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:30.199885",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 18:01:30,199 - app - INFO - [TRACE][[SUPABASE] Exception upload] ConnectError: [Errno 11001] getaddrinfo failed",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "utils.py",
+      "lineno": 181,
+      "funcName": "log3"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T18:01:30.200390",
+    "level": "INFO",
+    "source": "logger.app",
+    "message": "2025-11-04 18:01:30,199 - app - INFO - [TRACE][[SUPABASE] Exception upload] ConnectError: [Errno 11001] getaddrinfo failed",
+    "metadata": {
+      "logger_name": "app",
+      "filename": "utils.py",
+      "lineno": 181,
+      "funcName": "log3"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T18:01:30.247849",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[TRACE][18:01:30][INFO] [SUPABASE] Exception upload: ConnectError: [Errno 11001] getaddrinfo failed",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:30.248789",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[BOTLIVE][SUPABASE][UPLOAD ERROR] ConnectError: [Errno 11001] getaddrinfo failed",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:30.249275",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[BOTLIVE_ENGINE] Initialisation...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:30.249754",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[BOTLIVE_ENGINE] Chargement EasyOCR...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:34.559490",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[BOTLIVE_ENGINE] ✅ EasyOCR chargé",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:34.559778",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[BOTLIVE_ENGINE] Chargement BLIP-2...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:40.435545",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[BOTLIVE_ENGINE] ✅ BLIP-2 chargé",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:40.435833",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[BOTLIVE_ENGINE] ✅ Initialisation terminée",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:40.436223",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[BLIP-2] 🔍 Analyse image: C:\\Users\\hp\\AppData\\Local\\Temp\\botlive_bk43hkm3.jpg",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:40.441571",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[BLIP-2] 📸 Image chargée: (486, 1080)",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:45.654275",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[BLIP-2] 📝 Caption brut: 'the screenshot app screenshot app screenshot apphot apphot apphot apphot apphot apphot'",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:45.654807",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[BLIP-2] ✅ Caption nettoyé: 'the screenshot app screenshot app screenshot apphot apphot apphot apphot apphot apphot'",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:45.655915",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[BOTLIVE][OCR][FALLBACK] ⚠️ Numéro hardcodé utilisé: 0787360757",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:57.212310",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[OCR] 🎯 Validation stricte pour numéro: 0787360757",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:57.212546",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[OCR] 📱 Format original: 0787360757",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:57.212897",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[OCR] ✅ Numéro entreprise trouvé dans l'image",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:57.215173",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[OCR] 📋 3 transactions détectées",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:57.215461",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "→ 2020F vers 07 87 36 07 57 le 07 oct",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:57.215772",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "→ 2020F vers 01 01 53 87 82 le 07 oct",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:57.216055",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "→ 10100F vers 07 87 36 07 57 le 06 oct",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:57.306801",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[OCR] ✅ 2 transaction(s) vers numéro entreprise",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:57.307247",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[OCR] 🎯 Transaction sélectionnée: 2020 FCFA vers 07 87 36 07 57 (la plus récente)",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:57.307829",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[BOTLIVE][PAYMENT_VALIDATOR] Résultat validation:",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:57.308107",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "Valid: True",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:57.308390",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "Total reçu: 2020 FCFA",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:57.308748",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "Paiements: [2020]",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:57.309026",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "Message: ✅ Dépôt validé 2020 FCFA",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:57.309749",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[BOTLIVE] Analyse (brute): type=unknown, prod=the screenshot app screenshot app screenshot apphot apphot apphot apphot apphot apphot:0.85, ocr_len=381 amts=11",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:57.312000",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[BOTLIVE][VISION RAW] raw_text=\n1215 = > A P \n0 ,l 4,/ % 0 \n32.075F & \nTransfert \nPaiements \nBanque \nCadeaux \nCoffre \nÀ ATTIELO 07 87 36 07 57 \n-2.020F \n07 oct , 11.17 \nÀ M ABRAZA 01 01 53 87 82 \n-10.100F \n06 oct , 08.38 \nDe ATTIELO 07 87 36 07 57 \n30.OOOF \n05 oct , 18.12 \nDe ATTIELO 07 87 36 07 57 \n5.0OOF \n05 oot \n1190 \nLenregistrement a été sauvegardé \nsouS \nÀ EVO MBRA 01 02 34 54 62 \n10.1OOF \n05 oct , 10.32",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:57.312898",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[BOTLIVE][VISION RAW] candidate_amounts=[('32.075', ''), ('36 07', ''), ('2.020', ''), ('11.17', ''), ('53 87', ''), ('10.100', ''), ('36 07', ''), ('18.12', ''), ('36 07', ''), ('34 54', ''), ('10.32', '')]",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:57.380739",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[BOTLIVE][VISION RAW] detected_objects=['objet:the screenshot app screenshot app screenshot apphot apphot apphot apphot apphot apphot~0.85', 'montant:32.075', 'montant:36 07', 'montant:2.020', 'montant:11.17', 'montant:53 87']",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:57.386085",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[BOTLIVE] Fichier temporaire supprimé: C:\\Users\\hp\\AppData\\Local\\Temp\\botlive_bk43hkm3.jpg",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:57.387659",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "[BOTLIVE][FILTER] Transactions déjà filtrées par OCR: 3",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:57.388641",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "================================================================================",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:57.389042",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [BOTLIVE][AVANT LLM] DONNÉES VISION DISPONIBLES:",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:57.389847",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "detected_objects = ['objet:the screenshot app screenshot app screenshot apphot apphot apphot apphot apphot apphot~0.85', 'montant:32.075', 'montant:36 07', 'montant:2.020', 'montant:11.17', 'montant:53 87']",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:57.390298",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "detected_type = unknown",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:57.390681",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "confidence = 0.0",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:57.393713",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "raw_text = 1215 = > A P \n0 ,l 4,/ % 0 \n32.075F & \nTransfert \nPaiements \nBanque \nCadeaux \nCoffre \nÀ ATTIELO 07 8...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:57.394995",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "filtered_transactions = [{'amount': 2020, 'currency': 'FCFA', 'phone': '07 87 36 07 57', 'date': '07 oct'}, {'amount': 2020, 'currency': 'FCFA', 'phone': '01 01 53 87 82', 'date': '07 oct'}, {'amount': 10100, 'currency': 'FCFA', 'phone': '07 87 36 07 57', 'date': '06 oct'}]",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:57.461745",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "expected_deposit = 2000 FCFA",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:57.462214",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "================================================================================",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:57.462535",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔧 [PROMPT MODE] SUPABASE DIRECT",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:57.463223",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [DEBUG] filtered_transactions = [{'amount': 2020, 'currency': 'FCFA', 'phone': '07 87 36 07 57', 'date': '07 oct'}, {'amount': 2020, 'currency': 'FCFA', 'phone': '01 01 53 87 82', 'date': '07 oct'}, {'amount': 10100, 'currency': 'FCFA', 'phone': '07 87 36 07 57', 'date': '06 oct'}]",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:57.463975",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [DEBUG] filtered_transactions_str = \n\n💳 VALIDATION PAIEMENT:\n✅ VALIDÉ: ✅ Dépôt validé 2020 FCFA",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:57.465285",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "📊 [SUPABASE PROMPT] Formaté: 149 chars",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:57.466018",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [BOTLIVE][PROMPT FORMATÉ] Vérification injection variables:",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:57.466493",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "✅ {detected_objects} remplacé",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:57.467127",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "✅ {expected_deposit} remplacé",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:57.468924",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "📄 [PROMPT EXTRAIT] (500 premiers chars):\nVous êtes un assistant de vente en direct. Analysez les images et guidez les clients à travers les étapes de commande. Soyez concis et professionnel....",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:57.524481",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔍 [HEALTH] Test Groq...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:59.223402",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "❌ [HEALTH] Groq erreur: Groq API HTTP 401: {\"error\":{\"message\":\"Invalid API Key\",\"type\":\"invalid_request_error\",\"code\":\"invalid_api_key\"}}",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:59.225613",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🔄 [SMART] Groq unhealthy - DeepSeek direct",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:59.225973",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🟢 [SMART] Utilisation DeepSeek...",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:59.226338",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "❌ [SMART] DeepSeek ÉCHEC: ❌ DEEPSEEK_API_KEY non définie dans .env",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:59.226703",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "🆘 [SMART] Réponse d'urgence",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:59.227253",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "================================================================================",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:59.227668",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "\u001b[94m🔵 QUESTION CLIENT:\u001b[0m",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:59.227952",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "\u001b[94mVoilà 2000 FCFA\u001b[0m",
+    "metadata": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:01:59.228542",
+    "level": "INFO",
+    "source": "stdout",
+    "message": "\u001b[93m🟡 RAISONNEMENT LLM: [Pas de balise <thinking>]\u001b[0m",
+    "metadata": {}
+  }
+]

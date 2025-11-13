@@ -1,0 +1,95 @@
+[
+  {
+    "request_id": "99d57592",
+    "timestamp": "2025-10-20T00:41:28.227768",
+    "user_id": "test_319",
+    "company_id": "4OS4yFcf2LZwxhKojbAVbKuVuSdb",
+    "message": "quel est la localisation de votre entrprise svp ?",
+    "response": "💳 Votre localisation est rue du grossite, Abidjan, Cote d'ivoire\nQuel produit souhaitez-vous commander ?",
+    "metadata": {
+      "processing_time_ms": 37514.2,
+      "cached": false,
+      "security_score": "LOW",
+      "hallucination_score": 1.0,
+      "botlive_enabled": false,
+      "has_images": false,
+      "prompt_version": 1,
+      "performance": {
+        "request_id": "99d57592",
+        "total_duration_ms": 37505.56,
+        "steps": [],
+        "llm_usage": {
+          "model": "llama-3.3-70b-versatile",
+          "prompt_tokens": 1794,
+          "completion_tokens": 454,
+          "total_tokens": 2248,
+          "prompt_cost_usd": 0.001058,
+          "completion_cost_usd": 0.000359,
+          "total_cost_usd": 0.001417
+        }
+      }
+    }
+  },
+  {
+    "request_id": "1ab67021",
+    "timestamp": "2025-10-20T01:04:48.493359",
+    "user_id": "test_319",
+    "company_id": "4OS4yFcf2LZwxhKojbAVbKuVuSdb",
+    "message": "Prix du lot de 150 couches ?",
+    "response": "💰 Le prix total pour 150 couches culottes taille 3 à Yopougon est de 13 500 FCFA. Voulez-vous confirmer votre commande ?",
+    "metadata": {
+      "processing_time_ms": 28158.08,
+      "cached": false,
+      "security_score": "LOW",
+      "hallucination_score": 1.0,
+      "botlive_enabled": false,
+      "has_images": false,
+      "prompt_version": 1,
+      "performance": {
+        "request_id": "1ab67021",
+        "total_duration_ms": 28156.21,
+        "steps": [],
+        "llm_usage": {
+          "model": "llama-3.3-70b-versatile",
+          "prompt_tokens": 2160,
+          "completion_tokens": 451,
+          "total_tokens": 2611,
+          "prompt_cost_usd": 0.001274,
+          "completion_cost_usd": 0.000356,
+          "total_cost_usd": 0.001631
+        }
+      }
+    }
+  },
+  {
+    "request_id": "96761174",
+    "timestamp": "2025-10-20T01:09:47.802479",
+    "user_id": "test_319",
+    "company_id": "4OS4yFcf2LZwxhKojbAVbKuVuSdb",
+    "message": "Prix couches taille 4?",
+    "response": "💰 Le prix pour les couches taille 4 est de 24 000 FCFA.",
+    "metadata": {
+      "processing_time_ms": 13158.28,
+      "cached": false,
+      "security_score": "LOW",
+      "hallucination_score": 1.0,
+      "botlive_enabled": false,
+      "has_images": false,
+      "prompt_version": 1,
+      "performance": {
+        "request_id": "96761174",
+        "total_duration_ms": 13158.23,
+        "steps": [],
+        "llm_usage": {
+          "model": "llama-3.3-70b-versatile",
+          "prompt_tokens": 2124,
+          "completion_tokens": 426,
+          "total_tokens": 2550,
+          "prompt_cost_usd": 0.001253,
+          "completion_cost_usd": 0.000337,
+          "total_cost_usd": 0.00159
+        }
+      }
+    }
+  }
+]
