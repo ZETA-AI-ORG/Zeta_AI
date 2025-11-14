@@ -21,25 +21,26 @@ HEADERS = {
 }
 
 async def get_company_uuid(company_id: str) -> Optional[str]:
-    """Récupère l'UUID depuis company_mapping"""
+    """Récupère l'UUID depuis company_mapping à partir du company_id texte"""
     try:
         url = f"{SUPABASE_URL}/rest/v1/company_mapping"
         params = {
-            "company_id": f"eq.{company_id}",
-            "select": "uuid"
+            # company_id ici est l'ID texte (company_id_text)
+            "company_id_text": f"eq.{company_id}",
+            "select": "company_id_uuid"
         }
-        
+
         async with httpx.AsyncClient() as client:
             response = await client.get(url, headers=HEADERS, params=params, timeout=5.0)
-            
+
             if response.status_code == 200:
                 data = response.json()
                 if data and len(data) > 0:
-                    return data[0]["uuid"]
-        
-        logger.warning(f"[ORDERS] Mapping introuvable pour company_id={company_id}")
+                    return data[0]["company_id_uuid"]
+
+        logger.warning(f"[ORDERS] Mapping introuvable pour company_id_text={company_id}")
         return None
-        
+
     except Exception as e:
         logger.error(f"[ORDERS] Erreur get_company_uuid: {e}")
         return None
