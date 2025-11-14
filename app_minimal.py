@@ -83,13 +83,14 @@ async def auth_test():
         "endpoints": ["/auth/login", "/auth/register", "/auth/refresh"]
     }
 
-# Étape 3 : Botlive (Vision AI - Pas de RAG nécessaire)
-try:
-    from routes.botlive import router as botlive_router
-    app.include_router(botlive_router, tags=["Botlive"])  # Pas de prefix, déjà dans le router
-    logger.info("✅ Routes Botlive chargées")
-except Exception as e:
-    logger.warning(f"⚠️ Erreur chargement Botlive routes: {e}")
+# Étape 3 : Botlive (Vision AI - Pas de RAG nécessaire) - DÉSACTIVÉ TEMPORAIREMENT
+# try:
+#     from routes.botlive import router as botlive_router
+#     app.include_router(botlive_router, tags=["Botlive"])  # Pas de prefix, déjà dans le router
+#     logger.info("✅ Routes Botlive chargées")
+# except Exception as e:
+#     logger.warning(f"⚠️ Erreur chargement Botlive routes: {e}")
+logger.info("⚠️ Routes Botlive désactivées temporairement pour Render")
 
 @app.get("/botlive-test")
 async def botlive_test():
