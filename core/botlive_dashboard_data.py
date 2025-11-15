@@ -5,7 +5,7 @@ Gère les 4 endpoints dashboard prioritaires
 
 import httpx
 import logging
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 from datetime import datetime, timedelta
 from collections import defaultdict
 
@@ -51,25 +51,26 @@ async def get_live_stats(company_id: str, time_range: str = "today") -> Dict[str
         else:
             start_date = now.replace(hour=0, minute=0, second=0, microsecond=0)
         
-        # Récupérer les conversations de la période
+        # Récupérer les conversations de la période (pour commandes, clients, interventions)
         conversations = await _fetch_conversations(company_id, start_date)
-        
-        # Calculer CA (en supposant prix moyen 2000 FCFA par commande complétée)
-        completed_orders = [c for c in conversations if _is_order_completed(c)]
-        ca_live_session = len(completed_orders) * 2000  # Prix moyen
-        
-        # Calculer variation (comparaison avec période précédente)
+
+        # Calculer le CA à partir de la table 'deposits' (acompte validé)
+        deposits_current = await _fetch_deposits(company_id, start_date, now)
+        ca_live_session = sum(int(d.get("amount_xof", 0) or 0) for d in deposits_current)
+
+        # Calculer variation de CA par rapport à la période précédente
         prev_start = start_date - (now - start_date)
-        prev_conversations = await _fetch_conversations(company_id, prev_start, start_date)
-        prev_completed = len([c for c in prev_conversations if _is_order_completed(c)])
-        
-        if prev_completed > 0:
-            variation_pct = int(((len(completed_orders) - prev_completed) / prev_completed) * 100)
+        prev_deposits = await _fetch_deposits(company_id, prev_start, start_date)
+        ca_previous = sum(int(d.get("amount_xof", 0) or 0) for d in prev_deposits)
+
+        if ca_previous > 0:
+            variation_pct = int(((ca_live_session - ca_previous) / ca_previous) * 100)
             ca_variation = f"+{variation_pct}%" if variation_pct > 0 else f"{variation_pct}%"
         else:
-            ca_variation = "+100%" if len(completed_orders) > 0 else "0%"
+            ca_variation = "+100%" if ca_live_session > 0 else "0%"
         
         # Compter commandes totales (complétées + en cours)
+        prev_conversations = await _fetch_conversations(company_id, prev_start, start_date)
         commandes_total = len(conversations)
         commandes_variation = f"+{commandes_total - len(prev_conversations)}"
         
@@ -285,15 +286,15 @@ async def _fetch_conversations(company_id: str, start_date: datetime, end_date: 
             end_date = datetime.utcnow()
         
         url = f"{SUPABASE_URL}/rest/v1/conversations"
-        params = {
-            "company_id": f"eq.{company_id}",
-            "created_at": f"gte.{start_date.isoformat()}",
-            "created_at": f"lte.{end_date.isoformat()}",
-            "select": "*",
-            "order": "created_at.desc",
-            "limit": "1000"
-        }
-        
+        params = [
+            ("company_id", f"eq.{company_id}"),
+            ("created_at", f"gte.{start_date.isoformat()}"),
+            ("created_at", f"lte.{end_date.isoformat()}"),
+            ("select", "*"),
+            ("order", "created_at.desc"),
+            ("limit", "1000"),
+        ]
+
         async with httpx.AsyncClient() as client:
             response = await client.get(url, headers=HEADERS, params=params, timeout=10.0)
             
@@ -306,6 +307,65 @@ async def _fetch_conversations(company_id: str, start_date: datetime, end_date: 
     except Exception as e:
         logger.error(f"[SUPABASE] Exception fetch conversations: {e}")
         return []
+
+async def _fetch_deposits(company_id: str, start_date: datetime, end_date: Optional[datetime] = None) -> List[Dict]:
+    """Récupère les acomptes validés depuis la table 'deposits'."""
+    try:
+        if end_date is None:
+            end_date = datetime.utcnow()
+
+        url = f"{SUPABASE_URL}/rest/v1/deposits"
+        params = [
+            ("company_id", f"eq.{company_id}"),
+            ("validated_at", f"gte.{start_date.isoformat()}"),
+            ("validated_at", f"lte.{end_date.isoformat()}"),
+            ("select", "*"),
+            ("order", "validated_at.desc"),
+            ("limit", "1000"),
+        ]
+
+        async with httpx.AsyncClient() as client:
+            response = await client.get(url, headers=HEADERS, params=params, timeout=10.0)
+
+            if response.status_code == 200:
+                return response.json()
+            else:
+                logger.error(f"[SUPABASE] Erreur fetch deposits: {response.status_code}")
+                return []
+
+    except Exception as e:
+        logger.error(f"[SUPABASE] Exception fetch deposits: {e}")
+        return []
+
+async def insert_deposit(company_id: str, amount_xof: int, order_id: Optional[str] = None, payment_method: Optional[str] = None, validated_by: str = "ocr_easy") -> Dict[str, Any]:
+    """Insère un acompte validé dans la table 'deposits'."""
+    payload: Dict[str, Any] = {
+        "company_id": company_id,
+        "amount_xof": int(amount_xof),
+        "validated_by": validated_by,
+    }
+
+    if order_id:
+        payload["order_id"] = order_id
+    if payment_method:
+        payload["payment_method"] = payment_method
+
+    url = f"{SUPABASE_URL}/rest/v1/deposits"
+    headers = {**HEADERS, "Prefer": "return=representation"}
+
+    async with httpx.AsyncClient() as client:
+        response = await client.post(url, headers=headers, json=[payload], timeout=10.0)
+
+    if 200 <= response.status_code < 300:
+        data = response.json()
+        if isinstance(data, list) and data:
+            return data[0]
+        if isinstance(data, dict):
+            return data
+        return payload
+
+    logger.error(f"[SUPABASE] Erreur insert deposit: {response.status_code} - {response.text}")
+    raise RuntimeError("Erreur lors de l'insertion de l'acompte dans Supabase")
 
 def _is_order_completed(conversation: Dict) -> bool:
     """Vérifie si une commande est complétée"""

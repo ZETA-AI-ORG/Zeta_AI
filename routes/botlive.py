@@ -45,6 +45,13 @@ class WebhookConfig(BaseModel):
     events: List[str] = Field(default=["order_completed", "payment_validated", "intervention_required"])
     company_id: str
 
+class DepositRequest(BaseModel):
+    company_id: str = Field(..., description="ID de l'entreprise")
+    amount_xof: int = Field(..., description="Montant de l'acompte en XOF")
+    order_id: Optional[str] = None
+    payment_method: Optional[str] = None
+    validated_by: str = "ocr_easy"
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # 🔥 ENDPOINTS PRINCIPAUX
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -260,6 +267,48 @@ async def get_realtime_activity_endpoint(company_id: str, limit: int = 10):
         
     except Exception as e:
         logger.error(f"[BOTLIVE][ACTIVITY] Erreur: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/deposits")
+async def create_deposit(req: DepositRequest):
+    try:
+        from core.botlive_dashboard_data import insert_deposit
+
+        deposit = await insert_deposit(
+            company_id=req.company_id,
+            amount_xof=req.amount_xof,
+            order_id=req.order_id,
+            payment_method=req.payment_method,
+            validated_by=req.validated_by,
+        )
+
+        return JSONResponse(content={
+            "success": True,
+            "deposit": deposit,
+        })
+
+    except Exception as e:
+        logger.error(f"[BOTLIVE][DEPOSITS][CREATE] Erreur: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/deposits/{company_id}")
+async def list_deposits(company_id: str, limit: int = 50):
+    try:
+        from core.botlive_dashboard_data import _fetch_deposits
+
+        now = datetime.utcnow()
+        start_date = now - timedelta(days=30)
+        deposits = await _fetch_deposits(company_id, start_date, now)
+        deposits_sorted = sorted(deposits, key=lambda d: d.get("validated_at", ""), reverse=True)
+
+        return JSONResponse(content={
+            "success": True,
+            "deposits": deposits_sorted[:limit],
+            "total": len(deposits_sorted),
+        })
+
+    except Exception as e:
+        logger.error(f"[BOTLIVE][DEPOSITS][LIST] Erreur: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 # ═══════════════════════════════════════════════════════════════════════════════
