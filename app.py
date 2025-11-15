@@ -228,6 +228,11 @@ async def startup_event():
         cache_system = get_unified_cache_system()
         print("[STARTUP] ✅ Cache unifié initialisé")
         
+        # Mode léger pour environnements contraints (ex: Render Free 512Mo)
+        if os.getenv("ZETA_LIGHT_STARTUP", "false").lower() == "true":
+            print("[STARTUP] ⚠️ Light startup actif: pré-chargement des modèles désactivé")
+            return
+        
         # 2. Pré-charger uniquement les modèles 768D (standardisation perf/mémoire)
         from embedding_models import EMBEDDING_MODELS
         models_loaded = 0
