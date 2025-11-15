@@ -12,10 +12,13 @@ import time
 import uuid
 import asyncio
 from datetime import datetime
+import os
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/botlive", tags=["botlive"])
+
+DISABLE_VISION_MODELS = os.getenv("DISABLE_VISION_MODELS", "false").lower() == "true"
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # 📋 MODELS
@@ -445,11 +448,17 @@ async def clear_user_state(user_id: str):
 async def botlive_health():
     """🏥 Health check du système Botlive"""
     try:
+        if DISABLE_VISION_MODELS:
+            return JSONResponse(content={
+                "status": "healthy",
+                "engine": "disabled",
+                "timestamp": datetime.utcnow().isoformat()
+            })
+
         from core.botlive_engine import get_botlive_engine
-        
-        # Vérifier que le moteur est initialisé
+
         engine = get_botlive_engine()
-        
+
         return JSONResponse(content={
             "status": "healthy",
             "engine": "initialized",

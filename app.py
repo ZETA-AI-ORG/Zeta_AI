@@ -612,6 +612,14 @@ async def _process_botlive_vision(image_url: str, company_phone: str = None) -> 
     import requests
     import tempfile
     import os
+
+    # Mode ultra-light: désactiver complètement la vision si demandé (ex: Render Free 512Mo)
+    if os.getenv("DISABLE_VISION_MODELS", "false").lower() == "true":
+        print("[VISION] ⚠️ Vision désactivée (DISABLE_VISION_MODELS=true) → aucun modèle BLIP/EasyOCR chargé")
+        return {
+            'detected_objects': [],
+            'filtered_transactions': []
+        }
     
     detected_objects = []
     filtered_transactions = []
