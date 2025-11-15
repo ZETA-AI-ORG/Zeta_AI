@@ -132,16 +132,25 @@ except Exception as e:
         return []
 print("🔍 [DEBUG] Importing pydantic...")
 from pydantic import BaseModel
-print("🔍 [DEBUG] Importing universal_rag_engine...")
-from core.universal_rag_engine import get_universal_rag_response
-print("🔍 [DEBUG] Importing prompt_manager...")
-from core.prompt_manager import PromptManager
-print("🔍 [DEBUG] Importing supabase_client...")
-from database.supabase_client import get_company_system_prompt, search_supabase_semantic, get_supabase_client
-print("🔍 [DEBUG] Importing ingestion_api...")
-from ingestion.ingestion_api import router as ingestion_router
-print("🔍 [DEBUG] Importing global_embedding_cache...")
-from core.global_embedding_cache import initialize_global_cache, cleanup_global_cache
+
+ZETA_BOTLIVE_ONLY = os.getenv("ZETA_BOTLIVE_ONLY", "false").lower() == "true"
+
+if not ZETA_BOTLIVE_ONLY:
+    print("🔍 [DEBUG] Importing universal_rag_engine...")
+    from core.universal_rag_engine import get_universal_rag_response
+    print("🔍 [DEBUG] Importing prompt_manager...")
+    from core.prompt_manager import PromptManager
+    print("🔍 [DEBUG] Importing supabase_client...")
+    from database.supabase_client import get_company_system_prompt, search_supabase_semantic, get_supabase_client
+    print("🔍 [DEBUG] Importing ingestion_api...")
+    from ingestion.ingestion_api import router as ingestion_router
+    print("🔍 [DEBUG] Importing global_embedding_cache...")
+    from core.global_embedding_cache import initialize_global_cache, cleanup_global_cache
+else:
+    print("⚠️ [DEBUG] ZETA_BOTLIVE_ONLY=true: RAG engine & ingestion routes disabled on import")
+    from database.supabase_client import get_company_system_prompt, get_supabase_client
+    # PromptManager reste utile même en mode Botlive-only (gestion des versions de prompt)
+    from core.prompt_manager import PromptManager
 print("🔍 [DEBUG] Importing auth router...")
 from routes.auth import router as auth_router
 print("🔍 [DEBUG] Importing routes...")
@@ -223,15 +232,15 @@ async def startup_event():
     print("[STARTUP] 🚀 ENHANCED - Élimination latence 3.6s en cours...")
     
     try:
+        # Mode léger pour environnements contraints (ex: Render Free 512Mo)
+        if ZETA_BOTLIVE_ONLY or os.getenv("ZETA_LIGHT_STARTUP", "false").lower() == "true":
+            print("[STARTUP] ⚠️ Light/Botlive-only startup actif: pré-chargement des modèles désactivé")
+            return
+
         # 1. Initialiser le système de cache unifié
         from core.unified_cache_system import get_unified_cache_system
         cache_system = get_unified_cache_system()
         print("[STARTUP] ✅ Cache unifié initialisé")
-        
-        # Mode léger pour environnements contraints (ex: Render Free 512Mo)
-        if os.getenv("ZETA_LIGHT_STARTUP", "false").lower() == "true":
-            print("[STARTUP] ⚠️ Light startup actif: pré-chargement des modèles désactivé")
-            return
         
         # 2. Pré-charger uniquement les modèles 768D (standardisation perf/mémoire)
         from embedding_models import EMBEDDING_MODELS
@@ -334,7 +343,12 @@ app.include_router(auth.router)
 app.include_router(messenger.router)
 app.include_router(meili_router)
 # NOTE: Removed duplicate include of meili_explorer_router; it is already mounted at prefix /meili above
-app.include_router(ingestion_router)
+
+if not ZETA_BOTLIVE_ONLY:
+    app.include_router(ingestion_router)
+else:
+    logger.info("ZETA_BOTLIVE_ONLY=true: ingestion_router not mounted")
+
 app.include_router(auth_router, prefix="/auth", tags=["Auth"])
 # app.include_router(image_search_router)  # DÉSACTIVÉ - Bloque le démarrage
 
@@ -347,12 +361,15 @@ except Exception as e:
     logger.warning(f"⚠️ Erreur intégration monitoring caches: {e}")
 
 # NOUVEAU: Intégration du Mini-LLM Dispatcher
-try:
-    from ingestion.enhanced_ingestion_api import router as enhanced_ingestion_router
-    app.include_router(enhanced_ingestion_router, tags=["Enhanced-Ingestion"])
-    logger.info("Router Enhanced Ingestion avec Mini-LLM Dispatcher monté avec succès")
-except Exception as e:
-    logger.warning(f"Impossible de monter le router Enhanced Ingestion: {e}")
+if not ZETA_BOTLIVE_ONLY:
+    try:
+        from ingestion.enhanced_ingestion_api import router as enhanced_ingestion_router
+        app.include_router(enhanced_ingestion_router, tags=["Enhanced-Ingestion"])
+        logger.info("Router Enhanced Ingestion avec Mini-LLM Dispatcher monté avec succès")
+    except Exception as e:
+        logger.warning(f"Impossible de monter le router Enhanced Ingestion: {e}")
+else:
+    logger.info("ZETA_BOTLIVE_ONLY=true: Enhanced Ingestion router not mounted")
 
 from redis_cache import RedisCache
 redis_cache = RedisCache()
@@ -2130,7 +2147,7 @@ async def chat_endpoint(req: ChatRequest, request: Request):
     has_message = req.message and req.message.strip()
     
     # ✅ LOGIQUE CORRIGÉE: Botlive si mode activé (peu importe images/message)
-    use_botlive = req.botlive_enabled
+    use_botlive = req.botlive_enabled or ZETA_BOTLIVE_ONLY
     
     if use_botlive:
         # 🚀 NOUVEAU SYSTÈME HYBRIDE DEEPSEEK V3 + GROQ 70B
