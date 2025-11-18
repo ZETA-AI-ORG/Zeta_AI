@@ -98,6 +98,67 @@ async def process_botlive_message(req: BotliveMessageRequest, background_tasks: 
         
         # Déterminer la prochaine étape
         next_step = _determine_next_step(order_status)
+
+        conversation_id = None
+        try:
+            from core.conversations_manager import get_or_create_conversation, insert_message
+            from core.activities_logger import log_new_conversation
+            conversation_id = await get_or_create_conversation(req.company_id, req.user_id)
+            if conversation_id:
+                await insert_message(
+                    conversation_id,
+                    "user",
+                    req.message or "",
+                    {"source": "botlive", "channel": "messenger"}
+                )
+                if isinstance(response, str) and response:
+                    await insert_message(
+                        conversation_id,
+                        "assistant",
+                        response,
+                        {"source": "botlive", "channel": "bot"}
+                    )
+                await log_new_conversation(req.company_id, req.user_id, conversation_id)
+        except Exception as conv_err:
+            logger.error(f"[BOTLIVE][{request_id}] Erreur logging conversation/messages: {conv_err}")
+
+        if next_step == "completed" and conversation_id:
+            try:
+                from core.orders_manager import create_order
+                from core.activities_logger import log_order_created
+                from core.supabase_notepad import get_supabase_notepad
+
+                produit = ""
+                numero_client = req.user_id[-4:]
+                if isinstance(order_status, dict):
+                    produit = order_status.get("produit") or ""
+                    numero_client = order_status.get("numero") or numero_client
+
+                # Montant dynamique depuis le notepad Supabase (si disponible)
+                total_amount = 2000.0
+                try:
+                    notepad_manager = get_supabase_notepad()
+                    notepad = await notepad_manager.get_notepad(req.user_id, req.company_id)
+                    paiement_info = notepad.get("paiement") or {}
+                    montant_notepad = paiement_info.get("montant") or paiement_info.get("amount")
+                    if montant_notepad:
+                        total_amount = float(montant_notepad)
+                except Exception as np_err:
+                    logger.warning(f"[BOTLIVE][{request_id}] Impossible de lire montant notepad: {np_err}")
+
+                items = [{"name": produit or "Commande Botlive", "quantity": 1, "price": total_amount}]
+                order = await create_order(
+                    company_id=req.company_id,
+                    user_id=req.user_id,
+                    customer_name=numero_client,
+                    total_amount=total_amount,
+                    items=items,
+                    conversation_id=conversation_id
+                )
+                if order and isinstance(order, dict) and order.get("id"):
+                    await log_order_created(req.company_id, numero_client, order["id"], total_amount)
+            except Exception as order_err:
+                logger.error(f"[BOTLIVE][{request_id}] Erreur création commande/activité: {order_err}")
         
         logger.info(f"[BOTLIVE][{request_id}] Réponse générée en {duration_ms}ms, next_step={next_step}")
         
@@ -313,6 +374,105 @@ async def list_deposits(company_id: str, limit: int = 50):
     except Exception as e:
         logger.error(f"[BOTLIVE][DEPOSITS][LIST] Erreur: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/conversations/{conversation_id}/messages")
+async def get_conversation_messages(conversation_id: str, limit: int = 50):
+    try:
+        import httpx
+        from core.botlive_dashboard_data import SUPABASE_URL, SUPABASE_KEY
+
+        headers = {
+            "apikey": SUPABASE_KEY,
+            "Authorization": f"Bearer {SUPABASE_KEY}",
+            "Content-Type": "application/json",
+        }
+        url = f"{SUPABASE_URL}/rest/v1/messages"
+        params = {
+            "conversation_id": f"eq.{conversation_id}",
+            "select": "*",
+            "order": "created_at.asc",
+            "limit": str(limit),
+        }
+
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.get(url, headers=headers, params=params)
+
+        if resp.status_code == 200:
+            return JSONResponse(content={"success": True, "messages": resp.json()})
+
+        logger.error(f"[BOTLIVE][MESSAGES] Erreur fetch messages: {resp.status_code} - {resp.text}")
+        return JSONResponse(content={"success": False, "error": "Erreur récupération messages"}, status_code=500)
+
+    except Exception as e:
+        logger.error(f"[BOTLIVE][MESSAGES] Exception: {e}")
+        raise HTTPException(status_code=500, detail="Erreur récupération messages")
+
+
+@router.post("/interventions/{conversation_id}/take-over")
+async def take_over_intervention(conversation_id: str):
+    try:
+        import httpx
+        from core.botlive_dashboard_data import SUPABASE_URL, SUPABASE_KEY
+
+        headers = {
+            "apikey": SUPABASE_KEY,
+            "Authorization": f"Bearer {SUPABASE_KEY}",
+            "Content-Type": "application/json",
+        }
+        url = f"{SUPABASE_URL}/rest/v1/conversations"
+        params = {"id": f"eq.{conversation_id}"}
+        payload = {
+            "priority": "high",
+            "status": "in_progress",
+            "updated_at": datetime.utcnow().isoformat(),
+        }
+
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.patch(url, headers=headers, params=params, json=payload)
+
+        if resp.status_code in (200, 204):
+            return JSONResponse(content={"success": True})
+
+        logger.error(f"[BOTLIVE][INTERVENTIONS] Erreur take-over: {resp.status_code} - {resp.text}")
+        return JSONResponse(content={"success": False, "error": "Erreur mise à jour intervention"}, status_code=500)
+
+    except Exception as e:
+        logger.error(f"[BOTLIVE][INTERVENTIONS] Exception take-over: {e}")
+        raise HTTPException(status_code=500, detail="Erreur prise en charge intervention")
+
+
+@router.post("/interventions/{conversation_id}/resolve")
+async def resolve_intervention(conversation_id: str):
+    try:
+        import httpx
+        from core.botlive_dashboard_data import SUPABASE_URL, SUPABASE_KEY
+
+        headers = {
+            "apikey": SUPABASE_KEY,
+            "Authorization": f"Bearer {SUPABASE_KEY}",
+            "Content-Type": "application/json",
+        }
+        url = f"{SUPABASE_URL}/rest/v1/conversations"
+        params = {"id": f"eq.{conversation_id}"}
+        payload = {
+            "priority": "normal",
+            "status": "resolved",
+            "updated_at": datetime.utcnow().isoformat(),
+        }
+
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.patch(url, headers=headers, params=params, json=payload)
+
+        if resp.status_code in (200, 204):
+            return JSONResponse(content={"success": True})
+
+        logger.error(f"[BOTLIVE][INTERVENTIONS] Erreur resolve: {resp.status_code} - {resp.text}")
+        return JSONResponse(content={"success": False, "error": "Erreur résolution intervention"}, status_code=500)
+
+    except Exception as e:
+        logger.error(f"[BOTLIVE][INTERVENTIONS] Exception resolve: {e}")
+        raise HTTPException(status_code=500, detail="Erreur résolution intervention")
+
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # 🔗 ENDPOINTS WEBHOOKS N8N

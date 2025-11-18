@@ -21,6 +21,36 @@ HEADERS = {
     "Content-Type": "application/json"
 }
 
+
+async def _get_company_uuid(company_id: str) -> Optional[str]:
+    """Mappe un company_id texte vers son UUID via company_mapping.
+
+    Si aucun mapping n'est trouvé, on retourne None et l'appelant peut
+    utiliser directement company_id (utile si c'est déjà un UUID).
+    """
+    try:
+        url = f"{SUPABASE_URL}/rest/v1/company_mapping"
+        params = [
+            ("company_id_text", f"eq.{company_id}"),
+            ("select", "company_id_uuid"),
+            ("limit", "1"),
+        ]
+
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(url, headers=HEADERS, params=params, timeout=5.0)
+
+        if resp.status_code == 200:
+            data = resp.json() or []
+            if data and data[0].get("company_id_uuid"):
+                return data[0]["company_id_uuid"]
+
+        logger.warning(f"[BOTLIVE_STATS] Mapping UUID introuvable pour company_id_text={company_id}")
+        return None
+
+    except Exception as e:
+        logger.error(f"[BOTLIVE_STATS] Erreur _get_company_uuid: {e}")
+        return None
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # 📊 ENDPOINT 1: GET /botlive/stats/{company_id}
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -40,6 +70,16 @@ async def get_live_stats(company_id: str, time_range: str = "today") -> Dict[str
         }
     """
     try:
+        # Mapper éventuellement company_id texte -> UUID
+        company_uuid = company_id
+        try:
+            mapped = await _get_company_uuid(company_id)
+            if mapped:
+                company_uuid = mapped
+        except Exception:
+            # En cas d'erreur de mapping, continuer avec la valeur brute
+            company_uuid = company_id
+
         # Calculer la période
         now = datetime.utcnow()
         if time_range == "today":
@@ -52,16 +92,16 @@ async def get_live_stats(company_id: str, time_range: str = "today") -> Dict[str
             start_date = now.replace(hour=0, minute=0, second=0, microsecond=0)
         
         # Récupérer les conversations de la période (pour commandes, clients, interventions)
-        conversations = await _fetch_conversations(company_id, start_date)
+        conversations = await _fetch_conversations(company_uuid, start_date)
 
-        # Calculer le CA à partir de la table 'deposits' (acompte validé)
-        deposits_current = await _fetch_deposits(company_id, start_date, now)
-        ca_live_session = sum(int(d.get("amount_xof", 0) or 0) for d in deposits_current)
+        # Calculer le CA à partir de la table 'orders' (total_amount)
+        orders_current = await _fetch_orders(company_uuid, start_date, now)
+        ca_live_session = sum(float(o.get("total_amount") or 0) for o in orders_current)
 
         # Calculer variation de CA par rapport à la période précédente
         prev_start = start_date - (now - start_date)
-        prev_deposits = await _fetch_deposits(company_id, prev_start, start_date)
-        ca_previous = sum(int(d.get("amount_xof", 0) or 0) for d in prev_deposits)
+        prev_orders = await _fetch_orders(company_uuid, prev_start, start_date)
+        ca_previous = sum(float(o.get("total_amount") or 0) for o in prev_orders)
 
         if ca_previous > 0:
             variation_pct = int(((ca_live_session - ca_previous) / ca_previous) * 100)
@@ -70,7 +110,7 @@ async def get_live_stats(company_id: str, time_range: str = "today") -> Dict[str
             ca_variation = "+100%" if ca_live_session > 0 else "0%"
         
         # Compter commandes totales (complétées + en cours)
-        prev_conversations = await _fetch_conversations(company_id, prev_start, start_date)
+        prev_conversations = await _fetch_conversations(company_uuid, prev_start, start_date)
         commandes_total = len(conversations)
         commandes_variation = f"+{commandes_total - len(prev_conversations)}"
         
@@ -327,45 +367,44 @@ async def _fetch_deposits(company_id: str, start_date: datetime, end_date: Optio
         async with httpx.AsyncClient() as client:
             response = await client.get(url, headers=HEADERS, params=params, timeout=10.0)
 
-            if response.status_code == 200:
-                return response.json()
-            else:
-                logger.error(f"[SUPABASE] Erreur fetch deposits: {response.status_code}")
-                return []
+        if response.status_code == 200:
+            return response.json()
+        else:
+            logger.error(f"[SUPABASE] Erreur fetch deposits: {response.status_code}")
+            return []
 
     except Exception as e:
         logger.error(f"[SUPABASE] Exception fetch deposits: {e}")
         return []
 
-async def insert_deposit(company_id: str, amount_xof: int, order_id: Optional[str] = None, payment_method: Optional[str] = None, validated_by: str = "ocr_easy") -> Dict[str, Any]:
-    """Insère un acompte validé dans la table 'deposits'."""
-    payload: Dict[str, Any] = {
-        "company_id": company_id,
-        "amount_xof": int(amount_xof),
-        "validated_by": validated_by,
-    }
+async def _fetch_orders(company_id: str, start_date: datetime, end_date: Optional[datetime] = None) -> List[Dict]:
+    """Récupère les commandes depuis la table 'orders'."""
+    try:
+        if end_date is None:
+            end_date = datetime.utcnow()
 
-    if order_id:
-        payload["order_id"] = order_id
-    if payment_method:
-        payload["payment_method"] = payment_method
+        url = f"{SUPABASE_URL}/rest/v1/orders"
+        params = [
+            ("company_id", f"eq.{company_id}"),
+            ("created_at", f"gte.{start_date.isoformat()}"),
+            ("created_at", f"lte.{end_date.isoformat()}"),
+            ("select", "*"),
+            ("order", "created_at.desc"),
+            ("limit", "1000"),
+        ]
 
-    url = f"{SUPABASE_URL}/rest/v1/deposits"
-    headers = {**HEADERS, "Prefer": "return=representation"}
+        async with httpx.AsyncClient() as client:
+            response = await client.get(url, headers=HEADERS, params=params, timeout=10.0)
 
-    async with httpx.AsyncClient() as client:
-        response = await client.post(url, headers=headers, json=[payload], timeout=10.0)
+        if response.status_code == 200:
+            return response.json()
+        else:
+            logger.error(f"[SUPABASE] Erreur fetch orders: {response.status_code}")
+            return []
 
-    if 200 <= response.status_code < 300:
-        data = response.json()
-        if isinstance(data, list) and data:
-            return data[0]
-        if isinstance(data, dict):
-            return data
-        return payload
-
-    logger.error(f"[SUPABASE] Erreur insert deposit: {response.status_code} - {response.text}")
-    raise RuntimeError("Erreur lors de l'insertion de l'acompte dans Supabase")
+    except Exception as e:
+        logger.error(f"[SUPABASE] Exception fetch orders: {e}")
+        return []
 
 def _is_order_completed(conversation: Dict) -> bool:
     """Vérifie si une commande est complétée"""

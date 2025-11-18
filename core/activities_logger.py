@@ -58,7 +58,7 @@ async def log_activity(
     
     Args:
         company_id: ID entreprise (TEXT)
-        activity_type: Type d'activité (ex: "commande_enregistree", "paiement_valide")
+        activity_type: Type d'activité (doit être compatible avec activities_type_check)
         title: Titre court
         description: Description détaillée
         status: "success", "warning", "info", "error"
@@ -77,14 +77,38 @@ async def log_activity(
         
         # Créer activité
         url = f"{SUPABASE_URL}/rest/v1/activities"
+        # Adapter activity_type aux valeurs autorisées par la contrainte activities_type_check
+        # Types autorisés: 'order', 'message', 'intervention', 'system'
+        raw_type = activity_type or ""
+        normalized_type = raw_type
+
+        # Mapping des anciens labels vers les types supportés
+        if raw_type in {"commande_enregistree", "paiement_valide"}:
+            normalized_type = "order"
+        elif raw_type in {"nouvelle_requete_client", "session_started", "session_ended"}:
+            normalized_type = "message"
+        elif raw_type in {"intervention", "payment_issue"}:
+            normalized_type = "intervention"
+        elif raw_type in {"error", "system"}:
+            normalized_type = "system"
+        else:
+            # Fallback sécurisé
+            normalized_type = "system"
+
+        base_metadata = metadata or {}
+        if raw_type and raw_type != normalized_type:
+            # Préserver le label détaillé dans metadata.event
+            if "event" not in base_metadata:
+                base_metadata["event"] = raw_type
+
         payload = {
             "company_id": company_uuid,
             "conversation_id": conversation_id,
-            "type": activity_type,
+            "type": normalized_type,
             "title": title,
             "description": description,
             "status": status,
-            "metadata": metadata or {}
+            "metadata": base_metadata
         }
         
         async with httpx.AsyncClient() as client:
