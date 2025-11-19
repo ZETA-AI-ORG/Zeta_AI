@@ -81,7 +81,13 @@ async def process_botlive_message(req: BotliveMessageRequest, background_tasks: 
     try:
         # Traiter le message
         start_time = time.time()
-        
+
+        # Construire automatiquement l'historique depuis Supabase (conversations + messages)
+        conversation_history = await _build_conversation_history_from_messages(
+            company_id=req.company_id,
+            user_id=req.user_id,
+        )
+
         # Import lazy pour éviter circular import
         import app
         response = await app._botlive_handle(
@@ -89,7 +95,7 @@ async def process_botlive_message(req: BotliveMessageRequest, background_tasks: 
             user_id=req.user_id,
             message=req.message,
             images=req.images,
-            conversation_history=req.conversation_history
+            conversation_history=conversation_history
         )
         duration_ms = int((time.time() - start_time) * 1000)
         
@@ -584,6 +590,95 @@ async def trigger_webhook(event_type: str, data: Dict[str, Any]):
         pass
     except Exception as e:
         logger.error(f"[BOTLIVE][WEBHOOK] Erreur trigger: {e}")
+
+
+async def _build_conversation_history_from_messages(company_id: str, user_id: str, max_messages: int = 20) -> str:
+    """Reconstruit l'historique textuel depuis les tables conversations/messages.
+
+    Format de sortie aligné avec les anciens tests Botlive:
+        user: Bonjour, je veux commander
+        IA: D'accord ! ...
+
+    On récupère la conversation la plus récente pour (company_id_text, user_id)
+    puis les messages associés, triés par created_at asc.
+    """
+    try:
+        import httpx
+        from core.botlive_dashboard_data import SUPABASE_URL, SUPABASE_KEY
+        from core.conversations_manager import _get_company_uuid
+
+        # Mapper company_id texte -> UUID si possible
+        company_uuid = await _get_company_uuid(company_id)
+        if not company_uuid:
+            company_uuid = company_id
+
+        headers = {
+            "apikey": SUPABASE_KEY,
+            "Authorization": f"Bearer {SUPABASE_KEY}",
+            "Content-Type": "application/json",
+        }
+
+        # 1) Récupérer la conversation la plus récente pour ce couple
+        conv_url = f"{SUPABASE_URL}/rest/v1/conversations"
+        conv_params = [
+            ("company_id", f"eq.{company_uuid}"),
+            ("user_id", f"eq.{user_id}"),
+            ("select", "id"),
+            ("order", "created_at.desc"),
+            ("limit", "1"),
+        ]
+
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            conv_resp = await client.get(conv_url, headers=headers, params=conv_params)
+
+        if conv_resp.status_code != 200:
+            logger.error(f"[BOTLIVE][HISTORY] Erreur fetch conversations: {conv_resp.status_code} - {conv_resp.text}")
+            return ""
+
+        conversations = conv_resp.json() or []
+        if not conversations:
+            return ""
+
+        conversation_id = conversations[0].get("id")
+        if not conversation_id:
+            return ""
+
+        # 2) Récupérer les messages de cette conversation
+        msg_url = f"{SUPABASE_URL}/rest/v1/messages"
+        msg_params = [
+            ("conversation_id", f"eq.{conversation_id}"),
+            ("select", "role,content,created_at"),
+            ("order", "created_at.asc"),
+            ("limit", str(max_messages)),
+        ]
+
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            msg_resp = await client.get(msg_url, headers=headers, params=msg_params)
+
+        if msg_resp.status_code != 200:
+            logger.error(f"[BOTLIVE][HISTORY] Erreur fetch messages: {msg_resp.status_code} - {msg_resp.text}")
+            return ""
+
+        messages = msg_resp.json() or []
+        if not messages:
+            return ""
+
+        # 3) Construire l'historique textuel user:/IA:
+        lines = []
+        for m in messages:
+            role = (m.get("role") or "").lower()
+            content = m.get("content") or ""
+            # Les tables Lovable stockent déjà content en texte
+            prefix = "user:" if role == "user" else "IA:"
+            lines.append(f"{prefix} {content}".strip())
+
+        history = "\n".join(lines)
+        logger.info(f"[BOTLIVE][HISTORY] Reconstruit {len(messages)} messages pour {user_id} ({len(history)} chars)")
+        return history
+
+    except Exception as e:
+        logger.error(f"[BOTLIVE][HISTORY] Exception reconstruction historique: {e}")
+        return ""
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # 🔧 ENDPOINTS ADMIN
