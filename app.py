@@ -171,6 +171,8 @@ print("🔍 [DEBUG] Importing error_handler...")
 from core.error_handler import safe_api_call, global_error_handler
 print("🔍 [DEBUG] Importing circuit_breaker...")
 from core.circuit_breaker import groq_circuit_breaker, supabase_circuit_breaker, meilisearch_circuit_breaker
+print("🔍 [DEBUG] Importing integrations router...")
+from routes.integrations import router as integrations_router
 import traceback
 
 # --- Image search API ---
@@ -342,6 +344,8 @@ Instrumentator().instrument(app).expose(app)
 app.include_router(auth.router)
 app.include_router(messenger.router)
 app.include_router(meili_router)
+# Intégrations externes (Messenger multi-tenant, etc.)
+app.include_router(integrations_router)
 # NOTE: Removed duplicate include of meili_explorer_router; it is already mounted at prefix /meili above
 
 if not ZETA_BOTLIVE_ONLY:
