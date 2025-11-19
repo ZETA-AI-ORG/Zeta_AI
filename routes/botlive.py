@@ -676,7 +676,7 @@ async def get_or_create_conversation(
         params = {
             "company_id": f"eq.{company_uuid}",
             "customer_name": f"eq.{user_id}",
-            "select": "id",
+            "select": "id,metadata",
             "order": "created_at.desc",
             "limit": "1",
         }
@@ -687,8 +687,47 @@ async def get_or_create_conversation(
         if resp.status_code == 200:
             rows = resp.json() or []
             if rows:
-                conv_id = rows[0].get("id")
+                conv = rows[0]
+                conv_id = conv.get("id")
                 if conv_id:
+                    # Si un user_display_name est fourni et absent de la metadata existante,
+                    # on met à jour la conversation pour faciliter l'affichage dans le dashboard.
+                    if user_display_name:
+                        try:
+                            existing_meta = conv.get("metadata") or {}
+                            # metadata peut être une chaîne JSON ou un dict
+                            if isinstance(existing_meta, str):
+                                import json as _json
+                                try:
+                                    existing_meta = _json.loads(existing_meta)
+                                except Exception:
+                                    existing_meta = {}
+
+                            if not isinstance(existing_meta, dict):
+                                existing_meta = {}
+
+                            if existing_meta.get("user_display_name") != user_display_name:
+                                existing_meta.setdefault("user_id", user_id)
+                                existing_meta["user_display_name"] = user_display_name
+
+                                patch_payload = {"metadata": existing_meta}
+                                patch_params = {"id": f"eq.{conv_id}"}
+
+                                async with httpx.AsyncClient() as client:
+                                    await client.patch(
+                                        url,
+                                        headers=headers,
+                                        params=patch_params,
+                                        json=patch_payload,
+                                        timeout=5.0,
+                                    )
+                        except Exception as meta_err:
+                            logger.warning(
+                                "[CONVERSATIONS] Impossible de mettre à jour metadata pour %s: %s",
+                                conv_id,
+                                meta_err,
+                            )
+
                     return conv_id
 
         # 2) Aucune conversation → en créer une nouvelle
