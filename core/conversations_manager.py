@@ -88,9 +88,10 @@ async def get_or_create_conversation(company_id: str, user_id: str) -> Optional[
         url = f"{SUPABASE_URL}/rest/v1/conversations"
 
         # 1) Chercher une conversation existante pour ce couple
+        #    On utilise customer_name comme identifiant logique pour user_id
         params = {
             "company_id": f"eq.{company_uuid}",
-            "user_id": f"eq.{user_id}",
+            "customer_name": f"eq.{user_id}",
             "select": "id",
             "order": "created_at.desc",
             "limit": "1",
@@ -109,7 +110,8 @@ async def get_or_create_conversation(company_id: str, user_id: str) -> Optional[
         # 2) Aucune conversation → en créer une nouvelle
         payload: Dict[str, Any] = {
             "company_id": company_uuid,
-            "user_id": user_id,
+            "customer_name": user_id,
+            # champs status / priority ont généralement des valeurs par défaut côté DB
         }
 
         async with httpx.AsyncClient() as client:

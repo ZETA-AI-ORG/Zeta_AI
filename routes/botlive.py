@@ -622,7 +622,8 @@ async def _build_conversation_history_from_messages(company_id: str, user_id: st
         conv_url = f"{SUPABASE_URL}/rest/v1/conversations"
         conv_params = [
             ("company_id", f"eq.{company_uuid}"),
-            ("user_id", f"eq.{user_id}"),
+            # Le schéma Lovable n'a pas de colonne user_id, on utilise customer_name
+            ("customer_name", f"eq.{user_id}"),
             ("select", "id"),
             ("order", "created_at.desc"),
             ("limit", "1"),
