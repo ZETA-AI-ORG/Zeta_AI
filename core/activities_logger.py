@@ -51,7 +51,8 @@ async def log_activity(
     description: str = "",
     status: str = "info",
     conversation_id: Optional[str] = None,
-    metadata: Optional[Dict] = None
+    metadata: Optional[Dict] = None,
+    customer_name: Optional[str] = None,
 ) -> bool:
     """
     Logger une activité dans la table activities
@@ -108,8 +109,12 @@ async def log_activity(
             "title": title,
             "description": description,
             "status": status,
-            "metadata": base_metadata
+            "metadata": base_metadata,
         }
+
+        # Nouvel attribut pour les tables activities: customer_name texte dédié
+        if customer_name:
+            payload["customer_name"] = customer_name
         
         async with httpx.AsyncClient() as client:
             response = await client.post(
@@ -142,6 +147,7 @@ async def log_order_created(company_id: str, customer_name: str, order_id: str, 
         title=f"Commande de {customer_name}",
         description=f"Montant: {total_amount} FCFA",
         status="success",
+        customer_name=customer_name,
         metadata={
             "order_id": order_id,
             "customer_name": customer_name,
@@ -199,6 +205,7 @@ async def log_new_conversation(
         status="info",
         conversation_id=conversation_id,
         metadata=metadata,
+        customer_name=display_label,
     )
 
 async def log_session_started(company_id: str, mode: str, session_id: str):

@@ -132,11 +132,23 @@ async def process_botlive_message(req: BotliveMessageRequest, background_tasks: 
                     request_id,
                 )
             else:
+                # Enrichir metadata pour exposer user_id / user_display_name dans la table messages
+                user_metadata: Dict[str, Any] = {
+                    "source": "botlive",
+                    "channel": "messenger",
+                    "user_id": req.user_id,
+                }
+                if user_display_name:
+                    user_metadata["user_display_name"] = user_display_name
+
+                # Déterminer un nom lisible pour l'auteur (colonne messages.author_name)
+                author_name = user_display_name or req.user_id[-4:]
+
                 user_ok = await insert_message(
                     conversation_id,
                     "user",
                     req.message or "",
-                    {"source": "botlive", "channel": "messenger"},
+                    {**user_metadata, "author_name": author_name},
                 )
                 logger.info(
                     "[BOTLIVE][%s] insert_message user -> %s",
@@ -149,7 +161,7 @@ async def process_botlive_message(req: BotliveMessageRequest, background_tasks: 
                         conversation_id,
                         "assistant",
                         response,
-                        {"source": "botlive", "channel": "bot"},
+                        {"source": "botlive", "channel": "bot", "author_name": "Botlive"},
                     )
                     logger.info(
                         "[BOTLIVE][%s] insert_message assistant -> %s",
@@ -199,16 +211,20 @@ async def process_botlive_message(req: BotliveMessageRequest, background_tasks: 
                     logger.warning(f"[BOTLIVE][{request_id}] Impossible de lire montant notepad: {np_err}")
 
                 items = [{"name": produit or "Commande Botlive", "quantity": 1, "price": total_amount}]
+
+                # Nom lisible pour la commande: priorité au user_display_name, sinon dernier digits
+                order_customer_name = user_display_name or numero_client
+
                 order = await create_order(
                     company_id=req.company_id,
                     user_id=req.user_id,
-                    customer_name=numero_client,
+                    customer_name=order_customer_name,
                     total_amount=total_amount,
                     items=items,
                     conversation_id=conversation_id
                 )
                 if order and isinstance(order, dict) and order.get("id"):
-                    await log_order_created(req.company_id, numero_client, order["id"], total_amount)
+                    await log_order_created(req.company_id, order_customer_name, order["id"], total_amount)
             except Exception as order_err:
                 logger.error(f"[BOTLIVE][{request_id}] Erreur création commande/activité: {order_err}")
         
@@ -710,7 +726,11 @@ async def get_or_create_conversation(
                                 existing_meta.setdefault("user_id", user_id)
                                 existing_meta["user_display_name"] = user_display_name
 
-                                patch_payload = {"metadata": existing_meta}
+                                # Mettre à jour metadata + nouvelle colonne customer_display_name
+                                patch_payload = {
+                                    "metadata": existing_meta,
+                                    "customer_display_name": user_display_name,
+                                }
                                 patch_params = {"id": f"eq.{conv_id}"}
 
                                 async with httpx.AsyncClient() as client:
@@ -740,6 +760,10 @@ async def get_or_create_conversation(
             "customer_name": user_id,
             "metadata": metadata,
         }
+
+        # Nouvelle colonne texte: customer_display_name
+        if user_display_name:
+            payload["customer_display_name"] = user_display_name
 
         async with httpx.AsyncClient() as client:
             create_resp = await client.post(
@@ -793,7 +817,14 @@ async def insert_message(
             "role": role,
             "content": content,
         }
+
         if metadata is not None:
+            # Si un author_name est fourni dans metadata, le refléter aussi
+            # dans la colonne texte dédiée messages.author_name.
+            author_name = metadata.get("author_name") if isinstance(metadata, dict) else None
+            if author_name:
+                payload["author_name"] = author_name
+
             payload["metadata"] = metadata
 
         async with httpx.AsyncClient() as client:
