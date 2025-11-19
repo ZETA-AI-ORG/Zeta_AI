@@ -107,7 +107,6 @@ async def process_botlive_message(req: BotliveMessageRequest, background_tasks: 
 
         conversation_id = None
         try:
-            from core.conversations_manager import get_or_create_conversation, insert_message
             from core.activities_logger import log_new_conversation
             logger.info(
                 "[BOTLIVE][%s] Début logging conversation: company_id=%s user_id=%s",
@@ -117,7 +116,9 @@ async def process_botlive_message(req: BotliveMessageRequest, background_tasks: 
             )
 
             conversation_id = await get_or_create_conversation(req.company_id, req.user_id)
-            logger.info("[BOTLIVE][%s] get_or_create_conversation  %s", request_id, conversation_id)
+            logger.info(
+                "[BOTLIVE][%s] get_or_create_conversation -> %s",
+                request_id, conversation_id)
 
             if not conversation_id:
                 logger.warning(
@@ -132,7 +133,7 @@ async def process_botlive_message(req: BotliveMessageRequest, background_tasks: 
                     {"source": "botlive", "channel": "messenger"},
                 )
                 logger.info(
-                    "[BOTLIVE][%s] insert_message user  %s",
+                    "[BOTLIVE][%s] insert_message user -> %s",
                     request_id,
                     user_ok,
                 )
@@ -145,14 +146,14 @@ async def process_botlive_message(req: BotliveMessageRequest, background_tasks: 
                         {"source": "botlive", "channel": "bot"},
                     )
                     logger.info(
-                        "[BOTLIVE][%s] insert_message assistant  %s",
+                        "[BOTLIVE][%s] insert_message assistant -> %s",
                         request_id,
                         assistant_ok,
                     )
 
                 activity_ok = await log_new_conversation(req.company_id, req.user_id, conversation_id)
                 logger.info(
-                    "[BOTLIVE][%s] log_new_conversation  %s",
+                    "[BOTLIVE][%s] log_new_conversation -> %s",
                     request_id,
                     activity_ok,
                 )
@@ -626,6 +627,142 @@ async def trigger_webhook(event_type: str, data: Dict[str, Any]):
         logger.error(f"[BOTLIVE][WEBHOOK] Erreur trigger: {e}")
 
 
+async def get_or_create_conversation(company_id: str, user_id: str) -> Optional[str]:
+    """Récupère ou crée une conversation pour (company_id, user_id) via Supabase.
+
+    Utilise la table `company_mapping` pour mapper company_id texte -> UUID,
+    puis la table `conversations` (champ customer_name pour l'utilisateur).
+    """
+
+    try:
+        import httpx
+        from core.botlive_dashboard_data import SUPABASE_URL, SUPABASE_KEY, _get_company_uuid
+
+        company_uuid = await _get_company_uuid(company_id)
+        if not company_uuid:
+            logger.warning(
+                "[CONVERSATIONS] UUID introuvable pour company_id_text=%s",
+                company_id,
+            )
+            return None
+
+        headers = {
+            "apikey": SUPABASE_KEY,
+            "Authorization": f"Bearer {SUPABASE_KEY}",
+            "Content-Type": "application/json",
+        }
+
+        url = f"{SUPABASE_URL}/rest/v1/conversations"
+
+        # 1) Chercher une conversation existante pour ce couple
+        params = {
+            "company_id": f"eq.{company_uuid}",
+            "customer_name": f"eq.{user_id}",
+            "select": "id",
+            "order": "created_at.desc",
+            "limit": "1",
+        }
+
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(url, headers=headers, params=params, timeout=5.0)
+
+        if resp.status_code == 200:
+            rows = resp.json() or []
+            if rows:
+                conv_id = rows[0].get("id")
+                if conv_id:
+                    return conv_id
+
+        # 2) Aucune conversation → en créer une nouvelle
+        payload: Dict[str, Any] = {
+            "company_id": company_uuid,
+            "customer_name": user_id,
+        }
+
+        async with httpx.AsyncClient() as client:
+            create_resp = await client.post(
+                url,
+                headers={**headers, "Prefer": "return=representation"},
+                json=payload,
+                timeout=5.0,
+            )
+
+        if create_resp.status_code in (200, 201):
+            body = create_resp.json()
+            if isinstance(body, list) and body:
+                return body[0].get("id")
+            if isinstance(body, dict):
+                return body.get("id")
+
+        logger.error(
+            "[CONVERSATIONS] Erreur création conversation: %s - %s",
+            create_resp.status_code,
+            create_resp.text,
+        )
+        return None
+
+    except Exception as exc:  # pragma: no cover - log uniquement
+        logger.error("[CONVERSATIONS] Exception get_or_create_conversation: %s", exc)
+        return None
+
+
+async def insert_message(
+    conversation_id: str,
+    role: str,
+    content: str,
+    metadata: Optional[Dict[str, Any]] = None,
+) -> bool:
+    """Insère un message dans la table messages."""
+
+    try:
+        import httpx
+        from core.botlive_dashboard_data import SUPABASE_URL, SUPABASE_KEY
+
+        headers = {
+            "apikey": SUPABASE_KEY,
+            "Authorization": f"Bearer {SUPABASE_KEY}",
+            "Content-Type": "application/json",
+        }
+
+        url = f"{SUPABASE_URL}/rest/v1/messages"
+
+        payload: Dict[str, Any] = {
+            "conversation_id": conversation_id,
+            "role": role,
+            "content": content,
+        }
+        if metadata is not None:
+            payload["metadata"] = metadata
+
+        async with httpx.AsyncClient() as client:
+            resp = await client.post(
+                url,
+                headers={**headers, "Prefer": "return=minimal"},
+                json=payload,
+                timeout=5.0,
+            )
+
+        if resp.status_code in (200, 201, 204):
+            logger.info(
+                "[CONVERSATIONS] Message inséré (conv=%s, role=%s, len=%s)",
+                conversation_id,
+                role,
+                len(content or ""),
+            )
+            return True
+
+        logger.error(
+            "[CONVERSATIONS] Erreur insert_message: %s - %s",
+            resp.status_code,
+            resp.text,
+        )
+        return False
+
+    except Exception as exc:  # pragma: no cover - log uniquement
+        logger.error("[CONVERSATIONS] Exception insert_message: %s", exc)
+        return False
+
+
 async def _build_conversation_history_from_messages(company_id: str, user_id: str, max_messages: int = 20) -> str:
     """Reconstruit l'historique textuel depuis les tables conversations/messages.
 
@@ -638,8 +775,7 @@ async def _build_conversation_history_from_messages(company_id: str, user_id: st
     """
     try:
         import httpx
-        from core.botlive_dashboard_data import SUPABASE_URL, SUPABASE_KEY
-        from core.conversations_manager import _get_company_uuid
+        from core.botlive_dashboard_data import SUPABASE_URL, SUPABASE_KEY, _get_company_uuid
 
         # Mapper company_id texte -> UUID si possible
         company_uuid = await _get_company_uuid(company_id)
