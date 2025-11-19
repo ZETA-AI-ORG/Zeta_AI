@@ -31,6 +31,7 @@ class BotliveMessageRequest(BaseModel):
     message: str = Field(default="", description="Message texte")
     images: List[str] = Field(default=[], description="URLs des images")
     conversation_history: str = Field(default="", description="Historique conversation")
+    user_display_name: Optional[str] = Field(default=None, description="Nom affiché du client (si disponible)")
 
 class BotliveStatsRequest(BaseModel):
     """Requête pour les statistiques"""
@@ -81,6 +82,7 @@ async def process_botlive_message(req: BotliveMessageRequest, background_tasks: 
     try:
         # Traiter le message
         start_time = time.time()
+        user_display_name = req.user_display_name
 
         # Construire automatiquement l'historique depuis Supabase (conversations + messages)
         conversation_history = await _build_conversation_history_from_messages(
@@ -115,7 +117,11 @@ async def process_botlive_message(req: BotliveMessageRequest, background_tasks: 
                 req.user_id,
             )
 
-            conversation_id = await get_or_create_conversation(req.company_id, req.user_id)
+            conversation_id = await get_or_create_conversation(
+                req.company_id,
+                req.user_id,
+                user_display_name,
+            )
             logger.info(
                 "[BOTLIVE][%s] get_or_create_conversation -> %s",
                 request_id, conversation_id)
@@ -151,7 +157,12 @@ async def process_botlive_message(req: BotliveMessageRequest, background_tasks: 
                         assistant_ok,
                     )
 
-                activity_ok = await log_new_conversation(req.company_id, req.user_id, conversation_id)
+                activity_ok = await log_new_conversation(
+                    req.company_id,
+                    req.user_id,
+                    conversation_id,
+                    user_display_name,
+                )
                 logger.info(
                     "[BOTLIVE][%s] log_new_conversation -> %s",
                     request_id,
@@ -627,11 +638,18 @@ async def trigger_webhook(event_type: str, data: Dict[str, Any]):
         logger.error(f"[BOTLIVE][WEBHOOK] Erreur trigger: {e}")
 
 
-async def get_or_create_conversation(company_id: str, user_id: str) -> Optional[str]:
+async def get_or_create_conversation(
+    company_id: str,
+    user_id: str,
+    user_display_name: Optional[str] = None,
+) -> Optional[str]:
     """Récupère ou crée une conversation pour (company_id, user_id) via Supabase.
 
     Utilise la table `company_mapping` pour mapper company_id texte -> UUID,
-    puis la table `conversations` (champ customer_name pour l'utilisateur).
+    puis la table `conversations`.
+
+    customer_name reste basé sur user_id (identifiant logique), tandis que
+    user_display_name est stocké dans metadata si fourni pour l'affichage.
     """
 
     try:
@@ -674,9 +692,14 @@ async def get_or_create_conversation(company_id: str, user_id: str) -> Optional[
                     return conv_id
 
         # 2) Aucune conversation → en créer une nouvelle
+        metadata: Dict[str, Any] = {"user_id": user_id}
+        if user_display_name:
+            metadata["user_display_name"] = user_display_name
+
         payload: Dict[str, Any] = {
             "company_id": company_uuid,
             "customer_name": user_id,
+            "metadata": metadata,
         }
 
         async with httpx.AsyncClient() as client:

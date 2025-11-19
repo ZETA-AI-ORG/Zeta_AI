@@ -178,18 +178,27 @@ async def log_payment_issue(company_id: str, user_id: str, issue_type: str, mess
         }
     )
 
-async def log_new_conversation(company_id: str, user_id: str, conversation_id: str):
+async def log_new_conversation(
+    company_id: str,
+    user_id: str,
+    conversation_id: str,
+    user_display_name: Optional[str] = None,
+):
     """Logger nouvelle conversation"""
+
+    display_label = user_display_name or user_id[-4:]
+    metadata = {"user_id": user_id}
+    if user_display_name:
+        metadata["user_display_name"] = user_display_name
+
     return await log_activity(
         company_id=company_id,
         activity_type="nouvelle_requete_client",
         title="Nouvelle conversation",
-        description=f"Client: {user_id[-4:]}",
+        description=f"Client: {display_label}",
         status="info",
         conversation_id=conversation_id,
-        metadata={
-            "user_id": user_id
-        }
+        metadata=metadata,
     )
 
 async def log_session_started(company_id: str, mode: str, session_id: str):

@@ -4,6 +4,7 @@ Gère les 4 endpoints dashboard prioritaires
 """
 
 import httpx
+import json
 import logging
 from typing import Dict, Any, List, Optional
 from datetime import datetime, timedelta
@@ -469,9 +470,37 @@ def _calculate_completion_rate(order_state: Dict[str, str]) -> int:
     return int((completed / total) * 100) if total > 0 else 0
 
 def _extract_user_name(conversation: Dict) -> str:
-    """Extrait le nom de l'utilisateur depuis la conversation"""
-    # TODO: Implémenter extraction depuis le contenu
-    return None
+    """Extrait le nom de l'utilisateur depuis la conversation.
+
+    Préférence:
+      1) metadata.user_display_name (nom complet si fourni par intégration)
+      2) Sinon, identifiant utilisateur (4 derniers chiffres comme avant)
+    """
+
+    metadata = conversation.get("metadata") or {}
+    # metadata peut être stocké comme JSON ou comme chaîne JSON
+    if isinstance(metadata, str):
+        try:
+            metadata = json.loads(metadata)
+        except Exception:
+            metadata = {}
+
+    display_name = metadata.get("user_display_name")
+    if isinstance(display_name, str) and display_name.strip():
+        return display_name.strip()
+
+    # Fallback: on retrouve un identifiant pour conserver le comportement existant
+    user_identifier = (
+        metadata.get("user_id")
+        or conversation.get("user_id")
+        or conversation.get("customer_name")
+        or "Client"
+    )
+
+    if isinstance(user_identifier, str) and len(user_identifier) >= 4:
+        return user_identifier[-4:]
+
+    return "Client"
 
 def _detect_order_issues(order: Dict) -> List[Dict[str, str]]:
     """Détecte les problèmes dans une commande"""
