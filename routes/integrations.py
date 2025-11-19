@@ -113,12 +113,27 @@ async def get_messenger_profile(payload: MessengerProfileRequest) -> MessengerPr
             resp = await client.get(graph_url, params=params)
 
         if resp.status_code != 200:
+            # Tenter de parser proprement la réponse Facebook pour remonter un message exploitable
+            try:
+                fb_error_body = resp.json()
+            except Exception:
+                fb_error_body = resp.text
+
             logger.error(
                 "[INTEGRATIONS][MESSENGER] Erreur Graph API %s: %s",
                 resp.status_code,
-                resp.text,
+                fb_error_body,
             )
-            raise HTTPException(status_code=502, detail="Erreur Graph API Messenger")
+
+            # Détail enrichi pour faciliter le debug côté n8n / front
+            raise HTTPException(
+                status_code=502,
+                detail={
+                    "message": "Erreur Graph API Messenger",
+                    "status_code": resp.status_code,
+                    "facebook_error": fb_error_body,
+                },
+            )
 
         data = resp.json() or {}
         first_name = data.get("first_name") or ""
