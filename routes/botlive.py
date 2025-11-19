@@ -109,24 +109,58 @@ async def process_botlive_message(req: BotliveMessageRequest, background_tasks: 
         try:
             from core.conversations_manager import get_or_create_conversation, insert_message
             from core.activities_logger import log_new_conversation
+            logger.info(
+                "[BOTLIVE][%s] Début logging conversation: company_id=%s user_id=%s",
+                request_id,
+                req.company_id,
+                req.user_id,
+            )
+
             conversation_id = await get_or_create_conversation(req.company_id, req.user_id)
-            if conversation_id:
-                await insert_message(
+            logger.info("[BOTLIVE][%s] get_or_create_conversation  %s", request_id, conversation_id)
+
+            if not conversation_id:
+                logger.warning(
+                    "[BOTLIVE][%s] Aucune conversation_id retourneee, skip insert_message/log_new_conversation",
+                    request_id,
+                )
+            else:
+                user_ok = await insert_message(
                     conversation_id,
                     "user",
                     req.message or "",
-                    {"source": "botlive", "channel": "messenger"}
+                    {"source": "botlive", "channel": "messenger"},
                 )
+                logger.info(
+                    "[BOTLIVE][%s] insert_message user  %s",
+                    request_id,
+                    user_ok,
+                )
+
                 if isinstance(response, str) and response:
-                    await insert_message(
+                    assistant_ok = await insert_message(
                         conversation_id,
                         "assistant",
                         response,
-                        {"source": "botlive", "channel": "bot"}
+                        {"source": "botlive", "channel": "bot"},
                     )
-                await log_new_conversation(req.company_id, req.user_id, conversation_id)
+                    logger.info(
+                        "[BOTLIVE][%s] insert_message assistant  %s",
+                        request_id,
+                        assistant_ok,
+                    )
+
+                activity_ok = await log_new_conversation(req.company_id, req.user_id, conversation_id)
+                logger.info(
+                    "[BOTLIVE][%s] log_new_conversation  %s",
+                    request_id,
+                    activity_ok,
+                )
         except Exception as conv_err:
-            logger.error(f"[BOTLIVE][{request_id}] Erreur logging conversation/messages: {conv_err}")
+            logger.error(
+                f"[BOTLIVE][{request_id}] Erreur logging conversation/messages: {conv_err}",
+                exc_info=True,
+            )
 
         if next_step == "completed" and conversation_id:
             try:
