@@ -63,6 +63,10 @@ class HumanReplyRequest(BaseModel):
         default=None,
         description="Nom affiché du client (facilite l'affichage dans le dashboard)",
     )
+    page_id: Optional[str] = Field(
+        default=None,
+        description="ID de la page (ex: page Facebook Messenger)",
+    )
 
 class WebhookConfig(BaseModel):
     """Configuration webhook N8N"""
@@ -301,6 +305,10 @@ async def send_human_reply(req: HumanReplyRequest):
         "user_display_name": req.user_display_name,
         "source": "human",
     }
+
+    # Ajouter page_id si fourni (pour routage précis côté N8N, ex: multi-pages Messenger)
+    if req.page_id:
+        payload["page_id"] = req.page_id
 
     headers: Dict[str, str] = {}
     if N8N_API_KEY:
