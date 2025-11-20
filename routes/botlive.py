@@ -13,6 +13,9 @@ import uuid
 import asyncio
 from datetime import datetime
 import os
+import httpx
+
+from config import N8N_OUTBOUND_WEBHOOK_URL, N8N_API_KEY, N8N_DEBUG_MODE
 
 logger = logging.getLogger(__name__)
 
@@ -42,6 +45,24 @@ class BotliveOrderStatusRequest(BaseModel):
     """Requête pour vérifier le statut d'une commande"""
     user_id: str
     company_id: str
+
+
+class HumanReplyRequest(BaseModel):
+    """Requête pour une réponse humaine envoyée depuis le dashboard.
+
+    Cette requête est simplement relayée vers un webhook N8N dédié qui :
+    - loggue dans conversation_logs
+    - envoie le message au client (Messenger, etc.)
+    """
+
+    company_id: str = Field(..., description="ID texte de l'entreprise (company_id_text)")
+    user_id: str = Field(..., description="ID utilisateur final (PSID Messenger, numéro WhatsApp, etc.)")
+    message: str = Field(..., description="Message saisi par l'opérateur")
+    channel: str = Field("messenger", description="Canal de communication : messenger, whatsapp, ...")
+    user_display_name: Optional[str] = Field(
+        default=None,
+        description="Nom affiché du client (facilite l'affichage dans le dashboard)",
+    )
 
 class WebhookConfig(BaseModel):
     """Configuration webhook N8N"""
@@ -250,6 +271,88 @@ async def process_botlive_message(req: BotliveMessageRequest, background_tasks: 
     except Exception as e:
         logger.error(f"[BOTLIVE][{request_id}] Erreur: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Erreur traitement message: {str(e)}")
+
+
+@router.post("/human-reply")
+async def send_human_reply(req: HumanReplyRequest):
+    """Relaye une réponse humaine depuis le frontend vers N8N.
+
+    Le frontend appelle cet endpoint quand un opérateur répond dans l'interface
+    de chat. Cet endpoint NE fait pas appel au LLM : il se contente de pousser
+    un payload propre vers un webhook N8N dédié (workflow "botlive/human-reply").
+
+    Le payload envoyé à N8N est volontairement simple et explicite pour que le
+    workflow puisse ensuite :
+    - insérer une ligne dans conversation_logs (direction = outbound, source = human)
+    - envoyer le message au client via Messenger/WhatsApp.
+    """
+
+    if not N8N_OUTBOUND_WEBHOOK_URL:
+        logger.error("[BOTLIVE][HUMAN_REPLY] N8N_OUTBOUND_WEBHOOK_URL n'est pas configurée")
+        raise HTTPException(status_code=500, detail="Webhook N8N non configuré côté backend")
+
+    payload: Dict[str, Any] = {
+        # Compat : exposer les deux clés company_id & company_id_text
+        "company_id": req.company_id,
+        "company_id_text": req.company_id,
+        "user_id": req.user_id,
+        "message": req.message,
+        "channel": req.channel or "messenger",
+        "user_display_name": req.user_display_name,
+        "source": "human",
+    }
+
+    headers: Dict[str, str] = {}
+    if N8N_API_KEY:
+        headers["X-N8N-API-KEY"] = N8N_API_KEY
+
+    try:
+        logger.info(
+            "[BOTLIVE][HUMAN_REPLY] Envoi vers N8N | company_id=%s user_id=%s channel=%s",
+            req.company_id,
+            req.user_id,
+            req.channel,
+        )
+
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.post(
+                N8N_OUTBOUND_WEBHOOK_URL,
+                json=payload,
+                headers=headers,
+            )
+
+        if response.status_code not in (200, 201, 202, 204):
+            body_preview = response.text[:500]
+            logger.error(
+                "[BOTLIVE][HUMAN_REPLY] Erreur N8N %s | body=%s",
+                response.status_code,
+                body_preview,
+            )
+            raise HTTPException(
+                status_code=500,
+                detail=f"Erreur webhook N8N (status={response.status_code})",
+            )
+
+        if N8N_DEBUG_MODE:
+            logger.info(
+                "[BOTLIVE][HUMAN_REPLY] Réponse N8N: status=%s body=%s",
+                response.status_code,
+                response.text[:300],
+            )
+
+        return JSONResponse(
+            content={
+                "success": True,
+                "relayed_to_n8n": True,
+                "status_code": response.status_code,
+            }
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[BOTLIVE][HUMAN_REPLY] Exception lors de l'appel N8N: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Erreur interne lors de l'envoi à N8N")
 
 @router.post("/message/stream")
 async def process_botlive_message_stream(req: BotliveMessageRequest):
