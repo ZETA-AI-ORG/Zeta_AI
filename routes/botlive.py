@@ -58,6 +58,7 @@ class HumanReplyRequest(BaseModel):
     company_id: str = Field(..., description="ID texte de l'entreprise (company_id_text)")
     user_id: str = Field(..., description="ID utilisateur final (PSID Messenger, numéro WhatsApp, etc.)")
     message: str = Field(..., description="Message saisi par l'opérateur")
+    images: List[str] = Field(default_factory=list, description="URLs des images jointes (optionnel)")
     channel: str = Field("messenger", description="Canal de communication : messenger, whatsapp, ...")
     user_display_name: Optional[str] = Field(
         default=None,
@@ -305,6 +306,10 @@ async def send_human_reply(req: HumanReplyRequest):
         "user_display_name": req.user_display_name,
         "source": "human",
     }
+
+    # Relayer les images si fournies (même format que pour les messages client)
+    if req.images:
+        payload["images"] = req.images
 
     # Ajouter page_id si fourni (pour routage précis côté N8N, ex: multi-pages Messenger)
     if req.page_id:
