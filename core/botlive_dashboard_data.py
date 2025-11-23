@@ -10,6 +10,8 @@ from typing import Dict, Any, List, Optional
 from datetime import datetime, timedelta
 from collections import defaultdict
 
+from core.intervention_logger import log_intervention_in_conversation_logs
+
 logger = logging.getLogger(__name__)
 
 # Credentials Supabase (hardcodées pour robustesse)
@@ -52,6 +54,49 @@ async def _get_company_uuid(company_id: str) -> Optional[str]:
         logger.error(f"[BOTLIVE_STATS] Erreur _get_company_uuid: {e}")
         return None
 
+
+async def _fetch_active_conversation_logs(
+    company_id_text: str,
+    start_date: datetime,
+    end_date: Optional[datetime] = None,
+) -> List[Dict[str, Any]]:
+    """Récupère les logs de conversation actifs depuis conversation_logs.
+
+    Utilisé pour calculer le nombre de conversations en ligne
+    (clients_actifs = COUNT DISTINCT user_id avec status = 'active').
+    """
+    try:
+        if end_date is None:
+            end_date = datetime.utcnow()
+
+        url = f"{SUPABASE_URL}/rest/v1/conversation_logs"
+        params = [
+            ("company_id_text", f"eq.{company_id_text}"),
+            ("status", "eq.active"),
+            ("created_at", f"gte.{start_date.isoformat()}"),
+            ("created_at", f"lte.{end_date.isoformat()}"),
+            ("select", "user_id,conversation_id,created_at,status"),
+            ("order", "created_at.desc"),
+            ("limit", "2000"),
+        ]
+
+        async with httpx.AsyncClient() as client:
+            response = await client.get(url, headers=HEADERS, params=params, timeout=10.0)
+
+        if response.status_code == 200:
+            data = response.json() or []
+            return data
+        else:
+            logger.error(
+                f"[SUPABASE] Erreur fetch conversation_logs actifs: {response.status_code}"
+            )
+            return []
+
+    except Exception as e:
+        logger.error(f"[SUPABASE] Exception fetch conversation_logs actifs: {e}")
+        return []
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # 📊 ENDPOINT 1: GET /botlive/stats/{company_id}
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -67,6 +112,7 @@ async def get_live_stats(company_id: str, time_range: str = "today") -> Dict[str
             "commandes_total": 34,
             "commandes_variation": "+12",
             "clients_actifs": 156,
+            "conversations_actives": 12,
             "interventions_requises": 2
         }
     """
@@ -92,7 +138,7 @@ async def get_live_stats(company_id: str, time_range: str = "today") -> Dict[str
         else:
             start_date = now.replace(hour=0, minute=0, second=0, microsecond=0)
         
-        # Récupérer les conversations de la période (pour commandes, clients, interventions)
+        # Récupérer les conversations de la période (pour commandes, interventions)
         conversations = await _fetch_conversations(company_uuid, start_date)
 
         # Calculer le CA à partir de la table 'orders' (total_amount)
@@ -115,8 +161,26 @@ async def get_live_stats(company_id: str, time_range: str = "today") -> Dict[str
         commandes_total = len(conversations)
         commandes_variation = f"+{commandes_total - len(prev_conversations)}"
         
-        # Clients actifs (utilisateurs uniques dans la période)
-        clients_actifs = len(set(c.get('user_id') for c in conversations if c.get('user_id')))
+        # Clients actifs & conversations actives = statut temps réel basé sur conversation_logs
+        # - clients_actifs: COUNT DISTINCT user_id avec status = 'active'
+        # - conversations_actives: COUNT DISTINCT conversation_id avec status = 'active'
+        conversation_logs = await _fetch_active_conversation_logs(
+            company_id,
+            start_date,
+            now,
+        )
+
+        active_user_ids = {
+            log.get("user_id") for log in conversation_logs if log.get("user_id")
+        }
+        active_conversation_ids = {
+            log.get("conversation_id")
+            for log in conversation_logs
+            if log.get("conversation_id")
+        }
+
+        clients_actifs = len(active_user_ids)
+        conversations_actives = len(active_conversation_ids)
         
         # Interventions requises (commandes avec problèmes)
         interventions_requises = await _count_interventions(conversations)
@@ -127,6 +191,7 @@ async def get_live_stats(company_id: str, time_range: str = "today") -> Dict[str
             "commandes_total": commandes_total,
             "commandes_variation": commandes_variation,
             "clients_actifs": clients_actifs,
+            "conversations_actives": conversations_actives,
             "interventions_requises": interventions_requises,
             "time_range": time_range,
             "updated_at": datetime.utcnow().isoformat()
@@ -141,6 +206,7 @@ async def get_live_stats(company_id: str, time_range: str = "today") -> Dict[str
             "commandes_total": 0,
             "commandes_variation": "+0",
             "clients_actifs": 0,
+            "conversations_actives": 0,
             "interventions_requises": 0,
             "time_range": time_range,
             "updated_at": datetime.utcnow().isoformat()
@@ -247,20 +313,38 @@ async def get_interventions_required(company_id: str) -> List[Dict[str, Any]]:
         for order in active_orders:
             # Détecter problèmes
             issues = _detect_order_issues(order)
-            
+
             for issue in issues:
                 interventions.append({
-                    "user_id": order['user_id'],
-                    "type": issue['type'],
-                    "message": issue['message'],
+                    "user_id": order["user_id"],
+                    "type": issue["type"],
+                    "message": issue["message"],
                     "order_status": {
-                        "produit": order['produit'],
-                        "paiement": order['paiement'],
-                        "zone": order['zone'],
-                        "numero": order['numero']
+                        "produit": order["produit"],
+                        "paiement": order["paiement"],
+                        "zone": order["zone"],
+                        "numero": order["numero"],
                     },
-                    "created_at": order['created_at']
+                    "created_at": order["created_at"],
                 })
+
+                try:
+                    await log_intervention_in_conversation_logs(
+                        company_id_text=company_id,
+                        user_id=order["user_id"],
+                        message=issue["message"],
+                        metadata={
+                            "needs_intervention": True,
+                            "reason": issue["type"],
+                            "priority": "high",
+                            "source": "order_issues_v1",
+                            "completion_rate": order.get("completion_rate"),
+                        },
+                        channel="botlive",
+                        direction="system",
+                    )
+                except Exception as log_err:
+                    logger.error("[BOTLIVE_INTERVENTIONS] Failed to log intervention in conversation_logs: %s", log_err)
         
         return interventions
         

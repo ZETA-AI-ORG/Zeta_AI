@@ -48,6 +48,7 @@ LLM a TOUJOURS accès à:
 """
 
 import logging
+import json
 from typing import Dict, Optional, Any, Tuple
 from datetime import datetime
 
@@ -461,6 +462,26 @@ Veuillez ne pas répondre à ce message."""
             lines.append(f"⚠️ Téléphone invalide: {tel} (format incorrect)")
         else:
             lines.append("❌ Téléphone manquant")
+
+        # Bloc machine-readable pour le LLM (source de vérité Python)
+        try:
+            json_state = {
+                "photo_collected": bool(state.get("photo", {}).get("collected")),
+                "photo_description": state.get("photo", {}).get("data"),
+                "paiement_collected": bool(state.get("paiement", {}).get("collected")),
+                "paiement_montant": state.get("paiement", {}).get("data"),
+                "zone_collected": bool(state.get("zone", {}).get("collected")),
+                "zone_nom": state.get("zone", {}).get("data"),
+                "zone_frais": state.get("zone", {}).get("cost"),
+                "tel_collected": bool(state.get("tel", {}).get("collected")),
+                "tel_valide": bool(state.get("tel", {}).get("valid")),
+                "tel_numero": state.get("tel", {}).get("data"),
+            }
+            lines.append("---")
+            lines.append("JSON_STATE:")
+            lines.append(json.dumps(json_state, ensure_ascii=False))
+        except Exception as e:
+            logger.error(f"❌ [CHECKLIST] Erreur génération JSON_STATE: {e}")
         
         return "\n".join(lines)
     

@@ -16,6 +16,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import requests
 import tempfile
 import re
+from core.order_state_tracker import order_tracker
 
 # ========== OPTIMISATION PERFORMANCE ==========
 from config_performance import (
@@ -501,6 +502,65 @@ def deduplicate_conversation_history(history: str) -> str:
     print(f"[HISTORIQUE] ✅ Optimisé: {len(messages)} → {len(deduplicated)} messages uniques")
     return result
 
+
+def _sync_order_state_from_notepad(user_id: str, notepad: dict) -> None:
+    """Synchronise order_state_tracker avec les données persistées du notepad.
+
+    Utilise uniquement les champs disponibles dans le notepad pour mettre à jour
+    l'état de commande (produit, paiement, zone, numéro). Si un champ est absent,
+    il n'est pas modifié dans le tracker.
+    """
+
+    try:
+        # Récupérer les valeurs depuis le notepad Supabase
+        produit = notepad.get("last_product_mentioned")
+
+        # ⚠️ PAIEMENT: ne synchroniser que si le paiement est VALIDÉ par OCR
+        paiement_info = notepad.get("paiement") or {}
+        paiement_value = None
+        if paiement_info:
+            is_validated = bool(
+                paiement_info.get("valid") is True
+                or paiement_info.get("validé") is True
+                or paiement_info.get("validated") is True
+            )
+            if is_validated:
+                paiement_montant = paiement_info.get("montant") or paiement_info.get("amount")
+                if paiement_montant is not None:
+                    paiement_value = str(paiement_montant)
+                else:
+                    # Paiement validé mais montant absent → marquer comme validé générique
+                    paiement_value = "paiement_valide"
+            else:
+                # Paiement présent dans le notepad mais NON validé OCR → ignorer côté tracker
+                logger.info(f"[ORDER_STATE_SYNC] Paiement ignoré (non validé OCR) pour {user_id}: {paiement_info}")
+
+        zone = notepad.get("delivery_zone")
+        numero = notepad.get("phone_number")
+
+        # Si rien n'est présent, ne rien faire
+        if not any([produit, paiement_value, zone, numero]):
+            return
+
+        # Comparer avec l'état actuel pour éviter des writes inutiles
+        state = order_tracker.get_state(user_id)
+
+        if produit and produit != state.produit:
+            order_tracker.update_produit(user_id, str(produit))
+
+        if paiement_value and paiement_value != state.paiement:
+            order_tracker.update_paiement(user_id, paiement_value)
+
+        if zone and zone != state.zone:
+            order_tracker.update_zone(user_id, str(zone))
+
+        if numero and numero != state.numero:
+            order_tracker.update_numero(user_id, str(numero))
+
+    except Exception as e:
+        # Ne jamais casser le flux Botlive à cause du tracker, log uniquement
+        logger.warning(f"[ORDER_STATE_SYNC] Échec synchronisation order_state_tracker pour {user_id}: {e}")
+
 def _print_hybrid_summary(question: str, thinking: str, response: str, llm_used: str, 
                          prompt_tokens: int, completion_tokens: int, total_cost: float,
                          processing_time: float = 0.0, timings: dict = None, router_metrics: dict = None):
@@ -763,7 +823,29 @@ async def _botlive_handle(company_id: str, user_id: str, message: str, images: l
     Flux: Toujours conversationnel, que ce soit texte ou image.
     """
     import re  # Import nécessaire pour filtrage transactions
-    
+
+    # ═══════════════════════════════════════════════════════════════
+    # PRÉ-TRAITEMENT: DÉTECTER LES URLS D'IMAGES DANS LE TEXTE
+    # ═══════════════════════════════════════════════════════════════
+    # Cas typique: "voici mon paiement : https://...jpg" sans champ images séparé
+    if (not images) and message:
+        try:
+            url_pattern = r"(https?://\S+)"
+            urls = re.findall(url_pattern, message)
+            image_urls = []
+            for url in urls:
+                base = url.split("?")[0].lower()
+                if any(base.endswith(ext) for ext in [".jpg", ".jpeg", ".png", ".webp", ".gif"]):
+                    image_urls.append(url)
+            if image_urls:
+                print(f"[BOTLIVE][URL] URLs d'image détectées dans message: {len(image_urls)}")
+                images.extend(image_urls)
+                # Nettoyer le texte pour le LLM (on retire les URLs brutes)
+                for u in image_urls:
+                    message = message.replace(u, "").strip()
+        except Exception as e:
+            print(f"[BOTLIVE][URL] Erreur détection URLs image: {e}")
+
     # ═══════════════════════════════════════════════════════════════
     # DÉDUPLICATION HISTORIQUE (évite pollution tokens)
     # ═══════════════════════════════════════════════════════════════
@@ -802,6 +884,11 @@ async def _botlive_handle(company_id: str, user_id: str, message: str, images: l
             await notepad_manager.clear_notepad(user_id, company_id)
             notepad_data = {}  # Vider pour cette requête
             print(f"✅ [NOTEPAD] Notepad réinitialisé pour nouvelle commande")
+            try:
+                # Réinitialiser également l'état de commande local
+                order_tracker.clear_state(user_id)
+            except Exception as e:
+                logger.warning(f"[ORDER_STATE_SYNC] Échec clear_state pour {user_id}: {e}")
     
     # 2. Extraire infos depuis l'historique
     print(f"\n{'='*80}")
@@ -842,8 +929,13 @@ async def _botlive_handle(company_id: str, user_id: str, message: str, images: l
         
         # 💾 Sauvegarder dans Supabase
         await notepad_manager.update_notepad(user_id, company_id, notepad_data)
+        # Synchroniser l'état de commande local avec les nouvelles données du notepad
+        _sync_order_state_from_notepad(user_id, notepad_data)
     else:
         print(f"⚠️ [EXTRACT] Aucune info extraite de l'historique")
+        # Même si aucune nouvelle info n'est extraite, s'assurer que le tracker
+        # reflète bien le notepad actuel (cas récap 4/4, confirmation, etc.)
+        _sync_order_state_from_notepad(user_id, notepad_data)
     
     # 3. Construire résumé contexte intelligent
     print(f"\n🧠 [CONTEXT] Construction résumé intelligent...")
@@ -978,6 +1070,7 @@ async def _botlive_handle(company_id: str, user_id: str, message: str, images: l
                     print(f"[BOTLIVE][DEBUG][SAVE ERROR] {type(dbg_e).__name__}: {dbg_e}")
                 
                 # Upload automatique sur Supabase Storage pour URL stable
+                public_url = None
                 try:
                     from database.supabase_client import upload_image_to_supabase
                     # Lire le binaire depuis le temp file
@@ -1056,11 +1149,17 @@ async def _botlive_handle(company_id: str, user_id: str, message: str, images: l
                             notepad = await notepad_manager.get_notepad(user_id, company_id)
                             notepad['photo_produit'] = 'reçue'
                             notepad['photo_produit_description'] = product_name
+
+                            # URL d'image produit VALIDÉE par BLIP
+                            image_url_for_notepad = public_url or image_url
+                            if image_url_for_notepad:
+                                notepad['photo_produit_url'] = image_url_for_notepad
+
                             notepad['last_updated'] = datetime.now().isoformat()
                             
                             # Sauvegarder dans Supabase
                             await notepad_manager.update_notepad(user_id, company_id, notepad)
-                            print(f"💾 [NOTEPAD] Photo produit sauvegardée: {product_name}")
+                            print(f"💾 [NOTEPAD] Photo produit sauvegardée: {product_name} | URL={notepad.get('photo_produit_url')}")
                             
                             # 🔥 RECONSTRUIRE LE CONTEXTE après sauvegarde
                             context_summary = build_smart_context_summary(

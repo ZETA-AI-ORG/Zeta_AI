@@ -16,6 +16,8 @@ import os
 import httpx
 
 from config import N8N_OUTBOUND_WEBHOOK_URL, N8N_API_KEY, N8N_DEBUG_MODE
+from core.intervention_logger import log_intervention_in_conversation_logs, log_message_in_conversation_logs
+from core.intervention_guardian import get_intervention_guardian
 
 logger = logging.getLogger(__name__)
 
@@ -82,6 +84,11 @@ class DepositRequest(BaseModel):
     payment_method: Optional[str] = None
     validated_by: str = "ocr_easy"
 
+
+class UpdateOrderStatusRequest(BaseModel):
+    """Requête pour mettre à jour le statut d'une commande (orders.status)."""
+    status: str
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # 🔥 ENDPOINTS PRINCIPAUX
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -106,9 +113,198 @@ async def process_botlive_message(req: BotliveMessageRequest, background_tasks: 
     logger.info(f"[BOTLIVE][{request_id}] Message reçu: user={req.user_id}, company={req.company_id}")
     
     try:
+        # Détection simple d'escalade explicite ou de frustration forte
+        msg_text = req.message or ""
+        msg_lower = msg_text.lower()
+
+        explicit_handoff_keywords = [
+            "parler a un humain",
+            "parler à un humain",
+            "parler a quelqu'un",
+            "parler à quelqu'un",
+            "parler a un conseiller",
+            "parler à un conseiller",
+            "parler a un agent",
+            "parler à un agent",
+            "parler a quelquun",
+            "parler à quelquun",
+            "un humain s'il vous plait",
+            "un humain s il vous plait",
+        ]
+        explicit_handoff = any(kw in msg_lower for kw in explicit_handoff_keywords)
+
+        caps_ratio = 0.0
+        if msg_text:
+            letters = [c for c in msg_text if c.isalpha()]
+            if letters:
+                caps = [c for c in letters if c.isupper()]
+                if caps:
+                    caps_ratio = len(caps) / len(letters)
+
+        negative_keywords = [
+            "service de merde",
+            "nul",
+            "pourri",
+            "inadmissible",
+        ]
+        is_frustrated = caps_ratio > 0.7 or any(kw in msg_lower for kw in negative_keywords)
+
+        logger.info(
+            "[BOTLIVE][%s] Intervention signals | explicit_handoff=%s is_frustrated=%s caps_ratio=%.2f",
+            request_id,
+            explicit_handoff,
+            is_frustrated,
+            caps_ratio,
+        )
+
+        if explicit_handoff or is_frustrated:
+            reason = "explicit_handoff" if explicit_handoff else "customer_frustration"
+            try:
+                logger.info(
+                    "[BOTLIVE][%s] Intervention (rule-based) triggered | reason=%s message=%s",
+                    request_id,
+                    reason,
+                    msg_text,
+                )
+                await log_intervention_in_conversation_logs(
+                    company_id_text=req.company_id,
+                    user_id=req.user_id,
+                    message=msg_text,
+                    metadata={
+                        "needs_intervention": True,
+                        "reason": reason,
+                        "priority": "high",
+                        "caps_ratio": caps_ratio,
+                    },
+                    channel="botlive",
+                    direction="user",
+                    source="botlive_gateway",
+                )
+            except Exception as log_err:
+                logger.error("[BOTLIVE][%s] Failed to log explicit/frustration intervention: %s", request_id, log_err)
+
         # Traiter le message
         start_time = time.time()
         user_display_name = req.user_display_name
+
+        # Vérifier si la commande est déjà complétée AVANT d'appeler le moteur Botlive
+        pre_order_status = await get_order_state(req.user_id, req.company_id)
+        pre_next_step = _determine_next_step(pre_order_status)
+
+        post_recap = bool(pre_order_status.get("is_complete")) or pre_next_step == "completed"
+
+        if post_recap:
+            # Après récap/confirmation de commande, tout nouveau message client déclenche
+            # automatiquement une intervention humaine et le bot ne répond plus.
+            logger.info(
+                "[BOTLIVE][%s] Post-recap message detected -> auto intervention, no bot reply",
+                request_id,
+            )
+
+            conversation_id = None
+            try:
+                from core.activities_logger import log_new_conversation
+                logger.info(
+                    "[BOTLIVE][%s] (post-recap) Début logging conversation: company_id=%s user_id=%s",
+                    request_id,
+                    req.company_id,
+                    req.user_id,
+                )
+
+                conversation_id = await get_or_create_conversation(
+                    req.company_id,
+                    req.user_id,
+                    user_display_name,
+                )
+                logger.info(
+                    "[BOTLIVE][%s] (post-recap) get_or_create_conversation -> %s",
+                    request_id,
+                    conversation_id,
+                )
+
+                if not conversation_id:
+                    logger.warning(
+                        "[BOTLIVE][%s] (post-recap) Aucune conversation_id retournee, skip insert_message/log_new_conversation",
+                        request_id,
+                    )
+                else:
+                    user_metadata: Dict[str, Any] = {
+                        "source": "botlive",
+                        "channel": "messenger",
+                        "user_id": req.user_id,
+                    }
+                    if user_display_name:
+                        user_metadata["user_display_name"] = user_display_name
+
+                    author_name = user_display_name or req.user_id[-4:]
+
+                    user_ok = await insert_message(
+                        conversation_id,
+                        "user",
+                        req.message or "",
+                        {**user_metadata, "author_name": author_name},
+                    )
+                    logger.info(
+                        "[BOTLIVE][%s] (post-recap) insert_message user -> %s",
+                        request_id,
+                        user_ok,
+                    )
+
+                    activity_ok = await log_new_conversation(
+                        req.company_id,
+                        req.user_id,
+                        conversation_id,
+                        user_display_name,
+                    )
+                    logger.info(
+                        "[BOTLIVE][%s] (post-recap) log_new_conversation -> %s",
+                        request_id,
+                        activity_ok,
+                    )
+            except Exception as conv_err:
+                logger.error(
+                    f"[BOTLIVE][{request_id}] (post-recap) Erreur logging conversation/messages: {conv_err}",
+                    exc_info=True,
+                )
+
+            try:
+                await log_intervention_in_conversation_logs(
+                    company_id_text=req.company_id,
+                    user_id=req.user_id,
+                    message=req.message or "[Post-recap] Nouveau message client après commande confirmée",
+                    metadata={
+                        "needs_intervention": True,
+                        "reason": "post_recap_followup",
+                        "priority": "high",
+                    },
+                    channel="botlive",
+                    direction="user",
+                    source="botlive_post_recap",
+                )
+            except Exception as log_err:
+                logger.error(
+                    "[BOTLIVE][%s] (post-recap) Failed to log post-recap intervention: %s",
+                    request_id,
+                    log_err,
+                )
+
+            duration_ms = int((time.time() - start_time) * 1000)
+            logger.info(
+                "[BOTLIVE][%s] (post-recap) Intervention routed to human, duration_ms=%s",
+                request_id,
+                duration_ms,
+            )
+
+            return JSONResponse(
+                content={
+                    "success": True,
+                    "response": "",
+                    "order_status": pre_order_status,
+                    "next_step": "completed",
+                    "duration_ms": duration_ms,
+                    "request_id": request_id,
+                }
+            )
 
         # Construire automatiquement l'historique depuis Supabase (conversations + messages)
         conversation_history = await _build_conversation_history_from_messages(
@@ -182,6 +378,24 @@ async def process_botlive_message(req: BotliveMessageRequest, background_tasks: 
                     user_ok,
                 )
 
+                try:
+                    await log_message_in_conversation_logs(
+                        company_id_text=req.company_id,
+                        user_id=req.user_id,
+                        message=req.message or "",
+                        channel="botlive",
+                        direction="user",
+                        conversation_id=conversation_id,
+                        source="botlive_gateway",
+                        status="active",
+                    )
+                except Exception as log_err:
+                    logger.error(
+                        "[BOTLIVE][%s] Failed to log user message in conversation_logs: %s",
+                        request_id,
+                        log_err,
+                    )
+
                 if isinstance(response, str) and response:
                     assistant_ok = await insert_message(
                         conversation_id,
@@ -194,6 +408,24 @@ async def process_botlive_message(req: BotliveMessageRequest, background_tasks: 
                         request_id,
                         assistant_ok,
                     )
+
+                    try:
+                        await log_message_in_conversation_logs(
+                            company_id_text=req.company_id,
+                            user_id=req.user_id,
+                            message=response,
+                            channel="botlive",
+                            direction="assistant",
+                            conversation_id=conversation_id,
+                            source="botlive_gateway",
+                            status="active",
+                        )
+                    except Exception as log_err:
+                        logger.error(
+                            "[BOTLIVE][%s] Failed to log assistant message in conversation_logs: %s",
+                            request_id,
+                            log_err,
+                        )
 
                 activity_ok = await log_new_conversation(
                     req.company_id,
@@ -224,8 +456,9 @@ async def process_botlive_message(req: BotliveMessageRequest, background_tasks: 
                     produit = order_status.get("produit") or ""
                     numero_client = order_status.get("numero") or numero_client
 
-                # Montant dynamique depuis le notepad Supabase (si disponible)
                 total_amount = 2000.0
+                delivery_zone = None
+                image_url = None
                 try:
                     notepad_manager = get_supabase_notepad()
                     notepad = await notepad_manager.get_notepad(req.user_id, req.company_id)
@@ -233,13 +466,21 @@ async def process_botlive_message(req: BotliveMessageRequest, background_tasks: 
                     montant_notepad = paiement_info.get("montant") or paiement_info.get("amount")
                     if montant_notepad:
                         total_amount = float(montant_notepad)
+
+                    # Zone de livraison validée (priorité notepad, fallback order_status.zone)
+                    delivery_zone = notepad.get("delivery_zone")
+                    if not delivery_zone and isinstance(order_status, dict):
+                        delivery_zone = order_status.get("zone")
+
+                    # URL d'image produit validée par BLIP et stockée dans le notepad
+                    image_url = notepad.get("photo_produit_url")
                 except Exception as np_err:
                     logger.warning(f"[BOTLIVE][{request_id}] Impossible de lire montant notepad: {np_err}")
 
-                items = [{"name": produit or "Commande Botlive", "quantity": 1, "price": total_amount}]
+                items = [{"name": produit or "Commande Botlive", "quantity": 1, "acompte": total_amount}]
 
-                # Nom lisible pour la commande: priorité au user_display_name, sinon dernier digits
-                order_customer_name = user_display_name or numero_client
+                # Pour les cartes commandes frontend, customer_name doit être le NUMÉRO du client
+                order_customer_name = numero_client
 
                 order = await create_order(
                     company_id=req.company_id,
@@ -247,13 +488,79 @@ async def process_botlive_message(req: BotliveMessageRequest, background_tasks: 
                     customer_name=order_customer_name,
                     total_amount=total_amount,
                     items=items,
-                    conversation_id=conversation_id
+                    conversation_id=conversation_id,
+                    delivery_zone=delivery_zone,
+                    image_url=image_url,
                 )
                 if order and isinstance(order, dict) and order.get("id"):
                     await log_order_created(req.company_id, order_customer_name, order["id"], total_amount)
             except Exception as order_err:
                 logger.error(f"[BOTLIVE][{request_id}] Erreur création commande/activité: {order_err}")
-        
+
+        try:
+            guardian = get_intervention_guardian()
+            if guardian:
+                order_is_complete = bool(order_status.get("is_complete")) if isinstance(order_status, dict) else False
+                hard_signals = {
+                    "explicit_handoff": explicit_handoff,
+                    "customer_frustration": is_frustrated,
+                    "next_step": next_step,
+                    "order_is_complete": order_is_complete,
+                    "completion_rate": order_status.get("completion_rate") if isinstance(order_status, dict) else None,
+                }
+                logger.info(
+                    "[BOTLIVE][%s] Guardian hard_signals | order_is_complete=%s next_step=%s signals=%s",
+                    request_id,
+                    order_is_complete,
+                    next_step,
+                    hard_signals,
+                )
+                if not order_is_complete and not explicit_handoff and not is_frustrated:
+                    guardian_decision = await guardian.analyze(
+                        conversation_history=conversation_history,
+                        user_message=req.message or "",
+                        bot_response=response if isinstance(response, str) else "",
+                        order_state=order_status if isinstance(order_status, dict) else {},
+                        next_step=next_step,
+                        hard_signals=hard_signals,
+                    )
+                    logger.info(
+                        "[BOTLIVE][%s] Guardian decision | requires_intervention=%s category=%s priority=%s confidence=%s",
+                        request_id,
+                        guardian_decision.get("requires_intervention"),
+                        guardian_decision.get("category"),
+                        guardian_decision.get("priority"),
+                        guardian_decision.get("confidence"),
+                    )
+                    if guardian_decision.get("requires_intervention"):
+                        metadata: Dict[str, Any] = {
+                            "needs_intervention": True,
+                            "reason": guardian_decision.get("category") or "guardian_intervention",
+                            "priority": guardian_decision.get("priority") or "normal",
+                            "guardian_confidence": guardian_decision.get("confidence"),
+                            "guardian_reason": guardian_decision.get("reason"),
+                            "detected_by": "intervention_guardian_v1",
+                        }
+                        suggested = guardian_decision.get("suggested_handoff_message")
+                        if suggested:
+                            metadata["guardian_handoff_message"] = suggested
+
+                        logger.info(
+                            "[BOTLIVE][%s] Guardian triggered intervention logging via conversation_logs",
+                            request_id,
+                        )
+                        await log_intervention_in_conversation_logs(
+                            company_id_text=req.company_id,
+                            user_id=req.user_id,
+                            message=guardian_decision.get("reason") or "[Guardian Intervention] Intervention recommandée",
+                            metadata=metadata,
+                            channel="botlive",
+                            direction="system",
+                            source="intervention_guardian_v1",
+                        )
+        except Exception as guardian_err:
+            logger.error("[BOTLIVE][%s] Erreur Guardian d'intervention: %s", request_id, guardian_err)
+
         logger.info(f"[BOTLIVE][{request_id}] Réponse générée en {duration_ms}ms, next_step={next_step}")
         
         # Déclencher webhook si commande complétée
@@ -275,6 +582,22 @@ async def process_botlive_message(req: BotliveMessageRequest, background_tasks: 
         
     except Exception as e:
         logger.error(f"[BOTLIVE][{request_id}] Erreur: {e}", exc_info=True)
+        try:
+            await log_intervention_in_conversation_logs(
+                company_id_text=req.company_id,
+                user_id=req.user_id,
+                message=str(e),
+                metadata={
+                    "needs_intervention": True,
+                    "reason": "system_errors",
+                    "priority": "critical",
+                },
+                channel="botlive",
+                direction="system",
+                source="botlive_gateway_error",
+            )
+        except Exception as log_err:
+            logger.error("[BOTLIVE][%s] Failed to log system error intervention: %s", request_id, log_err)
         raise HTTPException(status_code=500, detail=f"Erreur traitement message: {str(e)}")
 
 
@@ -464,6 +787,22 @@ async def get_active_orders_endpoint(company_id: str, limit: int = 50):
     except Exception as e:
         logger.error(f"[BOTLIVE][ACTIVE_ORDERS] Erreur: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/orders/{order_id}/status")
+async def update_order_status_endpoint(order_id: str, req: UpdateOrderStatusRequest):
+    """Met à jour le statut d'une commande (pending/completed/cancelled)."""
+    from core.orders_manager import update_order_status
+
+    allowed_status = {"pending", "completed", "cancelled"}
+    if req.status not in allowed_status:
+        raise HTTPException(status_code=400, detail="Invalid status value")
+
+    ok = await update_order_status(order_id, req.status)
+    if not ok:
+        raise HTTPException(status_code=500, detail="Erreur mise à jour commande")
+
+    return JSONResponse(content={"success": True, "order_id": order_id, "status": req.status})
 
 @router.get("/interventions/{company_id}")
 async def get_interventions_required_endpoint(company_id: str):

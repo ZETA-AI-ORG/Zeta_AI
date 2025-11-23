@@ -51,7 +51,9 @@ async def create_order(
     customer_name: str,
     total_amount: float,
     items: List[Dict],
-    conversation_id: Optional[str] = None
+    conversation_id: Optional[str] = None,
+    delivery_zone: Optional[str] = None,
+    image_url: Optional[str] = None,
 ) -> Optional[Dict[str, Any]]:
     """
     Crée une commande dans la table orders (Lovable)
@@ -82,8 +84,14 @@ async def create_order(
             "customer_name": customer_name,
             "total_amount": total_amount,
             "status": "pending",
-            "items": items
+            "items": items,
         }
+
+        # Champs enrichis pour le dashboard / détails commande
+        if delivery_zone:
+            payload["delivery_zone"] = delivery_zone
+        if image_url:
+            payload["image_url"] = image_url
         
         async with httpx.AsyncClient() as client:
             response = await client.post(

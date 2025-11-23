@@ -144,6 +144,17 @@ class GroqLLMClient:
             data = resp.json()
             return data["choices"][0]["message"]["content"].strip()
 
+
+_global_llm_client: Optional[GroqLLMClient] = None
+
+
+def get_llm_client() -> GroqLLMClient:
+    """Retourne un singleton GroqLLMClient pour les modules utilitaires (ex: InterventionGuardian)."""
+    global _global_llm_client
+    if _global_llm_client is None:
+        _global_llm_client = GroqLLMClient()
+    return _global_llm_client
+
 async def complete(prompt: str, model_name: str = "llama-3.1-8b-instant", temperature: float = 0.2, max_tokens: int = 512) -> str:
     """
     Appel asynchrone à Groq avec rate limiting intégré
