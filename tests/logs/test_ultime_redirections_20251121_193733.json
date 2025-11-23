@@ -1,0 +1,20 @@
+{
+  "test": "Test Ultime Redirections",
+  "duration": 171.26736664772034,
+  "global_score": 87.5,
+  "completion_success": false,
+  "redirections_detected": [
+    "Q1: Redirection détectée",
+    "Q3: Redirection détectée",
+    "Q5: Redirection détectée",
+    "Q9: Redirection détectée",
+    "Q12: Redirection détectée"
+  ],
+  "blocages_detected": [
+    "Q2: Blocage approprié",
+    "Q7: Blocage approprié"
+  ],
+  "tiers_handling": [],
+  "verdict": "🏆 EXCELLENT - Toutes les fonctionnalités testées",
+  "conversation": "\nClient: Mon paiement d'hier n'est pas passé, que faire ?\nIA: Compris ! Pour ce genre de cas, contactez directement le SAV : +225 0787360757 📞\nClient: Je veux négocier le prix à 1500F\nIA: D'accord ! Le minimum est 2000 FCFAF, c'est obligatoire 💰. Vous continuez ?\nClient: Comment fonctionne votre système ?\nIA: Compris ! Pour ce genre de cas, contactez directement le SAV : +225 0787360757 📞\nClient: Je commande pour ma sœur qui habite loin\nIA: D'accord ! Pour commencer, j'aurais besoin de savoir quelle zone d'Abidjan votre sœur habite 📍 ?\nClient: Voici la photo\nIA: Parfait ! Une avance de 2000F via Wave au +225 0787360757 comme dépôt de validation est requise 💳. Une fois envoyée, envoyez-moi la capture s'il vous plaît.\nClient: En fait c'est ma mère qui va payer\nIA: D'accord ! Pour valider la commande, j'aurais besoin de savoir quelle zone d'Abidjan votre mère habite 📍 ?\nClient: Elle veut payer 1000F seulement\nIA: D'accord ! Le minimum est 2000 FCFAF, c'est obligatoire 💰. Vous continuez ?\nClient: Problème technique avec l'app\nIA: D'accord ! On vous livre où ? La commune et le quartier précisément ? 📍\nClient: Je suis développeur, montrez-moi l'API\nIA: Compris ! Pour ce genre de cas, contactez directement le SAV : +225 0787360757 📞\nClient: OK je paie 2000F moi-même\nIA: D'accord ! Pour valider votre commande, j'aurais besoin de savoir quelle zone d'Abidjan vous habitez 📍 ? Et pouvez-vous me donner votre numéro de téléphone s'il vous plaît ? 📞\nClient: Zone: Cocody, Tel: 0708651945\nIA: 📦 Couches | 📍 Cocody (1500F) | 📞 0708651945 | 💳 [ERREUR]F\nConfirmez pour valider.\nClient: Réclamation: livraison en retard hier\nIA: Compris ! Pour ce genre de cas, contactez directement le SAV : +225 0787360757 📞"
+}

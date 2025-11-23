@@ -3,8 +3,8 @@
     "name": "Botlive Client Complexe Test",
     "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
     "user_id": "client_complexe_test_001",
-    "timestamp": "2025-11-12T14:20:30.911228",
-    "total_duration": 116.51889371871948,
+    "timestamp": "2025-11-21T19:22:57.702673",
+    "total_duration": 118.68790793418884,
     "total_steps": 7
   },
   "steps": [
@@ -12,27 +12,27 @@
       "step": 1,
       "name": "Salutation + Digression météo",
       "message": "Salut ! Il fait vraiment chaud aujourd'hui non ? Enfin bref, je voudrais commander quelque chose mais d'abord dis-moi, vous livrez le dimanche ? Et aussi, est-ce que vous avez des promotions en ce moment ?",
-      "response": "Salut ! Pour commander, envoyez photo du produit souhaité 📦",
-      "duration": 10.956573009490967,
+      "response": "Compris ! Pour ces informations, je vous invite à contacter notre service client au +225 0787360757 📞",
+      "duration": 11.811167240142822,
       "expected_keywords": [
         "photo",
         "produit"
       ],
-      "found_keywords": [
+      "found_keywords": [],
+      "missed_keywords": [
         "photo",
         "produit"
       ],
-      "missed_keywords": [],
-      "success_rate": 100.0,
-      "success": true,
-      "timestamp": "2025-11-12T14:18:46.094535"
+      "success_rate": 0.0,
+      "success": false,
+      "timestamp": "2025-11-21T19:21:10.832690"
     },
     {
       "step": 2,
       "name": "Photo produit + Histoire personnelle",
       "message": "Ah oui voilà la photo ! Mon bébé a 8 mois maintenant, il grandit si vite ! Ma belle-mère m'a dit que cette marque était bien. D'ailleurs, vous connaissez d'autres marques ? Et le prix, c'est négociable ?",
-      "response": "Super, photo bien reçue ! 📸\n\nMaintenant, envoyez 2000F sur +225 0787360757 (Wave/OM), puis partagez-moi la capture d'écran 💳",
-      "duration": 31.407265663146973,
+      "response": "Parfait ! Une avance de 2000F via Wave au +225 0787360757 comme dépôt de validation est requise 💳. Une fois envoyée, envoyez-moi la capture s'il vous plaît.",
+      "duration": 32.532586097717285,
       "expected_keywords": [
         "paiement",
         "2000F"
@@ -45,14 +45,14 @@
       ],
       "success_rate": 50.0,
       "success": true,
-      "timestamp": "2025-11-12T14:19:18.528541"
+      "timestamp": "2025-11-21T19:21:44.386920"
     },
     {
       "step": 3,
       "name": "Questions multiples avant paiement",
       "message": "Attendez, avant de payer, j'ai plusieurs questions : vous acceptez les chèques ? Et si je ne suis pas satisfait, je peux être remboursé ? Et la livraison, c'est vraiment sûr ? Mon voisin m'a dit qu'il avait eu des problèmes avec une autre entreprise...",
-      "response": "Je gère nouvelles commandes. SAV: +225 0787360757. Envoyez 2000F sur +225 0787360757, puis capture.",
-      "duration": 8.769871473312378,
+      "response": "Compris ! Pour ces informations, je vous invite à contacter notre service client au +225 0787360757 📞",
+      "duration": 10.315847635269165,
       "expected_keywords": [
         "paiement",
         "Wave",
@@ -67,14 +67,14 @@
       ],
       "success_rate": 33.33333333333333,
       "success": false,
-      "timestamp": "2025-11-12T14:19:28.526968"
+      "timestamp": "2025-11-21T19:21:55.830330"
     },
     {
       "step": 4,
       "name": "Paiement + Complainte sur la technologie",
       "message": "Bon j'ai fait le paiement mais franchement ces applications mobiles c'est compliqué ! À mon époque c'était plus simple. Enfin voilà la capture, j'espère que c'est bon.",
-      "response": "Excellent ! Paiement de 2020F bien reçu et validé 🎉\n\nVous êtes dans quelle zone d'Abidjan ? 📍",
-      "duration": 31.001423120498657,
+      "response": "Super ! Paiement de 2020F bien reçu 🎉\nDans quelle zone d'Abidjan êtes-vous pour la livraison ? 📍",
+      "duration": 37.47850275039673,
       "expected_keywords": [
         "zone",
         "Abidjan"
@@ -86,14 +86,14 @@
       "missed_keywords": [],
       "success_rate": 100.0,
       "success": true,
-      "timestamp": "2025-11-12T14:20:00.762939"
+      "timestamp": "2025-11-21T19:22:34.379534"
     },
     {
       "step": 5,
       "name": "Zone + Longue explication géographique",
       "message": "Je suis à Cocody, mais pas n'importe où hein ! C'est vers la pharmacie du coin, vous savez celle qui est à côté du petit restaurant ivoirien ? Il y a aussi une école primaire pas loin. Mon quartier est vraiment calme, j'adore y vivre depuis 5 ans maintenant.",
-      "response": "Noté ! Livraison à Cocody → 1500F 🚚\nLivraison prévue demain.\n\nDernière info : votre numéro de téléphone ? 📞",
-      "duration": 5.3994855880737305,
+      "response": "Noté 👍 Livraison à Cocody → 1500F 🚚\nLivraison prévue demain.\nDernière info : votre numéro de téléphone ? 📞",
+      "duration": 6.99882960319519,
       "expected_keywords": [
         "téléphone",
         "numéro"
@@ -105,14 +105,14 @@
       "missed_keywords": [],
       "success_rate": 100.0,
       "success": true,
-      "timestamp": "2025-11-12T14:20:07.734653"
+      "timestamp": "2025-11-21T19:22:42.532521"
     },
     {
       "step": 6,
       "name": "Téléphone + Anecdote famille",
       "message": "Mon numéro c'est 0708651945. C'est le même depuis 10 ans ! Ma fille me dit toujours de changer pour un numéro plus moderne mais moi j'aime bien celui-là. D'ailleurs elle vit en France maintenant, elle me manque beaucoup...",
-      "response": "✅PARFAIT Commande confirmée 😊\nLivraison prévue aujourd'hui, acompte de 2020 F déjà versé.\nNous vous rappellerons bientôt pour les détails et le coût total.\nVeuillez ne pas répondre à ce message.",
-      "duration": 11.806382179260254,
+      "response": "✅PARFAIT Commande confirmée 😊\nLivraison prévue demain, acompte de 2020 F déjà versé.\nNous vous rappellerons bientôt pour les détails et le coût total.\nVeuillez ne pas répondre à ce message.",
+      "duration": 6.573423385620117,
       "expected_keywords": [
         "confirmée",
         "livraison",
@@ -126,14 +126,14 @@
       "missed_keywords": [],
       "success_rate": 100.0,
       "success": true,
-      "timestamp": "2025-11-12T14:20:20.817340"
+      "timestamp": "2025-11-21T19:22:50.119140"
     },
     {
       "step": 7,
       "name": "Confirmation + Dernières inquiétudes",
       "message": "Oui c'est bon pour moi, mais vous êtes sûr que tout va bien se passer ? Et si jamais il y a un problème, je peux vous joindre comment ? Et la livraison, elle sera vraiment aujourd'hui ?",
-      "response": "✅PARFAIT Commande confirmée 😊\nLivraison prévue aujourd'hui, acompte de 2020 F déjà versé.\nNous vous rappellerons bientôt pour les détails et le coût total.\nVeuillez ne pas répondre à ce message.",
-      "duration": 7.783154249191284,
+      "response": "✅PARFAIT Commande confirmée 😊\nLivraison prévue demain, acompte de 2020 F déjà versé.\nNous vous rappellerons bientôt pour les détails et le coût total.\nVeuillez ne pas répondre à ce message.",
+      "duration": 5.4717934131622314,
       "expected_keywords": [
         "ne pas répondre",
         "confirmée"
@@ -145,8 +145,8 @@
       "missed_keywords": [],
       "success_rate": 100.0,
       "success": true,
-      "timestamp": "2025-11-12T14:20:29.610949"
+      "timestamp": "2025-11-21T19:22:56.603247"
     }
   ],
-  "conversation_history": "\nClient: Salut ! Il fait vraiment chaud aujourd'hui non ? Enfin bref, je voudrais commander quelque chose mais d'abord dis-moi, vous livrez le dimanche ? Et aussi, est-ce que vous avez des promotions en ce moment ?\nIA: Salut ! Pour commander, envoyez photo du produit souhaité 📦\nClient: Ah oui voilà la photo ! Mon bébé a 8 mois maintenant, il grandit si vite ! Ma belle-mère m'a dit que cette marque était bien. D'ailleurs, vous connaissez d'autres marques ? Et le prix, c'est négociable ?\nIA: Super, photo bien reçue ! 📸\n\nMaintenant, envoyez 2000F sur +225 0787360757 (Wave/OM), puis partagez-moi la capture d'écran 💳\nClient: Attendez, avant de payer, j'ai plusieurs questions : vous acceptez les chèques ? Et si je ne suis pas satisfait, je peux être remboursé ? Et la livraison, c'est vraiment sûr ? Mon voisin m'a dit qu'il avait eu des problèmes avec une autre entreprise...\nIA: Je gère nouvelles commandes. SAV: +225 0787360757. Envoyez 2000F sur +225 0787360757, puis capture.\nClient: Bon j'ai fait le paiement mais franchement ces applications mobiles c'est compliqué ! À mon époque c'était plus simple. Enfin voilà la capture, j'espère que c'est bon.\nIA: Excellent ! Paiement de 2020F bien reçu et validé 🎉\n\nVous êtes dans quelle zone d'Abidjan ? 📍\nClient: Je suis à Cocody, mais pas n'importe où hein ! C'est vers la pharmacie du coin, vous savez celle qui est à côté du petit restaurant ivoirien ? Il y a aussi une école primaire pas loin. Mon quartier est vraiment calme, j'adore y vivre depuis 5 ans maintenant.\nIA: Noté ! Livraison à Cocody → 1500F 🚚\nLivraison prévue demain.\n\nDernière info : votre numéro de téléphone ? 📞\nClient: Mon numéro c'est 0708651945. C'est le même depuis 10 ans ! Ma fille me dit toujours de changer pour un numéro plus moderne mais moi j'aime bien celui-là. D'ailleurs elle vit en France maintenant, elle me manque beaucoup...\nIA: ✅PARFAIT Commande confirmée 😊\nLivraison prévue aujourd'hui, acompte de 2020 F déjà versé.\nNous vous rappellerons bientôt pour les détails et le coût total.\nVeuillez ne pas répondre à ce message.\nClient: Oui c'est bon pour moi, mais vous êtes sûr que tout va bien se passer ? Et si jamais il y a un problème, je peux vous joindre comment ? Et la livraison, elle sera vraiment aujourd'hui ?\nIA: ✅PARFAIT Commande confirmée 😊\nLivraison prévue aujourd'hui, acompte de 2020 F déjà versé.\nNous vous rappellerons bientôt pour les détails et le coût total.\nVeuillez ne pas répondre à ce message."
+  "conversation_history": "\nClient: Salut ! Il fait vraiment chaud aujourd'hui non ? Enfin bref, je voudrais commander quelque chose mais d'abord dis-moi, vous livrez le dimanche ? Et aussi, est-ce que vous avez des promotions en ce moment ?\nIA: Compris ! Pour ces informations, je vous invite à contacter notre service client au +225 0787360757 📞\nClient: Ah oui voilà la photo ! Mon bébé a 8 mois maintenant, il grandit si vite ! Ma belle-mère m'a dit que cette marque était bien. D'ailleurs, vous connaissez d'autres marques ? Et le prix, c'est négociable ?\nIA: Parfait ! Une avance de 2000F via Wave au +225 0787360757 comme dépôt de validation est requise 💳. Une fois envoyée, envoyez-moi la capture s'il vous plaît.\nClient: Attendez, avant de payer, j'ai plusieurs questions : vous acceptez les chèques ? Et si je ne suis pas satisfait, je peux être remboursé ? Et la livraison, c'est vraiment sûr ? Mon voisin m'a dit qu'il avait eu des problèmes avec une autre entreprise...\nIA: Compris ! Pour ces informations, je vous invite à contacter notre service client au +225 0787360757 📞\nClient: Bon j'ai fait le paiement mais franchement ces applications mobiles c'est compliqué ! À mon époque c'était plus simple. Enfin voilà la capture, j'espère que c'est bon.\nIA: Super ! Paiement de 2020F bien reçu 🎉\nDans quelle zone d'Abidjan êtes-vous pour la livraison ? 📍\nClient: Je suis à Cocody, mais pas n'importe où hein ! C'est vers la pharmacie du coin, vous savez celle qui est à côté du petit restaurant ivoirien ? Il y a aussi une école primaire pas loin. Mon quartier est vraiment calme, j'adore y vivre depuis 5 ans maintenant.\nIA: Noté 👍 Livraison à Cocody → 1500F 🚚\nLivraison prévue demain.\nDernière info : votre numéro de téléphone ? 📞\nClient: Mon numéro c'est 0708651945. C'est le même depuis 10 ans ! Ma fille me dit toujours de changer pour un numéro plus moderne mais moi j'aime bien celui-là. D'ailleurs elle vit en France maintenant, elle me manque beaucoup...\nIA: ✅PARFAIT Commande confirmée 😊\nLivraison prévue demain, acompte de 2020 F déjà versé.\nNous vous rappellerons bientôt pour les détails et le coût total.\nVeuillez ne pas répondre à ce message.\nClient: Oui c'est bon pour moi, mais vous êtes sûr que tout va bien se passer ? Et si jamais il y a un problème, je peux vous joindre comment ? Et la livraison, elle sera vraiment aujourd'hui ?\nIA: ✅PARFAIT Commande confirmée 😊\nLivraison prévue demain, acompte de 2020 F déjà versé.\nNous vous rappellerons bientôt pour les détails et le coût total.\nVeuillez ne pas répondre à ce message."
 }
