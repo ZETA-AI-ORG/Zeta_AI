@@ -1,7 +1,9 @@
+# -*- coding: utf-8 -*-
 import warnings
 warnings.filterwarnings("ignore")
 from dotenv import load_dotenv
 load_dotenv()
+
 import logging
 import os
 import time
@@ -26,6 +28,11 @@ from config_performance import (
     MAX_HISTORY_MESSAGES,
     MAX_HISTORY_CHARS
 )
+
+# Feature flag pour la couche HYDE v18 parallèle (mode expérimental)
+BOTLIVE_V18_ENABLED = os.getenv("BOTLIVE_V18_ENABLED", "false").lower() == "true"
+# Nouveau feature flag: router embeddings Botlive (prioritaire sur HYDE quand activé)
+BOTLIVE_ROUTER_EMBEDDINGS_ENABLED = os.getenv("BOTLIVE_ROUTER_EMBEDDINGS_ENABLED", "false").lower() == "true"
 
 # Logger
 # Configuration globale du logging (horodatage, niveau, message)
@@ -148,46 +155,53 @@ if not ZETA_BOTLIVE_ONLY:
     print("🔍 [DEBUG] Importing global_embedding_cache...")
     from core.global_embedding_cache import initialize_global_cache, cleanup_global_cache
 else:
-    print("⚠️ [DEBUG] ZETA_BOTLIVE_ONLY=true: RAG engine & ingestion routes disabled on import")
+    print(" [DEBUG] ZETA_BOTLIVE_ONLY=true: RAG engine & ingestion routes disabled on import")
     from database.supabase_client import get_company_system_prompt, get_supabase_client
     # PromptManager reste utile même en mode Botlive-only (gestion des versions de prompt)
     from core.prompt_manager import PromptManager
-print("🔍 [DEBUG] Importing auth router...")
+print(" [DEBUG] Importing auth router...")
 from routes.auth import router as auth_router
-print("🔍 [DEBUG] Importing routes...")
+print(" [DEBUG] Importing routes...")
 from routes import auth, messenger
-print("🔍 [DEBUG] Importing meili_ingest_api...")
+print(" [DEBUG] Importing meili_ingest_api...")
 from meili_ingest_api import router as meili_router
 # from routes.rag import router as rag_router  # SUPPRIMÉ - fichier obsolète
-print("🔍 [DEBUG] Importing meili router...")
+print(" [DEBUG] Importing meili router...")
 from routes.meili import router as meili_explorer_router
 app.include_router(meili_explorer_router, prefix="/meili")
-print("🔍 [DEBUG] Importing utils...")
+print(" [DEBUG] Importing utils...")
 from utils import log3, groq_resilience
-print("🔍 [DEBUG] Importing security_validator...")
+print(" [DEBUG] Importing security_validator...")
 from core.security_validator import validate_user_prompt
-print("🔍 [DEBUG] Importing hallucination_guard...")
+print(" [DEBUG] Importing hallucination_guard...")
 from core.hallucination_guard import check_ai_response
-print("🔍 [DEBUG] Importing error_handler...")
+print(" [DEBUG] Importing error_handler...")
 from core.error_handler import safe_api_call, global_error_handler
-print("🔍 [DEBUG] Importing circuit_breaker...")
+print(" [DEBUG] Importing circuit_breaker...")
 from core.circuit_breaker import groq_circuit_breaker, supabase_circuit_breaker, meilisearch_circuit_breaker
-print("🔍 [DEBUG] Importing integrations router...")
+print(" [DEBUG] Importing integrations router...")
 from routes.integrations import router as integrations_router
 import traceback
 
 # --- Image search API ---
-print("🔍 [DEBUG] Importing image_search...")
+print(" [DEBUG] Importing image_search...")
 # TEMPORAIREMENT DÉSACTIVÉ - Bloque le démarrage
 # from api.image_search import router as image_search_router
-print("⚠️ [DEBUG] Image search router SKIPPED (debugging)")
+print(" [DEBUG] Image search router SKIPPED (debugging)")
 
 # --- Botlive API Routes ---
-print("🔍 [DEBUG] Importing botlive router...")
+print(" [DEBUG] Importing botlive router...")
 from routes.botlive import router as botlive_router
 app.include_router(botlive_router)
-print("✅ [DEBUG] Botlive router ACTIVATED")
-print("✅ [DEBUG] All imports completed!")
+print(" [DEBUG] Botlive router ACTIVATED")
+print(" [DEBUG] Importing WhatsApp router...")
+try:
+    from routes.whatsapp import router as whatsapp_router
+    app.include_router(whatsapp_router)
+    print(" [DEBUG] WhatsApp router ACTIVATED")
+except Exception as _wa_e:
+    print(f" [DEBUG] WhatsApp router not loaded: {_wa_e}")
+print(" [DEBUG] All imports completed!")
 
 # --- Models for prompt admin ---
 class PromptUpdateRequest(BaseModel):
@@ -1630,6 +1644,20 @@ async def _botlive_handle(company_id: str, user_id: str, message: str, images: l
                 if final_context_parts:
                     question_with_context = "\n\n".join(final_context_parts) + "\n\n" + question_with_context
                 
+                # Suggestions canoniques basées embeddings (mode écoute → canoniques/paires)
+                try:
+                    from core.canonical_retriever import get_canonical_suggestions, format_suggestions_for_prompt
+                    canonical_suggestions = await get_canonical_suggestions(
+                        question_text or "",
+                        company_id=company_id,
+                        top_k=2,
+                    )
+                    suggestions_block = format_suggestions_for_prompt(canonical_suggestions)
+                    if suggestions_block:
+                        question_with_context = question_with_context + "\n\n" + suggestions_block
+                except Exception as e:
+                    print(f"[BOTLIVE][SUGGESTIONS] Erreur suggestions canoniques: {e}")
+                
                 # IMPORTANT: Checklist sera injectée APRÈS le système hybride
                 # Pour l'instant, on met un placeholder
                 format_vars = {
@@ -1740,6 +1768,8 @@ Commence MAINTENANT par <thinking> puis <response>.
         
         # Vérifier si système hybride activé
         loop_engine = get_loop_engine()
+        import os as _os
+        print(f"[HYBRID][DEBUG] USE_HYBRID_BOTLIVE={_os.getenv('USE_HYBRID_BOTLIVE')!r} | loop_enabled={loop_engine.is_enabled()}")
         if loop_engine.is_enabled():
             print(f"🔄 [HYBRID] Système hybride ACTIVÉ - Traitement avec vision...")
             
@@ -1864,157 +1894,322 @@ Commence MAINTENANT par <thinking> puis <response>.
             )
 
         # Appel LLM (fallback ou système classique)
+        llm_text = None
+        token_usage = {}
+        client_response = None
+
         try:
             import re  # Import nécessaire pour l'extraction
             import os  # Import nécessaire pour getenv
             from core.llm_health_check import complete as generate_response
             # Utiliser le modèle Groq défini dans l'env, sinon défaut 70B versatile
             groq_model = "llama-3.3-70b-versatile"  # Forcé, plus jamais d'auto ou 8B
-            llm_text, token_usage = await generate_response(
-                formatted_prompt,
-                model_name=groq_model,
-                max_tokens=1000,  # Suffisant pour <thinking> + <response>
-                temperature=0.5  # Plus naturel, évite le côté robot
-            )
-            
+
+            # Par défaut: utiliser le prompt complet historique
+            prompt_to_use = formatted_prompt
+
+            # Indique si un router avancé a déjà construit un prompt spécifique
+            routing_used = False
+        except Exception as llm_prep_error:
+            # Fermer proprement le bloc try de préparation LLM
+            logger.error("[LLM_SETUP] Erreur préparation prompt: %s", llm_prep_error)
+            # Valeurs par défaut si la préparation échoue
+            prompt_to_use = formatted_prompt
+            routing_used = False
+
+        # ═══════════════════════════════════════════════════════════════
+        # NOUVEAU LAYER: ROUTER EMBEDDINGS BOTLIVE (prioritaire)
+        # ═══════════════════════════════════════════════════════════════
+        if BOTLIVE_ROUTER_EMBEDDINGS_ENABLED:
+            try:
+                from core.botlive_intent_router import route_botlive_intent
+                from core.jessica_prompt_segmenter import build_jessica_prompt_segment
+
+                logger.info(
+                    "[BOTLIVE_ROUTER] stage=INTENT status=START company_id=%s user_id=%s",
+                    company_id,
+                    user_id,
+                )
+
+                # Reconstruire un état compact similaire à celui de HYDE v18
+                start_state = order_tracker.get_state(user_id)
+                digits = "".join(
+                    ch for ch in (start_state.numero or "") if ch.isdigit()
+                ) if getattr(start_state, "numero", None) else ""
+                tel_valide = len(digits) == 10
+
+                state_compact = {
+                    "photo_collected": bool(getattr(start_state, "produit", None)),
+                    "paiement_collected": bool(getattr(start_state, "paiement", None)),
+                    "zone_collected": bool(getattr(start_state, "zone", None)),
+                    "tel_collected": bool(getattr(start_state, "numero", None)),
+                    "tel_valide": tel_valide,
+                }
+                collected_count = (
+                    int(state_compact["photo_collected"]) +
+                    int(state_compact["paiement_collected"]) +
+                    int(state_compact["zone_collected"]) +
+                    int(state_compact["tel_collected"] and state_compact["tel_valide"])
+                )
+                state_compact["collected_count"] = collected_count
+                state_compact["is_complete"] = bool(
+                    getattr(start_state, "is_complete", lambda: False)()
+                ) if hasattr(start_state, "is_complete") else False
+
+                routing = await route_botlive_intent(
+                    company_id=company_id,
+                    user_id=user_id,
+                    message=question_text or "",
+                    conversation_history=history_text or "",
+                    state_compact=state_compact,
+                )
+
+                hyde_like_result = {
+                    "success": True,
+                    "intent": routing.intent,
+                    "confidence": routing.confidence,
+                    "mode": routing.mode,
+                    "missing_fields": routing.missing_fields,
+                    "state": routing.state,
+                    "raw": routing.debug.get("raw_message", ""),
+                    "token_info": {
+                        "source": "router_embeddings",
+                        "intent_score": routing.debug.get("intent_score"),
+                    },
+                }
+
+                logger.info(
+                    "[BOTLIVE_ROUTER] stage=INTENT status=OK intent=%s mode=%s missing=%s score=%.2f",
+                    routing.intent,
+                    routing.mode,
+                    routing.missing_fields,
+                    routing.confidence,
+                )
+
+                segment = build_jessica_prompt_segment(
+                    base_prompt_template=botlive_prompt_template,
+                    hyde_result=hyde_like_result,
+                    question_with_context=question_with_context,
+                    conversation_history=history_text or "",
+                    detected_objects_str=detected_objects_str,
+                    filtered_transactions_str=filtered_transactions_str,
+                    expected_deposit_str=expected_deposit_str,
+                    enriched_checklist=enriched_checklist,
+                )
+
+                format_block = """
+
+FORMAT DE RÉPONSE OBLIGATOIRE - NE PAS IGNORER
+
+Tu DOIS ABSOLUMENT répondre en utilisant EXACTEMENT ce format:
+
+<thinking>
+[Ton raisonnement détaillé ici]
+</thinking>
+
+<response>
+[Ta réponse au client ici - 2-3 lignes max]
+</response>
+"""
+
+                prompt_to_use = segment["prompt"] + format_block
+                routing_used = True
+
+                logger.info(
+                    "[BOTLIVE_ROUTER] stage=JESSICA_PROMPT status=OK mode=%s len=%s",
+                    segment.get("mode"),
+                    len(prompt_to_use),
+                )
+
+                # APPEL LLM AVEC FAILSAFE (PROMPT BASE + SEGMENT ADAPTATIF)
+                try:
+                    from core.botlive_failsafe import safe_llm_call_with_failsafe
+
+                    routing_result = {
+                        "mode": routing.mode,
+                        "confidence": routing.confidence,
+                        "intent": routing.intent,
+                        "missing_fields": routing.missing_fields,
+                        "state": routing.state,
+                    }
+
+                    company_config = {
+                        "support_number": "+225 0787360757",
+                        "product_type": "couches bébé",
+                        "company_name": "Rue du Grossiste",
+                    }
+
+                    checklist_str = enriched_checklist or "[CHECKLIST NON DISPONIBLE]"
+
+                    failsafe_result = await safe_llm_call_with_failsafe(
+                        routing_result=routing_result,
+                        company_config=company_config,
+                        checklist=checklist_str,
+                        user_message=question_with_context,
+                    )
+
+                    llm_text = failsafe_result.get("response")
+                    token_usage = failsafe_result.get("tokens") or {}
+
+                except Exception as failsafe_err:
+                    logger.error("[BOTLIVE_FAILSAFE] Erreur appel LLM failsafe: %s", failsafe_err, exc_info=True)
+
+            except Exception as router_err:
+                logger.error(
+                    "[BOTLIVE_ROUTER] stage=LAYER status=ERROR fallback=GLOBAL_OR_HYDE error=%s",
+                    router_err,
+                    exc_info=True,
+                )
+
+    # ... (rest of the code remains the same)
+    # LAYER HYDE v18 DÉSACTIVÉ (commenté)
+    # Ancien bloc optionnel, maintenant neutralisé pour éviter les erreurs
+    # de structure try/except et se concentrer sur le router embeddings.
+    #
+    # if not routing_used and BOTLIVE_V18_ENABLED:
+    #     try:
+    #         from core.hyde_v18_layer import run_hyde_v18
+    #         from core.jessica_prompt_segmenter import build_jessica_prompt_segment
+    #
+    #         logger.info(
+    #             "[BOTLIVE_V18] stage=HYDE_INTENT status=START company_id=%s user_id=%s",
+    #             company_id,
+    #             user_id,
+    #         )
+    #
+    #         hyde_result = await run_hyde_v18(
+    #             company_id=company_id,
+    #             user_id=user_id,
+    #             message=question_text or "",
+    #             conversation_history=history_text or "",
+    #         )
+    #
+    #         if hyde_result.get("success"):
+    #             ...
+    #         else:
+    #             ...
+    #
+    #     except Exception as hyde_v18_err:
+    #         logger.error("[BOTLIVE_V18] Erreur layer HYDE: %s", hyde_v18_err, exc_info=True)
+
+
             # ═══════════════════════════════════════════════════════════════
             # LOGS COLORÉS POUR SUIVI
             # ═══════════════════════════════════════════════════════════════
-            
-            # Extraire thinking et response
-            thinking_match = re.search(r'<thinking>(.*?)</thinking>', llm_text, re.DOTALL)
-            response_match = re.search(r'<response>(.*?)</response>', llm_text, re.DOTALL)
-            
-            # 🔵 QUESTION CLIENT (BLEU)
-            print("\n" + "="*80)
-            print(f"\033[94m🔵 QUESTION CLIENT:\033[0m")
-            # Afficher le texte réel ou [IMAGE] si image sans texte
-            if question_text:
-                display_question = question_text
-            elif images:
-                display_question = "[IMAGE]"
-            else:
-                display_question = "[Message vide]"
-            print(f"\033[94m{display_question}\033[0m")
-            
-            # 🟡 THINKING LLM (JAUNE)
-            if thinking_match:
-                thinking_content = thinking_match.group(1).strip()
-                print(f"\n\033[93m🟡 RAISONNEMENT LLM:\033[0m")
-                print(f"\033[93m{thinking_content}\033[0m")
-            else:
-                print(f"\n\033[93m🟡 RAISONNEMENT LLM: [Pas de balise <thinking>]\033[0m")
-            
-            # 🟢 RÉPONSE CLIENT (VERT)
-            if response_match:
-                client_response = response_match.group(1).strip()
-                print(f"\n\033[92m🟢 RÉPONSE AU CLIENT:\033[0m")
-                print(f"\033[92m{client_response}\033[0m")
-            else:
-                # 🐛 BUG FIX: Supprimer <thinking> même si pas de <response>
-                # Cas: LLM génère <thinking>...</thinking> sans <response>
-                client_response = llm_text.strip()
-                # Supprimer balise <thinking> si présente
-                client_response = re.sub(r'<thinking>.*?</thinking>', '', client_response, flags=re.DOTALL).strip()
-                # Supprimer balise <response> si présente
-                client_response = re.sub(r'</?response>', '', client_response).strip()
-                print(f"\n\033[92m🟢 RÉPONSE AU CLIENT (sans balise):\033[0m")
-                print(f"\033[92m{client_response}\033[0m")
-            
-            # ═══════════════════════════════════════════════════════════════
-            # 🧠 EXTRACTION THINKING POUR MISE À JOUR NOTEPAD
-            # ═══════════════════════════════════════════════════════════════
-            try:
-                from FIX_CONTEXT_LOSS_COMPLETE import extract_from_thinking_simple
-                thinking_data = extract_from_thinking_simple(llm_text)
+
+            if llm_text is not None:
+
+                # Extraire thinking et response
+                thinking_match = re.search(r'<thinking>(.*?)</thinking>', llm_text, re.DOTALL)
+                response_match = re.search(r'<response>(.*?)</response>', llm_text, re.DOTALL)
                 
-                if thinking_data:
-                    print(f"\n🧠 [THINKING] Données extraites: {thinking_data}")
-                    
-                    # Mettre à jour le notepad avec les données du thinking
-                    notepad = await notepad_manager.get_notepad(user_id, company_id)
-                    updated = False
-                    
-                    # Mapper les champs (ignorer les métadonnées avec _)
-                    if 'photo_produit' in thinking_data:
-                        notepad['photo_produit'] = thinking_data['photo_produit']
-                        updated = True
-                    if 'photo_produit_description' in thinking_data:
-                        notepad['photo_produit_description'] = thinking_data['photo_produit_description']
-                        updated = True
-                    if 'paiement' in thinking_data:
-                        notepad['paiement'] = thinking_data['paiement']
-                        updated = True
-                    if 'acompte' in thinking_data:
-                        notepad['acompte'] = thinking_data['acompte']
-                        updated = True
-                    if 'zone' in thinking_data:
-                        notepad['delivery_zone'] = thinking_data['zone']
-                        updated = True
-                    if 'frais_livraison' in thinking_data:
-                        notepad['delivery_cost'] = thinking_data['frais_livraison']
-                        updated = True
-                    if 'telephone' in thinking_data:
-                        notepad['phone_number'] = thinking_data['telephone']
-                        updated = True
-                    if 'produit' in thinking_data:
-                        notepad['last_product_mentioned'] = thinking_data['produit']
-                        updated = True
-                    
-                    # Sauvegarder si des changements
-                    if updated:
-                        await notepad_manager.update_notepad(user_id, company_id, notepad)
-                        print(f"💾 [THINKING] Notepad mis à jour depuis thinking")
-                    else:
-                        print(f"ℹ️ [THINKING] Aucune donnée à sauvegarder")
+                # 🔵 QUESTION CLIENT (BLEU)
+                print("\n" + "="*80)
+                print(f"\033[94m🔵 QUESTION CLIENT:\033[0m")
+                # Afficher le texte réel ou [IMAGE] si image sans texte
+                if question_text:
+                    display_question = question_text
+                elif images:
+                    display_question = "[IMAGE]"
                 else:
-                    print(f"ℹ️ [THINKING] Aucune donnée extraite du thinking")
-            except Exception as thinking_err:
-                print(f"⚠️ [THINKING] Erreur extraction: {thinking_err}")
-            
-            # 🔴 TOKENS + PROVIDER UTILISÉ
-            prompt_tokens = token_usage.get("prompt_tokens", 0)
-            completion_tokens = token_usage.get("completion_tokens", 0)
-            total_tokens = token_usage.get("total_tokens", 0)
+                    display_question = "[Message vide]"
+                print(f"\033[94m{display_question}\033[0m")
+                
+                # THINKING LLM (JAUNE)
+                try:
+                    if thinking_match:
+                        thinking_content = thinking_match.group(1).strip()
+                        from FIX_CONTEXT_LOSS_COMPLETE import extract_from_thinking_simple
+                        thinking_data = extract_from_thinking_simple(llm_text)
+
+                        if thinking_data:
+                            print(f"\n [THINKING] Données extraites: {thinking_data}")
+
+                            # Mettre à jour le notepad avec les données du thinking
+                            notepad = await notepad_manager.get_notepad(user_id, company_id)
+                            updated = False
+
+                            # Mapper les champs (ignorer les métadonnées avec _)
+                            if 'photo_produit' in thinking_data:
+                                notepad['photo_produit'] = thinking_data['photo_produit']
+                                updated = True
+                            if 'photo_produit_description' in thinking_data:
+                                notepad['photo_produit_description'] = thinking_data['photo_produit_description']
+                                updated = True
+                            if 'paiement' in thinking_data:
+                                notepad['paiement'] = thinking_data['paiement']
+                                updated = True
+                            if 'acompte' in thinking_data:
+                                notepad['acompte'] = thinking_data['acompte']
+                                updated = True
+                            if 'zone' in thinking_data:
+                                notepad['delivery_zone'] = thinking_data['zone']
+                                updated = True
+                            if 'frais_livraison' in thinking_data:
+                                notepad['delivery_cost'] = thinking_data['frais_livraison']
+                                updated = True
+                            if 'telephone' in thinking_data:
+                                notepad['phone_number'] = thinking_data['telephone']
+                                updated = True
+                            if 'produit' in thinking_data:
+                                notepad['last_product_mentioned'] = thinking_data['produit']
+                                updated = True
+
+                            # Sauvegarder si des changements
+                            if updated:
+                                await notepad_manager.update_notepad(user_id, company_id, notepad)
+                                print(f" [THINKING] Notepad mis à jour depuis thinking")
+                            else:
+                                print(f" [THINKING] Aucune donnée à sauvegarder")
+                        else:
+                            print(f" [THINKING] Aucune donnée extraite du thinking")
+                except Exception as thinking_err:
+                    print(f" [THINKING] Erreur extraction: {thinking_err}")
             provider = token_usage.get("provider", "groq")
             fallback_used = token_usage.get("fallback_used", False)
             health_check = token_usage.get("health_check", False)
             model_used = token_usage.get("model", groq_model)
-            
-            if provider == "groq":
-                # Calcul coût Groq llama-3.3-70b-versatile (tarifs officiels)
-                input_cost = prompt_tokens * 0.00000059  # $0.59/1M tokens
-                output_cost = completion_tokens * 0.00000079  # $0.79/1M tokens
-                total_cost = input_cost + output_cost
-                
-                health_status = "✅ Health Check OK" if health_check else "⚠️ Direct"
-                print(f"\n\033[91m🔴 TOKENS RÉELS GROQ ({health_status}):\033[0m")
-                print(f"\033[91mPrompt: {prompt_tokens} | Completion: {completion_tokens} | TOTAL: {total_tokens}\033[0m")
-                print(f"\033[91m💰 COÛT: ${total_cost:.6f} (${input_cost:.6f} input + ${output_cost:.6f} output)\033[0m")
-                print(f"\033[91m🤖 MODÈLE: {model_used}\033[0m")
-            
-            elif provider == "deepseek":
-                estimated = " (estimé)" if token_usage.get('estimated') else ""
-                health_reason = "🚫 Groq Unhealthy" if health_check else "🔄 Fallback"
-                print(f"\n\033[93m🟡 TOKENS DEEPSEEK ({health_reason}):\033[0m")
-                print(f"\033[93mPrompt: {prompt_tokens} | Completion: {completion_tokens} | TOTAL: {total_tokens}{estimated}\033[0m")
-                print(f"\033[93m💰 COÛT: ~$0.000001 (DeepSeek gratuit)\033[0m")
-                print(f"\033[93m🤖 MODÈLE: {model_used}\033[0m")
-            
-            elif provider == "emergency":
-                print(f"\n\033[95m🆘 RÉPONSE D'URGENCE:\033[0m")
-                print(f"\033[95mErreur: {token_usage.get('error', 'Unknown')}\033[0m")
-                print(f"\033[95m💰 COÛT: $0.000000\033[0m")
-                print(f"\033[95m🤖 MODÈLE: emergency\033[0m")
-            
+
+            # Sécuriser la récupération des compteurs de tokens
+            prompt_tokens = token_usage.get("prompt_tokens")
+            completion_tokens = token_usage.get("completion_tokens")
+            total_tokens = token_usage.get("total_tokens")
+
+            if (
+                isinstance(prompt_tokens, (int, float)) and
+                isinstance(completion_tokens, (int, float)) and
+                isinstance(total_tokens, (int, float))
+            ):
+                if provider == "groq":
+                    # Calcul coût Groq llama-3.3-70b-versatile (tarifs officiels)
+                    input_cost = prompt_tokens * 0.00000059  # $0.59/1M tokens
+                    output_cost = completion_tokens * 0.00000079  # $0.79/1M tokens
+                    total_cost = input_cost + output_cost
+
+                    health_status = " Health Check OK" if health_check else " Direct"
+                    print(f"\n\033[91m TOKENS RÉELS GROQ ({health_status}):\033[0m")
+                    print(f"\033[91mPrompt: {prompt_tokens} | Completion: {completion_tokens} | TOTAL: {total_tokens}\033[0m")
+                    print(f"\033[91m COÛT: ${total_cost:.6f} (${input_cost:.6f} input + ${output_cost:.6f} output)\033[0m")
+                    print(f"\033[91m MODÈLE: {model_used}\033[0m")
+
+                elif provider == "deepseek":
+                    estimated = " (estimé)" if token_usage.get('estimated') else ""
+                    health_reason = " Groq Unhealthy" if health_check else " Fallback"
+                    print(f"\n\033[93m TOKENS DEEPSEEK ({health_reason}):\033[0m")
+                    print(f"\033[93mPrompt: {prompt_tokens} | Completion: {completion_tokens} | TOTAL: {total_tokens}{estimated}\033[0m")
+                    print(f"\033[93m COÛT: ~$0.000001 (DeepSeek gratuit)\033[0m")
+                    print(f"\033[93m MODÈLE: {model_used}\033[0m")
+
+                elif provider == "emergency":
+                    print(f"\n\033[95m RÉPONSE D'URGENCE:\033[0m")
+                    print(f"\033[95mErreur: {token_usage.get('error', 'Unknown')}\033[0m")
+                    print(f"\033[95m COÛT: $0.000000\033[0m")
+                    print(f"\033[95m MODÈLE: emergency\033[0m")
+
             print("="*80 + "\n")
-            
+
             return client_response
-        except Exception as e:
-            print(f"[BOTLIVE][LLM] Erreur: {e}")
-            import traceback
-            traceback.print_exc()
-            return "Bonjour ! 👋 Envoyez-moi la photo du produit que vous voulez commander."
+
     except Exception as e:
         print(f"[BOTLIVE] Erreur générale: {e}")
         return "Mode Live indisponible temporairement. Réessayez ou envoyez votre question en texte."
@@ -2842,29 +3037,15 @@ async def groq_health():
 # --- Endpoint Auto-Learning Insights ---
 @app.get("/auto-learning/insights/{company_id}")
 async def get_auto_learning_insights(company_id: str, days: int = 7):
-    """
-    🧠 Récupère les insights d'auto-learning pour une company
-    
-    Args:
-        company_id: ID entreprise
-        days: Période d'analyse (défaut: 7 jours)
-    
-    Returns:
-        {
-            'enabled': true/false,
-            'patterns_learned': [...],
-            'thinking_analytics': {...},
-            'top_documents': [...],
-            'pending_improvements': [...],
-            'summary': {...}
-        }
-    """
+    """Recupere les insights d'auto-learning pour une company."""
+
     try:
         from core.auto_learning_wrapper import get_company_insights
         insights = await get_company_insights(company_id, days)
         return insights
     except Exception as e:
-        logger.error(f"❌ Erreur récupération insights: {e}")
+        logger.error(f" Erreur récupération insights: {e}")
+        logger.error(f" Erreur récupération insights: {e}")
         return {
             "enabled": False,
             "error": str(e),
@@ -2873,13 +3054,8 @@ async def get_auto_learning_insights(company_id: str, days: int = 7):
 
 @app.get("/auto-learning/faq-suggestions/{company_id}")
 async def get_faq_suggestions(company_id: str, min_occurrences: int = 5):
-    """
-    🤖 Génère suggestions de FAQ depuis questions fréquentes
-    
-    Args:
-        company_id: ID entreprise
-        min_occurrences: Min occurrences pour créer FAQ
-    """
+    """Genere des suggestions de FAQ a partir des questions frequentes."""
+
     try:
         from core.supabase_learning_engine import get_learning_engine
         engine = get_learning_engine()
@@ -2991,10 +3167,10 @@ async def onboard_company_endpoint(req: OnboardCompanyRequest):
                 detail = "Erreur de connexion à Supabase - Vérifiez l'URL et la clé API"
             else:
                 detail = f"Erreur lors de la mise à jour de la base de données: {error_msg}"
-            
+        
             # Nettoyer les caractères Unicode problématiques
-            clean_detail = detail.replace("'", "'").replace(""", '"').replace(""", '"')
-            clean_error_msg = error_msg.replace("'", "'").replace(""", '"').replace(""", '"')
+            clean_detail = detail.encode('ascii', 'ignore').decode('ascii')
+            clean_error_msg = error_msg.encode('ascii', 'ignore').decode('ascii')
             
             raise HTTPException(
                 status_code=500,

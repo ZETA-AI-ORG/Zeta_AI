@@ -61,7 +61,10 @@ class LoopBotliveEngine:
     """
     
     def __init__(self):
-        self.enabled = True  # Activé par défaut
+        # Legacy: ancien moteur hybride Python↔LLM (désactivé par défaut)
+        # Le système de production Botlive utilise désormais BotliveRAGHybrid
+        # + HYDE v18. Ce moteur ne doit plus être actif en prod.
+        self.enabled = False  # Désactivé par défaut
         self.stats = {
             "python_auto": 0,
             "llm_guide": 0,

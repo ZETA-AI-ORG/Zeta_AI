@@ -86,11 +86,16 @@ class BotliveSimulator:
             
             duration_ms = int((time.time() - start) * 1000)
             
-            # JSONResponse -> décoder le body
-            raw_body = response.body.decode("utf-8") if isinstance(response.body, (bytes, bytearray)) else str(response.body)
-            result = json.loads(raw_body)
-            
-            bot_response = result.get("response", "")
+            # JSONResponse -> décoder le body de manière robuste
+            raw_body = response.body
+            if isinstance(raw_body, (bytes, bytearray)):
+                raw_body = raw_body.decode("utf-8", errors="ignore")
+            else:
+                raw_body = str(raw_body)
+
+            result = json.loads(raw_body) if raw_body else {}
+
+            bot_response = (result.get("response") or "").strip()
             next_step = result.get("next_step")
             order_status = result.get("order_status")
             
@@ -101,7 +106,11 @@ class BotliveSimulator:
             # Afficher la réponse et les métadonnées de flux Botlive
             print(f"🤖 BOT (réponse en {duration_ms}ms)")
             print(f"{'='*80}")
-            print(bot_response if bot_response else "[Aucune réponse bot - potentielle intervention humaine]")
+            # Toujours afficher la réponse texte si disponible
+            if bot_response:
+                print(bot_response)
+            else:
+                print("[Aucune réponse bot - potentielle intervention humaine]")
             print(f"{'='*80}")
             print(f"next_step: {next_step}")
             print(f"order_status: {order_status}\n")

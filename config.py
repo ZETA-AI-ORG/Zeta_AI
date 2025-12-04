@@ -78,3 +78,11 @@ REDIS_URL = os.getenv('REDIS_URL', 'redis://localhost:6379/0')
 
 # Variable pour sécuriser les webhooks
 WEBHOOK_CLIENT_ID_SECRET = os.getenv('WEBHOOK_CLIENT_ID_SECRET')
+
+# WhatsApp Cloud API (Meta)
+WHATSAPP_API_BASE = os.getenv('WHATSAPP_API_BASE', 'https://graph.facebook.com/v19.0')
+WHATSAPP_PHONE_NUMBER_ID = os.getenv('WHATSAPP_PHONE_NUMBER_ID')
+WHATSAPP_TOKEN = os.getenv('WHATSAPP_TOKEN')
+WHATSAPP_VERIFY_TOKEN = os.getenv('WHATSAPP_VERIFY_TOKEN')
+WHATSAPP_AUTO_REPLY_ENABLED = os.getenv('WHATSAPP_AUTO_REPLY_ENABLED', 'false').lower() == 'true'
+WHATSAPP_DEFAULT_COMPANY_ID = os.getenv('WHATSAPP_DEFAULT_COMPANY_ID', 'default')

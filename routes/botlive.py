@@ -113,6 +113,14 @@ async def process_botlive_message(req: BotliveMessageRequest, background_tasks: 
     logger.info(f"[BOTLIVE][{request_id}] Message reçu: user={req.user_id}, company={req.company_id}")
     
     try:
+        # Shadow Mode: enregistre le message client (mode écoute, sans intervention)
+        try:
+            if os.getenv("SHADOW_MODE_ENABLED", "true").lower() == "true":
+                from core.shadow_recorder import record_user_message
+                await record_user_message(req.company_id, req.user_id, req.message or "", req.user_display_name)
+        except Exception:
+            # Ne jamais casser le flux si la capture échoue
+            pass
         # Détection simple d'escalade explicite ou de frustration forte
         msg_text = req.message or ""
         msg_lower = msg_text.lower()
@@ -515,6 +523,7 @@ async def process_botlive_message(req: BotliveMessageRequest, background_tasks: 
                     next_step,
                     hard_signals,
                 )
+                # Le Guardian NE DOIT PAS modifier ou bloquer la réponse Botlive. Il sert uniquement à logguer.
                 if not order_is_complete and not explicit_handoff and not is_frustrated:
                     guardian_decision = await guardian.analyze(
                         conversation_history=conversation_history,
@@ -559,6 +568,7 @@ async def process_botlive_message(req: BotliveMessageRequest, background_tasks: 
                             source="intervention_guardian_v1",
                         )
         except Exception as guardian_err:
+            # Le Guardian ne doit JAMAIS casser la réponse Botlive
             logger.error("[BOTLIVE][%s] Erreur Guardian d'intervention: %s", request_id, guardian_err)
 
         logger.info(f"[BOTLIVE][{request_id}] Réponse générée en {duration_ms}ms, next_step={next_step}")
@@ -615,6 +625,45 @@ async def send_human_reply(req: HumanReplyRequest):
     - envoyer le message au client via Messenger/WhatsApp.
     """
 
+    # Envoi direct via WhatsApp Cloud API si demandé
+    channel_lower = (req.channel or "").lower()
+    if channel_lower == "whatsapp":
+        try:
+            # Shadow Mode: enregistre la réponse opérateur (mode écoute)
+            try:
+                if os.getenv("SHADOW_MODE_ENABLED", "true").lower() == "true":
+                    from core.shadow_recorder import record_operator_reply
+                    await record_operator_reply(req.company_id, req.user_id, req.message or "", req.user_display_name)
+            except Exception:
+                pass
+
+            # Envoi via Meta WhatsApp Cloud API
+            from config import WHATSAPP_TOKEN
+            if WHATSAPP_TOKEN:
+                try:
+                    from core.meta_whatsapp import send_text
+                    send_res = await send_text(req.user_id, req.message or "")
+                    logger.info("[BOTLIVE][HUMAN_REPLY] WhatsApp META send -> %s", send_res.get("status"))
+                    # Log dans messages (assistant)
+                    try:
+                        from core.conversations_manager import get_or_create_conversation, insert_message
+                        conv_id = await get_or_create_conversation(req.company_id, req.user_id)
+                        if conv_id:
+                            await insert_message(
+                                conv_id, "assistant", req.message or "",
+                                {"source": "human", "channel": "whatsapp", "author_name": (req.user_display_name or "Opérateur")} 
+                            )
+                    except Exception as log_err:
+                        logger.warning(f"[BOTLIVE][HUMAN_REPLY] conv log failed: {log_err}")
+                    return JSONResponse(content={"success": True, "sent_via": "whatsapp_meta", "status": send_res.get("status")})
+                except Exception as e:
+                    logger.error("[BOTLIVE][HUMAN_REPLY] WhatsApp META send error: %s", e)
+                    # fallback N8N si dispo
+            else:
+                logger.warning("[BOTLIVE][HUMAN_REPLY] WHATSAPP_TOKEN manquant, fallback N8N")
+        except Exception as e:
+            logger.error("[BOTLIVE][HUMAN_REPLY] Branch WhatsApp error: %s", e)
+
     if not N8N_OUTBOUND_WEBHOOK_URL:
         logger.error("[BOTLIVE][HUMAN_REPLY] N8N_OUTBOUND_WEBHOOK_URL n'est pas configurée")
         raise HTTPException(status_code=500, detail="Webhook N8N non configuré côté backend")
@@ -643,6 +692,14 @@ async def send_human_reply(req: HumanReplyRequest):
         headers["X-N8N-API-KEY"] = N8N_API_KEY
 
     try:
+        # Shadow Mode (déjà fait pour WhatsApp branch). Ici on refait au cas où
+        try:
+            if os.getenv("SHADOW_MODE_ENABLED", "true").lower() == "true":
+                from core.shadow_recorder import record_operator_reply
+                await record_operator_reply(req.company_id, req.user_id, req.message or "", req.user_display_name)
+        except Exception:
+            pass
+
         logger.info(
             "[BOTLIVE][HUMAN_REPLY] Envoi vers N8N | company_id=%s user_id=%s channel=%s",
             req.company_id,
@@ -668,6 +725,18 @@ async def send_human_reply(req: HumanReplyRequest):
                 status_code=500,
                 detail=f"Erreur webhook N8N (status={response.status_code})",
             )
+
+        # Log dans messages (assistant)
+        try:
+            from core.conversations_manager import get_or_create_conversation, insert_message
+            conv_id = await get_or_create_conversation(req.company_id, req.user_id)
+            if conv_id:
+                await insert_message(
+                    conv_id, "assistant", req.message or "",
+                    {"source": "human", "channel": (req.channel or "messenger"), "author_name": (req.user_display_name or "Opérateur")} 
+                )
+        except Exception as log_err:
+            logger.warning(f"[BOTLIVE][HUMAN_REPLY] conv log failed (N8N): {log_err}")
 
         if N8N_DEBUG_MODE:
             logger.info(

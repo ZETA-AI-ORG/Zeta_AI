@@ -1,0 +1,44 @@
+{
+  "metadata": {
+    "version": "2.0",
+    "total_intents": 12,
+    "use_case": "Embedding-based intent routing pour chatbot e-commerce",
+    "embedding_model_recommended": "sentence-transformers/paraphrase-multilingual-mpnet-base-v2",
+    "language": "fr-CI (Français ivoirien + variations nouchi)"
+  },
+  "prompt_mapping": {
+    "PROMPT_A": [1, 2, 3],
+    "PROMPT_B": [4, 5, 6, 7],
+    "PROMPT_C": [8, 9, 10],
+    "PROMPT_D": [11, 12]
+  },
+  "intents": [
+    {
+      "id": 1,
+      "name": "Salut / Politesse",
+      "description": "Salutations initiales, politesse, prise de contact sociale",
+      "prompt_cible": "PROMPT_A",
+      "score_hierarchie": 3,
+      "keywords": ["bonjour", "salut", "bonsoir", "hey", "hello", "coucou"],
+      "variations_naturelles": [
+        "Bonjour !",
+        "Salut, comment ça va ?",
+        "Hey, ravie de vous lire !",
+        "Bonsoir, comment puis-je vous aider ?",
+        "Salut, bienvenue !",
+        "Bonjour, j'espère que vous allez bien !",
+        "Salut ! Prêt à découvrir nos produits ?",
+        "Bonjour, comment se passe votre journée ?",
+        "Salut, heureux de vous retrouver !",
+        "Bonjour, ravi de vous lire !",
+        "Hello !",
+        "Salut, ça fait plaisir !",
+        "Bonsoir, comment puis-je vous assister ?",
+        "Salut, besoin d'aide ?",
+        "Bonjour, je suis là pour vous aider !"
+      ],
+      "variations_bruitees": [
+        "Bjr",
+        "Slt",
+        "Heyy",
+        "Bonsoiir",

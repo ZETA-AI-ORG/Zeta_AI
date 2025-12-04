@@ -132,6 +132,36 @@ htmlcov/
 
 .env.render
 
+# Env
+.env
+.env.*
 # Logs
 logs/
 *.log
+# Cache
+cache/
+__pycache__/
+*.pyc
+# Venv
+.venv/
+
+
+# Local backup (do not track)
+Zeta_AI/
+
+
+# Env
+.env
+.env.*
+# Logs
+logs/
+*.log
+# Cache
+cache/
+__pycache__/
+*.pyc
+# Venv
+.venv/
+# Shadow
+data/shadow/
+
