@@ -804,6 +804,44 @@ async def process_botlive_message_stream(req: BotliveMessageRequest):
     return StreamingResponse(event_generator(), media_type="text/event-stream")
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# SHADOW MODE - ENDPOINTS DÉDIÉS (pas de réponse bot)
+
+class ShadowUserRecordRequest(BaseModel):
+    company_id: str
+    user_id: str
+    message: str = ""
+    user_display_name: Optional[str] = None
+
+
+class ShadowOperatorRecordRequest(BaseModel):
+    company_id: str
+    user_id: str
+    message: str
+    operator_display_name: Optional[str] = None
+
+
+@router.post("/shadow/user")
+async def shadow_record_user(req: ShadowUserRecordRequest):
+    try:
+        from core.shadow_recorder import record_user_message
+        await record_user_message(req.company_id, req.user_id, req.message or "", req.user_display_name)
+        return JSONResponse(content={"success": True, "recorded": "user"})
+    except Exception as e:
+        logger.error(f"[BOTLIVE][SHADOW][USER] Error: {e}")
+        raise HTTPException(status_code=500, detail="Erreur enregistrement shadow user")
+
+
+@router.post("/shadow/operator")
+async def shadow_record_operator(req: ShadowOperatorRecordRequest):
+    try:
+        from core.shadow_recorder import record_operator_reply
+        await record_operator_reply(req.company_id, req.user_id, req.message or "", req.operator_display_name)
+        return JSONResponse(content={"success": True, "recorded": "operator"})
+    except Exception as e:
+        logger.error(f"[BOTLIVE][SHADOW][OPERATOR] Error: {e}")
+        raise HTTPException(status_code=500, detail="Erreur enregistrement shadow operator")
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # 📊 ENDPOINTS STATISTIQUES & MONITORING
 # ═══════════════════════════════════════════════════════════════════════════════
 
