@@ -131,3 +131,7 @@ htmlcov/
 .pnp.*
 
 .env.render
+
+# Logs
+logs/
+*.log
