@@ -165,3 +165,5 @@ __pycache__/
 # Shadow
 data/shadow/
 
+whatsapp-export/.wwebjs_auth/
+tmp_transcripts.txt
