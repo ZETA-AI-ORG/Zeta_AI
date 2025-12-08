@@ -189,6 +189,16 @@ class BotliveRAGHybrid:
             if delivery_context:
                 question_with_delivery = f"{delivery_context}\n\n{message}"
                 logger.info(f"📋 [DELIVERY] Question enrichie avec contexte delivery ({len(question_with_delivery)} chars)")
+
+            # 🔹 HYDE-LIKE: Ajouter une hypothèse d'intent pour guider le LLM (sans retrieval)
+            try:
+                from core.intent_hypothesis import build_intent_hypothesis
+                hyp = build_intent_hypothesis(message)
+                if hyp:
+                    question_with_delivery = f"{hyp}\n\n{question_with_delivery}"
+                    logger.info(f"🧭 [HYPOTHESIS] Bloc intent ajouté ({len(hyp)} chars)")
+            except Exception as e:
+                logger.warning(f"⚠️ [HYPOTHESIS] Erreur injection: {e}")
             
             logger.info(f"🔍 [BOTLIVE] Récupération prompt pour company_id={active_company_id}, llm={llm_choice}")
             
@@ -562,6 +572,10 @@ class BotliveRAGHybrid:
         response = re.sub(r'calculator\([^)]*\)', '', response)
         # Supprimer traces ✅CHAMP:valeur[SOURCE]
         response = re.sub(r'✅\w+:[^\s\|]+\[\w+\]', '', response)
+        # Supprimer blocs XML internes (<thinking>, <response>, <answer>)
+        response = re.sub(r'<thinking>.*?</thinking>', '', response, flags=re.DOTALL | re.IGNORECASE)
+        response = re.sub(r'</?response>', '', response, flags=re.IGNORECASE)
+        response = re.sub(r'</?answer>', '', response, flags=re.IGNORECASE)
         # Nettoyer espaces multiples
         response = re.sub(r'\s{2,}', ' ', response).strip()
         return response

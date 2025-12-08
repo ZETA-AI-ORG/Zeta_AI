@@ -1,0 +1,482 @@
+{
+  "1": {
+    "intent_name": "Salut / Politesse",
+    "keywords": [
+      {
+        "word": "bienvenue",
+        "frequency": 5,
+        "specificity": 5.0
+      },
+      {
+        "word": "grossiste",
+        "frequency": 5,
+        "specificity": 5.0
+      },
+      {
+        "word": "cliquez",
+        "frequency": 5,
+        "specificity": 5.0
+      },
+      {
+        "word": "ici",
+        "frequency": 5,
+        "specificity": 5.0
+      },
+      {
+        "word": "https",
+        "frequency": 5,
+        "specificity": 5.0
+      },
+      {
+        "word": "wa",
+        "frequency": 5,
+        "specificity": 5.0
+      },
+      {
+        "word": "2250160924560",
+        "frequency": 5,
+        "specificity": 5.0
+      },
+      {
+        "word": "mme",
+        "frequency": 12,
+        "specificity": 4.0
+      },
+      {
+        "word": "madame",
+        "frequency": 3,
+        "specificity": 3.0
+      },
+      {
+        "word": "rue",
+        "frequency": 5,
+        "specificity": 1.667
+      },
+      {
+        "word": "comment",
+        "frequency": 5,
+        "specificity": 1.667
+      },
+      {
+        "word": "commande",
+        "frequency": 5,
+        "specificity": 1.25
+      },
+      {
+        "word": "couches",
+        "frequency": 5,
+        "specificity": 0.172
+      }
+    ]
+  },
+  "4": {
+    "intent_name": "Demande catalogue / liste produits",
+    "keywords": [
+      {
+        "word": "entreprise",
+        "frequency": 26,
+        "specificity": 26.0
+      },
+      {
+        "word": "publicité",
+        "frequency": 7,
+        "specificity": 7.0
+      },
+      {
+        "word": "bebe",
+        "frequency": 3,
+        "specificity": 1.5
+      },
+      {
+        "word": "m",
+        "frequency": 7,
+        "specificity": 1.4
+      },
+      {
+        "word": "disponible",
+        "frequency": 3,
+        "specificity": 1.0
+      },
+      {
+        "word": "proposons",
+        "frequency": 3,
+        "specificity": 0.75
+      },
+      {
+        "word": "culottes",
+        "frequency": 5,
+        "specificity": 0.714
+      },
+      {
+        "word": "150",
+        "frequency": 3,
+        "specificity": 0.5
+      },
+      {
+        "word": "pression",
+        "frequency": 5,
+        "specificity": 0.417
+      },
+      {
+        "word": "couches",
+        "frequency": 7,
+        "specificity": 0.259
+      },
+      {
+        "word": "300",
+        "frequency": 3,
+        "specificity": 0.25
+      },
+      {
+        "word": "lot",
+        "frequency": 3,
+        "specificity": 0.176
+      }
+    ]
+  },
+  "2": {
+    "intent_name": "Demande d'information générale / Localisation",
+    "keywords": [
+      {
+        "word": "discuter",
+        "frequency": 8,
+        "specificity": 8.0
+      },
+      {
+        "word": "quelqu",
+        "frequency": 8,
+        "specificity": 8.0
+      },
+      {
+        "word": "possible",
+        "frequency": 8,
+        "specificity": 4.0
+      }
+    ]
+  },
+  "9": {
+    "intent_name": "Informations sur la livraison",
+    "keywords": [
+      {
+        "word": "livraison",
+        "frequency": 5,
+        "specificity": 5.0
+      },
+      {
+        "word": "60",
+        "frequency": 3,
+        "specificity": 1.5
+      },
+      {
+        "word": "10",
+        "frequency": 4,
+        "specificity": 1.333
+      },
+      {
+        "word": "oui",
+        "frequency": 3,
+        "specificity": 0.5
+      },
+      {
+        "word": "6",
+        "frequency": 5,
+        "specificity": 0.385
+      },
+      {
+        "word": "000",
+        "frequency": 4,
+        "specificity": 0.333
+      },
+      {
+        "word": "paquets",
+        "frequency": 4,
+        "specificity": 0.308
+      },
+      {
+        "word": "lot",
+        "frequency": 4,
+        "specificity": 0.25
+      },
+      {
+        "word": "couches",
+        "frequency": 4,
+        "specificity": 0.133
+      }
+    ]
+  },
+  "11": {
+    "intent_name": "Suivi de commande / livraison",
+    "keywords": [
+      {
+        "word": "livreur",
+        "frequency": 3,
+        "specificity": 3.0
+      },
+      {
+        "word": "reviens",
+        "frequency": 3,
+        "specificity": 1.5
+      },
+      {
+        "word": "oui",
+        "frequency": 3,
+        "specificity": 0.5
+      }
+    ]
+  },
+  "5": {
+    "intent_name": "Recherche produit précis",
+    "keywords": [
+      {
+        "word": "culotte",
+        "frequency": 4,
+        "specificity": 1.333
+      },
+      {
+        "word": "3",
+        "frequency": 6,
+        "specificity": 1.0
+      },
+      {
+        "word": "taille",
+        "frequency": 5,
+        "specificity": 0.556
+      },
+      {
+        "word": "l",
+        "frequency": 3,
+        "specificity": 0.5
+      },
+      {
+        "word": "marche",
+        "frequency": 3,
+        "specificity": 0.5
+      },
+      {
+        "word": "24",
+        "frequency": 3,
+        "specificity": 0.429
+      },
+      {
+        "word": "300",
+        "frequency": 4,
+        "specificity": 0.364
+      },
+      {
+        "word": "paquets",
+        "frequency": 4,
+        "specificity": 0.308
+      },
+      {
+        "word": "pression",
+        "frequency": 4,
+        "specificity": 0.308
+      },
+      {
+        "word": "lot",
+        "frequency": 4,
+        "specificity": 0.25
+      },
+      {
+        "word": "000",
+        "frequency": 3,
+        "specificity": 0.231
+      },
+      {
+        "word": "couches",
+        "frequency": 6,
+        "specificity": 0.214
+      },
+      {
+        "word": "6",
+        "frequency": 3,
+        "specificity": 0.2
+      }
+    ]
+  },
+  "6": {
+    "intent_name": "Question prix / promo",
+    "keywords": [
+      {
+        "word": "paquet",
+        "frequency": 11,
+        "specificity": 5.5
+      },
+      {
+        "word": "gros",
+        "frequency": 4,
+        "specificity": 4.0
+      },
+      {
+        "word": "17",
+        "frequency": 6,
+        "specificity": 3.0
+      },
+      {
+        "word": "4000",
+        "frequency": 3,
+        "specificity": 3.0
+      },
+      {
+        "word": "pressions",
+        "frequency": 3,
+        "specificity": 3.0
+      },
+      {
+        "word": "fonction",
+        "frequency": 3,
+        "specificity": 3.0
+      },
+      {
+        "word": "actuellement",
+        "frequency": 4,
+        "specificity": 2.0
+      },
+      {
+        "word": "partir",
+        "frequency": 4,
+        "specificity": 2.0
+      },
+      {
+        "word": "prix",
+        "frequency": 4,
+        "specificity": 2.0
+      },
+      {
+        "word": "24",
+        "frequency": 6,
+        "specificity": 1.5
+      },
+      {
+        "word": "1",
+        "frequency": 3,
+        "specificity": 1.5
+      },
+      {
+        "word": "kg",
+        "frequency": 3,
+        "specificity": 1.5
+      },
+      {
+        "word": "fcfa",
+        "frequency": 3,
+        "specificity": 1.5
+      },
+      {
+        "word": "8",
+        "frequency": 3,
+        "specificity": 1.5
+      },
+      {
+        "word": "500",
+        "frequency": 3,
+        "specificity": 1.5
+      },
+      {
+        "word": "11",
+        "frequency": 3,
+        "specificity": 1.5
+      },
+      {
+        "word": "20",
+        "frequency": 3,
+        "specificity": 1.5
+      },
+      {
+        "word": "lieu",
+        "frequency": 3,
+        "specificity": 1.5
+      },
+      {
+        "word": "000",
+        "frequency": 8,
+        "specificity": 1.0
+      },
+      {
+        "word": "4",
+        "frequency": 3,
+        "specificity": 1.0
+      },
+      {
+        "word": "2",
+        "frequency": 3,
+        "specificity": 1.0
+      },
+      {
+        "word": "18",
+        "frequency": 3,
+        "specificity": 1.0
+      },
+      {
+        "word": "13500",
+        "frequency": 3,
+        "specificity": 1.0
+      },
+      {
+        "word": "27",
+        "frequency": 3,
+        "specificity": 1.0
+      },
+      {
+        "word": "300",
+        "frequency": 7,
+        "specificity": 0.875
+      },
+      {
+        "word": "taille",
+        "frequency": 6,
+        "specificity": 0.75
+      },
+      {
+        "word": "combien",
+        "frequency": 3,
+        "specificity": 0.75
+      },
+      {
+        "word": "proposons",
+        "frequency": 3,
+        "specificity": 0.75
+      },
+      {
+        "word": "lot",
+        "frequency": 8,
+        "specificity": 0.667
+      },
+      {
+        "word": "6",
+        "frequency": 7,
+        "specificity": 0.636
+      },
+      {
+        "word": "0",
+        "frequency": 3,
+        "specificity": 0.6
+      },
+      {
+        "word": "paquets",
+        "frequency": 6,
+        "specificity": 0.545
+      },
+      {
+        "word": "3",
+        "frequency": 4,
+        "specificity": 0.5
+      },
+      {
+        "word": "culottes",
+        "frequency": 4,
+        "specificity": 0.5
+      },
+      {
+        "word": "150",
+        "frequency": 3,
+        "specificity": 0.5
+      },
+      {
+        "word": "couches",
+        "frequency": 8,
+        "specificity": 0.308
+      }
+    ]
+  }
+}

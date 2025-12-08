@@ -107,6 +107,19 @@ class LoopBotliveEngine:
         """
         try:
             self.stats["total"] += 1
+
+            # 🔎 Bypass SALUT: réponse Python directe pour politesse simple
+            lower = (message or "").strip().lower()
+            greet_tokens = ["salut", "bonjour", "bonsoir", "bjr", "slt", "hello", "coucou"]
+            if any(lower.startswith(tok) for tok in greet_tokens) or lower in greet_tokens:
+                reply = "Bonjour et bienvenue ! En quoi puis-je vous aider svp ?"
+                self.stats["python_auto"] += 1
+                return {
+                    "response": reply,
+                    "state": notepad or {},
+                    "source": "python_auto",
+                    "checklist": "—",
+                }
             
             # 1. COLLECTER L'ÉTAT
             state = self._collect_state(vision_result, ocr_result, notepad)

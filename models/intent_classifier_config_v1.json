@@ -1,0 +1,28 @@
+{
+  "version": "v1",
+  "encoder_model": "sentence-transformers/all-MiniLM-L6-v2",
+  "classes": [
+    "ACHAT_COMMANDE",
+    "CATALOGUE",
+    "CLARIFICATION",
+    "DISPONIBILITE",
+    "INFO_GENERALE",
+    "LIVRAISON",
+    "PAIEMENT",
+    "PRIX_PROMO",
+    "PROBLEME",
+    "RECHERCHE_PRODUIT",
+    "SALUT",
+    "SUIVI"
+  ],
+  "n_features": 384,
+  "lr_params": {
+    "C": 1.0,
+    "max_iter": 500,
+    "class_weight": "balanced",
+    "random_state": 42,
+    "solver": "lbfgs",
+    "multi_class": "multinomial"
+  },
+  "timestamp": "2025-12-06T15:35:03.877749"
+}

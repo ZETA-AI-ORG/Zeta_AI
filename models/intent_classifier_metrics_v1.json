@@ -1,0 +1,386 @@
+{
+  "accuracy_global": 0.5617977528089888,
+  "classification_report": {
+    "ACHAT_COMMANDE": {
+      "precision": 0.6,
+      "recall": 0.6923076923076923,
+      "f1-score": 0.6428571428571429,
+      "support": 13.0
+    },
+    "CATALOGUE": {
+      "precision": 0.6,
+      "recall": 0.8181818181818182,
+      "f1-score": 0.6923076923076923,
+      "support": 11.0
+    },
+    "CLARIFICATION": {
+      "precision": 0.5,
+      "recall": 0.375,
+      "f1-score": 0.42857142857142855,
+      "support": 8.0
+    },
+    "DISPONIBILITE": {
+      "precision": 0.45454545454545453,
+      "recall": 0.4166666666666667,
+      "f1-score": 0.43478260869565216,
+      "support": 12.0
+    },
+    "INFO_GENERALE": {
+      "precision": 0.3,
+      "recall": 0.2727272727272727,
+      "f1-score": 0.2857142857142857,
+      "support": 11.0
+    },
+    "LIVRAISON": {
+      "precision": 0.5333333333333333,
+      "recall": 0.5333333333333333,
+      "f1-score": 0.5333333333333333,
+      "support": 15.0
+    },
+    "PAIEMENT": {
+      "precision": 0.9166666666666666,
+      "recall": 0.7857142857142857,
+      "f1-score": 0.8461538461538461,
+      "support": 14.0
+    },
+    "PRIX_PROMO": {
+      "precision": 0.5714285714285714,
+      "recall": 0.5714285714285714,
+      "f1-score": 0.5714285714285714,
+      "support": 14.0
+    },
+    "PROBLEME": {
+      "precision": 0.36363636363636365,
+      "recall": 0.2857142857142857,
+      "f1-score": 0.32,
+      "support": 14.0
+    },
+    "RECHERCHE_PRODUIT": {
+      "precision": 0.3157894736842105,
+      "recall": 0.42857142857142855,
+      "f1-score": 0.36363636363636365,
+      "support": 14.0
+    },
+    "SALUT": {
+      "precision": 0.8787878787878788,
+      "recall": 0.8055555555555556,
+      "f1-score": 0.8405797101449275,
+      "support": 36.0
+    },
+    "SUIVI": {
+      "precision": 0.29411764705882354,
+      "recall": 0.3125,
+      "f1-score": 0.30303030303030304,
+      "support": 16.0
+    },
+    "accuracy": 0.5617977528089888,
+    "macro avg": {
+      "precision": 0.5273587824284418,
+      "recall": 0.5248084091834092,
+      "f1-score": 0.5218662738227956,
+      "support": 178.0
+    },
+    "weighted avg": {
+      "precision": 0.5721465533689418,
+      "recall": 0.5617977528089888,
+      "f1-score": 0.5634144084217362,
+      "support": 178.0
+    }
+  },
+  "confusion_matrix": [
+    [
+      9,
+      1,
+      1,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      1,
+      0,
+      0
+    ],
+    [
+      1,
+      9,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      1,
+      0,
+      0
+    ],
+    [
+      0,
+      0,
+      3,
+      0,
+      1,
+      0,
+      0,
+      0,
+      1,
+      0,
+      1,
+      2
+    ],
+    [
+      0,
+      1,
+      0,
+      5,
+      0,
+      1,
+      0,
+      1,
+      2,
+      2,
+      0,
+      0
+    ],
+    [
+      1,
+      1,
+      0,
+      1,
+      3,
+      1,
+      0,
+      0,
+      0,
+      2,
+      1,
+      1
+    ],
+    [
+      0,
+      0,
+      0,
+      0,
+      1,
+      8,
+      0,
+      1,
+      0,
+      0,
+      1,
+      4
+    ],
+    [
+      0,
+      0,
+      0,
+      0,
+      1,
+      0,
+      11,
+      0,
+      1,
+      0,
+      0,
+      1
+    ],
+    [
+      1,
+      0,
+      2,
+      0,
+      0,
+      0,
+      1,
+      8,
+      1,
+      0,
+      1,
+      0
+    ],
+    [
+      2,
+      0,
+      0,
+      0,
+      0,
+      1,
+      0,
+      1,
+      4,
+      4,
+      0,
+      2
+    ],
+    [
+      0,
+      3,
+      0,
+      0,
+      1,
+      0,
+      0,
+      3,
+      1,
+      6,
+      0,
+      0
+    ],
+    [
+      0,
+      0,
+      0,
+      2,
+      1,
+      0,
+      0,
+      0,
+      0,
+      2,
+      29,
+      2
+    ],
+    [
+      1,
+      0,
+      0,
+      2,
+      2,
+      4,
+      0,
+      0,
+      1,
+      1,
+      0,
+      5
+    ]
+  ],
+  "errors": [
+    {
+      "text": "Prochaine arrivage ?",
+      "true_intent": "DISPONIBILITE",
+      "predicted_intent": "RECHERCHE_PRODUIT",
+      "confidence": 0.1676620690256321
+    },
+    {
+      "text": "Boutique physique ?",
+      "true_intent": "INFO_GENERALE",
+      "predicted_intent": "CATALOGUE",
+      "confidence": 0.1893456317868206
+    },
+    {
+      "text": "Horaires d'ouverture ?",
+      "true_intent": "INFO_GENERALE",
+      "predicted_intent": "SUIVI",
+      "confidence": 0.15354710756419976
+    },
+    {
+      "text": "Prochaine disponibilité",
+      "true_intent": "DISPONIBILITE",
+      "predicted_intent": "RECHERCHE_PRODUIT",
+      "confidence": 0.19985928720835816
+    },
+    {
+      "text": "Tenez-moi [PRODUIT]",
+      "true_intent": "ACHAT_COMMANDE",
+      "predicted_intent": "RECHERCHE_PRODUIT",
+      "confidence": 0.28318179093500145
+    },
+    {
+      "text": "Trop cher",
+      "true_intent": "PRIX_PROMO",
+      "predicted_intent": "CLARIFICATION",
+      "confidence": 0.2919592265623581
+    },
+    {
+      "text": "Au revoir",
+      "true_intent": "SALUT",
+      "predicted_intent": "SUIVI",
+      "confidence": 0.2032136681882859
+    },
+    {
+      "text": "Suivi de commande",
+      "true_intent": "SUIVI",
+      "predicted_intent": "ACHAT_COMMANDE",
+      "confidence": 0.2718578820315559
+    },
+    {
+      "text": "Avec plaisir",
+      "true_intent": "SALUT",
+      "predicted_intent": "DISPONIBILITE",
+      "confidence": 0.13189784884278521
+    },
+    {
+      "text": "Livraison fournisseur prévue ?",
+      "true_intent": "DISPONIBILITE",
+      "predicted_intent": "LIVRAISON",
+      "confidence": 0.32313919160759735
+    },
+    {
+      "text": "Merci infiniment",
+      "true_intent": "SALUT",
+      "predicted_intent": "RECHERCHE_PRODUIT",
+      "confidence": 0.23271334890041384
+    },
+    {
+      "text": "Dimensions disponibles",
+      "true_intent": "RECHERCHE_PRODUIT",
+      "predicted_intent": "CATALOGUE",
+      "confidence": 0.23874905069853194
+    },
+    {
+      "text": "Tarif",
+      "true_intent": "PRIX_PROMO",
+      "predicted_intent": "SALUT",
+      "confidence": 0.19095410207137942
+    },
+    {
+      "text": "Produit abîmé",
+      "true_intent": "PROBLEME",
+      "predicted_intent": "RECHERCHE_PRODUIT",
+      "confidence": 0.16668216857858728
+    },
+    {
+      "text": "Montant",
+      "true_intent": "PRIX_PROMO",
+      "predicted_intent": "PROBLEME",
+      "confidence": 0.11729779808162322
+    },
+    {
+      "text": "Vous livrez où ?",
+      "true_intent": "LIVRAISON",
+      "predicted_intent": "SUIVI",
+      "confidence": 0.2536779464210332
+    },
+    {
+      "text": "Sur votre page",
+      "true_intent": "RECHERCHE_PRODUIT",
+      "predicted_intent": "INFO_GENERALE",
+      "confidence": 0.20822901563869775
+    },
+    {
+      "text": "Produit incorrect",
+      "true_intent": "PROBLEME",
+      "predicted_intent": "RECHERCHE_PRODUIT",
+      "confidence": 0.27361024994920446
+    },
+    {
+      "text": "Horaires de la boutique ?",
+      "true_intent": "INFO_GENERALE",
+      "predicted_intent": "LIVRAISON",
+      "confidence": 0.21602089914269432
+    },
+    {
+      "text": "Reçu transaction",
+      "true_intent": "PAIEMENT",
+      "predicted_intent": "PROBLEME",
+      "confidence": 0.258533963391827
+    }
+  ],
+  "n_train_samples": 178,
+  "n_errors": 78,
+  "timestamp": "2025-12-06T15:35:03.871292",
+  "version": "v1"
+}

@@ -65,11 +65,34 @@ class InterventionGuardian:
             try:
                 decision = json.loads(response_text)
             except Exception as parse_err:
-                logger.error("[INTERVENTION_GUARDIAN] Erreur parsing JSON LLM: %s", parse_err)
-                merged = dict(base_decision)
-                if usage:
-                    merged["_llm_usage"] = usage
-                return merged
+                # Fallback: essayer d'extraire un bloc JSON au milieu d'un texte plus large
+                snippet = (response_text or "").strip()
+                start = snippet.find("{")
+                end = snippet.rfind("}")
+                if start != -1 and end != -1 and end > start:
+                    candidate = snippet[start : end + 1]
+                    try:
+                        decision = json.loads(candidate)
+                    except Exception as parse_err2:
+                        logger.error(
+                            "[INTERVENTION_GUARDIAN] Erreur parsing JSON LLM (fallback) : %s | snippet=%r",
+                            parse_err2,
+                            snippet[:400],
+                        )
+                        merged = dict(base_decision)
+                        if usage:
+                            merged["_llm_usage"] = usage
+                        return merged
+                else:
+                    logger.error(
+                        "[INTERVENTION_GUARDIAN] Erreur parsing JSON LLM: %s | snippet=%r",
+                        parse_err,
+                        snippet[:400],
+                    )
+                    merged = dict(base_decision)
+                    if usage:
+                        merged["_llm_usage"] = usage
+                    return merged
 
             if not isinstance(decision, dict):
                 merged = dict(base_decision)

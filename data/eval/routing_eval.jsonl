@@ -1,0 +1,30 @@
+{"text": "Où est ma livraison ?", "intent_id": 9}
+{"text": "Ma livraison en est où ?", "intent_id": 9}
+{"text": "Je veux des infos sur la livraison à Koumassi", "intent_id": 9}
+{"text": "Comment se passe la livraison pour Cocody ?", "intent_id": 9}
+{"text": "La livraison à Yopougon c'est combien ?", "intent_id": 9}
+{"text": "Je voudrais connaître les frais de livraison pour Abobo", "intent_id": 9}
+{"text": "Je veux changer l'adresse de livraison", "intent_id": 9}
+{"text": "Vous livrez à l'intérieur du pays ?", "intent_id": 9}
+{"text": "Expliquez-moi comment fonctionne la livraison", "intent_id": 9}
+
+{"text": "Je n'ai pas encore reçu ma commande", "intent_id": 11}
+{"text": "Ma commande est où maintenant ?", "intent_id": 11}
+{"text": "Je veux savoir où est arrivé le colis", "intent_id": 11}
+{"text": "Toujours pas reçu les 6 paquets de couches adultes", "intent_id": 11}
+{"text": "Je veux suivre ma commande en cours", "intent_id": 11}
+{"text": "Vous avez déjà envoyé ma commande ?", "intent_id": 11}
+{"text": "Je veux savoir si ma commande est partie", "intent_id": 11}
+{"text": "Le livreur m'a pas encore appelé", "intent_id": 11}
+
+{"text": "Je voudrais commander un lot de couches", "intent_id": 8}
+{"text": "Je veux passer une commande de couches adultes", "intent_id": 8}
+{"text": "Je veux annuler ma commande", "intent_id": 8}
+
+{"text": "Je veux faire une réclamation sur ma commande", "intent_id": 12}
+{"text": "Il y a un problème avec ce que j'ai reçu", "intent_id": 12}
+{"text": "Je ne suis pas satisfait de la commande", "intent_id": 12}
+
+{"text": "Vous êtes situés où exactement ?", "intent_id": 2}
+{"text": "Je veux votre adresse exacte", "intent_id": 2}
+{"text": "Où se trouvent vos locaux ?", "intent_id": 2}

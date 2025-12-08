@@ -1,0 +1,27 @@
+# 120 Questions → Réponses LLM (extrait du JSON batch)
+
+1. Bonjour → Bonjour, Comment puis-je vous aider ?
+2. Salut comment allez-vous → Bonjour, comment puis-je vous aider aujourd'hui ?
+3. Bonsoir j'espère que vous allez bien → Bonsoir, merci de votre message ! Comment puis-je vous aider ce soir ?
+4. Bjr madame désolé du dérangement → Bonjour, comment puis-je vous aider aujourd'hui ?
+5. Hey j'espère que tout va bien de votre côté → Tout va bien, merci ! Comment puis-je vous aider aujourd'hui ?
+6. Yo c'est comment là → Bonjour ! Comment puis-je vous aider aujourd'hui ?
+7. Bonjour pardon de vous déranger à cette heure → Bonjour, comment puis-je vous aider à cette heure ? Vous avez une question ou besoin d'informations sur nos produits ?
+8. Salut j'espère la famille va bien → Salut, tout va bien merci ! Comment puis-je vous aider aujourd'hui?
+9. Bondjour coment sa va → Bonjour, comment puis-je vous aider ?
+10. Merci beaucoup pour votre aide → De rien, j'espère que vous avez trouvé ce que vous cherchiez. Autre chose?
+11. Vous êtes situés où exactement → [XML MAL FORMÉ] <thinking>intent=loc | etat=1/4 | action=répondre</thinking> Nous sommes une boutique 100% en ligne à Abidjan. Pouvez-vous me dire si vous avez besoin d'informations sur une commande ou sur notre zone de livraison ?
+12. C'est quoi votre adresse svp → Nous sommes une boutique 100% en ligne à Abidjan. Pouvez-vous me dire si vous avez besoin d'informations sur nos produits ou sur notre processus de livraison ?
+13. Vous ouvrez à quelle heure le matin → Nous sommes une boutique en ligne, donc nous sommes ouverts 24h/24. Puis-je vous aider avec une commande ou des informations sur nos produits ?
+14. Vous êtes ouvert le dimanche → Nous sommes une boutique en ligne, donc nous sommes ouverts tous les jours, y compris le dimanche. Puis-je vous aider avec une commande ou des informations sur nos produits ?
+15. Comment je peux vous joindre → Nous sommes joignables en ligne, et vous pouvez nous contacter au +225 0787360757. Comment puis-je vous aider aujourd'hui ?
+16. Quel est votre numéro WhatsApp → Nous sommes joignables au +225 0787360757 sur WhatsApp. Comment puis-je vous aider aujourd'hui ?
+17. Vous êtes à quel quartier d'Abidjan → Nous sommes une boutique en ligne basée à Abidjan. Avez-vous besoin d'informations sur une commande ou sur nos produits ?
+18. Jusqu'à quelle heure vous fermez → Nous sommes une boutique en ligne, donc nous sommes ouverts 24/7. Puis-je vous aider avec une commande ou des informations sur nos produits ?
+19. Depuis quand vous existez → Nous sommes présents en ligne depuis quelques années. Pouvez-vous me dire ce que vous cherchez en particulier sur notre plateforme de vente en ligne à Abidjan ?
+20. C'est où votre boutique exactement → Nous sommes une boutique 100% en ligne à Abidjan. Comment puis-je vous aider aujourd'hui ?
+
+[... 100 autres questions/réponses dans le JSON complet ...]
+
+Note : Pour les 120 questions complètes, voir le fichier JSON :
+C:\Users\hp\Documents\ZETA APP\chatbot\CHATBOT2.0\results\botlive_llm_eval_12_20251207_180459.json

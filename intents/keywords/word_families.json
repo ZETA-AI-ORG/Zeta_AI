@@ -1,0 +1,268 @@
+{
+  "metadata": {
+    "min_word_freq": 3,
+    "similarity_threshold": 0.75
+  },
+  "families_by_intent": {
+    "PRIX_PROMO": [
+      {
+        "canonical": "taille",
+        "variants": [],
+        "total_frequency": 20,
+        "family_size": 1
+      },
+      {
+        "canonical": "paquet",
+        "variants": [
+          "paquets"
+        ],
+        "total_frequency": 18,
+        "family_size": 2
+      },
+      {
+        "canonical": "fcfa",
+        "variants": [],
+        "total_frequency": 15,
+        "family_size": 1
+      },
+      {
+        "canonical": "lot",
+        "variants": [],
+        "total_frequency": 9,
+        "family_size": 1
+      },
+      {
+        "canonical": "couches",
+        "variants": [],
+        "total_frequency": 7,
+        "family_size": 1
+      },
+      {
+        "canonical": "gros",
+        "variants": [],
+        "total_frequency": 4,
+        "family_size": 1
+      },
+      {
+        "canonical": "prix",
+        "variants": [],
+        "total_frequency": 4,
+        "family_size": 1
+      },
+      {
+        "canonical": "lieu",
+        "variants": [],
+        "total_frequency": 3,
+        "family_size": 1
+      }
+    ],
+    "RECHERCHE_PRODUIT": [
+      {
+        "canonical": "taille",
+        "variants": [],
+        "total_frequency": 10,
+        "family_size": 1
+      },
+      {
+        "canonical": "couches",
+        "variants": [],
+        "total_frequency": 9,
+        "family_size": 1
+      },
+      {
+        "canonical": "lot",
+        "variants": [],
+        "total_frequency": 7,
+        "family_size": 1
+      },
+      {
+        "canonical": "fcfa",
+        "variants": [],
+        "total_frequency": 6,
+        "family_size": 1
+      },
+      {
+        "canonical": "paquets",
+        "variants": [],
+        "total_frequency": 5,
+        "family_size": 1
+      },
+      {
+        "canonical": "culotte",
+        "variants": [],
+        "total_frequency": 4,
+        "family_size": 1
+      },
+      {
+        "canonical": "pression",
+        "variants": [],
+        "total_frequency": 4,
+        "family_size": 1
+      },
+      {
+        "canonical": "tout",
+        "variants": [],
+        "total_frequency": 3,
+        "family_size": 1
+      },
+      {
+        "canonical": "merci",
+        "variants": [],
+        "total_frequency": 3,
+        "family_size": 1
+      },
+      {
+        "canonical": "quel",
+        "variants": [],
+        "total_frequency": 3,
+        "family_size": 1
+      }
+    ],
+    "SALUT": [
+      {
+        "canonical": "bonjour",
+        "variants": [],
+        "total_frequency": 13,
+        "family_size": 1
+      },
+      {
+        "canonical": "mme",
+        "variants": [],
+        "total_frequency": 12,
+        "family_size": 1
+      },
+      {
+        "canonical": "bonsoir",
+        "variants": [],
+        "total_frequency": 8,
+        "family_size": 1
+      },
+      {
+        "canonical": "couches",
+        "variants": [],
+        "total_frequency": 5,
+        "family_size": 1
+      },
+      {
+        "canonical": "allez",
+        "variants": [],
+        "total_frequency": 4,
+        "family_size": 1
+      },
+      {
+        "canonical": "oui",
+        "variants": [],
+        "total_frequency": 3,
+        "family_size": 1
+      }
+    ],
+    "LIVRAISON": [
+      {
+        "canonical": "couches",
+        "variants": [],
+        "total_frequency": 6,
+        "family_size": 1
+      },
+      {
+        "canonical": "livraison",
+        "variants": [],
+        "total_frequency": 5,
+        "family_size": 1
+      },
+      {
+        "canonical": "lot",
+        "variants": [],
+        "total_frequency": 4,
+        "family_size": 1
+      },
+      {
+        "canonical": "paquets",
+        "variants": [],
+        "total_frequency": 4,
+        "family_size": 1
+      },
+      {
+        "canonical": "mais",
+        "variants": [],
+        "total_frequency": 4,
+        "family_size": 1
+      },
+      {
+        "canonical": "oui",
+        "variants": [],
+        "total_frequency": 3,
+        "family_size": 1
+      },
+      {
+        "canonical": "bonjour",
+        "variants": [],
+        "total_frequency": 3,
+        "family_size": 1
+      },
+      {
+        "canonical": "mois",
+        "variants": [],
+        "total_frequency": 3,
+        "family_size": 1
+      }
+    ],
+    "SUIVI": [
+      {
+        "canonical": "pas",
+        "variants": [],
+        "total_frequency": 4,
+        "family_size": 1
+      },
+      {
+        "canonical": "oui",
+        "variants": [],
+        "total_frequency": 4,
+        "family_size": 1
+      },
+      {
+        "canonical": "merci",
+        "variants": [],
+        "total_frequency": 3,
+        "family_size": 1
+      },
+      {
+        "canonical": "livreur",
+        "variants": [],
+        "total_frequency": 3,
+        "family_size": 1
+      },
+      {
+        "canonical": "reviens",
+        "variants": [],
+        "total_frequency": 3,
+        "family_size": 1
+      }
+    ],
+    "CATALOGUE": [
+      {
+        "canonical": "couches",
+        "variants": [],
+        "total_frequency": 6,
+        "family_size": 1
+      },
+      {
+        "canonical": "disponible",
+        "variants": [],
+        "total_frequency": 3,
+        "family_size": 1
+      },
+      {
+        "canonical": "pression",
+        "variants": [],
+        "total_frequency": 3,
+        "family_size": 1
+      },
+      {
+        "canonical": "culottes",
+        "variants": [],
+        "total_frequency": 3,
+        "family_size": 1
+      }
+    ]
+  }
+}

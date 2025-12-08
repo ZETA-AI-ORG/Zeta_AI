@@ -1,5 +1,12 @@
 import asyncio
 import os
+import sys
+
+# Ensure project root on sys.path to allow 'core' imports when running directly
+_THIS_DIR = os.path.dirname(__file__)
+_ROOT_DIR = os.path.abspath(os.path.join(_THIS_DIR, ".."))
+if _ROOT_DIR not in sys.path:
+    sys.path.insert(0, _ROOT_DIR)
 
 os.environ.setdefault("BOTLIVE_ROUTER_EMBEDDINGS_ENABLED", "true")
 os.environ.setdefault("BOTLIVE_V18_ENABLED", "false")
@@ -11,6 +18,15 @@ from database.supabase_client import get_botlive_prompt
 
 TEST_COMPANY_ID = "W27PwOPiblP8TlOrhPcjOtxd0cza"
 TEST_USER_ID = "test_isolated_botlive_router_llm"
+
+TEST_QUESTIONS = [
+    "Salut",
+    "Bjr",
+    "Salut vous êtes situés où ?",
+    "Bjr c'est combien ?",
+    "Hey je veux commander",
+    "Bonjour j'ai pas encore reçu ma commande",
+]
 
 # ==============================================================================
 # PARAMÈTRES LLM OPTIMISÉS PAR MODE
@@ -40,7 +56,33 @@ LLM_CONFIGS = {
 
 
 async def main():
-    question = input("Question à tester (Botlive): ") or "vous êtes situés où ?"
+    question = input("Question à tester (Botlive) ou 'all' pour suite de tests: ") or "vous êtes situés où ?"
+
+    if question.strip().lower() == "all":
+        print("\n=== MODE SUITE TESTS ROUTER SEUL (pas d'appel LLM) ===")
+        conversation_history = ""
+        for q in TEST_QUESTIONS:
+            print("\n--- TEST ---")
+            print("QUESTION:", q)
+            routing = await route_botlive_intent(
+                company_id=TEST_COMPANY_ID,
+                user_id=TEST_USER_ID,
+                message=q,
+                conversation_history=conversation_history,
+                state_compact={
+                    "photo_collected": False,
+                    "paiement_collected": False,
+                    "zone_collected": False,
+                    "tel_collected": False,
+                    "tel_valide": False,
+                    "collected_count": 0,
+                    "is_complete": False,
+                },
+            )
+            print(
+                f"intent={routing.intent} | mode={routing.mode} | missing={routing.missing_fields} | score={routing.confidence:.2f}"
+            )
+        return
 
     print("\n=== ETAPE 1: ROUTER EMBEDDINGS ===")
     conversation_history = ""

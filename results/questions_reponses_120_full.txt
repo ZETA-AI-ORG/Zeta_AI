@@ -1,0 +1,120 @@
+1. Bonjour -> Bonjour, comment puis-je vous aider ?
+2. Salut comment allez-vous -> Bonjour, comment puis-je vous aider ?
+3. Bonsoir j'espère que vous allez bien -> Bonsoir, tout va bien merci ! Comment puis-je vous aider?
+4. Bjr madame désolé du dérangement -> Bonjour, comment puis-je vous aider ?
+5. Hey j'espère que tout va bien de votre côté -> Bonjour, tout va bien ici. Comment puis-je vous aider aujourd'hui?
+6. Yo c'est comment là -> Bonjour, comment puis-je vous aider ?
+7. Bonjour pardon de vous déranger à cette heure -> Bonjour, comment puis-je vous aider ?
+8. Salut j'espère la famille va bien -> Bonjour, la famille va bien, merci ! Comment puis-je vous aider aujourd'hui?
+9. Bondjour coment sa va -> Bonjour, comment puis-je vous aider ? Nous sommes une boutique 100% en ligne à Abidjan.
+10. Merci beaucoup pour votre aide -> De rien, j'espère que vous avez trouvé ce que vous cherchiez. Autre chose pour lequel je peux vous aider ?
+11. Vous êtes situés où exactement -> Nous sommes une boutique 100% en ligne à Abidjan. Comment puis-je vous aider?
+12. C'est quoi votre adresse svp -> Nous sommes une boutique 100% en ligne à Abidjan. Pouvez-vous préciser si vous cherchez des informations sur une commande ou sur notre zone de livraison ?
+13. Vous ouvrez à quelle heure le matin -> Nous sommes une boutique en ligne, nous n'avons donc pas d'heures d'ouverture classiques. Comment puis-je vous aider?
+14. Vous êtes ouvert le dimanche -> Nous sommes une boutique en ligne, donc nous sommes ouverts 7 jours sur 7, y compris le dimanche. Pouvez-vous me dire ce que vous cherchez ?
+15. Comment je peux vous joindre -> Nous sommes joignables en ligne, et pour tout achat, un dépôt de 2000 FCFA est requis via Wave, suivi de l'envoi d'une photo de la transaction. Vous pouvez nous contacter au +225 0787360757 pour plus d'informations. Pouvez-vous me dire si vous avez déjà effectué un achat en ligne chez nous ?
+16. Quel est votre numéro WhatsApp -> Nous sommes joignables au +225 0787360757. Comment puis-je vous aider aujourd'hui ?
+17. Vous êtes à quel quartier d'Abidjan -> Nous sommes une boutique 100% en ligne à Abidjan. En quoi puis-je vous assister?
+18. Jusqu'à quelle heure vous fermez -> <thinking>intent=Question | etat=2/4 | action=répondre</thinking>   Nous sommes une boutique en ligne, donc nous sommes ouverts 24h/24. Pouvez-vous préciser si vous avez besoin d'informations sur nos produits ou notre processus de commande ?
+19. Depuis quand vous existez -> Nous sommes une boutique en ligne créée récemment. Pouvez-vous me dire ce qui vous amène à nous aujourd'hui ?
+20. C'est où votre boutique exactement -> Nous sommes une boutique 100% en ligne à Abidjan. Pouvez-vous me dire si vous avez besoin d'informations sur une commande ou des informations sur une zone spécifique ?
+21. Vous avez quel type de produits -> On propose des couches pour bébés. Vous avez repéré un produit pendant le live ?
+22. C'est quoi les caractéristiques -> Je m'occupe uniquement d'enregistrer les commandes. Pour les conseils techniques, le live ou le +225 0787360757 pourront mieux vous aider.
+23. Il y a combien de modèles disponibles -> Je m'occupe d'enregistrer les commandes. Pour les modèles disponibles, posez la question sur le live directement.
+24. Vous vendez quelle marque -> On propose des couches pour bébés. Vous avez repéré un produit pendant le live ?
+25. Quelle est la taille exacte -> Mon périmètre c'est la finalisation des achats. Les détails techniques sont sur le live ou contactez le +225 0787360757.
+26. C'est disponible en quelle couleur -> Je gère l'enregistrement des achats uniquement. Checke la dispo sur le live, je t'attends pour finaliser.
+27. Le produit fait combien de grammes -> Je m'occupe uniquement d'enregistrer les commandes. Pour les conseils techniques, le live ou le +225 0787360757 pourront mieux vous aider.
+28. C'est pour quel âge ce produit -> Je m'occupe uniquement d'enregistrer les commandes. Pour les conseils techniques, le live ou le +225 0787360757 pourront mieux vous aider.
+29. Vous avez la référence du produit -> Je gère les commandes uniquement. Pour les références produit, le live ou le +225 0787360757 pourront vous renseigner.
+30. C'est fabriqué où -> Je m'occupe uniquement d'enregistrer les commandes. Pour les conseils techniques, le live ou le +225 0787360757 pourront mieux vous aider.
+31. La composition c'est quoi -> Je m'occupe uniquement d'enregistrer les commandes. Pour les conseils techniques, le live ou le +225 0787360757 pourront mieux vous aider.
+32. Il y a une garantie avec -> Je m'occupe uniquement d'enregistrer les commandes. Pour les conseils techniques, le live ou le +225 0787360757 pourront mieux vous aider.
+33. C'est combien -> Je m'occupe d'enregistrer les commandes 📸💳📍📞. Pour les prix, posez la question sur le live directement.
+34. Quel est le prix svp -> Je m'occupe d'enregistrer les commandes 📸💳📍📞. Pour les prix, posez la question sur le live directement.
+35. Ça coûte combien exactement -> Je m'occupe d'enregistrer les commandes 📸💳📍📞. Pour les prix, posez la question sur le live directement.
+36. Le tarif c'est combien -> Je m'occupe d'enregistrer les commandes 📸💳📍📞. Pour les prix, posez la question sur le live directement.
+37. Vous faites combien pour ce produit -> Je m'occupe d'enregistrer les commandes 📸💳📍📞. Pour les prix, posez la question sur le live directement.
+38. C'est à combien le paquet -> Je m'occupe d'enregistrer les commandes 📸💳📍📞. Pour les prix, posez la question sur le live directement.
+39. Le prix unitaire c'est quoi -> Je m'occupe d'enregistrer les commandes 📸💳📍📞. Pour les prix, posez la question sur le live directement.
+40. Vous avez des promotions en ce moment -> Je collecte les commandes post-live. Les promos sont annoncées pendant le live en direct.
+41. Il y a une réduction si j'achète beaucoup -> Je collecte les commandes post-live. Les promos sont annoncées pendant le live en direct.
+42. C'est en solde actuellement -> Je collecte les commandes post-live. Les promos sont annoncées pendant le live en direct.
+43. Vous faites des remises -> Je collecte les commandes post-live. Les promos sont annoncées pendant le live en direct.
+44. Combien je vais payer au total -> Je m'occupe d'enregistrer les commandes 📸💳📍📞. Pour les prix, posez la question sur le live directement.
+45. Le prix a augmenté ou pas -> Je m'occupe d'enregistrer les commandes 📸💳📍📞. Pour les prix, posez la question sur le live directement.
+46. C'est le même prix partout -> Je m'occupe d'enregistrer les commandes. Pour les prix, posez la question sur le live directement.
+47. Vous avez un prix gros -> Je m'occupe d'enregistrer les commandes 📸💳📍📞. Pour les prix, posez la question sur le live directement.
+48. C'est disponible maintenant -> Je gère l'enregistrement des achats uniquement. Checke la dispo sur le live, je t'attends pour finaliser.
+49. Vous avez en stock -> Je gère l'enregistrement des achats uniquement. Checke la dispo sur le live, je t'attends pour finaliser.
+50. Il en reste combien -> Je gère l'enregistrement des achats uniquement. Checke la dispo sur le live, je t'attends pour finaliser.
+51. C'est dispo pour aujourd'hui -> Je gère l'enregistrement des achats uniquement. Checke la dispo sur le live, je t'attends pour finaliser.
+52. Vous avez le produit X en stock -> Je gère l'enregistrement des achats uniquement. Checke la dispo sur le live, je t'attends pour finaliser.
+53. C'est en rupture ou pas -> Je gère l'enregistrement des achats uniquement. Checke la dispo sur le live, je t'attends pour finaliser.
+54. Vous n'avez plus ce modèle -> Je m'occupe uniquement d'enregistrer les commandes. Pour les conseils techniques, le live ou le +225 0787360757 pourront mieux vous aider.
+55. Quand ça revient en stock -> Je m'occupe d'enregistrer les commandes. Pour le stock en direct, vérifiez sur le live puis revenez finaliser avec moi.
+56. Il reste des paquets -> Je gère l'enregistrement des achats uniquement. Checke la dispo sur le live, je t'attends pour finaliser.
+57. Vous avez combien de pièces disponibles -> Je m'occupe d'enregistrer les commandes 📸💳📍📞. Pour le stock en direct, vérifiez sur le live puis revenez finaliser avec moi.
+58. Je veux commander -> Pour commencer votre commande, j'aurais besoin d'une photo du produit que vous souhaitez commander. Pouvez-vous me l'envoyer, svp ?
+59. Je voudrais acheter 5 paquets -> J'aurais besoin d'une photo du produit que vous souhaitez acheter, svp.
+60. Comment je fais pour passer commande -> Pour commencer votre commande, j'aurais besoin d'une photo du produit que vous souhaitez commander, svp.
+61. Je prends 3 unités -> Vous avez demandé 3 unités. Pour traiter votre commande, j'aurais besoin d'une photo du produit que vous souhaitez commander (capture live ou photo claire), svp.
+62. Mets-moi 2 paquets svp -> Pour votre commande de 2 paquets, j'aurais besoin d'une photo du produit que vous souhaitez commander, svp.
+63. Je veux acheter ce produit -> Pour valider votre commande, j'aurais besoin d'une photo du produit que vous souhaitez acheter (capture live ou photo claire), svp.
+64. Envoie-moi 10 pièces -> Pour commencer, j'aurais besoin d'une photo du produit que vous souhaitez commander (capture live ou photo claire), svp.
+65. Je commande pour demain -> Pour démarrer votre commande pour demain, j'aurais besoin d'une photo du produit que vous souhaitez commander (capture live ou photo claire), svp.
+66. Garde-moi 4 paquets -> Pour commencer, j'aurais besoin d'une photo du produit que vous souhaitez commander, svp.
+67. Je réserve 2 articles -> Pour réserver 2 articles, j'aurais besoin d'une photo des produits que vous souhaitez commander (capture live ou photo claire), svp.
+68. Comment passer ma commande -> Pour passer commande, il faut d’abord avoir une photo du produit que vous souhaitez commander. Pouvez-vous m’envoyer la photo du produit, svp ?
+69. Je souhaite commander maintenant -> Bien, j'aurais besoin d'une photo du produit que vous souhaitez commander (capture live ou photo claire), svp.
+70. Je veux modifier ma commande -> Pour modifier votre commande, il est nécessaire de vérifier certains détails. Un instant, un collègue va reprendre avec vous pour mieux vous aider.
+71. Je veux annuler ma commande svp -> Je comprends que vous souhaitez annuler votre commande. Un instant, un collègue va reprendre avec vous pour mieux vous aider.
+72. Changer la quantité de ma commande -> Pour changer la quantité de votre commande, un instant, un collègue va reprendre avec vous pour mieux vous aider. 😊
+73. Ajouter 2 paquets à ma commande -> Pour ajouter 2 paquets à votre commande, j'aurais besoin d'une photo du produit (capture live ou photo claire), svp.
+74. Enlever un article de la commande -> Pour traiter votre demande de suppression d'un article, un collègue doit vérifier. Un instant, il va reprendre avec vous.
+75. Je ne veux plus la commande -> Pour traiter votre demande d'annulation, un collègue va reprendre avec vous.
+76. Supprimer ma commande d'hier -> Je comprends que vous souhaitez annuler votre commande. Un instant, un collègue va reprendre avec vous pour mieux vous aider.
+77. Modifier ce que j'ai commandé hier -> Pour modifier votre commande, un collègue doit vérifier. Un instant, il va reprendre avec vous.
+78. Comment je paye -> Oui, nous acceptons le paiement via Wave au 0787360757. Pour commander, envoyez-moi la photo du produit.
+79. Quel est le mode de paiement -> Oui, nous acceptons le paiement via Wave au 0787360757. Pour commander, envoyez-moi la photo du produit.
+80. Vous acceptez Mobile Money -> Oui, nous acceptons Mobile Money via Wave au 0787360757. Pour valider, faites le dépôt de 2000 FCFA F, puis envoyez la capture et la photo du produit.
+81. Je peux payer en espèces -> Oui, paiement via Wave au 0787360757. Pour commander, envoyez-moi la photo du produit.
+82. Vous prenez Orange Money -> Oui, paiement via Wave au 0787360757. Pour commander, envoyez-moi la photo du produit.
+83. Paiement à la livraison c'est possible -> Oui, paiement à la livraison n'est pas possible. Pour valider votre commande, vous devez faire un dépôt de 2000 FCFA F via Wave au 0787360757, puis envoyez la capture et la photo du produit.
+84. Je veux une facture -> Pour vous fournir une facture, j'aurais besoin d'une photo du produit que vous souhaitez commander (capture live ou photo claire), svp.
+85. Vous acceptez MTN Money -> Oui, nous acceptons MTN Money. Pour valider, faites le dépôt de 2000 FCFA F via Wave au 0787360757, puis envoyez la capture et la photo du produit.
+86. Vous livrez où -> Oui, nous livrons à Abidjan. Pour vous livrer, on a besoin de savoir où précisément (commune et quartier), svp ?
+87. Vous livrez à Yopougon -> Oui, nous livrons à Yopougon. Si vous souhaitez commander, envoyez-moi la photo du produit.
+88. La livraison prend combien de temps -> Oui, nous livrons à Abidjan. Pour commander, j'aurais besoin d'une photo du produit que vous souhaitez commander, svp.
+89. Ça arrive quand la livraison -> Oui, nous livrons à Abidjan. Pour commander, envoyez-moi la photo du produit.
+90. Les frais de livraison c'est combien -> Les frais de livraison varient selon votre zone à Abidjan. Pour commander, envoyez la photo du produit.
+91. La livraison est gratuite -> Les frais de livraison varient selon votre zone à Abidjan. Pour commander, envoyez la photo du produit.
+92. Vous livrez dans quel quartier -> Oui, nous livrons dans plusieurs quartiers d'Abidjan, mais pour vous donner une réponse précise, on vous livre où précisément (commune et quartier), svp ?
+93. Combien pour livrer à Cocody -> Oui, nous livrons à Cocody. Pour vous livrer, j'aurais besoin d'une photo du produit que vous souhaitez commander (capture live ou photo claire), svp.
+94. Vous livrez le weekend -> Oui, nous livrons le weekend. Pour commander, j'aurais besoin d'une photo du produit que vous souhaitez commander (capture live ou photo claire), svp.
+95. Quelles zones vous couvrez -> Oui, nous livrons à Abidjan. Pour vous livrer, on a besoin de savoir où précisément (commune et quartier), svp ?
+96. Je veux changer l'adresse de livraison -> Je comprends que vous souhaitez modifier l'adresse de livraison. Un instant, un collègue va reprendre avec vous pour mieux vous aider.
+97. Modifier l'adresse svp -> Je comprends que vous souhaitez modifier votre adresse, un instant, un collègue va reprendre avec vous pour mieux vous aider.
+98. Reporter la livraison à demain -> Pour reporter la livraison à demain, je vais noter cela. Pouvez-vous me confirmer votre zone de livraison précise (commune et quartier) pour que nous puissions organiser la livraison pour demain ?
+99. Changer la date de livraison -> Je comprends que vous souhaitez changer la date de livraison 😔. Un instant, un collègue va reprendre avec vous pour mieux vous aider.
+100. Livrer à une autre adresse -> Oui, nous livrons à d'autres adresses, mais pour cela, j'aurais besoin de savoir où précisément vous souhaitez que nous livrions (commune et quartier), svp ?
+101. Où est mon colis -> Je comprends votre inquiétude. Un instant, un collègue va reprendre avec vous pour mieux vous aider.
+102. Quand arrive ma commande -> Je comprends votre impatience pour recevoir votre commande. Un instant, un collègue va reprendre avec vous pour mieux vous aider.
+103. Le livreur est où exactement -> Je comprends que vous souhaitez connaître l'emplacement exact de votre livreur 😔. Un instant, un collègue va reprendre avec vous pour mieux vous aider.
+104. J'ai pas encore reçu ma commande -> Je comprends votre inquiétude. Un instant, un collègue va reprendre avec vous pour mieux vous aider.
+105. Quel est le statut de ma livraison -> Je comprends que vous avez des questions sur votre livraison. Un instant, un collègue va reprendre avec vous pour mieux vous aider.
+106. Ma commande a été expédiée -> Je comprends que vous vous inquiétez pour votre commande. Un instant, un collègue va reprendre avec vous pour mieux vous aider.
+107. C'est en cours de livraison -> Je comprends votre préoccupation. Un instant, un collègue va reprendre avec vous pour mieux vous aider.
+108. Toujours pas livré -> Je comprends que votre commande n'a pas été livrée, cela peut être frustrant 😔. Un instant, un collègue va reprendre avec vous pour mieux vous aider.
+109. Le suivi de ma commande svp -> Je comprends votre inquiétude concernant le suivi de votre commande. Un instant, un collègue va reprendre avec vous pour mieux vous aider.
+110. Ça n'est pas arrivé -> Je comprends que vous n'avez pas reçu votre commande, cela peut être inquiétant 😔. Un instant, un collègue va reprendre avec vous pour mieux vous aider.
+111. Salut j'espère que vous allez bien, c'est combien le paquet -> Je m'occupe d'enregistrer les commandes. Pour les prix, posez la question sur le live directement.
+112. Bonjour madame désolé du dérangement, vous livrez à Abobo -> Oui, nous livrons à Abobo. Pour commander, j'aurais besoin d'une photo du produit que vous souhaitez commander (capture live ou photo claire), svp.
+113. Bjr comment tu vas, c'est disponible en stock -> Je gère l'enregistrement des achats uniquement. Checke la dispo sur le live, je t'attends pour finaliser.
+114. Hey j'espère que tout va bien, je veux commander 5 paquets -> J'aurais besoin d'une photo du produit que vous souhaitez commander (capture live ou photo claire), svp.
+115. Yo la forme, où est mon colis svp -> Je comprends que vous attendez votre colis et que vous avez des inquiétudes. Un instant, un collègue va reprendre avec vous pour mieux vous aider.
+116. Bonjour pardon de te déranger, vous acceptez Mobile Money -> Oui, nous acceptons Mobile Money. Pour valider, faites le dépôt de 2000 FCFA F via Wave au 0787360757, puis envoyez la capture et la photo du produit.
+117. Salut ça dit quoi, quand ça arrive ma commande -> Je comprends que vous attendez votre commande et que vous vous inquiétez de son état. Un instant, un collègue va reprendre avec vous pour mieux vous aider.
+118. Bjr chef, je veux modifier ma commande d'hier -> Je comprends que vous souhaitez modifier votre commande d'hier. Un instant, un collègue va reprendre avec vous pour mieux vous aider.
+119. Bonjour j'espère la famille va bien, vous êtes situés où exactement -> Nous sommes une boutique 100% en ligne à Abidjan. Pouvez-vous me dire si vous avez besoin d'informations sur nos produits ou sur notre zone de livraison ?
+120. Salut pardon oh, les frais de livraison c'est combien -> Les frais de livraison varient selon votre zone à Abidjan. Pour commander, envoyez la photo du produit.

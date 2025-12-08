@@ -7,6 +7,9 @@ from typing import Dict, List
 
 import numpy as np
 import unicodedata
+import os
+
+from core.botlive_stopwords import extract_botlive_keywords
 
 try:
     from sentence_transformers import SentenceTransformer
@@ -17,8 +20,8 @@ except Exception:  # pragma: no cover
 logger = logging.getLogger(__name__)
 
 
-# Incrémentez cette version chaque fois que la logique de centroid change
-CACHE_VERSION = "v6-ivoire-extras-low-20251201"
+# Incrémentez cette version chaque fois que la logique de centroid ou des augmentations change
+CACHE_VERSION = "v8-shadow-augment-20251205b"
 
 
 @dataclass
@@ -58,6 +61,13 @@ class CentroidRouter:
             "combien", "pourquoi", "est-ce que", "c'est quoi", "qui", "quoi",
             "c ou", "c koi", "c combien"
         ]
+
+        # Keywords issus du Shadow (analyse offline) pour boosting lexical
+        self.intent_keywords_shadow: Dict[str, List[dict]] = self._load_intent_keywords_shadow()
+        # Mots-clés universels (cross-company) facultatifs
+        univ = self._load_universal_keywords()
+        if univ:
+            self.intent_keywords_shadow = self._merge_keywords_maps(self.intent_keywords_shadow, univ)
 
         logger.info("Initialisation du CentroidRouter")
         logger.info("Chargement du corpus depuis %s", self.corpus_path)
@@ -118,6 +128,7 @@ class CentroidRouter:
     # ---------------------------------------------------------------------
     def _build_centroids(self) -> Dict[int, IntentCentroid]:
         centroids: Dict[int, IntentCentroid] = {}
+        augment_map = self._load_shadow_augment()
 
         intents = self.corpus.get("intents", []) or []
         for intent_data in intents:
@@ -202,6 +213,30 @@ class CentroidRouter:
                 for vec, w in zip(parts, weights):
                     centroid_vec = centroid_vec + (vec * w)
                     total_w += w
+                # Intégration légère des exemples Shadow (si présents)
+                try:
+                    aug_texts = [
+                        v for v in (augment_map.get(str(intent_id)) or [])
+                        if isinstance(v, str) and v.strip()
+                    ]
+                    if aug_texts:
+                        def _mean_embed(texts: List[str]) -> np.ndarray | None:
+                            if not texts:
+                                return None
+                            arr = self.model.encode(texts, show_progress_bar=False, convert_to_numpy=True)
+                            return arr.mean(axis=0)
+                        vec_aug = _mean_embed(aug_texts[:80])
+                        if vec_aug is not None:
+                            # Poids faible pour ne pas diluer le centroid de base
+                            aug_w = 0.35 if intent_id in (9, 11) else 0.25
+                            # Normalisation L2
+                            norm_aug = float(np.linalg.norm(vec_aug))
+                            if norm_aug > 0:
+                                vec_aug = vec_aug / norm_aug
+                            centroid_vec = centroid_vec + (vec_aug * aug_w)
+                            total_w += aug_w
+                except Exception:
+                    pass
                 if total_w > 0:
                     centroid_vec = centroid_vec / total_w
 
@@ -227,6 +262,164 @@ class CentroidRouter:
             raise RuntimeError("Aucun centroid d'intent construit depuis le corpus")
 
         return centroids
+
+    # ---------------------------------------------------------------------
+    # Shadow augment loader
+    # ---------------------------------------------------------------------
+    def _load_shadow_augment(self) -> Dict[str, List[str]]:
+        """Charge un mapping facultatif intent_id -> exemples utilisateur (shadow).
+        Fichier attendu (override via env INTENT_AUGMENT_IN): intents/augment/shadow_augment.json
+        Format: {"9": ["...", ...], "11": ["...", ...]}
+        """
+        try:
+            p = Path(os.getenv("INTENT_AUGMENT_IN", "intents/augment/shadow_augment.json"))
+            if not p.exists():
+                return {}
+            with p.open("r", encoding="utf-8") as f:
+                data = json.load(f) or {}
+                # Sanitize
+                clean: Dict[str, List[str]] = {}
+                for k, arr in data.items():
+                    if not isinstance(arr, list):
+                        continue
+                    vals = []
+                    for s in arr:
+                        if isinstance(s, str):
+                            s2 = s.strip()
+                            if s2:
+                                vals.append(s2)
+                    if vals:
+                        clean[str(k)] = vals
+                if clean:
+                    logger.info("[CENTROID] Shadow augment chargé pour %d intents", len(clean))
+                return clean
+        except Exception:
+            return {}
+
+    def _load_universal_keywords(self) -> Dict[str, List[dict]]:
+        """Charge des mots-clés universels (cross-company) si disponibles.
+
+        Fichier attendu (override via env INTENT_UNIVERSAL_KEYWORDS_IN): intents/keywords/universal_keywords.json
+        Format: {"9": {"keywords": [{"word": "changer", "global_frequency": 12, "company_support": 3}, ...]}, ...}
+        Les champs sont mappés vers (word, frequency, specificity) pour réutiliser la même logique de boost.
+        """
+        try:
+            p = Path(os.getenv("INTENT_UNIVERSAL_KEYWORDS_IN", "intents/keywords/universal_keywords.json"))
+            if not p.exists():
+                return {}
+            with p.open("r", encoding="utf-8") as f:
+                raw = json.load(f) or {}
+            out: Dict[str, List[dict]] = {}
+            for k, v in raw.items():
+                if not isinstance(v, dict):
+                    continue
+                kw_list = v.get("keywords") or []
+                if not isinstance(kw_list, list):
+                    continue
+                entries: List[dict] = []
+                for item in kw_list:
+                    if not isinstance(item, dict):
+                        continue
+                    w = item.get("word")
+                    if not isinstance(w, str) or not w.strip():
+                        continue
+                    gf = item.get("global_frequency", 0)
+                    cs = item.get("company_support", 1)
+                    try:
+                        gf = int(gf)
+                    except Exception:
+                        gf = 0
+                    try:
+                        cs = float(cs)
+                    except Exception:
+                        cs = 1.0
+                    entries.append({
+                        "word": w.strip().lower(),
+                        "frequency": gf,
+                        # Utiliser le support comme proxy de spécificité cross-company
+                        "specificity": cs,
+                    })
+                if entries:
+                    out[str(k)] = entries
+            if out:
+                logger.info("[CENTROID] Universal keywords chargés pour %d intents", len(out))
+            return out
+        except Exception:
+            return {}
+
+    def _merge_keywords_maps(self, a: Dict[str, List[dict]], b: Dict[str, List[dict]]) -> Dict[str, List[dict]]:
+        """Fusionne deux mappings intent->entries en dédupliquant par mot (préserve l'ordre de a puis b)."""
+        if not a and not b:
+            return {}
+        merged: Dict[str, List[dict]] = {}
+        keys = set(a.keys()) | set(b.keys())
+        for k in keys:
+            arr: List[dict] = []
+            seen = set()
+            for src in (a.get(k) or []):
+                w = (src.get("word") or "").strip().lower()
+                if not w or w in seen:
+                    continue
+                seen.add(w)
+                arr.append(src)
+            for src in (b.get(k) or []):
+                w = (src.get("word") or "").strip().lower()
+                if not w or w in seen:
+                    continue
+                seen.add(w)
+                arr.append(src)
+            if arr:
+                merged[str(k)] = arr
+        return merged
+
+    def _load_intent_keywords_shadow(self) -> Dict[str, List[dict]]:
+        """Charge un mapping intent_id -> liste de mots-clés (Shadow) si disponible.
+
+        Fichier attendu (override via env INTENT_KEYWORDS_IN): intents/keywords/intent_keywords.json
+        Format: {"9": {"keywords": [{"word": "changer", ...}, ...]}, ...}
+        """
+        try:
+            p = Path(os.getenv("INTENT_KEYWORDS_IN", "intents/keywords/intent_keywords.json"))
+            if not p.exists():
+                return {}
+            with p.open("r", encoding="utf-8") as f:
+                raw = json.load(f) or {}
+            clean: Dict[str, List[dict]] = {}
+            for k, v in raw.items():
+                if not isinstance(v, dict):
+                    continue
+                kw_list = v.get("keywords") or []
+                if not isinstance(kw_list, list):
+                    continue
+                entries: List[dict] = []
+                for item in kw_list:
+                    if not isinstance(item, dict):
+                        continue
+                    word = item.get("word")
+                    if not isinstance(word, str) or not word.strip():
+                        continue
+                    try:
+                        freq = int(item.get("frequency", 0) or 0)
+                    except Exception:
+                        freq = 0
+                    try:
+                        spec = float(item.get("specificity", 1.0) or 1.0)
+                    except Exception:
+                        spec = 1.0
+                    entries.append(
+                        {
+                            "word": word.strip().lower(),
+                            "frequency": freq,
+                            "specificity": spec,
+                        }
+                    )
+                if entries:
+                    clean[str(k)] = entries
+            if clean:
+                logger.info("[CENTROID] Intent keywords shadow chargés pour %d intents", len(clean))
+            return clean
+        except Exception:
+            return {}
 
     # ---------------------------------------------------------------------
     # Routing
@@ -365,6 +558,7 @@ class CentroidRouter:
         msg = self._normalize_text(raw)
 
         # Détection enrichie (normalisée sans accents)
+        # Signaux de "livraison" (frais / zones / adresse)
         ship_triggers = [
             "livraison", "livrer", "livraisons", "livr", "liv ", "expedi", "expedition",
             "frais", "cout", "couts", "adresse", "address", "express", "standard",
@@ -373,14 +567,19 @@ class CentroidRouter:
             "heure", "adresse exacte", "lieu de livraison", "point de repere", "presentement je suis",
             "cocody", "koumassi", "abobo", "yopougon", "marcory", "songon",
         ]
+        # Signaux de "suivi de commande" (tracking / statut)
         track_triggers = [
             "suivi", "suivre", "tracking", "track", "statut", "status", "en route",
             "en cours", "numero", "num de suivi", "no de suivi", "n de suivi",
-            "ou en est", "ou est", "il est ou", "expedie", "arrive", "arriver", "arrivé",
-            "colis parti", "livreur", "fait signe", "pas fait signe", "toujours pas",
-            "recu", "reçu", "livre", "livré", "livree", "il est passe", "il est passé",
+            "ou en est", "ou est", "il est ou",
+            "commande est ou", "ma commande est ou", "ou ma commande",
+            "expedie", "arrive", "arriver", "arrivee", "arrivé",
+            "colis parti", "commande est partie",
+            "livreur", "fait signe", "pas fait signe", "toujours pas", "toujours pas recu",
+            "recu", "reçu", "pas encore recu",
+            "livre", "livré", "livree", "il est passe", "il est passé",
             "recupere", "recupéré", "recuperer", "nouvelle", "nouvelles", "j attends", "j'attends",
-            "confirmation", "reception",
+            "confirmation", "reception", "suivre ma commande",
         ]
         ship_hits = sum(1 for t in ship_triggers if t in msg)
         track_hits = sum(1 for t in track_triggers if t in msg)
@@ -388,13 +587,16 @@ class CentroidRouter:
         # IDs des intents selon le corpus
         id_livraison = 9 if 9 in self.centroids else None
         id_suivi = 11 if 11 in self.centroids else None
+        id_commande = 8 if 8 in self.centroids else None
+        id_reclamation = 12 if 12 in self.centroids else None
+        id_info = 2 if 2 in self.centroids else None
 
         def _apply(id_: int | None, factor: float) -> None:
             if id_ is None:
                 return
             sims[id_] = max(min(sims[id_] * factor, 1.0), -1.0)
 
-        # Boost proportionnel et borné (plus fort)
+        # Boost proportionnel et borné (plus fort) sur les intents 9 (livraison) et 11 (suivi)
         if ship_hits > 0 and id_livraison is not None:
             _apply(id_livraison, 1.0 + min(0.10 * ship_hits, 0.40))
         if track_hits > 0 and id_suivi is not None:
@@ -405,6 +607,62 @@ class CentroidRouter:
             _apply(id_livraison, 0.75)
         if ship_hits > 0 and track_hits == 0 and id_suivi is not None:
             _apply(id_suivi, 0.75)
+
+        # Contexte plainte / réclamation explicite (plutôt intent 12 que 8/11)
+        complaint_triggers = [
+            "reclamation", "reclamer", "plainte",
+            "probleme", "problemes",
+            "pas satisfait", "pas contente", "pas content",
+            "non conforme", "defaut", "defauts", "defectueux",
+            "abime", "abimer", "casse", "cassee", "cassees",
+        ]
+        has_complaint = any(t in msg for t in complaint_triggers)
+
+        # Contexte clairement "suivi" : on réduit l'intent 8 (commande) qui aspire trop
+        if track_hits > 0 and id_commande is not None:
+            _apply(id_commande, 0.8)
+
+        # Tracking sans vocabulaire de plainte => éviter de basculer vers 12
+        if track_hits > 0 and not has_complaint and id_reclamation is not None:
+            _apply(id_reclamation, 0.85)
+
+        # Vocabulaire de plainte clair => fort boost intent 12 et déboost intent 8
+        if has_complaint and id_reclamation is not None:
+            _apply(id_reclamation, 1.4)
+            if id_commande is not None:
+                _apply(id_commande, 0.7)
+
+        # Si vocabulaire livraison présent, réduire légèrement l'intent 2 (info générale)
+        if ship_hits > 0 and id_info is not None:
+            _apply(id_info, 0.9)
+
+        # 2.c Boost lexical basé sur les mots-clés Shadow extraits (Botlive)
+        botlive_kw = []
+        try:
+            botlive_kw = extract_botlive_keywords(raw)
+        except Exception:
+            botlive_kw = []
+        if botlive_kw and self.intent_keywords_shadow:
+            kw_set = set(botlive_kw)
+            for intent_key, items in self.intent_keywords_shadow.items():
+                try:
+                    intent_id = int(intent_key)
+                except (TypeError, ValueError):
+                    continue
+                if intent_id not in sims:
+                    continue
+                score_acc = 0.0
+                for item in items:
+                    w = item.get("word")
+                    if not w or w not in kw_set:
+                        continue
+                    spec = float(item.get("specificity", 1.0) or 1.0)
+                    freq = float(item.get("frequency", 0) or 0)
+                    score_acc += spec * 0.5 + min(freq, 50.0) / 50.0
+                if score_acc > 0.0:
+                    # Facteur borné à +25% pour éviter la dérive
+                    factor = 1.0 + min(score_acc * 0.02, 0.25)
+                    sims[intent_id] = min(sims[intent_id] * factor, 1.0)
 
         # Boost générique par mots-clés d'intent (faible, borné à +15%)
         for intent_id, centroid in self.centroids.items():
@@ -443,11 +701,15 @@ class CentroidRouter:
         track_triggers = [
             "suivi", "suivre", "tracking", "track", "statut", "status", "en route",
             "en cours", "numero", "num de suivi", "no de suivi", "n de suivi",
-            "ou en est", "ou est", "il est ou", "expedie", "arrive", "arriver", "arrivé",
-            "colis parti", "livreur", "fait signe", "pas fait signe", "toujours pas",
-            "recu", "reçu", "livre", "livré", "livree", "il est passe", "il est passé",
+            "ou en est", "ou est", "il est ou",
+            "commande est ou", "ma commande est ou", "ou ma commande",
+            "expedie", "arrive", "arriver", "arrivee", "arrivé",
+            "colis parti", "commande est partie",
+            "livreur", "fait signe", "pas fait signe", "toujours pas", "toujours pas recu",
+            "recu", "reçu", "pas encore recu",
+            "livre", "livré", "livree", "il est passe", "il est passé",
             "recupere", "recupéré", "recuperer", "nouvelle", "nouvelles", "j attends", "j'attends",
-            "confirmation", "reception",
+            "confirmation", "reception", "suivre ma commande",
         ]
         ship_hits = sum(1 for t in ship_triggers if t in msg)
         track_hits = sum(1 for t in track_triggers if t in msg)

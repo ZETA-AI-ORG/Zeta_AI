@@ -1,0 +1,3002 @@
+[
+  {
+    "index": 1,
+    "question": "Bonjour",
+    "expected_label": "GREETING",
+    "expected_intent_id": 1,
+    "router": {
+      "intent_internal": "SALUT",
+      "mode": "RECEPTION_SAV",
+      "missing_fields": [
+        "photo",
+        "paiement",
+        "zone",
+        "tel"
+      ],
+      "confidence": 0.95,
+      "segment_letter": "A",
+      "debug": {
+        "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+        "user_id": "router_only_eval_120",
+        "raw_message": "Bonjour",
+        "conversation_history_sample": "",
+        "intent_score": 0.95
+      }
+    }
+  },
+  {
+    "index": 2,
+    "question": "Salut comment allez-vous",
+    "expected_label": "GREETING",
+    "expected_intent_id": 1,
+    "router": {
+      "intent_internal": "SALUT",
+      "mode": "RECEPTION_SAV",
+      "missing_fields": [
+        "photo",
+        "paiement",
+        "zone",
+        "tel"
+      ],
+      "confidence": 0.9,
+      "segment_letter": "A",
+      "debug": {
+        "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+        "user_id": "router_only_eval_120",
+        "raw_message": "Salut comment allez-vous",
+        "conversation_history_sample": "",
+        "intent_score": 0.9
+      }
+    }
+  },
+  {
+    "index": 3,
+    "question": "Bonsoir j'espère que vous allez bien",
+    "expected_label": "GREETING",
+    "expected_intent_id": 1,
+    "router": {
+      "intent_internal": "SALUT",
+      "mode": "RECEPTION_SAV",
+      "missing_fields": [
+        "photo",
+        "paiement",
+        "zone",
+        "tel"
+      ],
+      "confidence": 0.9,
+      "segment_letter": "A",
+      "debug": {
+        "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+        "user_id": "router_only_eval_120",
+        "raw_message": "Bonsoir j'espère que vous allez bien",
+        "conversation_history_sample": "",
+        "intent_score": 0.9
+      }
+    }
+  },
+  {
+    "index": 4,
+    "question": "Bjr madame désolé du dérangement",
+    "expected_label": "GREETING",
+    "expected_intent_id": 1,
+    "router": {
+      "intent_internal": "SALUT",
+      "mode": "RECEPTION_SAV",
+      "missing_fields": [
+        "photo",
+        "paiement",
+        "zone",
+        "tel"
+      ],
+      "confidence": 0.9,
+      "segment_letter": "A",
+      "debug": {
+        "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+        "user_id": "router_only_eval_120",
+        "raw_message": "Bjr madame désolé du dérangement",
+        "conversation_history_sample": "",
+        "intent_score": 0.9
+      }
+    }
+  },
+  {
+    "index": 5,
+    "question": "Hey j'espère que tout va bien de votre côté",
+    "expected_label": "GREETING",
+    "expected_intent_id": 1,
+    "router": {
+      "intent_internal": "SALUT",
+      "mode": "RECEPTION_SAV",
+      "missing_fields": [
+        "photo",
+        "paiement",
+        "zone",
+        "tel"
+      ],
+      "confidence": 0.9,
+      "segment_letter": "A",
+      "debug": {
+        "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+        "user_id": "router_only_eval_120",
+        "raw_message": "Hey j'espère que tout va bien de votre côté",
+        "conversation_history_sample": "",
+        "intent_score": 0.9
+      }
+    }
+  },
+  {
+    "index": 6,
+    "question": "Yo c'est comment là",
+    "expected_label": "GREETING",
+    "expected_intent_id": 1,
+    "router": {
+      "intent_internal": "SALUT",
+      "mode": "RECEPTION_SAV",
+      "missing_fields": [
+        "photo",
+        "paiement",
+        "zone",
+        "tel"
+      ],
+      "confidence": 0.783591581583023,
+      "segment_letter": "A",
+      "debug": {
+        "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+        "user_id": "router_only_eval_120",
+        "raw_message": "Yo c'est comment là",
+        "conversation_history_sample": "",
+        "intent_score": 0.783591581583023
+      }
+    }
+  },
+  {
+    "index": 7,
+    "question": "Bonjour pardon de vous déranger à cette heure",
+    "expected_label": "GREETING",
+    "expected_intent_id": 1,
+    "router": {
+      "intent_internal": "SALUT",
+      "mode": "RECEPTION_SAV",
+      "missing_fields": [
+        "photo",
+        "paiement",
+        "zone",
+        "tel"
+      ],
+      "confidence": 0.9,
+      "segment_letter": "A",
+      "debug": {
+        "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+        "user_id": "router_only_eval_120",
+        "raw_message": "Bonjour pardon de vous déranger à cette heure",
+        "conversation_history_sample": "",
+        "intent_score": 0.9
+      }
+    }
+  },
+  {
+    "index": 8,
+    "question": "Salut j'espère la famille va bien",
+    "expected_label": "GREETING",
+    "expected_intent_id": 1,
+    "router": {
+      "intent_internal": "SALUT",
+      "mode": "RECEPTION_SAV",
+      "missing_fields": [
+        "photo",
+        "paiement",
+        "zone",
+        "tel"
+      ],
+      "confidence": 0.9,
+      "segment_letter": "A",
+      "debug": {
+        "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+        "user_id": "router_only_eval_120",
+        "raw_message": "Salut j'espère la famille va bien",
+        "conversation_history_sample": "",
+        "intent_score": 0.9
+      }
+    }
+  },
+  {
+    "index": 9,
+    "question": "Bondjour coment sa va",
+    "expected_label": "GREETING",
+    "expected_intent_id": 1,
+    "router": {
+      "intent_internal": "SALUT",
+      "mode": "RECEPTION_SAV",
+      "missing_fields": [
+        "photo",
+        "paiement",
+        "zone",
+        "tel"
+      ],
+      "confidence": 0.5519540309906006,
+      "segment_letter": "A",
+      "debug": {
+        "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+        "user_id": "router_only_eval_120",
+        "raw_message": "Bondjour coment sa va",
+        "conversation_history_sample": "",
+        "intent_score": 0.5519540309906006
+      }
+    }
+  },
+  {
+    "index": 10,
+    "question": "Merci beaucoup pour votre aide",
+    "expected_label": "GREETING",
+    "expected_intent_id": 1,
+    "router": {
+      "intent_internal": "SALUT",
+      "mode": "RECEPTION_SAV",
+      "missing_fields": [
+        "photo",
+        "paiement",
+        "zone",
+        "tel"
+      ],
+      "confidence": 0.92,
+      "segment_letter": "A",
+      "debug": {
+        "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+        "user_id": "router_only_eval_120",
+        "raw_message": "Merci beaucoup pour votre aide",
+        "conversation_history_sample": "",
+        "intent_score": 0.92
+      }
+    }
+  },
+  {
+    "index": 11,
+    "question": "Vous êtes situés où exactement",
+    "expected_label": "INFO_GENERAL",
+    "expected_intent_id": 2,
+    "router": {
+      "intent_internal": "INFO_GENERALE",
+      "mode": "RECEPTION_SAV",
+      "missing_fields": [
+        "photo",
+        "paiement",
+        "zone",
+        "tel"
+      ],
+      "confidence": 0.6778739094734192,
+      "segment_letter": "A",
+      "debug": {
+        "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+        "user_id": "router_only_eval_120",
+        "raw_message": "Vous êtes situés où exactement",
+        "conversation_history_sample": "",
+        "intent_score": 0.6778739094734192
+      }
+    }
+  },
+  {
+    "index": 12,
+    "question": "C'est quoi votre adresse svp",
+    "expected_label": "INFO_GENERAL",
+    "expected_intent_id": 2,
+    "router": {
+      "intent_internal": "INFO_GENERALE",
+      "mode": "RECEPTION_SAV",
+      "missing_fields": [
+        "photo",
+        "paiement",
+        "zone",
+        "tel"
+      ],
+      "confidence": 0.7083883881568909,
+      "segment_letter": "A",
+      "debug": {
+        "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+        "user_id": "router_only_eval_120",
+        "raw_message": "C'est quoi votre adresse svp",
+        "conversation_history_sample": "",
+        "intent_score": 0.7083883881568909
+      }
+    }
+  },
+  {
+    "index": 13,
+    "question": "Vous ouvrez à quelle heure le matin",
+    "expected_label": "INFO_GENERAL",
+    "expected_intent_id": 2,
+    "router": {
+      "intent_internal": "INFO_GENERALE",
+      "mode": "RECEPTION_SAV",
+      "missing_fields": [
+        "photo",
+        "paiement",
+        "zone",
+        "tel"
+      ],
+      "confidence": 0.6555690765380859,
+      "segment_letter": "A",
+      "debug": {
+        "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+        "user_id": "router_only_eval_120",
+        "raw_message": "Vous ouvrez à quelle heure le matin",
+        "conversation_history_sample": "",
+        "intent_score": 0.6555690765380859
+      }
+    }
+  },
+  {
+    "index": 14,
+    "question": "Vous êtes ouvert le dimanche",
+    "expected_label": "INFO_GENERAL",
+    "expected_intent_id": 2,
+    "router": {
+      "intent_internal": "INFO_GENERALE",
+      "mode": "RECEPTION_SAV",
+      "missing_fields": [
+        "photo",
+        "paiement",
+        "zone",
+        "tel"
+      ],
+      "confidence": 0.6527020931243896,
+      "segment_letter": "A",
+      "debug": {
+        "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+        "user_id": "router_only_eval_120",
+        "raw_message": "Vous êtes ouvert le dimanche",
+        "conversation_history_sample": "",
+        "intent_score": 0.6527020931243896
+      }
+    }
+  },
+  {
+    "index": 15,
+    "question": "Comment je peux vous joindre",
+    "expected_label": "INFO_GENERAL",
+    "expected_intent_id": 2,
+    "router": {
+      "intent_internal": "INFO_GENERALE",
+      "mode": "RECEPTION_SAV",
+      "missing_fields": [
+        "photo",
+        "paiement",
+        "zone",
+        "tel"
+      ],
+      "confidence": 0.9363216638565063,
+      "segment_letter": "A",
+      "debug": {
+        "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+        "user_id": "router_only_eval_120",
+        "raw_message": "Comment je peux vous joindre",
+        "conversation_history_sample": "",
+        "intent_score": 0.9363216638565063
+      }
+    }
+  },
+  {
+    "index": 16,
+    "question": "Quel est votre numéro WhatsApp",
+    "expected_label": "INFO_GENERAL",
+    "expected_intent_id": 2,
+    "router": {
+      "intent_internal": "INFO_GENERALE",
+      "mode": "RECEPTION_SAV",
+      "missing_fields": [
+        "photo",
+        "paiement",
+        "zone",
+        "tel"
+      ],
+      "confidence": 0.5807960033416748,
+      "segment_letter": "A",
+      "debug": {
+        "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+        "user_id": "router_only_eval_120",
+        "raw_message": "Quel est votre numéro WhatsApp",
+        "conversation_history_sample": "",
+        "intent_score": 0.5807960033416748
+      }
+    }
+  },
+  {
+    "index": 17,
+    "question": "Vous êtes à quel quartier d'Abidjan",
+    "expected_label": "INFO_GENERAL",
+    "expected_intent_id": 2,
+    "router": {
+      "intent_internal": "INFO_GENERALE",
+      "mode": "RECEPTION_SAV",
+      "missing_fields": [
+        "photo",
+        "paiement",
+        "zone",
+        "tel"
+      ],
+      "confidence": 0.651246190071106,
+      "segment_letter": "A",
+      "debug": {
+        "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+        "user_id": "router_only_eval_120",
+        "raw_message": "Vous êtes à quel quartier d'Abidjan",
+        "conversation_history_sample": "",
+        "intent_score": 0.651246190071106
+      }
+    }
+  },
+  {
+    "index": 18,
+    "question": "Jusqu'à quelle heure vous fermez",
+    "expected_label": "INFO_GENERAL",
+    "expected_intent_id": 2,
+    "router": {
+      "intent_internal": "INFO_GENERALE",
+      "mode": "RECEPTION_SAV",
+      "missing_fields": [
+        "photo",
+        "paiement",
+        "zone",
+        "tel"
+      ],
+      "confidence": 0.6493465900421143,
+      "segment_letter": "A",
+      "debug": {
+        "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+        "user_id": "router_only_eval_120",
+        "raw_message": "Jusqu'à quelle heure vous fermez",
+        "conversation_history_sample": "",
+        "intent_score": 0.6493465900421143
+      }
+    }
+  },
+  {
+    "index": 19,
+    "question": "Depuis quand vous existez",
+    "expected_label": "INFO_GENERAL",
+    "expected_intent_id": 2,
+    "router": {
+      "intent_internal": "INFO_GENERALE",
+      "mode": "RECEPTION_SAV",
+      "missing_fields": [
+        "photo",
+        "paiement",
+        "zone",
+        "tel"
+      ],
+      "confidence": 0.6884397268295288,
+      "segment_letter": "A",
+      "debug": {
+        "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+        "user_id": "router_only_eval_120",
+        "raw_message": "Depuis quand vous existez",
+        "conversation_history_sample": "",
+        "intent_score": 0.6884397268295288
+      }
+    }
+  },
+  {
+    "index": 20,
+    "question": "C'est où votre boutique exactement",
+    "expected_label": "INFO_GENERAL",
+    "expected_intent_id": 2,
+    "router": {
+      "intent_internal": "INFO_GENERALE",
+      "mode": "RECEPTION_SAV",
+      "missing_fields": [
+        "photo",
+        "paiement",
+        "zone",
+        "tel"
+      ],
+      "confidence": 0.6967926025390625,
+      "segment_letter": "A",
+      "debug": {
+        "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+        "user_id": "router_only_eval_120",
+        "raw_message": "C'est où votre boutique exactement",
+        "conversation_history_sample": "",
+        "intent_score": 0.6967926025390625
+      }
+    }
+  },
+  {
+    "index": 21,
+    "question": "Vous avez quel type de produits",
+    "expected_label": "PRODUCT_INFO",
+    "expected_intent_id": 4,
+    "router": {
+      "intent_internal": "CATALOGUE",
+      "mode": "RECEPTION_SAV",
+      "missing_fields": [
+        "photo",
+        "paiement",
+        "zone",
+        "tel"
+      ],
+      "confidence": 0.7072322368621826,
+      "segment_letter": "B",
+      "debug": {
+        "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+        "user_id": "router_only_eval_120",
+        "raw_message": "Vous avez quel type de produits",
+        "conversation_history_sample": "",
+        "intent_score": 0.7072322368621826
+      }
+    }
+  },
+  {
+    "index": 22,
+    "question": "C'est quoi les caractéristiques",
+    "expected_label": "PRODUCT_INFO",
+    "expected_intent_id": 4,
+    "router": {
+      "intent_internal": "RECHERCHE_PRODUIT",
+      "mode": "RECEPTION_SAV",
+      "missing_fields": [
+        "photo",
+        "paiement",
+        "zone",
+        "tel"
+      ],
+      "confidence": 0.6327894806861877,
+      "segment_letter": "B",
+      "debug": {
+        "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+        "user_id": "router_only_eval_120",
+        "raw_message": "C'est quoi les caractéristiques",
+        "conversation_history_sample": "",
+        "intent_score": 0.6327894806861877
+      }
+    }
+  },
+  {
+    "index": 23,
+    "question": "Il y a combien de modèles disponibles",
+    "expected_label": "PRODUCT_INFO",
+    "expected_intent_id": 4,
+    "router": {
+      "intent_internal": "CATALOGUE",
+      "mode": "RECEPTION_SAV",
+      "missing_fields": [
+        "photo",
+        "paiement",
+        "zone",
+        "tel"
+      ],
+      "confidence": 0.6275430101108552,
+      "segment_letter": "B",
+      "debug": {
+        "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+        "user_id": "router_only_eval_120",
+        "raw_message": "Il y a combien de modèles disponibles",
+        "conversation_history_sample": "",
+        "intent_score": 0.6275430101108552
+      }
+    }
+  },
+  {
+    "index": 24,
+    "question": "Vous vendez quelle marque",
+    "expected_label": "PRODUCT_INFO",
+    "expected_intent_id": 4,
+    "router": {
+      "intent_internal": "RECHERCHE_PRODUIT",
+      "mode": "RECEPTION_SAV",
+      "missing_fields": [
+        "photo",
+        "paiement",
+        "zone",
+        "tel"
+      ],
+      "confidence": 0.6096230745315552,
+      "segment_letter": "B",
+      "debug": {
+        "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+        "user_id": "router_only_eval_120",
+        "raw_message": "Vous vendez quelle marque",
+        "conversation_history_sample": "",
+        "intent_score": 0.6096230745315552
+      }
+    }
+  },
+  {
+    "index": 25,
+    "question": "Quelle est la taille exacte",
+    "expected_label": "PRODUCT_INFO",
+    "expected_intent_id": 4,
+    "router": {
+      "intent_internal": "RECHERCHE_PRODUIT",
+      "mode": "RECEPTION_SAV",
+      "missing_fields": [
+        "photo",
+        "paiement",
+        "zone",
+        "tel"
+      ],
+      "confidence": 0.7896120058238506,
+      "segment_letter": "B",
+      "debug": {
+        "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+        "user_id": "router_only_eval_120",
+        "raw_message": "Quelle est la taille exacte",
+        "conversation_history_sample": "",
+        "intent_score": 0.7896120058238506
+      }
+    }
+  },
+  {
+    "index": 26,
+    "question": "C'est disponible en quelle couleur",
+    "expected_label": "PRODUCT_INFO",
+    "expected_intent_id": 4,
+    "router": {
+      "intent_internal": "DISPONIBILITE",
+      "mode": "RECEPTION_SAV",
+      "missing_fields": [
+        "photo",
+        "paiement",
+        "zone",
+        "tel"
+      ],
+      "confidence": 0.7633976316452026,
+      "segment_letter": "B",
+      "debug": {
+        "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+        "user_id": "router_only_eval_120",
+        "raw_message": "C'est disponible en quelle couleur",
+        "conversation_history_sample": "",
+        "intent_score": 0.7633976316452026
+      }
+    }
+  },
+  {
+    "index": 27,
+    "question": "Le produit fait combien de grammes",
+    "expected_label": "PRODUCT_INFO",
+    "expected_intent_id": 4,
+    "router": {
+      "intent_internal": "RECHERCHE_PRODUIT",
+      "mode": "RECEPTION_SAV",
+      "missing_fields": [
+        "photo",
+        "paiement",
+        "zone",
+        "tel"
+      ],
+      "confidence": 0.8012641966342925,
+      "segment_letter": "B",
+      "debug": {
+        "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+        "user_id": "router_only_eval_120",
+        "raw_message": "Le produit fait combien de grammes",
+        "conversation_history_sample": "",
+        "intent_score": 0.8012641966342925
+      }
+    }
+  },
+  {
+    "index": 28,
+    "question": "C'est pour quel âge ce produit",
+    "expected_label": "PRODUCT_INFO",
+    "expected_intent_id": 4,
+    "router": {
+      "intent_internal": "RECHERCHE_PRODUIT",
+      "mode": "RECEPTION_SAV",
+      "missing_fields": [
+        "photo",
+        "paiement",
+        "zone",
+        "tel"
+      ],
+      "confidence": 0.6221252679824829,
+      "segment_letter": "B",
+      "debug": {
+        "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+        "user_id": "router_only_eval_120",
+        "raw_message": "C'est pour quel âge ce produit",
+        "conversation_history_sample": "",
+        "intent_score": 0.6221252679824829
+      }
+    }
+  },
+  {
+    "index": 29,
+    "question": "Vous avez la référence du produit",
+    "expected_label": "PRODUCT_INFO",
+    "expected_intent_id": 4,
+    "router": {
+      "intent_internal": "RECHERCHE_PRODUIT",
+      "mode": "RECEPTION_SAV",
+      "missing_fields": [
+        "photo",
+        "paiement",
+        "zone",
+        "tel"
+      ],
+      "confidence": 0.799740433692932,
+      "segment_letter": "B",
+      "debug": {
+        "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+        "user_id": "router_only_eval_120",
+        "raw_message": "Vous avez la référence du produit",
+        "conversation_history_sample": "",
+        "intent_score": 0.799740433692932
+      }
+    }
+  },
+  {
+    "index": 30,
+    "question": "C'est fabriqué où",
+    "expected_label": "PRODUCT_INFO",
+    "expected_intent_id": 4,
+    "router": {
+      "intent_internal": "RECHERCHE_PRODUIT",
+      "mode": "RECEPTION_SAV",
+      "missing_fields": [
+        "photo",
+        "paiement",
+        "zone",
+        "tel"
+      ],
+      "confidence": 0.6650785863399505,
+      "segment_letter": "B",
+      "debug": {
+        "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+        "user_id": "router_only_eval_120",
+        "raw_message": "C'est fabriqué où",
+        "conversation_history_sample": "",
+        "intent_score": 0.6650785863399505
+      }
+    }
+  },
+  {
+    "index": 31,
+    "question": "La composition c'est quoi",
+    "expected_label": "PRODUCT_INFO",
+    "expected_intent_id": 4,
+    "router": {
+      "intent_internal": "RECHERCHE_PRODUIT",
+      "mode": "RECEPTION_SAV",
+      "missing_fields": [
+        "photo",
+        "paiement",
+        "zone",
+        "tel"
+      ],
+      "confidence": 0.6485320150852203,
+      "segment_letter": "B",
+      "debug": {
+        "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+        "user_id": "router_only_eval_120",
+        "raw_message": "La composition c'est quoi",
+        "conversation_history_sample": "",
+        "intent_score": 0.6485320150852203
+      }
+    }
+  },
+  {
+    "index": 32,
+    "question": "Il y a une garantie avec",
+    "expected_label": "PRODUCT_INFO",
+    "expected_intent_id": 4,
+    "router": {
+      "intent_internal": "RECHERCHE_PRODUIT",
+      "mode": "RECEPTION_SAV",
+      "missing_fields": [
+        "photo",
+        "paiement",
+        "zone",
+        "tel"
+      ],
+      "confidence": 0.6550647974014282,
+      "segment_letter": "B",
+      "debug": {
+        "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+        "user_id": "router_only_eval_120",
+        "raw_message": "Il y a une garantie avec",
+        "conversation_history_sample": "",
+        "intent_score": 0.6550647974014282
+      }
+    }
+  },
+  {
+    "index": 33,
+    "question": "C'est combien",
+    "expected_label": "PRICE",
+    "expected_intent_id": 5,
+    "router": {
+      "intent_internal": "PRIX_PROMO",
+      "mode": "RECEPTION_SAV",
+      "missing_fields": [
+        "photo",
+        "paiement",
+        "zone",
+        "tel"
+      ],
+      "confidence": 0.8961351008415221,
+      "segment_letter": "B",
+      "debug": {
+        "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+        "user_id": "router_only_eval_120",
+        "raw_message": "C'est combien",
+        "conversation_history_sample": "",
+        "intent_score": 0.8961351008415221
+      }
+    }
+  },
+  {
+    "index": 34,
+    "question": "Quel est le prix svp",
+    "expected_label": "PRICE",
+    "expected_intent_id": 5,
+    "router": {
+      "intent_internal": "PRIX_PROMO",
+      "mode": "RECEPTION_SAV",
+      "missing_fields": [
+        "photo",
+        "paiement",
+        "zone",
+        "tel"
+      ],
+      "confidence": 0.9771898487955333,
+      "segment_letter": "B",
+      "debug": {
+        "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+        "user_id": "router_only_eval_120",
+        "raw_message": "Quel est le prix svp",
+        "conversation_history_sample": "",
+        "intent_score": 0.9771898487955333
+      }
+    }
+  },
+  {
+    "index": 35,
+    "question": "Ça coûte combien exactement",
+    "expected_label": "PRICE",
+    "expected_intent_id": 5,
+    "router": {
+      "intent_internal": "PRIX_PROMO",
+      "mode": "RECEPTION_SAV",
+      "missing_fields": [
+        "photo",
+        "paiement",
+        "zone",
+        "tel"
+      ],
+      "confidence": 0.7012843072414399,
+      "segment_letter": "B",
+      "debug": {
+        "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+        "user_id": "router_only_eval_120",
+        "raw_message": "Ça coûte combien exactement",
+        "conversation_history_sample": "",
+        "intent_score": 0.7012843072414399
+      }
+    }
+  },
+  {
+    "index": 36,
+    "question": "Le tarif c'est combien",
+    "expected_label": "PRICE",
+    "expected_intent_id": 5,
+    "router": {
+      "intent_internal": "PRIX_PROMO",
+      "mode": "RECEPTION_SAV",
+      "missing_fields": [
+        "photo",
+        "paiement",
+        "zone",
+        "tel"
+      ],
+      "confidence": 0.7890343844890595,
+      "segment_letter": "B",
+      "debug": {
+        "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+        "user_id": "router_only_eval_120",
+        "raw_message": "Le tarif c'est combien",
+        "conversation_history_sample": "",
+        "intent_score": 0.7890343844890595
+      }
+    }
+  },
+  {
+    "index": 37,
+    "question": "Vous faites combien pour ce produit",
+    "expected_label": "PRICE",
+    "expected_intent_id": 5,
+    "router": {
+      "intent_internal": "PRIX_PROMO",
+      "mode": "RECEPTION_SAV",
+      "missing_fields": [
+        "photo",
+        "paiement",
+        "zone",
+        "tel"
+      ],
+      "confidence": 0.7729392291307449,
+      "segment_letter": "B",
+      "debug": {
+        "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+        "user_id": "router_only_eval_120",
+        "raw_message": "Vous faites combien pour ce produit",
+        "conversation_history_sample": "",
+        "intent_score": 0.7729392291307449
+      }
+    }
+  },
+  {
+    "index": 38,
+    "question": "C'est à combien le paquet",
+    "expected_label": "PRICE",
+    "expected_intent_id": 5,
+    "router": {
+      "intent_internal": "PRIX_PROMO",
+      "mode": "RECEPTION_SAV",
+      "missing_fields": [
+        "photo",
+        "paiement",
+        "zone",
+        "tel"
+      ],
+      "confidence": 0.9025786689373849,
+      "segment_letter": "B",
+      "debug": {
+        "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+        "user_id": "router_only_eval_120",
+        "raw_message": "C'est à combien le paquet",
+        "conversation_history_sample": "",
+        "intent_score": 0.9025786689373849
+      }
+    }
+  },
+  {
+    "index": 39,
+    "question": "Le prix unitaire c'est quoi",
+    "expected_label": "PRICE",
+    "expected_intent_id": 5,
+    "router": {
+      "intent_internal": "PRIX_PROMO",
+      "mode": "RECEPTION_SAV",
+      "missing_fields": [
+        "photo",
+        "paiement",
+        "zone",
+        "tel"
+      ],
+      "confidence": 0.9295098023116589,
+      "segment_letter": "B",
+      "debug": {
+        "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+        "user_id": "router_only_eval_120",
+        "raw_message": "Le prix unitaire c'est quoi",
+        "conversation_history_sample": "",
+        "intent_score": 0.9295098023116589
+      }
+    }
+  },
+  {
+    "index": 40,
+    "question": "Vous avez des promotions en ce moment",
+    "expected_label": "PRICE",
+    "expected_intent_id": 5,
+    "router": {
+      "intent_internal": "PRIX_PROMO",
+      "mode": "RECEPTION_SAV",
+      "missing_fields": [
+        "photo",
+        "paiement",
+        "zone",
+        "tel"
+      ],
+      "confidence": 0.8103326797485353,
+      "segment_letter": "B",
+      "debug": {
+        "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+        "user_id": "router_only_eval_120",
+        "raw_message": "Vous avez des promotions en ce moment",
+        "conversation_history_sample": "",
+        "intent_score": 0.8103326797485353
+      }
+    }
+  },
+  {
+    "index": 41,
+    "question": "Il y a une réduction si j'achète beaucoup",
+    "expected_label": "PRICE",
+    "expected_intent_id": 5,
+    "router": {
+      "intent_internal": "PRIX_PROMO",
+      "mode": "RECEPTION_SAV",
+      "missing_fields": [
+        "photo",
+        "paiement",
+        "zone",
+        "tel"
+      ],
+      "confidence": 0.6680881083011627,
+      "segment_letter": "B",
+      "debug": {
+        "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+        "user_id": "router_only_eval_120",
+        "raw_message": "Il y a une réduction si j'achète beaucoup",
+        "conversation_history_sample": "",
+        "intent_score": 0.6680881083011627
+      }
+    }
+  },
+  {
+    "index": 42,
+    "question": "C'est en solde actuellement",
+    "expected_label": "PRICE",
+    "expected_intent_id": 5,
+    "router": {
+      "intent_internal": "PRIX_PROMO",
+      "mode": "RECEPTION_SAV",
+      "missing_fields": [
+        "photo",
+        "paiement",
+        "zone",
+        "tel"
+      ],
+      "confidence": 0.7462313026189804,
+      "segment_letter": "B",
+      "debug": {
+        "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+        "user_id": "router_only_eval_120",
+        "raw_message": "C'est en solde actuellement",
+        "conversation_history_sample": "",
+        "intent_score": 0.7462313026189804
+      }
+    }
+  },
+  {
+    "index": 43,
+    "question": "Vous faites des remises",
+    "expected_label": "PRICE",
+    "expected_intent_id": 5,
+    "router": {
+      "intent_internal": "PRIX_PROMO",
+      "mode": "RECEPTION_SAV",
+      "missing_fields": [
+        "photo",
+        "paiement",
+        "zone",
+        "tel"
+      ],
+      "confidence": 0.668548047542572,
+      "segment_letter": "B",
+      "debug": {
+        "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+        "user_id": "router_only_eval_120",
+        "raw_message": "Vous faites des remises",
+        "conversation_history_sample": "",
+        "intent_score": 0.668548047542572
+      }
+    }
+  },
+  {
+    "index": 44,
+    "question": "Combien je vais payer au total",
+    "expected_label": "PRICE",
+    "expected_intent_id": 5,
+    "router": {
+      "intent_internal": "PRIX_PROMO",
+      "mode": "RECEPTION_SAV",
+      "missing_fields": [
+        "photo",
+        "paiement",
+        "zone",
+        "tel"
+      ],
+      "confidence": 0.7311498166322707,
+      "segment_letter": "B",
+      "debug": {
+        "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+        "user_id": "router_only_eval_120",
+        "raw_message": "Combien je vais payer au total",
+        "conversation_history_sample": "",
+        "intent_score": 0.7311498166322707
+      }
+    }
+  },
+  {
+    "index": 45,
+    "question": "Le prix a augmenté ou pas",
+    "expected_label": "PRICE",
+    "expected_intent_id": 5,
+    "router": {
+      "intent_internal": "PRIX_PROMO",
+      "mode": "RECEPTION_SAV",
+      "missing_fields": [
+        "photo",
+        "paiement",
+        "zone",
+        "tel"
+      ],
+      "confidence": 0.9775430554151536,
+      "segment_letter": "B",
+      "debug": {
+        "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+        "user_id": "router_only_eval_120",
+        "raw_message": "Le prix a augmenté ou pas",
+        "conversation_history_sample": "",
+        "intent_score": 0.9775430554151536
+      }
+    }
+  },
+  {
+    "index": 46,
+    "question": "C'est le même prix partout",
+    "expected_label": "PRICE",
+    "expected_intent_id": 5,
+    "router": {
+      "intent_internal": "PRIX_PROMO",
+      "mode": "RECEPTION_SAV",
+      "missing_fields": [
+        "photo",
+        "paiement",
+        "zone",
+        "tel"
+      ],
+      "confidence": 0.9555507630854846,
+      "segment_letter": "B",
+      "debug": {
+        "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+        "user_id": "router_only_eval_120",
+        "raw_message": "C'est le même prix partout",
+        "conversation_history_sample": "",
+        "intent_score": 0.9555507630854846
+      }
+    }
+  },
+  {
+    "index": 47,
+    "question": "Vous avez un prix gros",
+    "expected_label": "PRICE",
+    "expected_intent_id": 5,
+    "router": {
+      "intent_internal": "PRIX_PROMO",
+      "mode": "RECEPTION_SAV",
+      "missing_fields": [
+        "photo",
+        "paiement",
+        "zone",
+        "tel"
+      ],
+      "confidence": 1.0,
+      "segment_letter": "B",
+      "debug": {
+        "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+        "user_id": "router_only_eval_120",
+        "raw_message": "Vous avez un prix gros",
+        "conversation_history_sample": "",
+        "intent_score": 1.0
+      }
+    }
+  },
+  {
+    "index": 48,
+    "question": "C'est disponible maintenant",
+    "expected_label": "STOCK",
+    "expected_intent_id": 6,
+    "router": {
+      "intent_internal": "DISPONIBILITE",
+      "mode": "RECEPTION_SAV",
+      "missing_fields": [
+        "photo",
+        "paiement",
+        "zone",
+        "tel"
+      ],
+      "confidence": 0.6895510637760162,
+      "segment_letter": "B",
+      "debug": {
+        "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+        "user_id": "router_only_eval_120",
+        "raw_message": "C'est disponible maintenant",
+        "conversation_history_sample": "",
+        "intent_score": 0.6895510637760162
+      }
+    }
+  },
+  {
+    "index": 49,
+    "question": "Vous avez en stock",
+    "expected_label": "STOCK",
+    "expected_intent_id": 6,
+    "router": {
+      "intent_internal": "DISPONIBILITE",
+      "mode": "RECEPTION_SAV",
+      "missing_fields": [
+        "photo",
+        "paiement",
+        "zone",
+        "tel"
+      ],
+      "confidence": 0.8458280491828918,
+      "segment_letter": "B",
+      "debug": {
+        "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+        "user_id": "router_only_eval_120",
+        "raw_message": "Vous avez en stock",
+        "conversation_history_sample": "",
+        "intent_score": 0.8458280491828918
+      }
+    }
+  },
+  {
+    "index": 50,
+    "question": "Il en reste combien",
+    "expected_label": "STOCK",
+    "expected_intent_id": 6,
+    "router": {
+      "intent_internal": "DISPONIBILITE",
+      "mode": "RECEPTION_SAV",
+      "missing_fields": [
+        "photo",
+        "paiement",
+        "zone",
+        "tel"
+      ],
+      "confidence": 0.9228787466883659,
+      "segment_letter": "B",
+      "debug": {
+        "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+        "user_id": "router_only_eval_120",
+        "raw_message": "Il en reste combien",
+        "conversation_history_sample": "",
+        "intent_score": 0.9228787466883659
+      }
+    }
+  },
+  {
+    "index": 51,
+    "question": "C'est dispo pour aujourd'hui",
+    "expected_label": "STOCK",
+    "expected_intent_id": 6,
+    "router": {
+      "intent_internal": "DISPONIBILITE",
+      "mode": "RECEPTION_SAV",
+      "missing_fields": [
+        "photo",
+        "paiement",
+        "zone",
+        "tel"
+      ],
+      "confidence": 0.7113509261608123,
+      "segment_letter": "B",
+      "debug": {
+        "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+        "user_id": "router_only_eval_120",
+        "raw_message": "C'est dispo pour aujourd'hui",
+        "conversation_history_sample": "",
+        "intent_score": 0.7113509261608123
+      }
+    }
+  },
+  {
+    "index": 52,
+    "question": "Vous avez le produit X en stock",
+    "expected_label": "STOCK",
+    "expected_intent_id": 6,
+    "router": {
+      "intent_internal": "DISPONIBILITE",
+      "mode": "RECEPTION_SAV",
+      "missing_fields": [
+        "photo",
+        "paiement",
+        "zone",
+        "tel"
+      ],
+      "confidence": 0.7860085797309875,
+      "segment_letter": "B",
+      "debug": {
+        "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+        "user_id": "router_only_eval_120",
+        "raw_message": "Vous avez le produit X en stock",
+        "conversation_history_sample": "",
+        "intent_score": 0.7860085797309875
+      }
+    }
+  },
+  {
+    "index": 53,
+    "question": "C'est en rupture ou pas",
+    "expected_label": "STOCK",
+    "expected_intent_id": 6,
+    "router": {
+      "intent_internal": "DISPONIBILITE",
+      "mode": "RECEPTION_SAV",
+      "missing_fields": [
+        "photo",
+        "paiement",
+        "zone",
+        "tel"
+      ],
+      "confidence": 0.7017627143859863,
+      "segment_letter": "B",
+      "debug": {
+        "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+        "user_id": "router_only_eval_120",
+        "raw_message": "C'est en rupture ou pas",
+        "conversation_history_sample": "",
+        "intent_score": 0.7017627143859863
+      }
+    }
+  },
+  {
+    "index": 54,
+    "question": "Vous n'avez plus ce modèle",
+    "expected_label": "STOCK",
+    "expected_intent_id": 6,
+    "router": {
+      "intent_internal": "DISPONIBILITE",
+      "mode": "RECEPTION_SAV",
+      "missing_fields": [
+        "photo",
+        "paiement",
+        "zone",
+        "tel"
+      ],
+      "confidence": 0.7743064107894897,
+      "segment_letter": "B",
+      "debug": {
+        "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+        "user_id": "router_only_eval_120",
+        "raw_message": "Vous n'avez plus ce modèle",
+        "conversation_history_sample": "",
+        "intent_score": 0.7743064107894897
+      }
+    }
+  },
+  {
+    "index": 55,
+    "question": "Quand ça revient en stock",
+    "expected_label": "STOCK",
+    "expected_intent_id": 6,
+    "router": {
+      "intent_internal": "DISPONIBILITE",
+      "mode": "RECEPTION_SAV",
+      "missing_fields": [
+        "photo",
+        "paiement",
+        "zone",
+        "tel"
+      ],
+      "confidence": 0.8269332408905029,
+      "segment_letter": "B",
+      "debug": {
+        "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+        "user_id": "router_only_eval_120",
+        "raw_message": "Quand ça revient en stock",
+        "conversation_history_sample": "",
+        "intent_score": 0.8269332408905029
+      }
+    }
+  },
+  {
+    "index": 56,
+    "question": "Il reste des paquets",
+    "expected_label": "STOCK",
+    "expected_intent_id": 6,
+    "router": {
+      "intent_internal": "DISPONIBILITE",
+      "mode": "RECEPTION_SAV",
+      "missing_fields": [
+        "photo",
+        "paiement",
+        "zone",
+        "tel"
+      ],
+      "confidence": 0.67073650598526,
+      "segment_letter": "B",
+      "debug": {
+        "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+        "user_id": "router_only_eval_120",
+        "raw_message": "Il reste des paquets",
+        "conversation_history_sample": "",
+        "intent_score": 0.67073650598526
+      }
+    }
+  },
+  {
+    "index": 57,
+    "question": "Vous avez combien de pièces disponibles",
+    "expected_label": "STOCK",
+    "expected_intent_id": 6,
+    "router": {
+      "intent_internal": "DISPONIBILITE",
+      "mode": "RECEPTION_SAV",
+      "missing_fields": [
+        "photo",
+        "paiement",
+        "zone",
+        "tel"
+      ],
+      "confidence": 0.9134358614683151,
+      "segment_letter": "B",
+      "debug": {
+        "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+        "user_id": "router_only_eval_120",
+        "raw_message": "Vous avez combien de pièces disponibles",
+        "conversation_history_sample": "",
+        "intent_score": 0.9134358614683151
+      }
+    }
+  },
+  {
+    "index": 58,
+    "question": "Je veux commander",
+    "expected_label": "ORDER_CREATE",
+    "expected_intent_id": 7,
+    "router": {
+      "intent_internal": "ACHAT_COMMANDE",
+      "mode": "COMMANDE",
+      "missing_fields": [
+        "photo",
+        "paiement",
+        "zone",
+        "tel"
+      ],
+      "confidence": 0.9449650573730469,
+      "segment_letter": "C",
+      "debug": {
+        "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+        "user_id": "router_only_eval_120",
+        "raw_message": "Je veux commander",
+        "conversation_history_sample": "",
+        "intent_score": 0.9449650573730469
+      }
+    }
+  },
+  {
+    "index": 59,
+    "question": "Je voudrais acheter 5 paquets",
+    "expected_label": "ORDER_CREATE",
+    "expected_intent_id": 7,
+    "router": {
+      "intent_internal": "ACHAT_COMMANDE",
+      "mode": "COMMANDE",
+      "missing_fields": [
+        "photo",
+        "paiement",
+        "zone",
+        "tel"
+      ],
+      "confidence": 0.75734130859375,
+      "segment_letter": "C",
+      "debug": {
+        "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+        "user_id": "router_only_eval_120",
+        "raw_message": "Je voudrais acheter 5 paquets",
+        "conversation_history_sample": "",
+        "intent_score": 0.75734130859375
+      }
+    }
+  },
+  {
+    "index": 60,
+    "question": "Comment je fais pour passer commande",
+    "expected_label": "ORDER_CREATE",
+    "expected_intent_id": 7,
+    "router": {
+      "intent_internal": "ACHAT_COMMANDE",
+      "mode": "COMMANDE",
+      "missing_fields": [
+        "photo",
+        "paiement",
+        "zone",
+        "tel"
+      ],
+      "confidence": 0.8605522155761719,
+      "segment_letter": "C",
+      "debug": {
+        "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+        "user_id": "router_only_eval_120",
+        "raw_message": "Comment je fais pour passer commande",
+        "conversation_history_sample": "",
+        "intent_score": 0.8605522155761719
+      }
+    }
+  },
+  {
+    "index": 61,
+    "question": "Je prends 3 unités",
+    "expected_label": "ORDER_CREATE",
+    "expected_intent_id": 7,
+    "router": {
+      "intent_internal": "ACHAT_COMMANDE",
+      "mode": "COMMANDE",
+      "missing_fields": [
+        "photo",
+        "paiement",
+        "zone",
+        "tel"
+      ],
+      "confidence": 0.7924301910400391,
+      "segment_letter": "C",
+      "debug": {
+        "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+        "user_id": "router_only_eval_120",
+        "raw_message": "Je prends 3 unités",
+        "conversation_history_sample": "",
+        "intent_score": 0.7924301910400391
+      }
+    }
+  },
+  {
+    "index": 62,
+    "question": "Mets-moi 2 paquets svp",
+    "expected_label": "ORDER_CREATE",
+    "expected_intent_id": 7,
+    "router": {
+      "intent_internal": "ACHAT_COMMANDE",
+      "mode": "COMMANDE",
+      "missing_fields": [
+        "photo",
+        "paiement",
+        "zone",
+        "tel"
+      ],
+      "confidence": 0.6711100769042969,
+      "segment_letter": "C",
+      "debug": {
+        "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+        "user_id": "router_only_eval_120",
+        "raw_message": "Mets-moi 2 paquets svp",
+        "conversation_history_sample": "",
+        "intent_score": 0.6711100769042969
+      }
+    }
+  },
+  {
+    "index": 63,
+    "question": "Je veux acheter ce produit",
+    "expected_label": "ORDER_CREATE",
+    "expected_intent_id": 7,
+    "router": {
+      "intent_internal": "ACHAT_COMMANDE",
+      "mode": "COMMANDE",
+      "missing_fields": [
+        "photo",
+        "paiement",
+        "zone",
+        "tel"
+      ],
+      "confidence": 0.8149035644531251,
+      "segment_letter": "C",
+      "debug": {
+        "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+        "user_id": "router_only_eval_120",
+        "raw_message": "Je veux acheter ce produit",
+        "conversation_history_sample": "",
+        "intent_score": 0.8149035644531251
+      }
+    }
+  },
+  {
+    "index": 64,
+    "question": "Envoie-moi 10 pièces",
+    "expected_label": "ORDER_CREATE",
+    "expected_intent_id": 7,
+    "router": {
+      "intent_internal": "ACHAT_COMMANDE",
+      "mode": "COMMANDE",
+      "missing_fields": [
+        "photo",
+        "paiement",
+        "zone",
+        "tel"
+      ],
+      "confidence": 0.6823503112792969,
+      "segment_letter": "C",
+      "debug": {
+        "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+        "user_id": "router_only_eval_120",
+        "raw_message": "Envoie-moi 10 pièces",
+        "conversation_history_sample": "",
+        "intent_score": 0.6823503112792969
+      }
+    }
+  },
+  {
+    "index": 65,
+    "question": "Je commande pour demain",
+    "expected_label": "ORDER_CREATE",
+    "expected_intent_id": 7,
+    "router": {
+      "intent_internal": "ACHAT_COMMANDE",
+      "mode": "COMMANDE",
+      "missing_fields": [
+        "photo",
+        "paiement",
+        "zone",
+        "tel"
+      ],
+      "confidence": 0.9375625610351562,
+      "segment_letter": "C",
+      "debug": {
+        "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+        "user_id": "router_only_eval_120",
+        "raw_message": "Je commande pour demain",
+        "conversation_history_sample": "",
+        "intent_score": 0.9375625610351562
+      }
+    }
+  },
+  {
+    "index": 66,
+    "question": "Garde-moi 4 paquets",
+    "expected_label": "ORDER_CREATE",
+    "expected_intent_id": 7,
+    "router": {
+      "intent_internal": "ACHAT_COMMANDE",
+      "mode": "COMMANDE",
+      "missing_fields": [
+        "photo",
+        "paiement",
+        "zone",
+        "tel"
+      ],
+      "confidence": 0.7336326599121094,
+      "segment_letter": "C",
+      "debug": {
+        "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+        "user_id": "router_only_eval_120",
+        "raw_message": "Garde-moi 4 paquets",
+        "conversation_history_sample": "",
+        "intent_score": 0.7336326599121094
+      }
+    }
+  },
+  {
+    "index": 67,
+    "question": "Je réserve 2 articles",
+    "expected_label": "ORDER_CREATE",
+    "expected_intent_id": 7,
+    "router": {
+      "intent_internal": "ACHAT_COMMANDE",
+      "mode": "COMMANDE",
+      "missing_fields": [
+        "photo",
+        "paiement",
+        "zone",
+        "tel"
+      ],
+      "confidence": 0.7135273742675782,
+      "segment_letter": "C",
+      "debug": {
+        "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+        "user_id": "router_only_eval_120",
+        "raw_message": "Je réserve 2 articles",
+        "conversation_history_sample": "",
+        "intent_score": 0.7135273742675782
+      }
+    }
+  },
+  {
+    "index": 68,
+    "question": "Comment passer ma commande",
+    "expected_label": "ORDER_CREATE",
+    "expected_intent_id": 7,
+    "router": {
+      "intent_internal": "ACHAT_COMMANDE",
+      "mode": "COMMANDE",
+      "missing_fields": [
+        "photo",
+        "paiement",
+        "zone",
+        "tel"
+      ],
+      "confidence": 0.6178884887695313,
+      "segment_letter": "C",
+      "debug": {
+        "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+        "user_id": "router_only_eval_120",
+        "raw_message": "Comment passer ma commande",
+        "conversation_history_sample": "",
+        "intent_score": 0.6178884887695313
+      }
+    }
+  },
+  {
+    "index": 69,
+    "question": "Je souhaite commander maintenant",
+    "expected_label": "ORDER_CREATE",
+    "expected_intent_id": 7,
+    "router": {
+      "intent_internal": "ACHAT_COMMANDE",
+      "mode": "COMMANDE",
+      "missing_fields": [
+        "photo",
+        "paiement",
+        "zone",
+        "tel"
+      ],
+      "confidence": 0.7810981750488282,
+      "segment_letter": "C",
+      "debug": {
+        "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+        "user_id": "router_only_eval_120",
+        "raw_message": "Je souhaite commander maintenant",
+        "conversation_history_sample": "",
+        "intent_score": 0.7810981750488282
+      }
+    }
+  },
+  {
+    "index": 70,
+    "question": "Je veux modifier ma commande",
+    "expected_label": "ORDER_MODIFY",
+    "expected_intent_id": 8,
+    "router": {
+      "intent_internal": "SUIVI",
+      "mode": "RECEPTION_SAV",
+      "missing_fields": [
+        "photo",
+        "paiement",
+        "zone",
+        "tel"
+      ],
+      "confidence": 0.75,
+      "segment_letter": "D",
+      "debug": {
+        "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+        "user_id": "router_only_eval_120",
+        "raw_message": "Je veux modifier ma commande",
+        "conversation_history_sample": "",
+        "intent_score": 0.75
+      }
+    }
+  },
+  {
+    "index": 71,
+    "question": "Je veux annuler ma commande svp",
+    "expected_label": "ORDER_MODIFY",
+    "expected_intent_id": 8,
+    "router": {
+      "intent_internal": "SUIVI",
+      "mode": "RECEPTION_SAV",
+      "missing_fields": [
+        "photo",
+        "paiement",
+        "zone",
+        "tel"
+      ],
+      "confidence": 0.75,
+      "segment_letter": "D",
+      "debug": {
+        "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+        "user_id": "router_only_eval_120",
+        "raw_message": "Je veux annuler ma commande svp",
+        "conversation_history_sample": "",
+        "intent_score": 0.75
+      }
+    }
+  },
+  {
+    "index": 72,
+    "question": "Changer la quantité de ma commande",
+    "expected_label": "ORDER_MODIFY",
+    "expected_intent_id": 8,
+    "router": {
+      "intent_internal": "SUIVI",
+      "mode": "RECEPTION_SAV",
+      "missing_fields": [
+        "photo",
+        "paiement",
+        "zone",
+        "tel"
+      ],
+      "confidence": 0.75,
+      "segment_letter": "D",
+      "debug": {
+        "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+        "user_id": "router_only_eval_120",
+        "raw_message": "Changer la quantité de ma commande",
+        "conversation_history_sample": "",
+        "intent_score": 0.75
+      }
+    }
+  },
+  {
+    "index": 73,
+    "question": "Ajouter 2 paquets à ma commande",
+    "expected_label": "ORDER_MODIFY",
+    "expected_intent_id": 8,
+    "router": {
+      "intent_internal": "ACHAT_COMMANDE",
+      "mode": "COMMANDE",
+      "missing_fields": [
+        "photo",
+        "paiement",
+        "zone",
+        "tel"
+      ],
+      "confidence": 0.5359728932380676,
+      "segment_letter": "C",
+      "debug": {
+        "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+        "user_id": "router_only_eval_120",
+        "raw_message": "Ajouter 2 paquets à ma commande",
+        "conversation_history_sample": "",
+        "intent_score": 0.5359728932380676
+      }
+    }
+  },
+  {
+    "index": 74,
+    "question": "Enlever un article de la commande",
+    "expected_label": "ORDER_MODIFY",
+    "expected_intent_id": 8,
+    "router": {
+      "intent_internal": "ACHAT_COMMANDE",
+      "mode": "COMMANDE",
+      "missing_fields": [
+        "photo",
+        "paiement",
+        "zone",
+        "tel"
+      ],
+      "confidence": 0.5959966778755188,
+      "segment_letter": "C",
+      "debug": {
+        "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+        "user_id": "router_only_eval_120",
+        "raw_message": "Enlever un article de la commande",
+        "conversation_history_sample": "",
+        "intent_score": 0.5959966778755188
+      }
+    }
+  },
+  {
+    "index": 75,
+    "question": "Je ne veux plus la commande",
+    "expected_label": "ORDER_MODIFY",
+    "expected_intent_id": 8,
+    "router": {
+      "intent_internal": "ACHAT_COMMANDE",
+      "mode": "COMMANDE",
+      "missing_fields": [
+        "photo",
+        "paiement",
+        "zone",
+        "tel"
+      ],
+      "confidence": 0.7418873310089111,
+      "segment_letter": "C",
+      "debug": {
+        "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+        "user_id": "router_only_eval_120",
+        "raw_message": "Je ne veux plus la commande",
+        "conversation_history_sample": "",
+        "intent_score": 0.7418873310089111
+      }
+    }
+  },
+  {
+    "index": 76,
+    "question": "Supprimer ma commande d'hier",
+    "expected_label": "ORDER_MODIFY",
+    "expected_intent_id": 8,
+    "router": {
+      "intent_internal": "SUIVI",
+      "mode": "RECEPTION_SAV",
+      "missing_fields": [
+        "photo",
+        "paiement",
+        "zone",
+        "tel"
+      ],
+      "confidence": 0.75,
+      "segment_letter": "D",
+      "debug": {
+        "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+        "user_id": "router_only_eval_120",
+        "raw_message": "Supprimer ma commande d'hier",
+        "conversation_history_sample": "",
+        "intent_score": 0.75
+      }
+    }
+  },
+  {
+    "index": 77,
+    "question": "Modifier ce que j'ai commandé hier",
+    "expected_label": "ORDER_MODIFY",
+    "expected_intent_id": 8,
+    "router": {
+      "intent_internal": "ACHAT_COMMANDE",
+      "mode": "COMMANDE",
+      "missing_fields": [
+        "photo",
+        "paiement",
+        "zone",
+        "tel"
+      ],
+      "confidence": 0.5395918488502502,
+      "segment_letter": "C",
+      "debug": {
+        "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+        "user_id": "router_only_eval_120",
+        "raw_message": "Modifier ce que j'ai commandé hier",
+        "conversation_history_sample": "",
+        "intent_score": 0.5395918488502502
+      }
+    }
+  },
+  {
+    "index": 78,
+    "question": "Comment je paye",
+    "expected_label": "PAYMENT",
+    "expected_intent_id": 9,
+    "router": {
+      "intent_internal": "PAIEMENT",
+      "mode": "RECEPTION_SAV",
+      "missing_fields": [
+        "photo",
+        "paiement",
+        "zone",
+        "tel"
+      ],
+      "confidence": 0.6891072595119476,
+      "segment_letter": "C",
+      "debug": {
+        "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+        "user_id": "router_only_eval_120",
+        "raw_message": "Comment je paye",
+        "conversation_history_sample": "",
+        "intent_score": 0.6891072595119476
+      }
+    }
+  },
+  {
+    "index": 79,
+    "question": "Quel est le mode de paiement",
+    "expected_label": "PAYMENT",
+    "expected_intent_id": 9,
+    "router": {
+      "intent_internal": "PAIEMENT",
+      "mode": "RECEPTION_SAV",
+      "missing_fields": [
+        "photo",
+        "paiement",
+        "zone",
+        "tel"
+      ],
+      "confidence": 0.6669290733337402,
+      "segment_letter": "C",
+      "debug": {
+        "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+        "user_id": "router_only_eval_120",
+        "raw_message": "Quel est le mode de paiement",
+        "conversation_history_sample": "",
+        "intent_score": 0.6669290733337402
+      }
+    }
+  },
+  {
+    "index": 80,
+    "question": "Vous acceptez Mobile Money",
+    "expected_label": "PAYMENT",
+    "expected_intent_id": 9,
+    "router": {
+      "intent_internal": "PAIEMENT",
+      "mode": "RECEPTION_SAV",
+      "missing_fields": [
+        "photo",
+        "paiement",
+        "zone",
+        "tel"
+      ],
+      "confidence": 0.7718955874443054,
+      "segment_letter": "C",
+      "debug": {
+        "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+        "user_id": "router_only_eval_120",
+        "raw_message": "Vous acceptez Mobile Money",
+        "conversation_history_sample": "",
+        "intent_score": 0.7718955874443054
+      }
+    }
+  },
+  {
+    "index": 81,
+    "question": "Je peux payer en espèces",
+    "expected_label": "PAYMENT",
+    "expected_intent_id": 9,
+    "router": {
+      "intent_internal": "PAIEMENT",
+      "mode": "RECEPTION_SAV",
+      "missing_fields": [
+        "photo",
+        "paiement",
+        "zone",
+        "tel"
+      ],
+      "confidence": 0.739416868686676,
+      "segment_letter": "C",
+      "debug": {
+        "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+        "user_id": "router_only_eval_120",
+        "raw_message": "Je peux payer en espèces",
+        "conversation_history_sample": "",
+        "intent_score": 0.739416868686676
+      }
+    }
+  },
+  {
+    "index": 82,
+    "question": "Vous prenez Orange Money",
+    "expected_label": "PAYMENT",
+    "expected_intent_id": 9,
+    "router": {
+      "intent_internal": "PAIEMENT",
+      "mode": "RECEPTION_SAV",
+      "missing_fields": [
+        "photo",
+        "paiement",
+        "zone",
+        "tel"
+      ],
+      "confidence": 0.8482555627822875,
+      "segment_letter": "C",
+      "debug": {
+        "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+        "user_id": "router_only_eval_120",
+        "raw_message": "Vous prenez Orange Money",
+        "conversation_history_sample": "",
+        "intent_score": 0.8482555627822875
+      }
+    }
+  },
+  {
+    "index": 83,
+    "question": "Paiement à la livraison c'est possible",
+    "expected_label": "PAYMENT",
+    "expected_intent_id": 9,
+    "router": {
+      "intent_internal": "PAIEMENT",
+      "mode": "RECEPTION_SAV",
+      "missing_fields": [
+        "photo",
+        "paiement",
+        "zone",
+        "tel"
+      ],
+      "confidence": 0.9941511619091034,
+      "segment_letter": "C",
+      "debug": {
+        "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+        "user_id": "router_only_eval_120",
+        "raw_message": "Paiement à la livraison c'est possible",
+        "conversation_history_sample": "",
+        "intent_score": 0.9941511619091034
+      }
+    }
+  },
+  {
+    "index": 84,
+    "question": "Je veux une facture",
+    "expected_label": "PAYMENT",
+    "expected_intent_id": 9,
+    "router": {
+      "intent_internal": "PAIEMENT",
+      "mode": "RECEPTION_SAV",
+      "missing_fields": [
+        "photo",
+        "paiement",
+        "zone",
+        "tel"
+      ],
+      "confidence": 0.683220273256302,
+      "segment_letter": "C",
+      "debug": {
+        "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+        "user_id": "router_only_eval_120",
+        "raw_message": "Je veux une facture",
+        "conversation_history_sample": "",
+        "intent_score": 0.683220273256302
+      }
+    }
+  },
+  {
+    "index": 85,
+    "question": "Vous acceptez MTN Money",
+    "expected_label": "PAYMENT",
+    "expected_intent_id": 9,
+    "router": {
+      "intent_internal": "PAIEMENT",
+      "mode": "RECEPTION_SAV",
+      "missing_fields": [
+        "photo",
+        "paiement",
+        "zone",
+        "tel"
+      ],
+      "confidence": 0.8533960342407226,
+      "segment_letter": "C",
+      "debug": {
+        "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+        "user_id": "router_only_eval_120",
+        "raw_message": "Vous acceptez MTN Money",
+        "conversation_history_sample": "",
+        "intent_score": 0.8533960342407226
+      }
+    }
+  },
+  {
+    "index": 86,
+    "question": "Vous livrez où",
+    "expected_label": "DELIVERY_INFO",
+    "expected_intent_id": 10,
+    "router": {
+      "intent_internal": "LIVRAISON",
+      "mode": "RECEPTION_SAV",
+      "missing_fields": [
+        "photo",
+        "paiement",
+        "zone",
+        "tel"
+      ],
+      "confidence": 1.0,
+      "segment_letter": "C",
+      "debug": {
+        "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+        "user_id": "router_only_eval_120",
+        "raw_message": "Vous livrez où",
+        "conversation_history_sample": "",
+        "intent_score": 1.0
+      }
+    }
+  },
+  {
+    "index": 87,
+    "question": "Vous livrez à Yopougon",
+    "expected_label": "DELIVERY_INFO",
+    "expected_intent_id": 10,
+    "router": {
+      "intent_internal": "LIVRAISON",
+      "mode": "RECEPTION_SAV",
+      "missing_fields": [
+        "photo",
+        "paiement",
+        "zone",
+        "tel"
+      ],
+      "confidence": 0.9584500980377196,
+      "segment_letter": "C",
+      "debug": {
+        "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+        "user_id": "router_only_eval_120",
+        "raw_message": "Vous livrez à Yopougon",
+        "conversation_history_sample": "",
+        "intent_score": 0.9584500980377196
+      }
+    }
+  },
+  {
+    "index": 88,
+    "question": "La livraison prend combien de temps",
+    "expected_label": "DELIVERY_INFO",
+    "expected_intent_id": 10,
+    "router": {
+      "intent_internal": "LIVRAISON",
+      "mode": "RECEPTION_SAV",
+      "missing_fields": [
+        "photo",
+        "paiement",
+        "zone",
+        "tel"
+      ],
+      "confidence": 1.0,
+      "segment_letter": "C",
+      "debug": {
+        "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+        "user_id": "router_only_eval_120",
+        "raw_message": "La livraison prend combien de temps",
+        "conversation_history_sample": "",
+        "intent_score": 1.0
+      }
+    }
+  },
+  {
+    "index": 89,
+    "question": "Ça arrive quand la livraison",
+    "expected_label": "DELIVERY_INFO",
+    "expected_intent_id": 10,
+    "router": {
+      "intent_internal": "LIVRAISON",
+      "mode": "RECEPTION_SAV",
+      "missing_fields": [
+        "photo",
+        "paiement",
+        "zone",
+        "tel"
+      ],
+      "confidence": 0.9231490834951399,
+      "segment_letter": "C",
+      "debug": {
+        "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+        "user_id": "router_only_eval_120",
+        "raw_message": "Ça arrive quand la livraison",
+        "conversation_history_sample": "",
+        "intent_score": 0.9231490834951399
+      }
+    }
+  },
+  {
+    "index": 90,
+    "question": "Les frais de livraison c'est combien",
+    "expected_label": "DELIVERY_INFO",
+    "expected_intent_id": 10,
+    "router": {
+      "intent_internal": "LIVRAISON",
+      "mode": "RECEPTION_SAV",
+      "missing_fields": [
+        "photo",
+        "paiement",
+        "zone",
+        "tel"
+      ],
+      "confidence": 1.0,
+      "segment_letter": "C",
+      "debug": {
+        "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+        "user_id": "router_only_eval_120",
+        "raw_message": "Les frais de livraison c'est combien",
+        "conversation_history_sample": "",
+        "intent_score": 1.0
+      }
+    }
+  },
+  {
+    "index": 91,
+    "question": "La livraison est gratuite",
+    "expected_label": "DELIVERY_INFO",
+    "expected_intent_id": 10,
+    "router": {
+      "intent_internal": "LIVRAISON",
+      "mode": "RECEPTION_SAV",
+      "missing_fields": [
+        "photo",
+        "paiement",
+        "zone",
+        "tel"
+      ],
+      "confidence": 0.9307057943344115,
+      "segment_letter": "C",
+      "debug": {
+        "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+        "user_id": "router_only_eval_120",
+        "raw_message": "La livraison est gratuite",
+        "conversation_history_sample": "",
+        "intent_score": 0.9307057943344115
+      }
+    }
+  },
+  {
+    "index": 92,
+    "question": "Vous livrez dans quel quartier",
+    "expected_label": "DELIVERY_INFO",
+    "expected_intent_id": 10,
+    "router": {
+      "intent_internal": "LIVRAISON",
+      "mode": "RECEPTION_SAV",
+      "missing_fields": [
+        "photo",
+        "paiement",
+        "zone",
+        "tel"
+      ],
+      "confidence": 0.789087438583374,
+      "segment_letter": "C",
+      "debug": {
+        "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+        "user_id": "router_only_eval_120",
+        "raw_message": "Vous livrez dans quel quartier",
+        "conversation_history_sample": "",
+        "intent_score": 0.789087438583374
+      }
+    }
+  },
+  {
+    "index": 93,
+    "question": "Combien pour livrer à Cocody",
+    "expected_label": "DELIVERY_INFO",
+    "expected_intent_id": 10,
+    "router": {
+      "intent_internal": "LIVRAISON",
+      "mode": "RECEPTION_SAV",
+      "missing_fields": [
+        "photo",
+        "paiement",
+        "zone",
+        "tel"
+      ],
+      "confidence": 1.0,
+      "segment_letter": "C",
+      "debug": {
+        "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+        "user_id": "router_only_eval_120",
+        "raw_message": "Combien pour livrer à Cocody",
+        "conversation_history_sample": "",
+        "intent_score": 1.0
+      }
+    }
+  },
+  {
+    "index": 94,
+    "question": "Vous livrez le weekend",
+    "expected_label": "DELIVERY_INFO",
+    "expected_intent_id": 10,
+    "router": {
+      "intent_internal": "LIVRAISON",
+      "mode": "RECEPTION_SAV",
+      "missing_fields": [
+        "photo",
+        "paiement",
+        "zone",
+        "tel"
+      ],
+      "confidence": 0.7622006177902222,
+      "segment_letter": "C",
+      "debug": {
+        "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+        "user_id": "router_only_eval_120",
+        "raw_message": "Vous livrez le weekend",
+        "conversation_history_sample": "",
+        "intent_score": 0.7622006177902222
+      }
+    }
+  },
+  {
+    "index": 95,
+    "question": "Quelles zones vous couvrez",
+    "expected_label": "DELIVERY_INFO",
+    "expected_intent_id": 10,
+    "router": {
+      "intent_internal": "LIVRAISON",
+      "mode": "RECEPTION_SAV",
+      "missing_fields": [
+        "photo",
+        "paiement",
+        "zone",
+        "tel"
+      ],
+      "confidence": 0.7939524590969086,
+      "segment_letter": "C",
+      "debug": {
+        "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+        "user_id": "router_only_eval_120",
+        "raw_message": "Quelles zones vous couvrez",
+        "conversation_history_sample": "",
+        "intent_score": 0.7939524590969086
+      }
+    }
+  },
+  {
+    "index": 96,
+    "question": "Je veux changer l'adresse de livraison",
+    "expected_label": "DELIVERY_MODIFY",
+    "expected_intent_id": 11,
+    "router": {
+      "intent_internal": "SUIVI",
+      "mode": "RECEPTION_SAV",
+      "missing_fields": [
+        "photo",
+        "paiement",
+        "zone",
+        "tel"
+      ],
+      "confidence": 1.0,
+      "segment_letter": "D",
+      "debug": {
+        "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+        "user_id": "router_only_eval_120",
+        "raw_message": "Je veux changer l'adresse de livraison",
+        "conversation_history_sample": "",
+        "intent_score": 1.0
+      }
+    }
+  },
+  {
+    "index": 97,
+    "question": "Modifier l'adresse svp",
+    "expected_label": "DELIVERY_MODIFY",
+    "expected_intent_id": 11,
+    "router": {
+      "intent_internal": "SUIVI",
+      "mode": "RECEPTION_SAV",
+      "missing_fields": [
+        "photo",
+        "paiement",
+        "zone",
+        "tel"
+      ],
+      "confidence": 0.75,
+      "segment_letter": "D",
+      "debug": {
+        "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+        "user_id": "router_only_eval_120",
+        "raw_message": "Modifier l'adresse svp",
+        "conversation_history_sample": "",
+        "intent_score": 0.75
+      }
+    }
+  },
+  {
+    "index": 98,
+    "question": "Reporter la livraison à demain",
+    "expected_label": "DELIVERY_MODIFY",
+    "expected_intent_id": 11,
+    "router": {
+      "intent_internal": "LIVRAISON",
+      "mode": "RECEPTION_SAV",
+      "missing_fields": [
+        "photo",
+        "paiement",
+        "zone",
+        "tel"
+      ],
+      "confidence": 0.8176832993030547,
+      "segment_letter": "C",
+      "debug": {
+        "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+        "user_id": "router_only_eval_120",
+        "raw_message": "Reporter la livraison à demain",
+        "conversation_history_sample": "",
+        "intent_score": 0.8176832993030547
+      }
+    }
+  },
+  {
+    "index": 99,
+    "question": "Changer la date de livraison",
+    "expected_label": "DELIVERY_MODIFY",
+    "expected_intent_id": 11,
+    "router": {
+      "intent_internal": "SUIVI",
+      "mode": "RECEPTION_SAV",
+      "missing_fields": [
+        "photo",
+        "paiement",
+        "zone",
+        "tel"
+      ],
+      "confidence": 0.9183186525106429,
+      "segment_letter": "D",
+      "debug": {
+        "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+        "user_id": "router_only_eval_120",
+        "raw_message": "Changer la date de livraison",
+        "conversation_history_sample": "",
+        "intent_score": 0.9183186525106429
+      }
+    }
+  },
+  {
+    "index": 100,
+    "question": "Livrer à une autre adresse",
+    "expected_label": "DELIVERY_MODIFY",
+    "expected_intent_id": 11,
+    "router": {
+      "intent_internal": "LIVRAISON",
+      "mode": "RECEPTION_SAV",
+      "missing_fields": [
+        "photo",
+        "paiement",
+        "zone",
+        "tel"
+      ],
+      "confidence": 1.0,
+      "segment_letter": "C",
+      "debug": {
+        "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+        "user_id": "router_only_eval_120",
+        "raw_message": "Livrer à une autre adresse",
+        "conversation_history_sample": "",
+        "intent_score": 1.0
+      }
+    }
+  },
+  {
+    "index": 101,
+    "question": "Où est mon colis",
+    "expected_label": "TRACKING",
+    "expected_intent_id": 12,
+    "router": {
+      "intent_internal": "SUIVI",
+      "mode": "RECEPTION_SAV",
+      "missing_fields": [
+        "photo",
+        "paiement",
+        "zone",
+        "tel"
+      ],
+      "confidence": 0.8023209750652314,
+      "segment_letter": "D",
+      "debug": {
+        "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+        "user_id": "router_only_eval_120",
+        "raw_message": "Où est mon colis",
+        "conversation_history_sample": "",
+        "intent_score": 0.8023209750652314
+      }
+    }
+  },
+  {
+    "index": 102,
+    "question": "Quand arrive ma commande",
+    "expected_label": "TRACKING",
+    "expected_intent_id": 12,
+    "router": {
+      "intent_internal": "SUIVI",
+      "mode": "RECEPTION_SAV",
+      "missing_fields": [
+        "photo",
+        "paiement",
+        "zone",
+        "tel"
+      ],
+      "confidence": 0.8840489387512207,
+      "segment_letter": "D",
+      "debug": {
+        "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+        "user_id": "router_only_eval_120",
+        "raw_message": "Quand arrive ma commande",
+        "conversation_history_sample": "",
+        "intent_score": 0.8840489387512207
+      }
+    }
+  },
+  {
+    "index": 103,
+    "question": "Le livreur est où exactement",
+    "expected_label": "TRACKING",
+    "expected_intent_id": 12,
+    "router": {
+      "intent_internal": "SUIVI",
+      "mode": "RECEPTION_SAV",
+      "missing_fields": [
+        "photo",
+        "paiement",
+        "zone",
+        "tel"
+      ],
+      "confidence": 0.7350174186229707,
+      "segment_letter": "D",
+      "debug": {
+        "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+        "user_id": "router_only_eval_120",
+        "raw_message": "Le livreur est où exactement",
+        "conversation_history_sample": "",
+        "intent_score": 0.7350174186229707
+      }
+    }
+  },
+  {
+    "index": 104,
+    "question": "J'ai pas encore reçu ma commande",
+    "expected_label": "TRACKING",
+    "expected_intent_id": 12,
+    "router": {
+      "intent_internal": "SUIVI",
+      "mode": "RECEPTION_SAV",
+      "missing_fields": [
+        "photo",
+        "paiement",
+        "zone",
+        "tel"
+      ],
+      "confidence": 0.918878553289175,
+      "segment_letter": "D",
+      "debug": {
+        "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+        "user_id": "router_only_eval_120",
+        "raw_message": "J'ai pas encore reçu ma commande",
+        "conversation_history_sample": "",
+        "intent_score": 0.918878553289175
+      }
+    }
+  },
+  {
+    "index": 105,
+    "question": "Quel est le statut de ma livraison",
+    "expected_label": "TRACKING",
+    "expected_intent_id": 12,
+    "router": {
+      "intent_internal": "SUIVI",
+      "mode": "RECEPTION_SAV",
+      "missing_fields": [
+        "photo",
+        "paiement",
+        "zone",
+        "tel"
+      ],
+      "confidence": 0.9744086354970932,
+      "segment_letter": "D",
+      "debug": {
+        "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+        "user_id": "router_only_eval_120",
+        "raw_message": "Quel est le statut de ma livraison",
+        "conversation_history_sample": "",
+        "intent_score": 0.9744086354970932
+      }
+    }
+  },
+  {
+    "index": 106,
+    "question": "Ma commande a été expédiée",
+    "expected_label": "TRACKING",
+    "expected_intent_id": 12,
+    "router": {
+      "intent_internal": "SUIVI",
+      "mode": "RECEPTION_SAV",
+      "missing_fields": [
+        "photo",
+        "paiement",
+        "zone",
+        "tel"
+      ],
+      "confidence": 0.8643440008163452,
+      "segment_letter": "D",
+      "debug": {
+        "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+        "user_id": "router_only_eval_120",
+        "raw_message": "Ma commande a été expédiée",
+        "conversation_history_sample": "",
+        "intent_score": 0.8643440008163452
+      }
+    }
+  },
+  {
+    "index": 107,
+    "question": "C'est en cours de livraison",
+    "expected_label": "TRACKING",
+    "expected_intent_id": 12,
+    "router": {
+      "intent_internal": "SUIVI",
+      "mode": "RECEPTION_SAV",
+      "missing_fields": [
+        "photo",
+        "paiement",
+        "zone",
+        "tel"
+      ],
+      "confidence": 1.0,
+      "segment_letter": "D",
+      "debug": {
+        "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+        "user_id": "router_only_eval_120",
+        "raw_message": "C'est en cours de livraison",
+        "conversation_history_sample": "",
+        "intent_score": 1.0
+      }
+    }
+  },
+  {
+    "index": 108,
+    "question": "Toujours pas livré",
+    "expected_label": "TRACKING",
+    "expected_intent_id": 12,
+    "router": {
+      "intent_internal": "SUIVI",
+      "mode": "RECEPTION_SAV",
+      "missing_fields": [
+        "photo",
+        "paiement",
+        "zone",
+        "tel"
+      ],
+      "confidence": 0.8232135171890259,
+      "segment_letter": "D",
+      "debug": {
+        "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+        "user_id": "router_only_eval_120",
+        "raw_message": "Toujours pas livré",
+        "conversation_history_sample": "",
+        "intent_score": 0.8232135171890259
+      }
+    }
+  },
+  {
+    "index": 109,
+    "question": "Le suivi de ma commande svp",
+    "expected_label": "TRACKING",
+    "expected_intent_id": 12,
+    "router": {
+      "intent_internal": "SUIVI",
+      "mode": "RECEPTION_SAV",
+      "missing_fields": [
+        "photo",
+        "paiement",
+        "zone",
+        "tel"
+      ],
+      "confidence": 0.8650708258152009,
+      "segment_letter": "D",
+      "debug": {
+        "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+        "user_id": "router_only_eval_120",
+        "raw_message": "Le suivi de ma commande svp",
+        "conversation_history_sample": "",
+        "intent_score": 0.8650708258152009
+      }
+    }
+  },
+  {
+    "index": 110,
+    "question": "Ça n'est pas arrivé",
+    "expected_label": "TRACKING",
+    "expected_intent_id": 12,
+    "router": {
+      "intent_internal": "SUIVI",
+      "mode": "RECEPTION_SAV",
+      "missing_fields": [
+        "photo",
+        "paiement",
+        "zone",
+        "tel"
+      ],
+      "confidence": 1.0,
+      "segment_letter": "D",
+      "debug": {
+        "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+        "user_id": "router_only_eval_120",
+        "raw_message": "Ça n'est pas arrivé",
+        "conversation_history_sample": "",
+        "intent_score": 1.0
+      }
+    }
+  },
+  {
+    "index": 111,
+    "question": "Salut j'espère que vous allez bien, c'est combien le paquet",
+    "expected_label": "PRICE",
+    "expected_intent_id": 5,
+    "router": {
+      "intent_internal": "PRIX_PROMO",
+      "mode": "RECEPTION_SAV",
+      "missing_fields": [
+        "photo",
+        "paiement",
+        "zone",
+        "tel"
+      ],
+      "confidence": 0.692824465278536,
+      "segment_letter": "B",
+      "debug": {
+        "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+        "user_id": "router_only_eval_120",
+        "raw_message": "Salut j'espère que vous allez bien, c'est combien le paquet",
+        "conversation_history_sample": "",
+        "intent_score": 0.692824465278536
+      }
+    }
+  },
+  {
+    "index": 112,
+    "question": "Bonjour madame désolé du dérangement, vous livrez à Abobo",
+    "expected_label": "DELIVERY_INFO",
+    "expected_intent_id": 10,
+    "router": {
+      "intent_internal": "LIVRAISON",
+      "mode": "RECEPTION_SAV",
+      "missing_fields": [
+        "photo",
+        "paiement",
+        "zone",
+        "tel"
+      ],
+      "confidence": 0.9292412710189819,
+      "segment_letter": "C",
+      "debug": {
+        "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+        "user_id": "router_only_eval_120",
+        "raw_message": "Bonjour madame désolé du dérangement, vous livrez à Abobo",
+        "conversation_history_sample": "",
+        "intent_score": 0.9292412710189819
+      }
+    }
+  },
+  {
+    "index": 113,
+    "question": "Bjr comment tu vas, c'est disponible en stock",
+    "expected_label": "STOCK",
+    "expected_intent_id": 6,
+    "router": {
+      "intent_internal": "DISPONIBILITE",
+      "mode": "RECEPTION_SAV",
+      "missing_fields": [
+        "photo",
+        "paiement",
+        "zone",
+        "tel"
+      ],
+      "confidence": 0.8254611611366272,
+      "segment_letter": "B",
+      "debug": {
+        "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+        "user_id": "router_only_eval_120",
+        "raw_message": "Bjr comment tu vas, c'est disponible en stock",
+        "conversation_history_sample": "",
+        "intent_score": 0.8254611611366272
+      }
+    }
+  },
+  {
+    "index": 114,
+    "question": "Hey j'espère que tout va bien, je veux commander 5 paquets",
+    "expected_label": "ORDER_CREATE",
+    "expected_intent_id": 7,
+    "router": {
+      "intent_internal": "ACHAT_COMMANDE",
+      "mode": "COMMANDE",
+      "missing_fields": [
+        "photo",
+        "paiement",
+        "zone",
+        "tel"
+      ],
+      "confidence": 0.8588118743896485,
+      "segment_letter": "C",
+      "debug": {
+        "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+        "user_id": "router_only_eval_120",
+        "raw_message": "Hey j'espère que tout va bien, je veux commander 5 paquets",
+        "conversation_history_sample": "",
+        "intent_score": 0.8588118743896485
+      }
+    }
+  },
+  {
+    "index": 115,
+    "question": "Yo la forme, où est mon colis svp",
+    "expected_label": "TRACKING",
+    "expected_intent_id": 12,
+    "router": {
+      "intent_internal": "SUIVI",
+      "mode": "RECEPTION_SAV",
+      "missing_fields": [
+        "photo",
+        "paiement",
+        "zone",
+        "tel"
+      ],
+      "confidence": 0.7519436985254289,
+      "segment_letter": "D",
+      "debug": {
+        "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+        "user_id": "router_only_eval_120",
+        "raw_message": "Yo la forme, où est mon colis svp",
+        "conversation_history_sample": "",
+        "intent_score": 0.7519436985254289
+      }
+    }
+  },
+  {
+    "index": 116,
+    "question": "Bonjour pardon de te déranger, vous acceptez Mobile Money",
+    "expected_label": "PAYMENT",
+    "expected_intent_id": 9,
+    "router": {
+      "intent_internal": "PAIEMENT",
+      "mode": "RECEPTION_SAV",
+      "missing_fields": [
+        "photo",
+        "paiement",
+        "zone",
+        "tel"
+      ],
+      "confidence": 0.8689179182052612,
+      "segment_letter": "C",
+      "debug": {
+        "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+        "user_id": "router_only_eval_120",
+        "raw_message": "Bonjour pardon de te déranger, vous acceptez Mobile Money",
+        "conversation_history_sample": "",
+        "intent_score": 0.8689179182052612
+      }
+    }
+  },
+  {
+    "index": 117,
+    "question": "Salut ça dit quoi, quand ça arrive ma commande",
+    "expected_label": "TRACKING",
+    "expected_intent_id": 12,
+    "router": {
+      "intent_internal": "SUIVI",
+      "mode": "RECEPTION_SAV",
+      "missing_fields": [
+        "photo",
+        "paiement",
+        "zone",
+        "tel"
+      ],
+      "confidence": 0.6492917537689209,
+      "segment_letter": "D",
+      "debug": {
+        "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+        "user_id": "router_only_eval_120",
+        "raw_message": "Salut ça dit quoi, quand ça arrive ma commande",
+        "conversation_history_sample": "",
+        "intent_score": 0.6492917537689209
+      }
+    }
+  },
+  {
+    "index": 118,
+    "question": "Bjr chef, je veux modifier ma commande d'hier",
+    "expected_label": "ORDER_MODIFY",
+    "expected_intent_id": 8,
+    "router": {
+      "intent_internal": "SUIVI",
+      "mode": "RECEPTION_SAV",
+      "missing_fields": [
+        "photo",
+        "paiement",
+        "zone",
+        "tel"
+      ],
+      "confidence": 0.75,
+      "segment_letter": "D",
+      "debug": {
+        "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+        "user_id": "router_only_eval_120",
+        "raw_message": "Bjr chef, je veux modifier ma commande d'hier",
+        "conversation_history_sample": "",
+        "intent_score": 0.75
+      }
+    }
+  },
+  {
+    "index": 119,
+    "question": "Bonjour j'espère la famille va bien, vous êtes situés où exactement",
+    "expected_label": "INFO_GENERAL",
+    "expected_intent_id": 2,
+    "router": {
+      "intent_internal": "INFO_GENERALE",
+      "mode": "RECEPTION_SAV",
+      "missing_fields": [
+        "photo",
+        "paiement",
+        "zone",
+        "tel"
+      ],
+      "confidence": 0.6477779150009155,
+      "segment_letter": "A",
+      "debug": {
+        "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+        "user_id": "router_only_eval_120",
+        "raw_message": "Bonjour j'espère la famille va bien, vous êtes situés où exactement",
+        "conversation_history_sample": "",
+        "intent_score": 0.6477779150009155
+      }
+    }
+  },
+  {
+    "index": 120,
+    "question": "Salut pardon oh, les frais de livraison c'est combien",
+    "expected_label": "DELIVERY_INFO",
+    "expected_intent_id": 10,
+    "router": {
+      "intent_internal": "LIVRAISON",
+      "mode": "RECEPTION_SAV",
+      "missing_fields": [
+        "photo",
+        "paiement",
+        "zone",
+        "tel"
+      ],
+      "confidence": 1.0,
+      "segment_letter": "C",
+      "debug": {
+        "company_id": "W27PwOPiblP8TlOrhPcjOtxd0cza",
+        "user_id": "router_only_eval_120",
+        "raw_message": "Salut pardon oh, les frais de livraison c'est combien",
+        "conversation_history_sample": "",
+        "intent_score": 1.0
+      }
+    }
+  }
+]

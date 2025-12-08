@@ -1,0 +1,30 @@
+{
+  "intent_id": "4",
+  "clusters": [
+    {
+      "size": 7,
+      "consensus": 1.0,
+      "company_support": 1,
+      "per_company": {
+        "W27PwOPiblP8TlOrhPcjOtxd0cza": 7
+      },
+      "top_examples": [
+        "Pouvez-vous m’en dire plus sur votre publicité ?",
+        "Pouvez-vous m’en dire plus sur votre publicité ?",
+        "Pouvez-vous m’en dire plus sur votre publicité ?",
+        "Pouvez-vous m’en dire plus sur votre publicité ?",
+        "Pouvez-vous m’en dire plus sur votre publicité ?"
+      ],
+      "keywords": [
+        {
+          "word": "m",
+          "freq": 7
+        },
+        {
+          "word": "publicité",
+          "freq": 7
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,494 @@
+[
+  {
+    "index": 1,
+    "question": "Bonjour",
+    "expected_label": "GREETING",
+    "expected_intent_id": 1,
+    "router": {
+      "intent_internal": "SALUT",
+      "mode": "RECEPTION_SAV",
+      "missing_fields": [
+        "photo",
+        "paiement",
+        "zone",
+        "tel"
+      ],
+      "confidence": 0.95,
+      "segment_letter": "A"
+    },
+    "prompt": {
+      "length_chars": 3903,
+      "segment_excerpt": "# SYSTÈME PROMPT A\r\nTu es Jessica, IA conversationnelle de Rue du Grossiste (non-transactionnel uniquement).\r\n\r\n## CORE LOGIC\r\nDétection intention→Score→Boost interrogatif→Choix dominante→Réponse 2-temps\r\n\r\n## HIÉRARCHIE INTENTIONS\r\n1.Question(loc/liv/proc/exp):10 | 2.Clarif:8 | 3.Merci:5 | 4.Salut:"
+    },
+    "llm": {
+      "raw": "<response>\n  <thinking>intent=salut | etat=1/4 | action=répondre</thinking>\n  <answer>Bonjour, comment puis-je vous aider ?</answer>\n</response>",
+      "thinking": "intent=salut | etat=1/4 | action=répondre",
+      "answer": "Bonjour, comment puis-je vous aider ?"
+    },
+    "tokens": {
+      "provider": "groq",
+      "model": "llama-3.3-70b-versatile",
+      "health_check": true,
+      "fallback_used": false,
+      "prompt_tokens": 1335,
+      "completion_tokens": 48,
+      "total_tokens": 1383,
+      "cost": {
+        "input": 0.00078765,
+        "output": 3.7919999999999996e-05,
+        "total": 0.00082557
+      }
+    }
+  },
+  {
+    "index": 2,
+    "question": "Salut comment allez-vous",
+    "expected_label": "GREETING",
+    "expected_intent_id": 1,
+    "router": {
+      "intent_internal": "SALUT",
+      "mode": "RECEPTION_SAV",
+      "missing_fields": [
+        "photo",
+        "paiement",
+        "zone",
+        "tel"
+      ],
+      "confidence": 0.9,
+      "segment_letter": "A"
+    },
+    "prompt": {
+      "length_chars": 3920,
+      "segment_excerpt": "# SYSTÈME PROMPT A\r\nTu es Jessica, IA conversationnelle de Rue du Grossiste (non-transactionnel uniquement).\r\n\r\n## CORE LOGIC\r\nDétection intention→Score→Boost interrogatif→Choix dominante→Réponse 2-temps\r\n\r\n## HIÉRARCHIE INTENTIONS\r\n1.Question(loc/liv/proc/exp):10 | 2.Clarif:8 | 3.Merci:5 | 4.Salut:"
+    },
+    "llm": {
+      "raw": "<response>\n  <thinking>intent=salut | etat=1/4 | action=répondre</thinking>\n  <answer>Je vais bien, merci ! Comment puis-je vous aider aujourd'hui ?</answer>\n</response>",
+      "thinking": "intent=salut | etat=1/4 | action=répondre",
+      "answer": "Je vais bien, merci ! Comment puis-je vous aider aujourd'hui ?"
+    },
+    "tokens": {
+      "provider": "groq",
+      "model": "llama-3.3-70b-versatile",
+      "health_check": true,
+      "fallback_used": false,
+      "prompt_tokens": 1339,
+      "completion_tokens": 54,
+      "total_tokens": 1393,
+      "cost": {
+        "input": 0.00079001,
+        "output": 4.2659999999999995e-05,
+        "total": 0.00083267
+      }
+    }
+  },
+  {
+    "index": 3,
+    "question": "Bonsoir j'espère que vous allez bien",
+    "expected_label": "GREETING",
+    "expected_intent_id": 1,
+    "router": {
+      "intent_internal": "SALUT",
+      "mode": "RECEPTION_SAV",
+      "missing_fields": [
+        "photo",
+        "paiement",
+        "zone",
+        "tel"
+      ],
+      "confidence": 0.9,
+      "segment_letter": "A"
+    },
+    "prompt": {
+      "length_chars": 3932,
+      "segment_excerpt": "# SYSTÈME PROMPT A\r\nTu es Jessica, IA conversationnelle de Rue du Grossiste (non-transactionnel uniquement).\r\n\r\n## CORE LOGIC\r\nDétection intention→Score→Boost interrogatif→Choix dominante→Réponse 2-temps\r\n\r\n## HIÉRARCHIE INTENTIONS\r\n1.Question(loc/liv/proc/exp):10 | 2.Clarif:8 | 3.Merci:5 | 4.Salut:"
+    },
+    "llm": {
+      "raw": "<response>\n  <thinking>intent=salut | etat=1/4 | action=répondre</thinking>\n  <answer>Bonsoir, tout va bien merci ! Comment puis-je vous aider ce soir ?</answer>\n</response>",
+      "thinking": "intent=salut | etat=1/4 | action=répondre",
+      "answer": "Bonsoir, tout va bien merci ! Comment puis-je vous aider ce soir ?"
+    },
+    "tokens": {
+      "provider": "groq",
+      "model": "llama-3.3-70b-versatile",
+      "health_check": true,
+      "fallback_used": false,
+      "prompt_tokens": 1345,
+      "completion_tokens": 56,
+      "total_tokens": 1401,
+      "cost": {
+        "input": 0.00079355,
+        "output": 4.4239999999999997e-05,
+        "total": 0.0008377899999999999
+      }
+    }
+  },
+  {
+    "index": 4,
+    "question": "Bjr madame désolé du dérangement",
+    "expected_label": "GREETING",
+    "expected_intent_id": 1,
+    "router": {
+      "intent_internal": "SALUT",
+      "mode": "RECEPTION_SAV",
+      "missing_fields": [
+        "photo",
+        "paiement",
+        "zone",
+        "tel"
+      ],
+      "confidence": 0.9,
+      "segment_letter": "A"
+    },
+    "prompt": {
+      "length_chars": 3928,
+      "segment_excerpt": "# SYSTÈME PROMPT A\r\nTu es Jessica, IA conversationnelle de Rue du Grossiste (non-transactionnel uniquement).\r\n\r\n## CORE LOGIC\r\nDétection intention→Score→Boost interrogatif→Choix dominante→Réponse 2-temps\r\n\r\n## HIÉRARCHIE INTENTIONS\r\n1.Question(loc/liv/proc/exp):10 | 2.Clarif:8 | 3.Merci:5 | 4.Salut:"
+    },
+    "llm": {
+      "raw": "<response>\n  <thinking>intent=salut | etat=1/4 | action=répondre</thinking>\n  <answer>Bonjour, pas de dérangement du tout. Comment puis-je vous aider aujourd'hui ?</answer>\n</response>",
+      "thinking": "intent=salut | etat=1/4 | action=répondre",
+      "answer": "Bonjour, pas de dérangement du tout. Comment puis-je vous aider aujourd'hui ?"
+    },
+    "tokens": {
+      "provider": "groq",
+      "model": "llama-3.3-70b-versatile",
+      "health_check": true,
+      "fallback_used": false,
+      "prompt_tokens": 1344,
+      "completion_tokens": 58,
+      "total_tokens": 1402,
+      "cost": {
+        "input": 0.00079296,
+        "output": 4.582e-05,
+        "total": 0.00083878
+      }
+    }
+  },
+  {
+    "index": 5,
+    "question": "Hey j'espère que tout va bien de votre côté",
+    "expected_label": "GREETING",
+    "expected_intent_id": 1,
+    "router": {
+      "intent_internal": "SALUT",
+      "mode": "RECEPTION_SAV",
+      "missing_fields": [
+        "photo",
+        "paiement",
+        "zone",
+        "tel"
+      ],
+      "confidence": 0.9,
+      "segment_letter": "A"
+    },
+    "prompt": {
+      "length_chars": 3939,
+      "segment_excerpt": "# SYSTÈME PROMPT A\r\nTu es Jessica, IA conversationnelle de Rue du Grossiste (non-transactionnel uniquement).\r\n\r\n## CORE LOGIC\r\nDétection intention→Score→Boost interrogatif→Choix dominante→Réponse 2-temps\r\n\r\n## HIÉRARCHIE INTENTIONS\r\n1.Question(loc/liv/proc/exp):10 | 2.Clarif:8 | 3.Merci:5 | 4.Salut:"
+    },
+    "llm": {
+      "raw": "<response>\n  <thinking>intent=salut | etat=3/4 | action=répondre</thinking>\n  <answer>Tout va bien, merci ! Comment puis-je vous aider aujourd'hui ?</answer>\n</response>",
+      "thinking": "intent=salut | etat=3/4 | action=répondre",
+      "answer": "Tout va bien, merci ! Comment puis-je vous aider aujourd'hui ?"
+    },
+    "tokens": {
+      "provider": "groq",
+      "model": "llama-3.3-70b-versatile",
+      "health_check": true,
+      "fallback_used": false,
+      "prompt_tokens": 1345,
+      "completion_tokens": 54,
+      "total_tokens": 1399,
+      "cost": {
+        "input": 0.00079355,
+        "output": 4.2659999999999995e-05,
+        "total": 0.00083621
+      }
+    }
+  },
+  {
+    "index": 6,
+    "question": "Yo c'est comment là",
+    "expected_label": "GREETING",
+    "expected_intent_id": 1,
+    "router": {
+      "intent_internal": "SALUT",
+      "mode": "RECEPTION_SAV",
+      "missing_fields": [
+        "photo",
+        "paiement",
+        "zone",
+        "tel"
+      ],
+      "confidence": 0.783591581583023,
+      "segment_letter": "A"
+    },
+    "prompt": {
+      "length_chars": 3915,
+      "segment_excerpt": "# SYSTÈME PROMPT A\r\nTu es Jessica, IA conversationnelle de Rue du Grossiste (non-transactionnel uniquement).\r\n\r\n## CORE LOGIC\r\nDétection intention→Score→Boost interrogatif→Choix dominante→Réponse 2-temps\r\n\r\n## HIÉRARCHIE INTENTIONS\r\n1.Question(loc/liv/proc/exp):10 | 2.Clarif:8 | 3.Merci:5 | 4.Salut:"
+    },
+    "llm": {
+      "raw": "<response>\n  <thinking>intent=salut | etat=1/4 | action=répondre</thinking>\n  <answer>Bonjour ! Comment puis-je vous aider ?</answer>\n</response>",
+      "thinking": "intent=salut | etat=1/4 | action=répondre",
+      "answer": "Bonjour ! Comment puis-je vous aider ?"
+    },
+    "tokens": {
+      "provider": "groq",
+      "model": "llama-3.3-70b-versatile",
+      "health_check": true,
+      "fallback_used": false,
+      "prompt_tokens": 1338,
+      "completion_tokens": 48,
+      "total_tokens": 1386,
+      "cost": {
+        "input": 0.00078942,
+        "output": 3.7919999999999996e-05,
+        "total": 0.00082734
+      }
+    }
+  },
+  {
+    "index": 7,
+    "question": "Bonjour pardon de vous déranger à cette heure",
+    "expected_label": "GREETING",
+    "expected_intent_id": 1,
+    "router": {
+      "intent_internal": "SALUT",
+      "mode": "RECEPTION_SAV",
+      "missing_fields": [
+        "photo",
+        "paiement",
+        "zone",
+        "tel"
+      ],
+      "confidence": 0.9,
+      "segment_letter": "A"
+    },
+    "prompt": {
+      "length_chars": 3941,
+      "segment_excerpt": "# SYSTÈME PROMPT A\r\nTu es Jessica, IA conversationnelle de Rue du Grossiste (non-transactionnel uniquement).\r\n\r\n## CORE LOGIC\r\nDétection intention→Score→Boost interrogatif→Choix dominante→Réponse 2-temps\r\n\r\n## HIÉRARCHIE INTENTIONS\r\n1.Question(loc/liv/proc/exp):10 | 2.Clarif:8 | 3.Merci:5 | 4.Salut:"
+    },
+    "llm": {
+      "raw": "<response>\n  <thinking>intent=salut | etat=1/4 | action=répondre</thinking>\n  <answer>Bonjour, comment puis-je vous aider à cette heure ?</answer>\n</response>",
+      "thinking": "intent=salut | etat=1/4 | action=répondre",
+      "answer": "Bonjour, comment puis-je vous aider à cette heure ?"
+    },
+    "tokens": {
+      "provider": "groq",
+      "model": "llama-3.3-70b-versatile",
+      "health_check": true,
+      "fallback_used": false,
+      "prompt_tokens": 1344,
+      "completion_tokens": 51,
+      "total_tokens": 1395,
+      "cost": {
+        "input": 0.00079296,
+        "output": 4.0289999999999995e-05,
+        "total": 0.00083325
+      }
+    }
+  },
+  {
+    "index": 8,
+    "question": "Salut j'espère la famille va bien",
+    "expected_label": "GREETING",
+    "expected_intent_id": 1,
+    "router": {
+      "intent_internal": "SALUT",
+      "mode": "RECEPTION_SAV",
+      "missing_fields": [
+        "photo",
+        "paiement",
+        "zone",
+        "tel"
+      ],
+      "confidence": 0.9,
+      "segment_letter": "A"
+    },
+    "prompt": {
+      "length_chars": 3929,
+      "segment_excerpt": "# SYSTÈME PROMPT A\r\nTu es Jessica, IA conversationnelle de Rue du Grossiste (non-transactionnel uniquement).\r\n\r\n## CORE LOGIC\r\nDétection intention→Score→Boost interrogatif→Choix dominante→Réponse 2-temps\r\n\r\n## HIÉRARCHIE INTENTIONS\r\n1.Question(loc/liv/proc/exp):10 | 2.Clarif:8 | 3.Merci:5 | 4.Salut:"
+    },
+    "llm": {
+      "raw": "<response>\n  <thinking>intent=salut | etat=1/4 | action=répondre</thinking>\n  <answer>Salut, la famille va bien, merci ! Comment puis-je vous aider aujourd'hui ?</answer>\n</response>",
+      "thinking": "intent=salut | etat=1/4 | action=répondre",
+      "answer": "Salut, la famille va bien, merci ! Comment puis-je vous aider aujourd'hui ?"
+    },
+    "tokens": {
+      "provider": "groq",
+      "model": "llama-3.3-70b-versatile",
+      "health_check": true,
+      "fallback_used": false,
+      "prompt_tokens": 1343,
+      "completion_tokens": 58,
+      "total_tokens": 1401,
+      "cost": {
+        "input": 0.0007923699999999999,
+        "output": 4.582e-05,
+        "total": 0.0008381899999999999
+      }
+    }
+  },
+  {
+    "index": 9,
+    "question": "Bondjour coment sa va",
+    "expected_label": "GREETING",
+    "expected_intent_id": 1,
+    "router": {
+      "intent_internal": "SALUT",
+      "mode": "RECEPTION_SAV",
+      "missing_fields": [
+        "photo",
+        "paiement",
+        "zone",
+        "tel"
+      ],
+      "confidence": 0.5519540309906006,
+      "segment_letter": "A"
+    },
+    "prompt": {
+      "length_chars": 3917,
+      "segment_excerpt": "# SYSTÈME PROMPT A\r\nTu es Jessica, IA conversationnelle de Rue du Grossiste (non-transactionnel uniquement).\r\n\r\n## CORE LOGIC\r\nDétection intention→Score→Boost interrogatif→Choix dominante→Réponse 2-temps\r\n\r\n## HIÉRARCHIE INTENTIONS\r\n1.Question(loc/liv/proc/exp):10 | 2.Clarif:8 | 3.Merci:5 | 4.Salut:"
+    },
+    "llm": {
+      "raw": "<response>\n  <thinking>intent=salut | etat=1/4 | action=répondre</thinking>\n  <answer>Bonjour, comment puis-je vous aider ? Nous sommes une boutique en ligne à Abidjan.</answer>\n</response>",
+      "thinking": "intent=salut | etat=1/4 | action=répondre",
+      "answer": "Bonjour, comment puis-je vous aider ? Nous sommes une boutique en ligne à Abidjan."
+    },
+    "tokens": {
+      "provider": "groq",
+      "model": "llama-3.3-70b-versatile",
+      "health_check": true,
+      "fallback_used": false,
+      "prompt_tokens": 1338,
+      "completion_tokens": 58,
+      "total_tokens": 1396,
+      "cost": {
+        "input": 0.00078942,
+        "output": 4.582e-05,
+        "total": 0.00083524
+      }
+    }
+  },
+  {
+    "index": 10,
+    "question": "Merci beaucoup pour votre aide",
+    "expected_label": "GREETING",
+    "expected_intent_id": 1,
+    "router": {
+      "intent_internal": "SALUT",
+      "mode": "RECEPTION_SAV",
+      "missing_fields": [
+        "photo",
+        "paiement",
+        "zone",
+        "tel"
+      ],
+      "confidence": 0.92,
+      "segment_letter": "A"
+    },
+    "prompt": {
+      "length_chars": 3926,
+      "segment_excerpt": "# SYSTÈME PROMPT A\r\nTu es Jessica, IA conversationnelle de Rue du Grossiste (non-transactionnel uniquement).\r\n\r\n## CORE LOGIC\r\nDétection intention→Score→Boost interrogatif→Choix dominante→Réponse 2-temps\r\n\r\n## HIÉRARCHIE INTENTIONS\r\n1.Question(loc/liv/proc/exp):10 | 2.Clarif:8 | 3.Merci:5 | 4.Salut:"
+    },
+    "llm": {
+      "raw": "<response>\n  <thinking>intent=merci | etat=5/5 | action=confirmer</thinking>\n  <answer>De rien, j'espère que vous avez trouvé ce que vous cherchiez. Autre chose que je puisse faire pour vous aider ?</answer>\n</response>",
+      "thinking": "intent=merci | etat=5/5 | action=confirmer",
+      "answer": "De rien, j'espère que vous avez trouvé ce que vous cherchiez. Autre chose que je puisse faire pour vous aider ?"
+    },
+    "tokens": {
+      "provider": "groq",
+      "model": "llama-3.3-70b-versatile",
+      "health_check": true,
+      "fallback_used": false,
+      "prompt_tokens": 1339,
+      "completion_tokens": 68,
+      "total_tokens": 1407,
+      "cost": {
+        "input": 0.00079001,
+        "output": 5.3719999999999994e-05,
+        "total": 0.00084373
+      }
+    }
+  },
+  {
+    "index": 11,
+    "question": "Vous êtes situés où exactement",
+    "expected_label": "INFO_GENERAL",
+    "expected_intent_id": 2,
+    "router": {
+      "intent_internal": "INFO_GENERALE",
+      "mode": "RECEPTION_SAV",
+      "missing_fields": [
+        "photo",
+        "paiement",
+        "zone",
+        "tel"
+      ],
+      "confidence": 0.6778739094734192,
+      "segment_letter": "A"
+    },
+    "prompt": {
+      "length_chars": 3926,
+      "segment_excerpt": "# SYSTÈME PROMPT A\r\nTu es Jessica, IA conversationnelle de Rue du Grossiste (non-transactionnel uniquement).\r\n\r\n## CORE LOGIC\r\nDétection intention→Score→Boost interrogatif→Choix dominante→Réponse 2-temps\r\n\r\n## HIÉRARCHIE INTENTIONS\r\n1.Question(loc/liv/proc/exp):10 | 2.Clarif:8 | 3.Merci:5 | 4.Salut:"
+    },
+    "llm": {
+      "raw": "<response>\n  <thinking>intent=loc | etat=1/4 | action=répondre</thinking>\n  <answer>Nous sommes une boutique en ligne située à Abidjan. Puis-je vous aider avec une commande ou des informations sur notre zone de livraison ?</answer>\n</response>",
+      "thinking": "intent=loc | etat=1/4 | action=répondre",
+      "answer": "Nous sommes une boutique en ligne située à Abidjan. Puis-je vous aider avec une commande ou des informations sur notre zone de livraison ?"
+    },
+    "tokens": {
+      "provider": "groq",
+      "model": "llama-3.3-70b-versatile",
+      "health_check": true,
+      "fallback_used": false,
+      "prompt_tokens": 1340,
+      "completion_tokens": 69,
+      "total_tokens": 1409,
+      "cost": {
+        "input": 0.0007905999999999999,
+        "output": 5.451e-05,
+        "total": 0.0008451099999999999
+      }
+    }
+  },
+  {
+    "index": 12,
+    "question": "C'est quoi votre adresse svp",
+    "expected_label": "INFO_GENERAL",
+    "expected_intent_id": 2,
+    "router": {
+      "intent_internal": "INFO_GENERALE",
+      "mode": "RECEPTION_SAV",
+      "missing_fields": [
+        "photo",
+        "paiement",
+        "zone",
+        "tel"
+      ],
+      "confidence": 0.7083883881568909,
+      "segment_letter": "A"
+    },
+    "prompt": {
+      "length_chars": 3924,
+      "segment_excerpt": "# SYSTÈME PROMPT A\r\nTu es Jessica, IA conversationnelle de Rue du Grossiste (non-transactionnel uniquement).\r\n\r\n## CORE LOGIC\r\nDétection intention→Score→Boost interrogatif→Choix dominante→Réponse 2-temps\r\n\r\n## HIÉRARCHIE INTENTIONS\r\n1.Question(loc/liv/proc/exp):10 | 2.Clarif:8 | 3.Merci:5 | 4.Salut:"
+    },
+    "llm": {
+      "raw": "<response>\n  <thinking>msg:\"C'est quoi votre adresse svp\" | int:[loc] | scores:{loc:10} | boost:non | final:{loc:10}, dom:loc | just:\"loc rang1\" | t1:\"en ligne\" | t2:\"commande ou info?\" | info:oui | 2ph:oui</thinking>\n  <answer>Nous sommes une boutique en ligne, vous pouvez donc nous trouver sur internet. Avez-vous besoin d'informations sur une commande ou sur notre zone de livraison à Abidjan ?</answer>\n</response>",
+      "thinking": "msg:\"C'est quoi votre adresse svp\" | int:[loc] | scores:{loc:10} | boost:non | final:{loc:10}, dom:loc | just:\"loc rang1\" | t1:\"en ligne\" | t2:\"commande ou info?\" | info:oui | 2ph:oui",
+      "answer": "Nous sommes une boutique en ligne, vous pouvez donc nous trouver sur internet. Avez-vous besoin d'informations sur une commande ou sur notre zone de livraison à Abidjan ?"
+    },
+    "tokens": {
+      "provider": "groq",
+      "model": "llama-3.3-70b-versatile",
+      "health_check": true,
+      "fallback_used": false,
+      "prompt_tokens": 1340,
+      "completion_tokens": 128,
+      "total_tokens": 1468,
+      "cost": {
+        "input": 0.0007905999999999999,
+        "output": 0.00010112,
+        "total": 0.0008917199999999999
+      }
+    }
+  }
+]

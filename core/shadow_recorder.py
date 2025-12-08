@@ -17,12 +17,14 @@ async def record_user_message(company_id: str, user_id: str, text: str, user_dis
         "text": text or "",
         "user_display_name": user_display_name or None,
     }
+    intent = _classify_intent(text or "") or {}
     _append_jsonl({
         "type": "user_message",
         "company_id": company_id,
         "user_id": user_id,
         "text": text or "",
         "ts": int(time.time()),
+        "intent_pred": intent,
     })
 
 async def record_operator_reply(company_id: str, user_id: str, text: str, operator_display_name: Optional[str] = None) -> None:

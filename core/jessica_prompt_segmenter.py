@@ -76,12 +76,26 @@ def build_jessica_prompt_segment(
         return "A"  # GUIDEUR par défaut → A
 
     letter = _intent_to_group_letter(raw_intent, mode)
-    prompt_tag_letter = f"JESSICA_PROMPT_{letter}"
-    letter_block = _extract_block(base_prompt_template, prompt_tag_letter)
 
-    if letter_block:
-        reduced_template = letter_block
-    else:
+    # Sélection LIGHT si confiance élevée (>= 0.90), sinon normal
+    confidence = float(hyde_result.get("confidence") or 0.0)
+    use_light = confidence >= 0.90
+
+    reduced_template = ""
+    if use_light:
+        prompt_tag_letter_light = f"JESSICA_PROMPT_LIGHT_{letter}"
+        letter_block_light = _extract_block(base_prompt_template, prompt_tag_letter_light)
+        if letter_block_light:
+            logger.info("[BOTLIVE][PROMPT] Segment LIGHT sélectionné | letter=%s confidence=%.2f", letter, confidence)
+            reduced_template = letter_block_light
+
+    if not reduced_template:
+        prompt_tag_letter = f"JESSICA_PROMPT_{letter}"
+        letter_block = _extract_block(base_prompt_template, prompt_tag_letter)
+        if letter_block:
+            reduced_template = letter_block
+
+    if not reduced_template:
         # Fallback legacy: blocs commun + spécifique MODE
         common_block = _extract_block(base_prompt_template, "JESSICA_COMMON")
         mode_tag = f"JESSICA_{mode}"
@@ -145,6 +159,14 @@ def build_jessica_prompt_segment(
         "checklist": checklist_text or enriched_checklist or "",
     }
 
+
+    # Prevents noisy KeyError warnings for unused variables like {dict}
+    format_vars.setdefault("dict", "")
+    # Defaults for occasional placeholders seen in remote templates
+    format_vars.setdefault("salut", "")
+    if "{context_text}" in reduced_template:
+        format_vars.setdefault("context_text", "")
+
     reduced_template_formatted: str
     try:
         reduced_template_formatted = base_prompt_template  # just for type
@@ -168,4 +190,7 @@ def build_jessica_prompt_segment(
         "missing_fields": missing_fields,
         "state": state,
         "hyde": hyde_result,
+        "used_light": use_light,
+        "segment_letter": letter,
+        "confidence": confidence,
     }

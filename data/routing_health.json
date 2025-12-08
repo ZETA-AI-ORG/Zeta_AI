@@ -1,0 +1,53 @@
+{
+  "generated_at": "2025-12-06T07:19:31Z",
+  "intents": {
+    "1": {
+      "shadow_messages": 38,
+      "augment_examples": 25
+    },
+    "2": {
+      "shadow_messages": 13,
+      "augment_examples": 5
+    },
+    "3": {
+      "shadow_messages": 6,
+      "augment_examples": 5
+    },
+    "4": {
+      "shadow_messages": 40,
+      "augment_examples": 7
+    },
+    "5": {
+      "shadow_messages": 28,
+      "augment_examples": 22
+    },
+    "6": {
+      "shadow_messages": 15,
+      "augment_examples": 13
+    },
+    "7": {
+      "shadow_messages": 2,
+      "augment_examples": 2
+    },
+    "8": {
+      "shadow_messages": 5,
+      "augment_examples": 5
+    },
+    "9": {
+      "shadow_messages": 18,
+      "augment_examples": 18
+    },
+    "10": {
+      "shadow_messages": 2,
+      "augment_examples": 2
+    },
+    "11": {
+      "shadow_messages": 23,
+      "augment_examples": 21
+    },
+    "12": {
+      "shadow_messages": 2,
+      "augment_examples": 2
+    }
+  }
+}

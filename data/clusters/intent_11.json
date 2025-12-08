@@ -1,0 +1,27 @@
+{
+  "intent_id": "11",
+  "clusters": [
+    {
+      "size": 2,
+      "consensus": 0.902,
+      "company_support": 1,
+      "per_company": {
+        "W27PwOPiblP8TlOrhPcjOtxd0cza": 2
+      },
+      "top_examples": [
+        "Ok merci je vous reviens",
+        "Ok je vous  reviendrai"
+      ],
+      "keywords": [
+        {
+          "word": "reviens",
+          "freq": 1
+        },
+        {
+          "word": "reviendrai",
+          "freq": 1
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,114 @@
+{
+  "intent_id": "1",
+  "clusters": [
+    {
+      "size": 3,
+      "consensus": 0.914,
+      "company_support": 1,
+      "per_company": {
+        "W27PwOPiblP8TlOrhPcjOtxd0cza": 3
+      },
+      "top_examples": [
+        "Bonjour mr",
+        "Bonjour",
+        "Bonjour  Mr/ Mme"
+      ],
+      "keywords": [
+        {
+          "word": "mr",
+          "freq": 2
+        },
+        {
+          "word": "mme",
+          "freq": 1
+        }
+      ]
+    },
+    {
+      "size": 3,
+      "consensus": 0.949,
+      "company_support": 1,
+      "per_company": {
+        "W27PwOPiblP8TlOrhPcjOtxd0cza": 3
+      },
+      "top_examples": [
+        "Bonjour madame",
+        "Bonjour madame",
+        "Bonjour"
+      ],
+      "keywords": [
+        {
+          "word": "madame",
+          "freq": 2
+        }
+      ]
+    },
+    {
+      "size": 5,
+      "consensus": 1.0,
+      "company_support": 1,
+      "per_company": {
+        "W27PwOPiblP8TlOrhPcjOtxd0cza": 5
+      },
+      "top_examples": [
+        "Bonjour 👋 bienvenue chez RUE DU GROSSISTE!\n\n✅Pour passer  commande ? Cliquez ici : https://wa.me/c/2250160924560",
+        "Bonjour 👋 bienvenue chez RUE DU GROSSISTE!\n\n✅Pour passer  commande ? Cliquez ici : https://wa.me/c/2250160924560",
+        "Bonjour 👋 bienvenue chez RUE DU GROSSISTE!\n\n✅Pour passer  commande ? Cliquez ici : https://wa.me/c/2250160924560",
+        "Bonjour 👋 bienvenue chez RUE DU GROSSISTE!\n\n✅Pour passer  commande ? Cliquez ici : https://wa.me/c/2250160924560",
+        "Bonjour 👋 bienvenue chez RUE DU GROSSISTE!\n\n✅Pour passer  commande ? Cliquez ici : https://wa.me/c/2250160924560"
+      ],
+      "keywords": [
+        {
+          "word": "bienvenue",
+          "freq": 5
+        },
+        {
+          "word": "rue",
+          "freq": 5
+        },
+        {
+          "word": "grossiste",
+          "freq": 5
+        },
+        {
+          "word": "commande",
+          "freq": 5
+        },
+        {
+          "word": "cliquez",
+          "freq": 5
+        },
+        {
+          "word": "ici",
+          "freq": 5
+        },
+        {
+          "word": "https",
+          "freq": 5
+        },
+        {
+          "word": "wa",
+          "freq": 5
+        },
+        {
+          "word": "2250160924560",
+          "freq": 5
+        }
+      ]
+    },
+    {
+      "size": 3,
+      "consensus": 1.0,
+      "company_support": 1,
+      "per_company": {
+        "W27PwOPiblP8TlOrhPcjOtxd0cza": 3
+      },
+      "top_examples": [
+        "Merci",
+        "Merci",
+        "Merci"
+      ],
+      "keywords": []
+    }
+  ]
+}
