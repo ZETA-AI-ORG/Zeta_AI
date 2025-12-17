@@ -18,8 +18,13 @@ import httpx
 from config import N8N_OUTBOUND_WEBHOOK_URL, N8N_API_KEY, N8N_DEBUG_MODE
 from core.intervention_logger import log_intervention_in_conversation_logs, log_message_in_conversation_logs
 from core.intervention_guardian import get_intervention_guardian
+from core.production_pipeline import ProductionPipeline
 
 logger = logging.getLogger(__name__)
+
+production_pipeline = ProductionPipeline()
+
+ENABLE_POST_RECAP_STOP_FLOW = False
 
 router = APIRouter(prefix="/botlive", tags=["botlive"])
 
@@ -201,7 +206,7 @@ async def process_botlive_message(req: BotliveMessageRequest, background_tasks: 
 
         post_recap = bool(pre_order_status.get("is_complete")) or pre_next_step == "completed"
 
-        if post_recap:
+        if ENABLE_POST_RECAP_STOP_FLOW and post_recap:
             # Après récap/confirmation de commande, tout nouveau message client déclenche
             # automatiquement une intervention humaine et le bot ne répond plus.
             logger.info(
@@ -320,15 +325,114 @@ async def process_botlive_message(req: BotliveMessageRequest, background_tasks: 
             user_id=req.user_id,
         )
 
-        # Import lazy pour éviter circular import
-        import app
-        response = await app._botlive_handle(
-            company_id=req.company_id,
+        # 🔀 NOUVEAU: passer par le système hybride Botlive (Jessica + HYDE) au lieu de _botlive_handle
+        from core.botlive_rag_hybrid import botlive_hybrid
+        from core.botlive_prompts_hardcoded import DEEPSEEK_V3_PROMPT
+        from Zeta_AI import app as zeta_app
+
+        # Extraire le numéro entreprise depuis le prompt hardcodé (même logique que l'endpoint /chat)
+        botlive_prompt_template = DEEPSEEK_V3_PROMPT
+        company_phone = None
+        if botlive_prompt_template:
+            import re
+
+            phone_patterns = [
+                # Après mot-clé (WhatsApp, Tel, Contact, etc.)
+                r'(?:whatsapp|tel|téléphone|telephone|contact|appel|numéro|numero)[\s:]*[^\d]*((?:\+?225\s*)?\d{2}[\s\-]*\d{2}[\s\-]*\d{2}[\s\-]*\d{2}[\s\-]*\d{2})',
+                # N'importe où avec code pays
+                r'\+225[\s\-]*\d{2}[\s\-]*\d{2}[\s\-]*\d{2}[\s\-]*\d{2}[\s\-]*\d{2}',
+                # 10 chiffres quelque part
+                r'0\d{9}',
+            ]
+
+            for pattern in phone_patterns:
+                phone_match = re.search(botlive_prompt_template, pattern, re.IGNORECASE) if False else re.search(pattern, botlive_prompt_template, re.IGNORECASE)
+                if phone_match:
+                    if len(phone_match.groups()) > 0:
+                        company_phone = phone_match.group(1)
+                    else:
+                        company_phone = phone_match.group(0)
+                    company_phone = company_phone.strip()
+                    break
+
+        # Contexte initial pour le système hybride
+        context = {
+            "detected_objects": [],
+            "filtered_transactions": [],
+            "expected_deposit": "2000 FCFA",
+            "company_phone": company_phone,
+        }
+
+        # Vision: si une image est présente, réutiliser le pipeline léger de Zeta_AI.app
+        if req.images and len(req.images) > 0:
+            try:
+                vision_result = await zeta_app._process_botlive_vision(
+                    req.images[0],
+                    company_phone=company_phone,
+                )
+                if isinstance(vision_result, dict):
+                    context.update(vision_result)
+            except Exception as vision_err:
+                # Gérer gracieusement les erreurs vision (403 Facebook, timeouts, etc.)
+                logger.warning(
+                    "[BOTLIVE][%s] Erreur traitement vision: %s (image ignorée, continuer sans vision)",
+                    request_id,
+                    str(vision_err)[:200]
+                )
+                # Continuer sans vision - le bot peut fonctionner sans image
+
+        # Déduplication légère de l'historique (même helper que le /chat endpoint)
+        try:
+            conversation_history = zeta_app.deduplicate_conversation_history(
+                conversation_history or ""
+            )
+        except Exception:
+            conversation_history = conversation_history or ""
+
+        pipeline_result = None
+        routing_result = None
+        cache_hit = False
+        try:
+            order_status_for_routing = pre_order_status or {}
+            produit = str(order_status_for_routing.get("produit") or "").strip()
+            paiement = str(order_status_for_routing.get("paiement") or "").strip()
+            zone = str(order_status_for_routing.get("zone") or "").strip()
+            numero = str(order_status_for_routing.get("numero") or "").strip()
+            tel_valide = bool(numero and len(numero) >= 8)
+            collected_count = int(bool(produit)) + int(bool(paiement)) + int(bool(zone)) + int(bool(numero))
+
+            state_compact = {
+                "collected_count": collected_count,
+                "is_complete": bool(order_status_for_routing.get("is_complete", False)),
+                "photo_collected": bool(produit),
+                "paiement_collected": bool(paiement),
+                "zone_collected": bool(zone),
+                "tel_collected": bool(numero),
+                "tel_valide": tel_valide,
+            }
+
+            pipeline_result = await production_pipeline.route_message(
+                req.company_id,
+                req.user_id,
+                req.message or "",
+                conversation_history,
+                state_compact,
+                None,
+            )
+            routing_result = pipeline_result.get("result") if isinstance(pipeline_result, dict) else None
+            cache_hit = bool(pipeline_result.get("cache_hit")) if isinstance(pipeline_result, dict) else False
+        except Exception as e:
+            logger.warning("[BOTLIVE][%s] ProductionPipeline routing failed: %s", request_id, e)
+
+        hybrid_result = await botlive_hybrid.process_request(
             user_id=req.user_id,
-            message=req.message,
-            images=req.images,
-            conversation_history=conversation_history
+            message=req.message or "",
+            context=context,
+            conversation_history=conversation_history,
+            company_id=req.company_id,
         )
+
+        response = hybrid_result.get("response", "")
         duration_ms = int((time.time() - start_time) * 1000)
         
         # Récupérer l'état de la commande
@@ -584,6 +688,13 @@ async def process_botlive_message(req: BotliveMessageRequest, background_tasks: 
         return JSONResponse(content={
             "success": True,
             "response": response,
+            "intent": getattr(routing_result, "intent", None) if routing_result else None,
+            "confidence": getattr(routing_result, "confidence", None) if routing_result else None,
+            "mode": getattr(routing_result, "mode", None) if routing_result else None,
+            "missing_fields": getattr(routing_result, "missing_fields", None) if routing_result else None,
+            "source": "cache" if cache_hit else "llm",
+            "cache_hit": cache_hit,
+            "latency_ms": duration_ms,
             "order_status": order_status,
             "next_step": next_step,
             "duration_ms": duration_ms,
@@ -770,14 +881,14 @@ async def process_botlive_message_stream(req: BotliveMessageRequest):
     
     async def event_generator():
         try:
-            # Import
-            from app import _botlive_handle
+            # Import lazy vers le backend principal (évite les conflits avec un module externe "app")
+            from Zeta_AI import app as zeta_app
             
             # Envoyer événement de démarrage
             yield f"data: {{'event': 'start', 'request_id': '{request_id}'}}\n\n"
             
-            # Traiter le message
-            response = await _botlive_handle(
+            # Traiter le message via le handler Botlive du backend principal
+            response = await zeta_app._botlive_handle(
                 company_id=req.company_id,
                 user_id=req.user_id,
                 message=req.message,

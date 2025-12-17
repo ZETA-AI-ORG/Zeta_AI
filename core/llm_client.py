@@ -17,7 +17,14 @@ class GroqLLMClient:
         self.api_key = api_key or GROQ_API_KEY or GROK_API_KEY
         self.api_url = api_url or GROQ_API_URL or GROK_API_URL
 
-    async def complete(self, prompt: str, model_name: str = "llama-3.3-70b-versatile", temperature: float = 0.2, max_tokens: int = 100) -> str:
+    async def complete(
+        self,
+        prompt: str,
+        model_name: str = "llama-3.3-70b-versatile",
+        temperature: float = 0.2,
+        max_tokens: int = 100,
+        top_p: Optional[float] = None,
+    ) -> str:
         import httpx
         from utils import log3
         
@@ -55,6 +62,8 @@ class GroqLLMClient:
                 "temperature": temperature,
                 "max_tokens": max_tokens
             }
+            if top_p is not None:
+                payload["top_p"] = float(top_p)
             # Log réduit - seulement le modèle et la taille
             log3("[LLM]", f"Groq {payload['model']} | {len(str(payload))} chars")
             
@@ -67,7 +76,19 @@ class GroqLLMClient:
                 # Extraire les tokens usage si disponible
                 usage = data.get("usage", {})
                 if usage:
-                    log3("[LLM][TOKENS]", f"{usage.get('prompt_tokens', 0)} + {usage.get('completion_tokens', 0)} = {usage.get('total_tokens', 0)} tokens")
+                    cached_tokens = 0
+                    try:
+                        cached_tokens = int(
+                            usage.get("cached_tokens")
+                            or (usage.get("prompt_tokens_details") or {}).get("cached_tokens")
+                            or 0
+                        )
+                    except Exception:
+                        cached_tokens = 0
+                    token_msg = f"{usage.get('prompt_tokens', 0)} + {usage.get('completion_tokens', 0)} = {usage.get('total_tokens', 0)} tokens"
+                    if cached_tokens:
+                        token_msg = f"{token_msg} | cached_prompt_tokens={cached_tokens}"
+                    log3("[LLM][TOKENS]", token_msg)
                 
                 # Retourner réponse + usage
                 return {"response": response_text, "usage": usage, "model": canonical_model}
@@ -110,7 +131,14 @@ class GroqLLMClient:
             log3("[GroqLLMClient][EXCEPTION]", str(e))
             return f"[Erreur LLM] Exception: {str(e)}"
     
-    async def _direct_llm_call(self, prompt: str, model_name: str, temperature: float = 0.2, max_tokens: int = 100) -> str:
+    async def _direct_llm_call(
+        self,
+        prompt: str,
+        model_name: str,
+        temperature: float = 0.2,
+        max_tokens: int = 100,
+        top_p: Optional[float] = None,
+    ) -> str:
         """Appel LLM direct sans rate limiting pour fallback"""
         import httpx
         
@@ -137,6 +165,8 @@ class GroqLLMClient:
             "max_tokens": max_tokens,
             "temperature": temperature
         }
+        if top_p is not None:
+            payload["top_p"] = float(top_p)
         
         async with httpx.AsyncClient() as client:
             resp = await client.post(self.api_url, json=payload, headers=headers, timeout=30)
@@ -155,7 +185,13 @@ def get_llm_client() -> GroqLLMClient:
         _global_llm_client = GroqLLMClient()
     return _global_llm_client
 
-async def complete(prompt: str, model_name: str = "llama-3.1-8b-instant", temperature: float = 0.2, max_tokens: int = 512) -> str:
+async def complete(
+    prompt: str,
+    model_name: str = "llama-3.1-8b-instant",
+    temperature: float = 0.2,
+    max_tokens: int = 512,
+    top_p: Optional[float] = None,
+) -> str:
     """
     Appel asynchrone à Groq avec rate limiting intégré
     """
@@ -188,6 +224,8 @@ async def complete(prompt: str, model_name: str = "llama-3.1-8b-instant", temper
             "max_tokens": max_tokens,
             "temperature": temperature
         }
+        if top_p is not None:
+            payload["top_p"] = float(top_p)
         print(f" [LLM] Envoi requête vers {GROQ_API_URL or GROK_API_URL}")
         
         async with httpx.AsyncClient() as client:
@@ -200,7 +238,7 @@ async def complete(prompt: str, model_name: str = "llama-3.1-8b-instant", temper
             return response_text
     
     # Fonction helper pour fallback avec modèle spécifique
-    async def _rate_limited_complete_with_model(fallback_model: str):
+    async def _rate_limited_complete_with_model(fallback_model: str, top_p: Optional[float] = None):
         prompt_lines = prompt.splitlines()
         to_show = '\n'.join(prompt_lines[:3]) + ('\n ...' if len(prompt_lines) > 3 else '')
         log3("Prompt", prompt)
@@ -226,6 +264,8 @@ async def complete(prompt: str, model_name: str = "llama-3.1-8b-instant", temper
             "max_tokens": max_tokens,
             "temperature": temperature
         }
+        if top_p is not None:
+            payload["top_p"] = float(top_p)
         print(f" [LLM] Envoi requête vers {GROQ_API_URL or GROK_API_URL}")
         
         async with httpx.AsyncClient() as client:

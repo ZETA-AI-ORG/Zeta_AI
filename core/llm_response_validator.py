@@ -56,6 +56,25 @@ class LLMResponseValidator:
         self.hallucination_count = 0
         self.regeneration_count = 0
         self.source_errors_count = 0
+
+    # ───────────────────────────
+    # Helpers de détection
+    # ───────────────────────────
+
+    def _is_clarification_question(self, text: str) -> bool:
+        """Détecte si le texte est une question de clarification (pas une affirmation factuelle)."""
+        if not text:
+            return False
+
+        t = text.lower()
+        patterns = [
+            r"vous (souhaitez|voulez|désirez)",
+            r"(quel|quelle|quels|quelles)[^\n\r\?]*\?",
+            r"(comment|où|ou|quand|pourquoi)[^\n\r\?]*\?",
+            r"pouvez[- ]vous (préciser|me dire|confirmer)",
+            r"est-ce que",
+        ]
+        return any(re.search(p, t) for p in patterns)
     
     def validate(
         self, 
@@ -79,11 +98,53 @@ class LLMResponseValidator:
             ValidationResult avec erreurs et recommandations
         """
         self.validation_count += 1
-        errors = []
-        warnings = []
+        errors: List[str] = []
+        warnings: List[str] = []
         
         logger.info(f"🛡️ [VALIDATION] Analyse réponse ({len(response)} chars)")
+
+        # ✅ FIX: désactiver la validation hallucination si commande complète
+        try:
+            if order_state is not None and getattr(order_state, "is_complete", None):
+                # order_state est un OrderState, on peut appeler is_complete()
+                if callable(order_state.is_complete) and order_state.is_complete():
+                    logger.info("🛡️ [VALIDATION] Commande complète détectée → skip validation (post-commande)")
+                    return ValidationResult(
+                        valid=True,
+                        errors=[],
+                        warnings=[],
+                        should_regenerate=False,
+                        correction_prompt=None,
+                        metrics={
+                            'total_validations': self.validation_count,
+                            'hallucinations_detected': self.hallucination_count,
+                            'source_errors': self.source_errors_count,
+                            'regenerations': self.regeneration_count,
+                        },
+                    )
+        except Exception:
+            # En cas de problème, ne pas bloquer la validation normale
+            pass
         
+        # ═══ EXCEPTIONS PRÉCOCES: QUESTIONS DE CLARIFICATION ═══
+        if self._is_clarification_question(response) or (
+            thinking and "clarifier" in thinking.lower()
+        ):
+            logger.info("🛡️ [VALIDATION] Réponse de clarification détectée → pas de régénération")
+            return ValidationResult(
+                valid=True,
+                errors=[],
+                warnings=[],
+                should_regenerate=False,
+                correction_prompt=None,
+                metrics={
+                    'total_validations': self.validation_count,
+                    'hallucinations_detected': self.hallucination_count,
+                    'source_errors': self.source_errors_count,
+                    'regenerations': self.regeneration_count,
+                },
+            )
+
         # ═══ NIVEAU 1: DONNÉES STRUCTURÉES ═══
         struct_errors = self._validate_structured_data(
             response, order_state, payment_validation

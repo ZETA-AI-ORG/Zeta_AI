@@ -66,12 +66,14 @@ async def complete(
         model_name = DEFAULT_REASONER_MODEL
         print("🧠 [DEEPSEEK] Mode raisonnement activé")
     
+    debug_prompts = os.getenv("DEEPSEEK_DEBUG_PROMPTS", "false").lower() == "true"
+
     for attempt in range(max_retries):
         try:
             start_time = time.time()
             
-            # Log complet de l'input envoyé au LLM
-            if attempt == 0:  # Afficher seulement à la première tentative
+            # Log complet de l'input envoyé au LLM (optionnel, désactivé par défaut)
+            if attempt == 0 and debug_prompts:
                 print("\n" + "="*100)
                 print("\033[95m💜 [DEEPSEEK INPUT] PROMPT COMPLET ENVOYÉ AU LLM:\033[0m")
                 print("\033[95m" + "="*100 + "\033[0m")
@@ -176,12 +178,14 @@ async def complete_with_history(
             if "cache_control" not in msg:
                 msg["cache_control"] = {"type": "ephemeral"}
     
+    debug_prompts = os.getenv("DEEPSEEK_DEBUG_PROMPTS", "false").lower() == "true"
+
     for attempt in range(max_retries):
         try:
             start_time = time.time()
             
-            # Log complet de l'input envoyé au LLM
-            if attempt == 0:  # Afficher seulement à la première tentative
+            # Log complet de l'input envoyé au LLM (optionnel, désactivé par défaut)
+            if attempt == 0 and debug_prompts:
                 print("\n" + "="*100)
                 print("\033[95m💜 [DEEPSEEK INPUT] MESSAGES COMPLETS ENVOYÉS AU LLM:\033[0m")
                 print("\033[95m" + "="*100 + "\033[0m")

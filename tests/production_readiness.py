@@ -25,18 +25,18 @@ TEST_USER_ID = "botlive_production_readiness"
 EXPECTED_TO_ALLOWED_BOTLIVE = {
     "GREETING": {"SALUT"},
     "INFO_GENERAL": {"INFO_GENERALE"},
-    "PRODUCT_INFO": {"CATALOGUE", "RECHERCHE_PRODUIT"},
+    "PRODUCT_INFO": {"PRODUIT_GLOBAL"},
     "PRICE": {"PRIX_PROMO"},
-    "STOCK": {"DISPONIBILITE"},
+    "STOCK": {"PRODUIT_GLOBAL"},
     "ORDER_CREATE": {"ACHAT_COMMANDE"},
     # Modif/annulation commande : on accepte soit ACHAT_COMMANDE soit PROBLEME
-    "ORDER_MODIFY": {"ACHAT_COMMANDE", "PROBLEME"},
+    "ORDER_MODIFY": {"COMMANDE_EXISTANTE", "PROBLEME"},
     "PAYMENT": {"PAIEMENT"},
     "DELIVERY_INFO": {"LIVRAISON"},
     # Modif adresse/date : peut être capté par LIVRAISON ou PROBLEME
     "DELIVERY_MODIFY": {"LIVRAISON", "PROBLEME"},
     # Suivi / retard : SUIVI ou PROBLEME sont tous les deux acceptables
-    "TRACKING": {"SUIVI", "PROBLEME"},
+    "TRACKING": {"COMMANDE_EXISTANTE", "PROBLEME"},
 }
 
 # Mapping inverse pour afficher des labels métier lisibles dans le rapport
@@ -44,14 +44,12 @@ BOTLIVE_TO_HIGHLEVEL = {
     "SALUT": "GREETING",
     "INFO_GENERALE": "INFO_GENERAL",
     "CLARIFICATION": "CLARIFICATION",
-    "CATALOGUE": "PRODUCT_INFO",
-    "RECHERCHE_PRODUIT": "PRODUCT_INFO",
+    "PRODUIT_GLOBAL": "PRODUCT_INFO",
     "PRIX_PROMO": "PRICE",
-    "DISPONIBILITE": "STOCK",
     "ACHAT_COMMANDE": "ORDER_CREATE",
     "LIVRAISON": "DELIVERY_INFO",
     "PAIEMENT": "PAYMENT",
-    "SUIVI": "TRACKING",
+    "COMMANDE_EXISTANTE": "TRACKING",
     # PROBLEME peut couvrir plainte / SAV sur commande ou livraison
     "PROBLEME": "TRACKING",
 }

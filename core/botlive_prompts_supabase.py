@@ -96,7 +96,109 @@ class BotlivePromptsManager:
             logger.error(f"Type d'erreur: {type(e).__name__}")
             logger.error(f"Traceback complet:\n{traceback.format_exc()}")
             raise
-    
+
+    def get_hyde_pre_routing_prompt(self, company_id: str) -> str:
+        """Récupère le bloc de prompt HYDE pré-routage depuis prompt_botlive_groq_70b.
+
+        Le bloc est délimité par [[HYDE_PRE_ROUTING_START]] et [[HYDE_PRE_ROUTING_END]]
+        dans le prompt principal stocké en base.
+        """
+
+        return self.get_prompt_block(
+            company_id=company_id,
+            start_tag="[[HYDE_PRE_ROUTING_START]]",
+            end_tag="[[HYDE_PRE_ROUTING_END]]",
+            cache_suffix="hyde_pre_routing",
+        )
+
+    def get_prompt_block(
+        self,
+        company_id: str,
+        start_tag: str,
+        end_tag: str,
+        cache_suffix: str,
+        source_column: str = "prompt_botlive_groq_70b",
+    ) -> str:
+        """Récupère un bloc de prompt délimité par des balises START/END dans le prompt principal.
+
+        Tous les prompts (HYDE_PRE, HYDE_SECOUR_X, JESSICA_PROMPT_X, etc.) peuvent être stockés
+        dans un unique champ Supabase, et distingués uniquement par leurs balises.
+        """
+
+        cache_key = f"{company_id}_{cache_suffix}"
+        if cache_key in self._cache:
+            logger.info(f"📦 [CACHE] Prompt block hit pour {cache_key}")
+            return self._cache[cache_key]
+
+        try:
+            logger.info(
+                f"🔍 [SUPABASE] Requête prompt block: company_id={company_id}, column={source_column}, block={cache_suffix}"
+            )
+            response = (
+                self.supabase.table("company_rag_configs")
+                .select(f"{source_column}, company_name")
+                .eq("company_id", company_id)
+                .single()
+                .execute()
+            )
+
+            if not response.data:
+                raise ValueError(f"❌ Aucune config trouvée pour company_id: {company_id}")
+
+            full_prompt = response.data.get(source_column) or ""
+            block = self._extract_block(full_prompt, start_tag=start_tag, end_tag=end_tag)
+
+            self._cache[cache_key] = block
+            logger.info(
+                f"✅ Prompt block chargé pour {response.data.get('company_name', company_id)} "
+                f"(block={cache_suffix}, {len(block)} chars)"
+            )
+            return block
+        except Exception as e:
+            import traceback
+
+            logger.error(
+                f"❌ Erreur récupération prompt block {cache_suffix} pour {company_id}: {e}"
+            )
+            logger.error(f"Traceback complet:\n{traceback.format_exc()}")
+            raise
+
+    @staticmethod
+    def _extract_block(full_prompt: str, start_tag: str, end_tag: str) -> str:
+        start_idx = full_prompt.find(start_tag)
+        end_idx = full_prompt.find(end_tag)
+
+        if start_idx == -1 or end_idx == -1 or end_idx <= start_idx:
+            raise ValueError(
+                f"❌ Bloc introuvable: start_tag={start_tag} end_tag={end_tag}"
+            )
+
+        block = full_prompt[start_idx + len(start_tag) : end_idx].strip()
+        if not block:
+            raise ValueError(f"❌ Bloc vide: start_tag={start_tag} end_tag={end_tag}")
+
+        return block
+
+    def get_hyde_secour_x_prompt(self, company_id: str) -> str:
+        """Prompt clarification (Gemini) via bloc [[HYDE_SECOUR_X_START]]/[[HYDE_SECOUR_X_END]]."""
+
+        return self.get_prompt_block(
+            company_id=company_id,
+            start_tag="[[HYDE_SECOUR_X_START]]",
+            end_tag="[[HYDE_SECOUR_X_END]]",
+            cache_suffix="hyde_secour_x",
+        )
+
+    def get_jessica_prompt_x(self, company_id: str) -> str:
+        """Prompt Jessica complexe (70B) via bloc [[JESSICA_PROMPT_X_START]]/[[JESSICA_PROMPT_X_END]]."""
+
+        return self.get_prompt_block(
+            company_id=company_id,
+            start_tag="[[JESSICA_PROMPT_X_START]]",
+            end_tag="[[JESSICA_PROMPT_X_END]]",
+            cache_suffix="jessica_prompt_x",
+        )
+
     def format_prompt(self, 
                      company_id: str,
                      llm_choice: str,

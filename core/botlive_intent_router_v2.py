@@ -412,7 +412,6 @@ def _apply_lexical_boosts(text: str, proba_dict: Dict[str, float]) -> Dict[str, 
     return updated
 
 
-# ============================================================================
 # ROUTING V2 AVEC CLASSIFIEUR ML
 # ============================================================================
 
@@ -444,6 +443,7 @@ def _route_with_classifier(message: str) -> Tuple[str, float]:
             "vous acceptez", "acceptez",
             "combien", "prix", "tarif",
             "commander", "acheter",
+            "numéro", "numero", "téléphone", "telephone", "tel", "whatsapp",
         ]
 
         has_business_question = any(trigger in rest_text for trigger in business_triggers)
@@ -533,7 +533,7 @@ async def route_botlive_intent(
     # Décision MODE Jessica (copiée de V1)
     if is_complete:
         mode = "RECEPTION_SAV"
-    elif upper_intent == "ACHAT_COMMANDE":
+    elif upper_intent in {"ACHAT_COMMANDE", "CONTACT_COORDONNEES"}:
         mode = "COMMANDE"
     elif upper_intent in {
         "SALUT",

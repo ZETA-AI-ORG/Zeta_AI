@@ -1,19 +1,68 @@
 from __future__ import annotations
 
+import os
+import logging
+from typing import Any, Dict
+
+from core.setfit_intent_router import route_botlive_intent as _route_setfit, BotliveRoutingResult
+from core.legacy.botlive_intent_router_embeddings import (
+    route_botlive_intent as _route_embeddings,
+    get_delivery_delay_similarity,
+)
+
+logger = logging.getLogger(__name__)
+
+
+def _should_use_embeddings_router() -> bool:
+    force_embeddings = os.getenv("BOTLIVE_ROUTER_EMBEDDINGS_ENABLED", "false").strip().lower() in {"1", "true", "yes", "y", "on"}
+    return force_embeddings
+
+
+async def route_botlive_intent(
+    company_id: str,
+    user_id: str,
+    message: str,
+    conversation_history: str,
+    state_compact: Dict[str, Any],
+    hyde_pre_enabled: bool | None = None,
+) -> BotliveRoutingResult:
+    """
+    Routeur d'intention hybride :
+    - Utilise SetFit par défaut (core/setfit_intent_router.py)
+    - Fallback sur embeddings legacy si modèle SetFit absent/erreur ou si variable d'env BOTLIVE_ROUTER_EMBEDDINGS_ENABLED=true
+    """
+    if _should_use_embeddings_router():
+        logger.info("[ROUTER] Embeddings legacy forcé par variable d'environnement.")
+        return await _route_embeddings(company_id, user_id, message, conversation_history, state_compact, hyde_pre_enabled)
+    try:
+        return await _route_setfit(company_id, user_id, message, conversation_history, state_compact, hyde_pre_enabled)
+    except Exception as e:
+        logger.error(f"[ROUTER] Fallback embeddings legacy: {e}")
+        return await _route_embeddings(company_id, user_id, message, conversation_history, state_compact, hyde_pre_enabled)
+
+# Pour compatibilité :
+# from core.botlive_intent_router import get_delivery_delay_similarity
+# (utilisé dans botlive_rag_hybrid.py)
+
+
 from dataclasses import dataclass
+
+import os
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
 import json
+import logging
+import re
+
+import numpy as np
 
 from core.greeting_analyzer import GreetingAnalyzer
+from core.hyde_prefilter import HydePrefilter
+from core.hyde_reformulator import HydeReformulator
+from core.embedding_service import get_embedding_service
 
-try:
-    from sentence_transformers import SentenceTransformer, util
-except Exception:
-    SentenceTransformer = None  # type: ignore
-    util = None  # type: ignore
-
+logger = logging.getLogger(__name__)
 
 @dataclass
 class BotliveRoutingResult:
@@ -24,48 +73,66 @@ class BotliveRoutingResult:
     state: Dict[str, Any]
     debug: Dict[str, Any]
 
-
-_MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
 _INTENTS_JSON_PATH = Path(__file__).resolve().parents[1] / "intents" / "ecommerce_intents.json"
-
-_model: SentenceTransformer | None = None
-_intent_prototypes: Dict[str, Any] | None = None
+_intent_prototypes: Dict[str, np.ndarray] | None = None
 _greeting_analyzer: GreetingAnalyzer | None = None
 _word_families: Dict[str, Any] | None = None
 
 
-def _load_model_and_prototypes() -> Tuple[SentenceTransformer, Dict[str, Any]]:
+def cosine_sim(a: np.ndarray, b: np.ndarray) -> float:
+    a = np.asarray(a, dtype=np.float32)
+    b = np.asarray(b, dtype=np.float32)
+    na = float(np.linalg.norm(a))
+    nb = float(np.linalg.norm(b))
+    if na <= 0.0 or nb <= 0.0:
+        return 0.0
+    return float(np.dot(a, b) / (na * nb))
+
+
+def _normalize_vec(v: np.ndarray) -> np.ndarray:
+    v = np.asarray(v, dtype=np.float32)
+    n = float(np.linalg.norm(v))
+    if n <= 0.0:
+        return v
+    return v / n
+
+
+def _embed_query(text: str) -> np.ndarray | None:
+    t = (text or "").strip()
+    if not t:
+        return None
+
+    service = get_embedding_service()
+    vec = service.encode(t)
+    return _normalize_vec(np.asarray(vec, dtype=np.float32))
+
+
+def _load_model_and_prototypes() -> Dict[str, np.ndarray]:
     """Charge le modèle HF et les prototypes d'intents à partir du JSON."""
-    global _model, _intent_prototypes
-
-    if SentenceTransformer is None:
-        raise RuntimeError(
-            "sentence-transformers n'est pas installé. Installe: pip install sentence-transformers"
-        )
-
-    if _model is None:
-        _model = SentenceTransformer(_MODEL_NAME)
+    global _intent_prototypes
 
     if _intent_prototypes is None:
         data = None
         used_source = "json"
 
         try:
-            from core.universal_corpus import UNIVERSAL_ECOMMERCE_INTENT_CORPUS as UC
+            try:
+                from core.universal_corpus import UNIVERSAL_ECOMMERCE_INTENT_CORPUS_V4 as UC
+            except Exception:
+                from core.universal_corpus import UNIVERSAL_ECOMMERCE_INTENT_CORPUS as UC
 
             index_to_intent = {
                 1: "SALUT",
                 2: "INFO_GENERALE",
                 3: "CLARIFICATION",
-                4: "CATALOGUE",
-                5: "RECHERCHE_PRODUIT",
-                6: "PRIX_PROMO",
-                7: "DISPONIBILITE",
-                8: "ACHAT_COMMANDE",
-                9: "LIVRAISON",
-                10: "PAIEMENT",
-                11: "SUIVI",
-                12: "PROBLEME",
+                4: "PRODUIT_GLOBAL",
+                5: "PRIX_PROMO",
+                6: "ACHAT_COMMANDE",
+                7: "LIVRAISON",
+                8: "PAIEMENT",
+                9: "CONTACT_COORDONNEES",
+                10: "COMMANDE_EXISTANTE",
+                11: "PROBLEME",
             }
 
             built = []
@@ -99,22 +166,25 @@ def _load_model_and_prototypes() -> Tuple[SentenceTransformer, Dict[str, Any]]:
                 data = json.load(f)
 
         prototypes: Dict[str, Any] = {}
+        service = get_embedding_service()
         for item in data:
             intent_name = str(item.get("intent")).strip()
             examples = [e for e in item.get("examples", []) if isinstance(e, str) and e.strip()]
             if not intent_name or not examples:
                 continue
 
-            emb = _model.encode(examples, convert_to_tensor=True)
-            proto = emb.mean(dim=0)
+            vecs = service.encode(examples)
+            mat = np.vstack([np.asarray(v, dtype=np.float32) for v in vecs])
+            proto = _normalize_vec(mat.mean(axis=0))
             prototypes[intent_name] = proto
+            used_source = "local_embedding_service"
 
         if not prototypes:
             raise RuntimeError("Aucun prototype d'intent généré depuis le corpus JSON")
 
-        _intent_prototypes = prototypes
+        _intent_prototypes = {k: np.asarray(v, dtype=np.float32) for k, v in prototypes.items()}
 
-    return _model, _intent_prototypes
+    return _intent_prototypes
 
 
 def _get_greeting_analyzer() -> GreetingAnalyzer:
@@ -125,11 +195,7 @@ def _get_greeting_analyzer() -> GreetingAnalyzer:
 
 
 def _load_word_families() -> Dict[str, Any]:
-    """Charge les familles de mots depuis le JSON généré par extract_word_families.
-
-    Si le fichier n'existe pas, on retourne une structure vide et on laisse
-    les boosts lexicaux standards fonctionner seuls.
-    """
+    """Charge les familles de mots depuis le JSON généré par extract_word_families."""
 
     global _word_families
 
@@ -142,7 +208,6 @@ def _load_word_families() -> Dict[str, Any]:
         )
 
         if not families_path.exists():
-            # Pas de familles définies → pas de boosts additionnels
             _word_families = {"families_by_intent": {}}
             return _word_families
 
@@ -152,11 +217,40 @@ def _load_word_families() -> Dict[str, Any]:
     return _word_families or {"families_by_intent": {}}
 
 
-def _match_word_family(text: str, intent: str) -> float:
-    """Calcule un score de correspondance avec les familles de mots d'un intent.
+def get_delivery_delay_similarity(message: str) -> float:
+    """Calcule la similarité embeddings entre le message et l'intent LIVRAISON.
 
-    Retourne un score entre 0.0 et 1.0.
+    Utilisé pour router les questions de délai de livraison vers Python quand
+    la confiance est élevée (>= 0.80), afin d'éviter un appel LLM inutile.
     """
+
+    text = (message or "").strip()
+    if not text:
+        return 0.0
+
+    try:
+        prototypes = _load_model_and_prototypes()
+    except Exception:
+        return 0.0
+
+    proto = prototypes.get("LIVRAISON")
+    if proto is None:
+        return 0.0
+
+    try:
+        query_emb = _embed_query(text)
+        if query_emb is None:
+            return 0.0
+        if query_emb.shape != proto.shape:
+            return 0.0
+        score = float(cosine_sim(query_emb, proto))
+        return max(-1.0, min(1.0, score))
+    except Exception:
+        return 0.0
+
+
+def _match_word_family(text: str, intent: str) -> float:
+    """Calcule un score de correspondance avec les familles de mots d'un intent."""
 
     families_data = _load_word_families()
     families = families_data.get("families_by_intent", {}).get(intent, [])
@@ -211,8 +305,41 @@ def _apply_lexical_boosts(text: str, scores: Dict[str, float]) -> Dict[str, floa
     # 🎯 CORRECTIONS CIBLÉES - TOP 10 ERREURS
     # ========================================================================
 
+    # Coordonnées / téléphone (souvent remplissage du champ tel)
+    contact_coord_kw = [
+        "mon numéro", "mon numero", "mon num", "numéro", "numero",
+        "téléphone", "telephone", "tel", "whatsapp", "sms",
+        "appelez", "appelle", "contactez", "joindre",
+    ]
+    has_digits = any(ch.isdigit() for ch in t)
+    if (any(kw in t for kw in contact_coord_kw) or (has_digits and "tel" in t)) and "CONTACT_COORDONNEES" in updated:
+        _apply("CONTACT_COORDONNEES", 1.60)
+        _apply("INFO_GENERALE", 0.85)
+        _apply("SALUT", 0.70)
+
+    stop = {
+        "bonjour", "bonsoir", "salut", "hey", "coucou", "bjr", "slt",
+        "merci", "svp", "stp", "pardon",
+        "je", "tu", "il", "elle", "on", "nous", "vous", "ils", "elles",
+        "mon", "ma", "mes", "ton", "ta", "tes", "son", "sa", "ses",
+        "de", "du", "des", "la", "le", "les", "un", "une", "et", "ou", "a", "à",
+        "pour", "avec", "sur", "dans", "chez", "par", "en",
+        "veux", "voudrais", "prends", "prendre", "acheter", "commande", "commander",
+        "chercher", "cherche", "besoin",
+        "quoi", "comment", "quand", "où", "ou", "combien", "quel", "quelle", "quels", "quelles",
+        "prix", "tarif", "promo", "promotion", "stock", "dispo", "disponible",
+        "livraison", "livrer", "vous livrez", "frais de livraison", "livr ", "livr",
+    }
+    tokens = [w for w in re.findall(r"[a-zA-ZÀ-ÖØ-öø-ÿ]+", t) if len(w) >= 3]
+    product_terms = [w for w in tokens if w not in stop]
+    uniq_terms = list(dict.fromkeys(product_terms))
+    ambiguity_markers = [" je sais pas", " j sais pas", " jsp", " je ne sais pas", " je sais plus", " je ne sais plus"]
+    has_ambig = (" ou " in t) or any(m in t for m in ambiguity_markers)
+    if has_ambig and len(uniq_terms) >= 2:
+        _apply("PRODUIT_GLOBAL", 1.20)
+        _apply("SALUT", 0.75)
+
     # 🔴 ERREUR 1 - "Paiement à la livraison c'est possible"
-    # Problème: confusion PAYMENT ↔ DELIVERY (maintenant routé LIVRAISON avec conf=1.00)
     payment_delivery_phrases = [
         "paiement à la livraison",
         "paiement livraison",
@@ -223,9 +350,8 @@ def _apply_lexical_boosts(text: str, scores: Dict[str, float]) -> Dict[str, floa
         "paiement réception",
     ]
     if any(phrase in t for phrase in payment_delivery_phrases):
-        # C'est VRAIMENT du paiement avec contexte livraison
-        _apply("PAIEMENT", 1.50)  # Boost plus fort
-        _apply("LIVRAISON", 0.80)  # Déboost pour que PAIEMENT gagne
+        _apply("PAIEMENT", 1.50)
+        _apply("LIVRAISON", 0.80)
         _apply("INFO_GENERALE", 0.70)
 
     # Moyens de paiement mobiles (Côte d'Ivoire)
@@ -242,15 +368,12 @@ def _apply_lexical_boosts(text: str, scores: Dict[str, float]) -> Dict[str, floa
         _apply("LIVRAISON", 0.85)
 
     # 🔴 ERREUR 2 - "Je veux une facture"
-    # Problème: routé vers PROBLEME au lieu de PAYMENT
     if "facture" in t or "reçu" in t or "recu" in t:
         _apply("PAIEMENT", 1.35)
         _apply("PROBLEME", 0.65)
-        _apply("SUIVI", 0.85)
+        _apply("COMMANDE_EXISTANTE", 0.85)
 
     # 🔴 ERREUR 2 - "La livraison prend combien de temps"
-    # Problème: routé TRACKING au lieu de DELIVERY_INFO
-    # C'est une question sur le DÉLAI de livraison (info), pas le suivi d'une commande existante
     delivery_time_questions = [
         "livraison prend combien",
         "combien de temps livraison",
@@ -262,9 +385,9 @@ def _apply_lexical_boosts(text: str, scores: Dict[str, float]) -> Dict[str, floa
     ]
     if any(pattern in t for pattern in delivery_time_questions):
         _apply("LIVRAISON", 1.50)
-        _apply("SUIVI", 0.65)  # Déboost fort pour éviter confusion avec tracking
+        _apply("COMMANDE_EXISTANTE", 0.65)
         _apply("PRIX_PROMO", 0.80)
-    # Problème: tiré vers PRIX au lieu de DELIVERY_INFO
+    
     delivery_price_patterns = [
         "combien pour livrer",
         "combien livraison",
@@ -292,7 +415,6 @@ def _apply_lexical_boosts(text: str, scores: Dict[str, float]) -> Dict[str, floa
             _apply("INFO_GENERALE", 0.80)
 
     # 🔴 ERREUR 4 - "Quelles zones vous couvrez"
-    # Problème: tiré vers INFO_GENERAL au lieu de DELIVERY_INFO
     delivery_coverage_kw = [
         "quelles zones",
         "quelle zone",
@@ -312,7 +434,6 @@ def _apply_lexical_boosts(text: str, scores: Dict[str, float]) -> Dict[str, floa
         _apply("INFO_GENERALE", 0.70)
 
     # 🔴 ERREUR 3 - "Modifier l'adresse svp"
-    # Problème: routé CLARIFICATION (conf=0.48) - besoin de boost plus fort
     modify_address_kw = [
         "modifier l'adresse", "modifier adresse",
         "changer l'adresse", "changer adresse",
@@ -322,13 +443,11 @@ def _apply_lexical_boosts(text: str, scores: Dict[str, float]) -> Dict[str, floa
         "nouvelle adresse", "autre adresse",
     ]
     if any(kw in t for kw in modify_address_kw):
-        _apply("LIVRAISON", 1.50)  # Boost plus fort pour dépasser seuil 0.5
+        _apply("LIVRAISON", 1.50)
         _apply("ACHAT_COMMANDE", 0.75)
         _apply("CLARIFICATION", 0.60)
 
     # 🔴 ERREUR 4 - "Ça n'est pas arrivé"
-    # Problème: routé SALUT au lieu de TRACKING
-    # Phrases courtes négatives sans "commande" explicite
     delivery_problem_short = [
         "pas arrivé", "pas arrivée",
         "n'est pas arrivé", "n est pas arrivé",
@@ -337,11 +456,11 @@ def _apply_lexical_boosts(text: str, scores: Dict[str, float]) -> Dict[str, floa
         "pas de nouvelle", "aucune nouvelle",
     ]
     if any(phrase in t for phrase in delivery_problem_short):
-        _apply("SUIVI", 1.60)  # Boost très fort
-        _apply("SALUT", 0.50)  # Déboost fort SALUT
-        _apply("PROBLEME", 1.30)  # C'est aussi un problème
+        _apply("COMMANDE_EXISTANTE", 1.60)
+        _apply("SALUT", 0.50)
+        _apply("PROBLEME", 1.30)
         _apply("ACHAT_COMMANDE", 0.60)
-    # "Quand arrive ma commande" / "expédiée" / "pas arrivé"
+    
     tracking_time_kw = [
         "quand arrive", "quand arrivera",
         "quand je reçois", "quand je recois",
@@ -359,7 +478,7 @@ def _apply_lexical_boosts(text: str, scores: Dict[str, float]) -> Dict[str, floa
     has_commande = "commande" in t or "colis" in t or "livraison" in t
 
     if has_commande and any(kw in t for kw in tracking_time_kw + tracking_status_kw):
-        _apply("SUIVI", 1.50)
+        _apply("COMMANDE_EXISTANTE", 1.50)
         _apply("ACHAT_COMMANDE", 0.70)
         _apply("LIVRAISON", 0.80)
 
@@ -372,7 +491,7 @@ def _apply_lexical_boosts(text: str, scores: Dict[str, float]) -> Dict[str, floa
         "n° commande", "no commande", "num commande",
     ]
     if any(kw in t for kw in tracking_general_kw):
-        _apply("SUIVI", 1.35)
+        _apply("COMMANDE_EXISTANTE", 1.35)
         _apply("ACHAT_COMMANDE", 0.75)
 
     # ========================================================================
@@ -450,10 +569,10 @@ def _apply_lexical_boosts(text: str, scores: Dict[str, float]) -> Dict[str, floa
 
     if has_price:
         if is_weight_question:
-            _apply("RECHERCHE_PRODUIT", 1.25)
+            _apply("PRODUIT_GLOBAL", 1.25)
             _apply("PRIX_PROMO", 0.88)
         elif is_stock_quantity_question:
-            _apply("DISPONIBILITE", 1.25)
+            _apply("PRODUIT_GLOBAL", 1.25)
             _apply("PRIX_PROMO", 0.85)
         else:
             _apply("PRIX_PROMO", 1.25)
@@ -461,12 +580,11 @@ def _apply_lexical_boosts(text: str, scores: Dict[str, float]) -> Dict[str, floa
             _apply("PAIEMENT", 0.92)
 
     if has_product:
-        _apply("RECHERCHE_PRODUIT", 1.15)
-        _apply("CATALOGUE", 1.08)
+        _apply("PRODUIT_GLOBAL", 1.15)
         _apply("INFO_GENERALE", 0.90)
 
     if has_stock:
-        _apply("DISPONIBILITE", 1.18)
+        _apply("PRODUIT_GLOBAL", 1.18)
         _apply("INFO_GENERALE", 0.90)
 
         if (
@@ -475,8 +593,7 @@ def _apply_lexical_boosts(text: str, scores: Dict[str, float]) -> Dict[str, floa
             or "n'avez plus ce modèle" in t
             or "n avez plus ce modele" in t
         ):
-            _apply("DISPONIBILITE", 1.10)
-            _apply("RECHERCHE_PRODUIT", 0.70)
+            _apply("PRODUIT_GLOBAL", 1.10)
 
     if has_pay:
         _apply("PAIEMENT", 1.18)
@@ -489,35 +606,29 @@ def _apply_lexical_boosts(text: str, scores: Dict[str, float]) -> Dict[str, floa
     if has_order:
         _apply("ACHAT_COMMANDE", 1.28)
         _apply("INFO_GENERALE", 0.90)
-        _apply("CATALOGUE", 0.92)
-        _apply("RECHERCHE_PRODUIT", 0.92)
+        _apply("PRODUIT_GLOBAL", 0.92)
 
         if has_price:
             _apply("ACHAT_COMMANDE", 0.90)
 
-    # Contact / joindre → INFO_GENERALE plutôt que SALUT
     contact_patterns = [
-        "comment vous joindre",
-        "comment je peux vous joindre",
         "comment vous contacter",
         "vous joindre comment",
         "contact",
     ]
     if any(p in t for p in contact_patterns):
-        _apply("INFO_GENERALE", 1.40)
+        if "CONTACT_COORDONNEES" in updated:
+            _apply("CONTACT_COORDONNEES", 1.30)
+            _apply("INFO_GENERALE", 0.90)
+        else:
+            _apply("INFO_GENERALE", 1.40)
         _apply("SALUT", 0.70)
 
     return updated
 
 
 def _apply_lexical_boosts_with_families(text: str, scores: Dict[str, float]) -> Dict[str, float]:
-    """Boosts lexicaux standards + renfort via familles de mots Shadow.
-
-    - On applique d'abord les boosts existants (_apply_lexical_boosts).
-    - Puis, pour chaque intent, on regarde s'il y a des familles de mots
-      associées dans word_families.json et on applique un léger boost
-      proportionnel au score de famille.
-    """
+    """Boosts lexicaux standards + renfort via familles de mots Shadow."""
 
     # 1. Boosts actuels (inchangés)
     updated = _apply_lexical_boosts(text, scores)
@@ -527,14 +638,13 @@ def _apply_lexical_boosts_with_families(text: str, scores: Dict[str, float]) -> 
         "SALUT": "SALUT",
         "INFO_GENERALE": "INFO_GENERALE",
         "CLARIFICATION": "CLARIFICATION",
-        "CATALOGUE": "CATALOGUE",
-        "RECHERCHE_PRODUIT": "RECHERCHE_PRODUIT",
+        "PRODUIT_GLOBAL": "PRODUIT_GLOBAL",
         "PRIX_PROMO": "PRIX_PROMO",
-        "DISPONIBILITE": "DISPONIBILITE",
         "ACHAT_COMMANDE": "ACHAT_COMMANDE",
         "LIVRAISON": "LIVRAISON",
         "PAIEMENT": "PAIEMENT",
-        "SUIVI": "SUIVI",
+        "CONTACT_COORDONNEES": "CONTACT_COORDONNEES",
+        "COMMANDE_EXISTANTE": "COMMANDE_EXISTANTE",
         "PROBLEME": "PROBLEME",
     }
 
@@ -547,7 +657,6 @@ def _apply_lexical_boosts_with_families(text: str, scores: Dict[str, float]) -> 
         if family_score <= 0.2:
             continue
 
-        # Exemple: score 0.2 → +6%, 0.5 → +15%, 1.0 → +30%
         boost_factor = 1.0 + family_score * 0.30
         boosted = base_score * boost_factor
         updated[intent_code] = max(-1.0, min(1.0, boosted))
@@ -566,9 +675,7 @@ def _route_with_embeddings(message: str) -> Tuple[str, float]:
     route_to = analysis.get("route_to", "EMBED_FULL")
 
     # 🔴 ERREUR 9 & 10 - Greetings longs avec question métier
-    # "Bonjour madame vous livrez à Abobo" → doit être DELIVERY pas GREETING
     if route_to == "SALUT":
-        # Vérifier si la phrase contient une vraie question métier après politesse
         rest_text = (analysis.get("rest_text") or "").strip().lower()
         
         business_triggers = [
@@ -577,16 +684,15 @@ def _route_with_embeddings(message: str) -> Tuple[str, float]:
             "vous acceptez", "acceptez",
             "combien", "prix", "tarif",
             "commander", "acheter",
+            "numéro", "numero", "téléphone", "telephone", "tel", "whatsapp",
         ]
         
         has_business_question = any(trigger in rest_text for trigger in business_triggers)
         
-        # Si greeting + question métier, on analyse la question
-        if has_business_question and len(rest_text) > 8:  # Seuil abaissé à 8 caractères
+        if has_business_question and len(rest_text) > 8:
             route_to = "EMBED_REST"
             text = rest_text
         else:
-            # Vraiment juste un salut
             confidence = float(analysis.get("confidence", 0.9))
             return "SALUT", confidence
     
@@ -595,12 +701,17 @@ def _route_with_embeddings(message: str) -> Tuple[str, float]:
     else:  # EMBED_FULL
         text = raw
 
-    model, prototypes = _load_model_and_prototypes()
-    query_emb = model.encode(text, convert_to_tensor=True)
+    prototypes = _load_model_and_prototypes()
+    query_emb = _embed_query(text)
+    if query_emb is None:
+        return "CLARIFICATION", 0.0
 
     scores: Dict[str, float] = {}
     for intent, proto in prototypes.items():
-        scores[intent] = float(util.cos_sim(query_emb, proto).item())
+        if query_emb.shape != proto.shape:
+            scores[intent] = 0.0
+            continue
+        scores[intent] = float(cosine_sim(query_emb, proto))
 
     # Nudge PRIX_PROMO sur textes courts
     t = text.lower()
@@ -632,14 +743,62 @@ def _route_with_embeddings(message: str) -> Tuple[str, float]:
     has_order_context = any(ctx in t_lower for ctx in modification_context)
 
     if modification_hit and has_order_context:
-        best_intent = "SUIVI"
-        # S'assurer que la confiance est suffisante pour ne pas tomber en CLARIFICATION
+        best_intent = "COMMANDE_EXISTANTE"
         best_score = max(best_score, 0.75)
 
-    if best_score < 0.5:
+    try:
+        min_score = float(os.getenv("BOTLIVE_EMBEDDING_MIN_SCORE", "0.45"))
+    except Exception:
+        min_score = 0.45
+
+    if best_score < min_score:
         return "CLARIFICATION", best_score
 
     return best_intent, best_score
+
+
+def _determine_mode_from_intent(intent: str, *, is_complete: bool, collected_count: int) -> str:
+    """Détermine le mode Jessica (COMMANDE / GUIDEUR / RECEPTION_SAV) à partir de l'intent.
+
+    Règles métier:
+    - Si la commande est complète → RECEPTION_SAV (prise en charge humaine / SAV)
+    - ACHAT_COMMANDE / CONFIRMATION_PAIEMENT → COMMANDE
+    - Intents "guidage" (recherche, infos, salut, clarification, prix, livraison, etc.) → GUIDEUR
+    - Intents SAV (COMMANDE_EXISTANTE, PROBLEME, PROBLEME_LIVRAISON, etc.) → RECEPTION_SAV
+    - Fallback: GUIDEUR si au moins un champ est collecté, sinon RECEPTION_SAV.
+    """
+
+    if is_complete:
+        return "RECEPTION_SAV"
+
+    upper_intent = (intent or "").upper()
+
+    mode_mapping = {
+        # Commande
+        "ACHAT_COMMANDE": "COMMANDE",
+        "CONFIRMATION_PAIEMENT": "COMMANDE",
+        "CONTACT_COORDONNEES": "COMMANDE",
+
+        # Guidage
+        "PRODUIT_GLOBAL": "GUIDEUR",
+        "INFO_GENERALE": "GUIDEUR",
+        "QUESTION_PAIEMENT": "GUIDEUR",
+        "INFO_LIVRAISON": "GUIDEUR",
+        "PRIX_PROMO": "GUIDEUR",
+        "SALUT": "GUIDEUR",
+        "CLARIFICATION": "GUIDEUR",
+
+        # SAV / post-commande
+        "COMMANDE_EXISTANTE": "RECEPTION_SAV",
+        "PROBLEME": "RECEPTION_SAV",
+        "PROBLEME_LIVRAISON": "RECEPTION_SAV",
+    }
+
+    if upper_intent in mode_mapping:
+        return mode_mapping[upper_intent]
+
+    # Fallback en fonction de la progression de la collecte
+    return "GUIDEUR" if collected_count > 0 else "RECEPTION_SAV"
 
 
 async def route_botlive_intent(
@@ -648,27 +807,67 @@ async def route_botlive_intent(
     message: str,
     conversation_history: str,
     state_compact: Dict[str, Any],
+    hyde_pre_enabled: bool | None = None,
 ) -> BotliveRoutingResult:
-    """Router d'intention Botlive basé sur embeddings HuggingFace."""
+    """Router d'intention Botlive basé sur embeddings HuggingFace + HYDE pré-routage."""
 
-    intent, score = _route_with_embeddings(message)
+    ctx: Dict[str, Any] = {
+        "conversation_history": conversation_history or "",
+        "state_compact": state_compact or {},
+    }
+
+    hyde_pre_used = False
+    hyde_pre_reason = "CLEAR_MESSAGE"
+    original_message = message
+    routed_message = message
+
+    # Étape 1: HYDE pré-routage éventuel (reformulation avant embeddings)
+    try:
+        effective_hyde_pre_enabled = hyde_pre_enabled
+        if effective_hyde_pre_enabled is None:
+            effective_hyde_pre_enabled = os.getenv("BOTLIVE_HYDE_PRE_ENABLED", "true").strip().lower() in {
+                "1",
+                "true",
+                "yes",
+                "y",
+                "on",
+            }
+
+        if not effective_hyde_pre_enabled:
+            raise RuntimeError("HYDE_PRE_DISABLED")
+
+        prefilter = HydePrefilter()
+        should_use, reason = prefilter.should_use_hyde(message, ctx)
+        hyde_pre_reason = reason
+
+        if should_use:
+            logger.info(f"[HYDE_PRE] Activation pour company={company_id}, reason={reason}")
+            try:
+                reformulator = HydeReformulator()
+                routed_message = await reformulator.reformulate(company_id, message, ctx)
+                hyde_pre_used = routed_message != message
+            except Exception as e:
+                logger.error(f"[HYDE_PRE] Erreur reformulation: {e}")
+                routed_message = message
+        else:
+            routed_message = message
+    except Exception as e:
+        if str(e) != "HYDE_PRE_DISABLED":
+            logger.error(f"[HYDE_PRE] Erreur préfiltre: {e}")
+        routed_message = message
+
+    # Étape 2: routage embeddings standard (sur message potentiellement reformulé)
+    intent, score = _route_with_embeddings(routed_message)
+
+    # Normaliser l'intent en MAJUSCULES pour l'exposer dans BotliveRoutingResult
+    upper_intent = (intent or "").upper()
+
     confidence = float(max(0.0, min(1.0, score)))
 
     collected_count = int(state_compact.get("collected_count", 0))
     is_complete = bool(state_compact.get("is_complete", False))
 
-    upper_intent = intent.upper()
-
-    if is_complete:
-        mode = "RECEPTION_SAV"
-    elif upper_intent == "ACHAT_COMMANDE":
-        mode = "COMMANDE"
-    elif upper_intent in {"SALUT", "INFO_GENERALE", "CATALOGUE", "RECHERCHE_PRODUIT", "PRIX_PROMO", "DISPONIBILITE", "LIVRAISON", "PAIEMENT"}:
-        mode = "RECEPTION_SAV"
-    elif upper_intent in {"SUIVI", "PROBLEME"}:
-        mode = "RECEPTION_SAV"
-    else:
-        mode = "GUIDEUR" if collected_count > 0 else "RECEPTION_SAV"
+    mode = _determine_mode_from_intent(upper_intent, is_complete=is_complete, collected_count=collected_count)
 
     missing: List[str] = []
     if not state_compact.get("photo_collected", False):
@@ -684,8 +883,12 @@ async def route_botlive_intent(
         "company_id": company_id,
         "user_id": user_id,
         "raw_message": message,
-        "conversation_history_sample": conversation_history[-300:],
+        "conversation_history_sample": conversation_history[-300:] if conversation_history else "",
         "intent_score": score,
+        "hyde_pre_used": hyde_pre_used,
+        "hyde_pre_reason": hyde_pre_reason,
+        "original_message": original_message,
+        "routed_message": routed_message,
     }
 
     return BotliveRoutingResult(

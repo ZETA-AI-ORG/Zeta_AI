@@ -19,6 +19,8 @@ HEADERS = {
     "Prefer": "return=minimal",
 }
 
+# Permet de désactiver complètement les logs Supabase en cas de contraintes DB trop strictes
+ENABLE_CONVERSATION_LOGS = os.getenv("ENABLE_INTERVENTION_LOGGER", "true").strip().lower() in {"1", "true", "yes", "y", "on"}
 
 async def log_intervention_in_conversation_logs(
     company_id_text: str,
@@ -31,9 +33,17 @@ async def log_intervention_in_conversation_logs(
     conversation_id: Optional[str] = None,
     source: str = "backend",
 ) -> bool:
+    if not ENABLE_CONVERSATION_LOGS:
+        return False
     if not SUPABASE_URL or not SUPABASE_KEY:
         logger.error("[INTERVENTION_LOGGER] Missing Supabase configuration")
         return False
+
+    # Normaliser le message: éviter les valeurs nulles/vides et tronquer à 2000 caractères
+    base_message = message or ""
+    if not base_message.strip():
+        base_message = "[Message vide]"
+    truncated_message = base_message[:2000]
 
     url = f"{SUPABASE_URL}/rest/v1/conversation_logs"
     payload: Dict[str, Any] = {
@@ -41,8 +51,9 @@ async def log_intervention_in_conversation_logs(
         "channel": channel,
         "user_id": user_id,
         "direction": direction,
-        "message": message,
+        "message": truncated_message,
         "source": source,
+        "status": "active",
         "metadata": metadata or {},
     }
     if conversation_id:
@@ -93,13 +104,19 @@ async def log_message_in_conversation_logs(
         logger.error("[INTERVENTION_LOGGER] Missing Supabase configuration for log_message")
         return False
 
+    # Normaliser le message utilisateur aussi pour éviter les contraintes côté DB
+    base_message = message or ""
+    if not base_message.strip():
+        base_message = "[Message vide]"
+    truncated_message = base_message[:2000]
+
     url = f"{SUPABASE_URL}/rest/v1/conversation_logs"
     payload: Dict[str, Any] = {
         "company_id_text": company_id_text,
         "channel": channel,
         "user_id": user_id,
         "direction": direction,
-        "message": message,
+        "message": truncated_message,
         "source": source,
         "status": status,
         "metadata": metadata or {},

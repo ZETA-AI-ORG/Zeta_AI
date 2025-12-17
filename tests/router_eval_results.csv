@@ -1,0 +1,662 @@
+message,len,intent_no_ctx,conf_no_ctx,intent_ctx,conf_ctx,changed,delta,state_ctx,history_ctx
+Est-il possible de discuter avec quelqu’un ?,7,INFO_GENERALE,0.582,INFO_GENERALE,0.583,False,0.001,"{'photo_collected': True, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 1, 'is_complete': False}",Jessica: Bonjour ! Dites-nous comment nous pouvons vous aider.
+Vous êtes situés où ?,5,INFO_GENERALE,0.633,INFO_GENERALE,0.652,False,0.019,"{'photo_collected': True, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 1, 'is_complete': False}","Jessica: Bonjour ! Dites-nous comment nous pouvons vous aider.
+User: Est-il possible de discuter avec quelqu’un ?"
+Nous vendons en ligne pour le moment,7,INFO_GENERALE,0.521,INFO_GENERALE,0.548,False,0.027,"{'photo_collected': True, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 1, 'is_complete': False}","Jessica: Bonjour ! Dites-nous comment nous pouvons vous aider.
+User: Est-il possible de discuter avec quelqu’un ?
+User: Vous êtes situés où ?"
+Ok,1,CLARIFICATION,0.226,CLARIFICATION,0.274,False,0.048,"{'photo_collected': True, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 1, 'is_complete': False}","Jessica: Bonjour ! Dites-nous comment nous pouvons vous aider.
+User: Est-il possible de discuter avec quelqu’un ?
+User: Vous êtes situés où ?
+User: Nous vendons en ligne pour le moment"
+Je valide le lot de 6 paquets de 10 couches,10,CATALOGUE,0.581,CATALOGUE,0.581,False,0.000,"{'photo_collected': False, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 0, 'is_complete': False}",
+Je suis dans la commune de port Bouet quartier Gonzague rue Abraham,12,ACHAT_COMMANDE,0.510,ACHAT_COMMANDE,0.510,False,0.000,"{'photo_collected': False, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 0, 'is_complete': False}",User: Je valide le lot de 6 paquets de 10 couches
+Je voudrais être livré ce vendredi je suis au 0101257911 merci c est gentille,14,SUIVI,0.572,SUIVI,0.572,False,0.000,"{'photo_collected': False, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 0, 'is_complete': False}","User: Je valide le lot de 6 paquets de 10 couches
+User: Je suis dans la commune de port Bouet quartier Gonzague rue Abraham"
+Ok ça marche pour demain,5,INFO_GENERALE,0.565,INFO_GENERALE,0.565,False,0.000,"{'photo_collected': False, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 0, 'is_complete': False}","User: Je valide le lot de 6 paquets de 10 couches
+User: Je suis dans la commune de port Bouet quartier Gonzague rue Abraham
+User: Je voudrais être livré ce vendredi je suis au 0101257911 merci c est gentille"
+"Bonjour mr j’espère que vous allez bien , on vous envoie tjr ma commande dans l’apres midi",17,SALUT,0.594,SALUT,0.594,False,0.000,"{'photo_collected': False, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 0, 'is_complete': False}","User: Je valide le lot de 6 paquets de 10 couches
+User: Je suis dans la commune de port Bouet quartier Gonzague rue Abraham
+User: Je voudrais être livré ce vendredi je suis au 0101257911 merci c est gentille
+User: Ok ça marche pour demain"
+Ok c est compris,4,ACHAT_COMMANDE,0.532,ACHAT_COMMANDE,0.532,False,0.000,"{'photo_collected': False, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 0, 'is_complete': False}","User: Je valide le lot de 6 paquets de 10 couches
+User: Je suis dans la commune de port Bouet quartier Gonzague rue Abraham
+User: Je voudrais être livré ce vendredi je suis au 0101257911 merci c est gentille
+User: Ok ça marche pour demain
+User: Bonjour mr j’espère que vous allez bien , on vous envoie tjr ma commande dans l’apres midi"
+Je n ai pas encore reçu les 6  paquets de couches adultes,12,PAIEMENT,0.614,PAIEMENT,0.614,False,0.000,"{'photo_collected': False, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 0, 'is_complete': False}","User: Je valide le lot de 6 paquets de 10 couches
+User: Je suis dans la commune de port Bouet quartier Gonzague rue Abraham
+User: Je voudrais être livré ce vendredi je suis au 0101257911 merci c est gentille
+User: Ok ça marche pour demain
+User: Bonjour mr j’espère que vous allez bien , on vous envoie tjr ma commande dans l’apres midi
+User: Ok c est compris"
+Bonsoir mr un instant je voisla position di livreur et je vous reviens,13,SUIVI,0.655,SUIVI,0.655,False,0.000,"{'photo_collected': False, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 0, 'is_complete': False}","User: Je valide le lot de 6 paquets de 10 couches
+User: Je suis dans la commune de port Bouet quartier Gonzague rue Abraham
+User: Je voudrais être livré ce vendredi je suis au 0101257911 merci c est gentille
+User: Ok ça marche pour demain
+User: Bonjour mr j’espère que vous allez bien , on vous envoie tjr ma commande dans l’apres midi
+User: Ok c est compris
+User: Je n ai pas encore reçu les 6  paquets de couches adultes"
+Oula j’ai oublié vous prenez en quel taille ?,9,RECHERCHE_PRODUIT,0.661,RECHERCHE_PRODUIT,0.661,False,0.000,"{'photo_collected': False, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 0, 'is_complete': False}","User: Je valide le lot de 6 paquets de 10 couches
+User: Je suis dans la commune de port Bouet quartier Gonzague rue Abraham
+User: Je voudrais être livré ce vendredi je suis au 0101257911 merci c est gentille
+User: Ok ça marche pour demain
+User: Bonjour mr j’espère que vous allez bien , on vous envoie tjr ma commande dans l’apres midi
+User: Ok c est compris
+User: Je n ai pas encore reçu les 6  paquets de couches adultes
+User: Bonsoir mr un instant je voisla position di livreur et je vous reviens"
+Dite moi les différentes tailles svp,6,RECHERCHE_PRODUIT,0.649,RECHERCHE_PRODUIT,0.649,False,0.000,"{'photo_collected': False, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 0, 'is_complete': False}","User: Je valide le lot de 6 paquets de 10 couches
+User: Je suis dans la commune de port Bouet quartier Gonzague rue Abraham
+User: Je voudrais être livré ce vendredi je suis au 0101257911 merci c est gentille
+User: Ok ça marche pour demain
+User: Bonjour mr j’espère que vous allez bien , on vous envoie tjr ma commande dans l’apres midi
+User: Ok c est compris
+User: Je n ai pas encore reçu les 6  paquets de couches adultes
+User: Bonsoir mr un instant je voisla position di livreur et je vous reviens
+User: Oula j’ai oublié vous prenez en quel taille ?"
+M L ET XL disponible,5,CLARIFICATION,0.457,CLARIFICATION,0.457,False,0.000,"{'photo_collected': False, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 0, 'is_complete': False}","User: Je valide le lot de 6 paquets de 10 couches
+User: Je suis dans la commune de port Bouet quartier Gonzague rue Abraham
+User: Je voudrais être livré ce vendredi je suis au 0101257911 merci c est gentille
+User: Ok ça marche pour demain
+User: Bonjour mr j’espère que vous allez bien , on vous envoie tjr ma commande dans l’apres midi
+User: Ok c est compris
+User: Je n ai pas encore reçu les 6  paquets de couches adultes
+User: Bonsoir mr un instant je voisla position di livreur et je vous reviens
+User: Oula j’ai oublié vous prenez en quel taille ?
+User: Dite moi les différentes tailles svp"
+Est-ce qu'on peut faire des mélangés j'aimerais avoir 3 paquets de M et 3 L le tout 6 paquets merci,20,RECHERCHE_PRODUIT,0.538,RECHERCHE_PRODUIT,0.538,False,0.000,"{'photo_collected': False, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 0, 'is_complete': False}","User: Je valide le lot de 6 paquets de 10 couches
+User: Je suis dans la commune de port Bouet quartier Gonzague rue Abraham
+User: Je voudrais être livré ce vendredi je suis au 0101257911 merci c est gentille
+User: Ok ça marche pour demain
+User: Bonjour mr j’espère que vous allez bien , on vous envoie tjr ma commande dans l’apres midi
+User: Ok c est compris
+User: Je n ai pas encore reçu les 6  paquets de couches adultes
+User: Bonsoir mr un instant je voisla position di livreur et je vous reviens
+User: Oula j’ai oublié vous prenez en quel taille ?
+User: Dite moi les différentes tailles svp
+User: M L ET XL disponible"
+Je vais voir avec ma patronne et on vous envoie ça demain mon livreur n’est pas venu et il se fait deja tard,23,SUIVI,0.655,SUIVI,0.655,False,0.000,"{'photo_collected': False, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 0, 'is_complete': False}","User: Je valide le lot de 6 paquets de 10 couches
+User: Je suis dans la commune de port Bouet quartier Gonzague rue Abraham
+User: Je voudrais être livré ce vendredi je suis au 0101257911 merci c est gentille
+User: Ok ça marche pour demain
+User: Bonjour mr j’espère que vous allez bien , on vous envoie tjr ma commande dans l’apres midi
+User: Ok c est compris
+User: Je n ai pas encore reçu les 6  paquets de couches adultes
+User: Bonsoir mr un instant je voisla position di livreur et je vous reviens
+User: Oula j’ai oublié vous prenez en quel taille ?
+User: Dite moi les différentes tailles svp
+User: M L ET XL disponible
+User: Est-ce qu'on peut faire des mélangés j'aimerais avoir 3 paquets de M et 3 L le tout 6 paquets merci"
+Je suis dans la commune de port Bouet quartier Gonzague rue  Abraham,12,ACHAT_COMMANDE,0.510,ACHAT_COMMANDE,0.510,False,0.000,"{'photo_collected': False, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 0, 'is_complete': False}","User: Je suis dans la commune de port Bouet quartier Gonzague rue Abraham
+User: Je voudrais être livré ce vendredi je suis au 0101257911 merci c est gentille
+User: Ok ça marche pour demain
+User: Bonjour mr j’espère que vous allez bien , on vous envoie tjr ma commande dans l’apres midi
+User: Ok c est compris
+User: Je n ai pas encore reçu les 6  paquets de couches adultes
+User: Bonsoir mr un instant je voisla position di livreur et je vous reviens
+User: Oula j’ai oublié vous prenez en quel taille ?
+User: Dite moi les différentes tailles svp
+User: M L ET XL disponible
+User: Est-ce qu'on peut faire des mélangés j'aimerais avoir 3 paquets de M et 3 L le tout 6 paquets merci
+User: Je vais voir avec ma patronne et on vous envoie ça demain mon livreur n’est pas venu et il se fait deja tard"
+J’ai pas oublié vous inquiétez pas 😏,7,INFO_GENERALE,0.594,INFO_GENERALE,0.594,False,0.000,"{'photo_collected': False, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 0, 'is_complete': False}","User: Je voudrais être livré ce vendredi je suis au 0101257911 merci c est gentille
+User: Ok ça marche pour demain
+User: Bonjour mr j’espère que vous allez bien , on vous envoie tjr ma commande dans l’apres midi
+User: Ok c est compris
+User: Je n ai pas encore reçu les 6  paquets de couches adultes
+User: Bonsoir mr un instant je voisla position di livreur et je vous reviens
+User: Oula j’ai oublié vous prenez en quel taille ?
+User: Dite moi les différentes tailles svp
+User: M L ET XL disponible
+User: Est-ce qu'on peut faire des mélangés j'aimerais avoir 3 paquets de M et 3 L le tout 6 paquets merci
+User: Je vais voir avec ma patronne et on vous envoie ça demain mon livreur n’est pas venu et il se fait deja tard
+User: Je suis dans la commune de port Bouet quartier Gonzague rue  Abraham"
+Bonjour  Mr/ Mme,3,CLARIFICATION,0.245,CLARIFICATION,0.341,False,0.096,"{'photo_collected': True, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 1, 'is_complete': False}",Jessica: Bonjour ! Dites-nous comment nous pouvons vous aider.
+Bonsoir mme désolé de repondre que maintenant j’espère que vous allez bien,12,SALUT,0.900,SALUT,0.900,False,0.000,"{'photo_collected': True, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 1, 'is_complete': False}","Jessica: Bonjour ! Dites-nous comment nous pouvons vous aider.
+User: Bonjour  Mr/ Mme"
+Bonjour,1,SALUT,0.950,SALUT,0.950,False,0.000,"{'photo_collected': False, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 0, 'is_complete': False}",
+"Bonjour 👋 bienvenue chez RUE DU GROSSISTE!
+
+✅Pour passer  commande ? Cliquez ici : https://wa.me/c/2250160924560",15,ACHAT_COMMANDE,0.549,ACHAT_COMMANDE,0.549,False,0.000,"{'photo_collected': False, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 0, 'is_complete': False}",User: Bonjour
+Bonsoir mme comment je peux vous aider svp?,8,SALUT,0.632,SALUT,0.632,False,0.000,"{'photo_collected': False, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 0, 'is_complete': False}","User: Bonjour
+User: Bonjour 👋 bienvenue chez RUE DU GROSSISTE!
+
+✅Pour passer  commande ? Cliquez ici : https://wa.me/c/2250160924560"
+Bonsoir Mme besoin de couches pour grande personne malade,9,SALUT,0.620,LIVRAISON,0.619,True,-0.001,"{'photo_collected': True, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 1, 'is_complete': False}",Jessica: Bonjour ! Dites-nous comment nous pouvons vous aider.
+Vous en avez en caleçon ?,6,INFO_GENERALE,0.642,INFO_GENERALE,0.672,False,0.031,"{'photo_collected': True, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 1, 'is_complete': False}","Jessica: Bonjour ! Dites-nous comment nous pouvons vous aider.
+User: Bonsoir Mme besoin de couches pour grande personne malade"
+Bonsoir mme Couches adultes oui mais que en pression,9,CATALOGUE,0.559,LIVRAISON,0.562,True,0.003,"{'photo_collected': True, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 1, 'is_complete': False}","Jessica: Bonjour ! Dites-nous comment nous pouvons vous aider.
+User: Bonsoir Mme besoin de couches pour grande personne malade
+User: Vous en avez en caleçon ?"
+Quelle taille ?,3,RECHERCHE_PRODUIT,0.619,RECHERCHE_PRODUIT,0.698,False,0.079,"{'photo_collected': True, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 1, 'is_complete': False}","Jessica: Bonjour ! Dites-nous comment nous pouvons vous aider.
+User: Bonsoir Mme besoin de couches pour grande personne malade
+User: Vous en avez en caleçon ?
+User: Bonsoir mme Couches adultes oui mais que en pression"
+Je veux 3xl,3,ACHAT_COMMANDE,0.598,ACHAT_COMMANDE,0.578,False,-0.020,"{'photo_collected': True, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 1, 'is_complete': False}","Jessica: Bonjour ! Dites-nous comment nous pouvons vous aider.
+User: Bonsoir Mme besoin de couches pour grande personne malade
+User: Vous en avez en caleçon ?
+User: Bonsoir mme Couches adultes oui mais que en pression
+User: Quelle taille ?"
+Y'a combien dans le paquet,5,PRIX_PROMO,0.729,PRIX_PROMO,0.769,False,0.040,"{'photo_collected': True, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 1, 'is_complete': False}","Jessica: Bonjour ! Dites-nous comment nous pouvons vous aider.
+User: Bonsoir Mme besoin de couches pour grande personne malade
+User: Vous en avez en caleçon ?
+User: Bonsoir mme Couches adultes oui mais que en pression
+User: Quelle taille ?
+User: Je veux 3xl"
+Y’en a et y’a 10 dans le paquet mais on vend par lot de 6 paquets a 26.000 soit 60 couches pour 26.000,23,CLARIFICATION,0.488,LIVRAISON,0.546,True,0.058,"{'photo_collected': True, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 1, 'is_complete': False}","Jessica: Bonjour ! Dites-nous comment nous pouvons vous aider.
+User: Bonsoir Mme besoin de couches pour grande personne malade
+User: Vous en avez en caleçon ?
+User: Bonsoir mme Couches adultes oui mais que en pression
+User: Quelle taille ?
+User: Je veux 3xl
+User: Y'a combien dans le paquet"
+Les 10 son a combien ?,6,PRIX_PROMO,0.735,PRIX_PROMO,0.755,False,0.020,"{'photo_collected': True, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 1, 'is_complete': False}","Jessica: Bonjour ! Dites-nous comment nous pouvons vous aider.
+User: Bonsoir Mme besoin de couches pour grande personne malade
+User: Vous en avez en caleçon ?
+User: Bonsoir mme Couches adultes oui mais que en pression
+User: Quelle taille ?
+User: Je veux 3xl
+User: Y'a combien dans le paquet
+User: Y’en a et y’a 10 dans le paquet mais on vend par lot de 6 paquets a 26.000 soit 60 couches pour 26.000"
+Actuellement on vend en gros a partir de 6 paquets,10,PRIX_PROMO,0.577,LIVRAISON,0.580,True,0.003,"{'photo_collected': True, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 1, 'is_complete': False}","Jessica: Bonjour ! Dites-nous comment nous pouvons vous aider.
+User: Bonsoir Mme besoin de couches pour grande personne malade
+User: Vous en avez en caleçon ?
+User: Bonsoir mme Couches adultes oui mais que en pression
+User: Quelle taille ?
+User: Je veux 3xl
+User: Y'a combien dans le paquet
+User: Y’en a et y’a 10 dans le paquet mais on vend par lot de 6 paquets a 26.000 soit 60 couches pour 26.000
+User: Les 10 son a combien ?"
+Puis-je en savoir plus sur votre entreprise ?,8,INFO_GENERALE,0.556,INFO_GENERALE,0.586,False,0.030,"{'photo_collected': True, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 1, 'is_complete': False}",Jessica: Bonjour ! Dites-nous comment nous pouvons vous aider.
+Bonjour madame,2,CLARIFICATION,0.304,CLARIFICATION,0.389,False,0.085,"{'photo_collected': True, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 1, 'is_complete': False}","Jessica: Bonjour ! Dites-nous comment nous pouvons vous aider.
+User: Puis-je en savoir plus sur votre entreprise ?"
+"Bonjour a vous, comment je peux vous aidez ce matin ?",11,INFO_GENERALE,0.644,INFO_GENERALE,0.638,False,-0.006,"{'photo_collected': True, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 1, 'is_complete': False}","Jessica: Bonjour ! Dites-nous comment nous pouvons vous aider.
+User: Puis-je en savoir plus sur votre entreprise ?
+User: Bonjour madame"
+Oui la livraison angré nouveau CHU combien,7,LIVRAISON,0.809,LIVRAISON,0.890,False,0.081,"{'photo_collected': True, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 1, 'is_complete': False}","Jessica: Bonjour ! Dites-nous comment nous pouvons vous aider.
+User: Puis-je en savoir plus sur votre entreprise ?
+User: Bonjour madame
+User: Bonjour a vous, comment je peux vous aidez ce matin ?"
+1500,1,CLARIFICATION,0.289,CLARIFICATION,0.348,False,0.059,"{'photo_collected': True, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 1, 'is_complete': False}","Jessica: Bonjour ! Dites-nous comment nous pouvons vous aider.
+User: Puis-je en savoir plus sur votre entreprise ?
+User: Bonjour madame
+User: Bonjour a vous, comment je peux vous aidez ce matin ?
+User: Oui la livraison angré nouveau CHU combien"
+Voici,1,CLARIFICATION,0.429,CLARIFICATION,0.499,False,0.070,"{'photo_collected': True, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 1, 'is_complete': False}","Jessica: Bonjour ! Dites-nous comment nous pouvons vous aider.
+User: Puis-je en savoir plus sur votre entreprise ?
+User: Bonjour madame
+User: Bonjour a vous, comment je peux vous aidez ce matin ?
+User: Oui la livraison angré nouveau CHU combien
+User: 1500"
+"Couches a pression  ; colis de 6 paquet chaque paquet 50 couches :
+Taille 1 (0 à 4 kg) : 17.000 FCFA
+Taille 2 (3 à 8 kg) : 18.500 FCFA
+Taille 3 (6 à 11 kg) : 20.500 FCFA
+Taille 4 (9 à 14 kg) : 22.500 FCFA
+Taille 5 (12 à 17 kg) : 24.000 FCFA
+Taille 6 (17 à 22 kg) : 24.000 FCFA
+
+Culotte culottes: Lot de 3 paquets ( 150 ) a 13500 lot de 6 paquet ( 300 ) a 24.000 au lieu de 27.000 ( prix fixe peu importe la taille)",98,PRIX_PROMO,0.769,PRIX_PROMO,0.751,False,-0.019,"{'photo_collected': True, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 1, 'is_complete': False}","Jessica: Bonjour ! Dites-nous comment nous pouvons vous aider.
+User: Puis-je en savoir plus sur votre entreprise ?
+User: Bonjour madame
+User: Bonjour a vous, comment je peux vous aidez ce matin ?
+User: Oui la livraison angré nouveau CHU combien
+User: 1500
+User: Voici"
+Ok ça marche,3,CLARIFICATION,0.429,CLARIFICATION,0.460,False,0.031,"{'photo_collected': True, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 1, 'is_complete': False}","Jessica: Bonjour ! Dites-nous comment nous pouvons vous aider.
+User: Puis-je en savoir plus sur votre entreprise ?
+User: Bonjour madame
+User: Bonjour a vous, comment je peux vous aidez ce matin ?
+User: Oui la livraison angré nouveau CHU combien
+User: 1500
+User: Voici
+User: Couches a pression  ; colis de 6 paquet chaque paquet 50 couches :
+Taille 1 (0 à 4 kg) : 17.000 FCFA
+Taille 2 (3 à 8 kg) : 18.500 FCFA
+Taille 3 (6 à 11 kg) : 20.500 FCFA
+Taille 4 (9 à 14 kg) : 22.500 FCFA
+Taille 5 (12 à 17 kg) : 24.000 FCFA
+Taille 6 (17 à 22 kg) : 24.000 FCFA
+
+Culotte culottes: Lot de 3 paquets ( 150 ) a 13500 lot de 6 paquet ( 300 ) a 24.000 au lieu de 27.000 ( prix fixe peu importe la taille)"
+Pouvez-vous m’en dire plus sur votre publicité ?,8,INFO_GENERALE,0.592,INFO_GENERALE,0.603,False,0.011,"{'photo_collected': True, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 1, 'is_complete': False}",Jessica: Bonjour ! Dites-nous comment nous pouvons vous aider.
+Pouvez-vous m’en dire plus sur votre publicité ?,8,INFO_GENERALE,0.592,INFO_GENERALE,0.603,False,0.011,"{'photo_collected': True, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 1, 'is_complete': False}",Jessica: Bonjour ! Dites-nous comment nous pouvons vous aider.
+Est-il possible de discuter avec quelqu’un ?,7,INFO_GENERALE,0.582,INFO_GENERALE,0.583,False,0.001,"{'photo_collected': True, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 1, 'is_complete': False}",Jessica: Bonjour ! Dites-nous comment nous pouvons vous aider.
+Puis-je en savoir plus sur votre entreprise ?,8,INFO_GENERALE,0.556,INFO_GENERALE,0.586,False,0.030,"{'photo_collected': True, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 1, 'is_complete': False}",Jessica: Bonjour ! Dites-nous comment nous pouvons vous aider.
+Puis-je en savoir plus sur votre entreprise ?,8,INFO_GENERALE,0.556,INFO_GENERALE,0.586,False,0.030,"{'photo_collected': True, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 1, 'is_complete': False}",Jessica: Bonjour ! Dites-nous comment nous pouvons vous aider.
+Puis-je en savoir plus sur votre entreprise ?,8,INFO_GENERALE,0.556,INFO_GENERALE,0.586,False,0.030,"{'photo_collected': True, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 1, 'is_complete': False}",Jessica: Bonjour ! Dites-nous comment nous pouvons vous aider.
+Est-il possible de discuter avec quelqu’un ?,7,INFO_GENERALE,0.582,INFO_GENERALE,0.583,False,0.001,"{'photo_collected': True, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 1, 'is_complete': False}",Jessica: Bonjour ! Dites-nous comment nous pouvons vous aider.
+Pouvez-vous m’en dire plus sur votre publicité ?,8,INFO_GENERALE,0.592,INFO_GENERALE,0.603,False,0.011,"{'photo_collected': True, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 1, 'is_complete': False}",Jessica: Bonjour ! Dites-nous comment nous pouvons vous aider.
+comment se fait la livraison svp,6,LIVRAISON,0.806,LIVRAISON,0.870,False,0.064,"{'photo_collected': True, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 1, 'is_complete': False}","Jessica: Bonjour ! Dites-nous comment nous pouvons vous aider.
+User: Pouvez-vous m’en dire plus sur votre publicité ?"
+je suis à Koumassi zone akwaba juste après utb en face du garé rahimo,14,CLARIFICATION,0.443,LIVRAISON,0.529,True,0.086,"{'photo_collected': True, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 1, 'is_complete': False}","Jessica: Bonjour ! Dites-nous comment nous pouvons vous aider.
+User: Pouvez-vous m’en dire plus sur votre publicité ?
+User: comment se fait la livraison svp"
+Ok la livraison est a 1500 a koumassi,8,LIVRAISON,1.000,LIVRAISON,1.000,False,0.000,"{'photo_collected': True, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 1, 'is_complete': False}","Jessica: Bonjour ! Dites-nous comment nous pouvons vous aider.
+User: Pouvez-vous m’en dire plus sur votre publicité ?
+User: comment se fait la livraison svp
+User: je suis à Koumassi zone akwaba juste après utb en face du garé rahimo"
+"moi je voudrais payé et revendre sa au Togo 
+vous me conseillez quel de couches pour un débutant svp",19,SALUT,0.576,PAIEMENT,0.652,True,0.076,"{'photo_collected': True, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 1, 'is_complete': False}","Jessica: Bonjour ! Dites-nous comment nous pouvons vous aider.
+User: Pouvez-vous m’en dire plus sur votre publicité ?
+User: comment se fait la livraison svp
+User: je suis à Koumassi zone akwaba juste après utb en face du garé rahimo
+User: Ok la livraison est a 1500 a koumassi"
+Les deux sortes en vrai les clients voulant payer peut ou voulant des couches naissance iront vers les pression ceux avec plus de moyen et des bebe plus grand iront vers les couches culottes,34,CATALOGUE,0.565,PAIEMENT,0.589,True,0.024,"{'photo_collected': True, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 1, 'is_complete': False}","Jessica: Bonjour ! Dites-nous comment nous pouvons vous aider.
+User: Pouvez-vous m’en dire plus sur votre publicité ?
+User: comment se fait la livraison svp
+User: je suis à Koumassi zone akwaba juste après utb en face du garé rahimo
+User: Ok la livraison est a 1500 a koumassi
+User: moi je voudrais payé et revendre sa au Togo 
+vous me conseillez quel de couches pour un débutant svp"
+OK,1,CLARIFICATION,0.226,CLARIFICATION,0.274,False,0.048,"{'photo_collected': True, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 1, 'is_complete': False}","Jessica: Bonjour ! Dites-nous comment nous pouvons vous aider.
+User: Pouvez-vous m’en dire plus sur votre publicité ?
+User: comment se fait la livraison svp
+User: je suis à Koumassi zone akwaba juste après utb en face du garé rahimo
+User: Ok la livraison est a 1500 a koumassi
+User: moi je voudrais payé et revendre sa au Togo 
+vous me conseillez quel de couches pour un débutant svp
+User: Les deux sortes en vrai les clients voulant payer peut ou voulant des couches naissance iront vers les pression ceux avec plus de moyen et des bebe plus grand iront vers les couches culottes"
+Puis-je en savoir plus sur votre entreprise ?,8,INFO_GENERALE,0.556,INFO_GENERALE,0.586,False,0.030,"{'photo_collected': True, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 1, 'is_complete': False}",Jessica: Bonjour ! Dites-nous comment nous pouvons vous aider.
+Est-il possible de discuter avec quelqu’un ?,7,INFO_GENERALE,0.582,INFO_GENERALE,0.583,False,0.001,"{'photo_collected': True, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 1, 'is_complete': False}",Jessica: Bonjour ! Dites-nous comment nous pouvons vous aider.
+Cucu bonjour je suis vraiment intéressée par vos couches mais je suis à guiglo,14,SALUT,0.647,SALUT,0.625,False,-0.022,"{'photo_collected': True, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 1, 'is_complete': False}",Jessica: Bonjour ! Dites-nous comment nous pouvons vous aider.
+Bonjour On peut expedier mais je ne connais pas les prix actuels d’expédition vers laba,15,PRIX_PROMO,0.767,PRIX_PROMO,0.763,False,-0.004,"{'photo_collected': True, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 1, 'is_complete': False}","Jessica: Bonjour ! Dites-nous comment nous pouvons vous aider.
+User: Cucu bonjour je suis vraiment intéressée par vos couches mais je suis à guiglo"
+Puis-je en savoir plus sur votre entreprise ?,8,INFO_GENERALE,0.556,INFO_GENERALE,0.586,False,0.030,"{'photo_collected': True, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 1, 'is_complete': False}",Jessica: Bonjour ! Dites-nous comment nous pouvons vous aider.
+Je vous appelle pas de réponse,6,INFO_GENERALE,0.609,INFO_GENERALE,0.611,False,0.002,"{'photo_collected': True, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 1, 'is_complete': False}",Jessica: Bonjour ! Dites-nous comment nous pouvons vous aider.
+"Bonjour mme j’espère que vous allez , je suis actuellement au telephone raison pour laquelle j’ai pas pu prendre votre appel mais oui on a des couches adultes mais en pression uniquement le lot de 60 c’est a dire 6 paquets de 10 chacun a 26.000",46,SALUT,0.562,LIVRAISON,0.599,True,0.037,"{'photo_collected': True, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 1, 'is_complete': False}","Jessica: Bonjour ! Dites-nous comment nous pouvons vous aider.
+User: Je vous appelle pas de réponse"
+Ok merci je vous reviens,5,SUIVI,0.596,SUIVI,0.580,False,-0.016,"{'photo_collected': True, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 1, 'is_complete': False}","Jessica: Bonjour ! Dites-nous comment nous pouvons vous aider.
+User: Je vous appelle pas de réponse
+User: Bonjour mme j’espère que vous allez , je suis actuellement au telephone raison pour laquelle j’ai pas pu prendre votre appel mais oui on a des couches adultes mais en pression uniquement le lot de 60 c’est a dire 6 paquets de 10 chacun a 26.000"
+D’accord,1,CLARIFICATION,0.362,CLARIFICATION,0.429,False,0.066,"{'photo_collected': True, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 1, 'is_complete': False}","Jessica: Bonjour ! Dites-nous comment nous pouvons vous aider.
+User: Je vous appelle pas de réponse
+User: Bonjour mme j’espère que vous allez , je suis actuellement au telephone raison pour laquelle j’ai pas pu prendre votre appel mais oui on a des couches adultes mais en pression uniquement le lot de 60 c’est a dire 6 paquets de 10 chacun a 26.000
+User: Ok merci je vous reviens"
+"Bonjour 👋 bienvenue chez RUE DU GROSSISTE!
+
+✅Pour passer  commande ? Cliquez ici : https://wa.me/c/2250160924560",15,ACHAT_COMMANDE,0.549,ACHAT_COMMANDE,0.549,False,0.000,"{'photo_collected': False, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 0, 'is_complete': False}",
+Bonjour madame,2,CLARIFICATION,0.304,CLARIFICATION,0.389,False,0.085,"{'photo_collected': True, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 1, 'is_complete': False}",Jessica: Bonjour ! Dites-nous comment nous pouvons vous aider.
+Bonjour mme j’espère que vous allez bien,7,SALUT,0.900,SALUT,0.900,False,0.000,"{'photo_collected': True, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 1, 'is_complete': False}","Jessica: Bonjour ! Dites-nous comment nous pouvons vous aider.
+User: Bonjour madame"
+Oui merci a propos des couches,6,SUIVI,0.542,LIVRAISON,0.532,True,-0.010,"{'photo_collected': True, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 1, 'is_complete': False}","Jessica: Bonjour ! Dites-nous comment nous pouvons vous aider.
+User: Bonjour madame
+User: Bonjour mme j’espère que vous allez bien"
+Daccord nos couches sont disponible en pression et culottes entre 0 et 25kg,13,DISPONIBILITE,0.680,DISPONIBILITE,0.666,False,-0.014,"{'photo_collected': True, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 1, 'is_complete': False}","Jessica: Bonjour ! Dites-nous comment nous pouvons vous aider.
+User: Bonjour madame
+User: Bonjour mme j’espère que vous allez bien
+User: Oui merci a propos des couches"
+Possible d'avoir en gros pour revendre le prix de vente ?,11,PRIX_PROMO,0.839,PRIX_PROMO,0.820,False,-0.019,"{'photo_collected': True, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 1, 'is_complete': False}","Jessica: Bonjour ! Dites-nous comment nous pouvons vous aider.
+User: Bonjour madame
+User: Bonjour mme j’espère que vous allez bien
+User: Oui merci a propos des couches
+User: Daccord nos couches sont disponible en pression et culottes entre 0 et 25kg"
+Bjr donner les diff prix en gros pr revendeur,9,PRIX_PROMO,0.951,PRIX_PROMO,0.927,False,-0.023,"{'photo_collected': True, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 1, 'is_complete': False}",Jessica: Bonjour ! Dites-nous comment nous pouvons vous aider.
+Puis-je en savoir plus sur votre entreprise ?,8,INFO_GENERALE,0.556,INFO_GENERALE,0.586,False,0.030,"{'photo_collected': True, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 1, 'is_complete': False}",Jessica: Bonjour ! Dites-nous comment nous pouvons vous aider.
+Bonjour  nos couches sont disponible en pression et culottes entre 0 et 25kg,13,DISPONIBILITE,0.668,CATALOGUE,0.665,True,-0.003,"{'photo_collected': True, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 1, 'is_complete': False}","Jessica: Bonjour ! Dites-nous comment nous pouvons vous aider.
+User: Puis-je en savoir plus sur votre entreprise ?"
+Ok je vous enregistrer pour une future commande.,8,ACHAT_COMMANDE,0.575,ACHAT_COMMANDE,0.576,False,0.001,"{'photo_collected': True, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 1, 'is_complete': False}","Jessica: Bonjour ! Dites-nous comment nous pouvons vous aider.
+User: Puis-je en savoir plus sur votre entreprise ?
+User: Bonjour  nos couches sont disponible en pression et culottes entre 0 et 25kg"
+Bonjour madame j’en veux,4,PROBLEME,0.502,PROBLEME,0.521,False,0.019,"{'photo_collected': True, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 1, 'is_complete': False}",Jessica: Bonjour ! Dites-nous comment nous pouvons vous aider.
+Est-ce que  les nouveaux nés peuvent  porter,7,INFO_GENERALE,0.514,INFO_GENERALE,0.552,False,0.037,"{'photo_collected': True, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 1, 'is_complete': False}","Jessica: Bonjour ! Dites-nous comment nous pouvons vous aider.
+User: Bonjour madame j’en veux"
+Bonjour mme  oui Couches a pression oui L’enfant fait quel poids?,11,CATALOGUE,0.612,CATALOGUE,0.636,False,0.024,"{'photo_collected': True, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 1, 'is_complete': False}","Jessica: Bonjour ! Dites-nous comment nous pouvons vous aider.
+User: Bonjour madame j’en veux
+User: Est-ce que  les nouveaux nés peuvent  porter"
+L’enfant  n’est même pas encore né je paie pour  garder,10,SUIVI,0.586,SUIVI,0.576,False,-0.009,"{'photo_collected': True, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 1, 'is_complete': False}","Jessica: Bonjour ! Dites-nous comment nous pouvons vous aider.
+User: Bonjour madame j’en veux
+User: Est-ce que  les nouveaux nés peuvent  porter
+User: Bonjour mme  oui Couches a pression oui L’enfant fait quel poids?"
+"Vaut mieux prendre la taille 2
+Taille 2 (3 à 8 kg) pour etre sur : • Tarifs par taille (après réduction) lot de 300 couches :
+Taille 1 (0 à 4 kg) : 17.000 FCFA
+Taille 2 (3 à 8 kg) : 18.500 FCFA
+Taille 3 (6 à 11 kg) : 20.500 FCFA
+…",55,PRIX_PROMO,0.655,PRIX_PROMO,0.639,False,-0.015,"{'photo_collected': True, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 1, 'is_complete': False}","Jessica: Bonjour ! Dites-nous comment nous pouvons vous aider.
+User: Bonjour madame j’en veux
+User: Est-ce que  les nouveaux nés peuvent  porter
+User: Bonjour mme  oui Couches a pression oui L’enfant fait quel poids?
+User: L’enfant  n’est même pas encore né je paie pour  garder"
+Pour 18500 vous aurez 6 paquets chaque paquet y’a 50 couches dedans,12,CATALOGUE,0.560,LIVRAISON,0.611,True,0.051,"{'photo_collected': True, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 1, 'is_complete': False}","Jessica: Bonjour ! Dites-nous comment nous pouvons vous aider.
+User: Bonjour madame j’en veux
+User: Est-ce que  les nouveaux nés peuvent  porter
+User: Bonjour mme  oui Couches a pression oui L’enfant fait quel poids?
+User: L’enfant  n’est même pas encore né je paie pour  garder
+User: Vaut mieux prendre la taille 2
+Taille 2 (3 à 8 kg) pour etre sur : • Tarifs par taille (après réduction) lot de 300 couches :
+Taille 1 (0 à 4 kg) : 17.000 FCFA
+Taille 2 (3 à 8 kg) : 18.500 FCFA
+Taille 3 (6 à 11 kg) : 20.500 FCFA
+…"
+Et les couches  cullotes,4,RECHERCHE_PRODUIT,0.550,RECHERCHE_PRODUIT,0.547,False,-0.003,"{'photo_collected': True, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 1, 'is_complete': False}","Jessica: Bonjour ! Dites-nous comment nous pouvons vous aider.
+User: Bonjour madame j’en veux
+User: Est-ce que  les nouveaux nés peuvent  porter
+User: Bonjour mme  oui Couches a pression oui L’enfant fait quel poids?
+User: L’enfant  n’est même pas encore né je paie pour  garder
+User: Vaut mieux prendre la taille 2
+Taille 2 (3 à 8 kg) pour etre sur : • Tarifs par taille (après réduction) lot de 300 couches :
+Taille 1 (0 à 4 kg) : 17.000 FCFA
+Taille 2 (3 à 8 kg) : 18.500 FCFA
+Taille 3 (6 à 11 kg) : 20.500 FCFA
+…
+User: Pour 18500 vous aurez 6 paquets chaque paquet y’a 50 couches dedans"
+Culotte c’est a partir de la taille 3 c’est a dire 6kg et + la le lot de 300 est a 24.000 vous aurez aussi 6 paquets de 50 couches chacun,31,RECHERCHE_PRODUIT,0.648,RECHERCHE_PRODUIT,0.660,False,0.012,"{'photo_collected': True, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 1, 'is_complete': False}","Jessica: Bonjour ! Dites-nous comment nous pouvons vous aider.
+User: Bonjour madame j’en veux
+User: Est-ce que  les nouveaux nés peuvent  porter
+User: Bonjour mme  oui Couches a pression oui L’enfant fait quel poids?
+User: L’enfant  n’est même pas encore né je paie pour  garder
+User: Vaut mieux prendre la taille 2
+Taille 2 (3 à 8 kg) pour etre sur : • Tarifs par taille (après réduction) lot de 300 couches :
+Taille 1 (0 à 4 kg) : 17.000 FCFA
+Taille 2 (3 à 8 kg) : 18.500 FCFA
+Taille 3 (6 à 11 kg) : 20.500 FCFA
+…
+User: Pour 18500 vous aurez 6 paquets chaque paquet y’a 50 couches dedans
+User: Et les couches  cullotes"
+Ok je vous  reviendrai,4,ACHAT_COMMANDE,0.550,INFO_GENERALE,0.557,True,0.006,"{'photo_collected': True, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 1, 'is_complete': False}","Jessica: Bonjour ! Dites-nous comment nous pouvons vous aider.
+User: Bonjour madame j’en veux
+User: Est-ce que  les nouveaux nés peuvent  porter
+User: Bonjour mme  oui Couches a pression oui L’enfant fait quel poids?
+User: L’enfant  n’est même pas encore né je paie pour  garder
+User: Vaut mieux prendre la taille 2
+Taille 2 (3 à 8 kg) pour etre sur : • Tarifs par taille (après réduction) lot de 300 couches :
+Taille 1 (0 à 4 kg) : 17.000 FCFA
+Taille 2 (3 à 8 kg) : 18.500 FCFA
+Taille 3 (6 à 11 kg) : 20.500 FCFA
+…
+User: Pour 18500 vous aurez 6 paquets chaque paquet y’a 50 couches dedans
+User: Et les couches  cullotes
+User: Culotte c’est a partir de la taille 3 c’est a dire 6kg et + la le lot de 300 est a 24.000 vous aurez aussi 6 paquets de 50 couches chacun"
+Ça marche,2,CLARIFICATION,0.447,LIVRAISON,0.503,True,0.056,"{'photo_collected': True, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 1, 'is_complete': False}","Jessica: Bonjour ! Dites-nous comment nous pouvons vous aider.
+User: Bonjour madame j’en veux
+User: Est-ce que  les nouveaux nés peuvent  porter
+User: Bonjour mme  oui Couches a pression oui L’enfant fait quel poids?
+User: L’enfant  n’est même pas encore né je paie pour  garder
+User: Vaut mieux prendre la taille 2
+Taille 2 (3 à 8 kg) pour etre sur : • Tarifs par taille (après réduction) lot de 300 couches :
+Taille 1 (0 à 4 kg) : 17.000 FCFA
+Taille 2 (3 à 8 kg) : 18.500 FCFA
+Taille 3 (6 à 11 kg) : 20.500 FCFA
+…
+User: Pour 18500 vous aurez 6 paquets chaque paquet y’a 50 couches dedans
+User: Et les couches  cullotes
+User: Culotte c’est a partir de la taille 3 c’est a dire 6kg et + la le lot de 300 est a 24.000 vous aurez aussi 6 paquets de 50 couches chacun
+User: Ok je vous  reviendrai"
+Salut,1,SALUT,0.950,SALUT,0.950,False,0.000,"{'photo_collected': True, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 1, 'is_complete': False}",Jessica: Bonjour ! Dites-nous comment nous pouvons vous aider.
+Bonjour mr,2,SALUT,0.950,SALUT,0.950,False,0.000,"{'photo_collected': True, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 1, 'is_complete': False}","Jessica: Bonjour ! Dites-nous comment nous pouvons vous aider.
+User: Salut"
+Comment allez-vous,2,SALUT,0.608,SALUT,0.609,False,0.001,"{'photo_collected': True, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 1, 'is_complete': False}","Jessica: Bonjour ! Dites-nous comment nous pouvons vous aider.
+User: Salut
+User: Bonjour mr"
+Bonjour mme je vois avec ma patronne et je vous reviens,11,SALUT,0.626,SALUT,0.626,False,0.000,"{'photo_collected': False, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 0, 'is_complete': False}",
+Bonjour,1,SALUT,0.950,SALUT,0.950,False,0.000,"{'photo_collected': False, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 0, 'is_complete': False}",User: Bonjour mme je vois avec ma patronne et je vous reviens
+Je parle de celui là...il est plus grand et il y a des ouvertures sur les côtés,17,INFO_GENERALE,0.585,INFO_GENERALE,0.585,False,0.000,"{'photo_collected': False, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 0, 'is_complete': False}","User: Bonjour mme je vois avec ma patronne et je vous reviens
+User: Bonjour"
+Bonsoir Monsieur,2,CLARIFICATION,0.374,CLARIFICATION,0.374,False,0.000,"{'photo_collected': False, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 0, 'is_complete': False}","User: Bonjour mme je vois avec ma patronne et je vous reviens
+User: Bonjour
+User: Je parle de celui là...il est plus grand et il y a des ouvertures sur les côtés"
+Je viens aux nouvelles,4,INFO_GENERALE,0.533,INFO_GENERALE,0.533,False,0.000,"{'photo_collected': False, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 0, 'is_complete': False}","User: Bonjour mme je vois avec ma patronne et je vous reviens
+User: Bonjour
+User: Je parle de celui là...il est plus grand et il y a des ouvertures sur les côtés
+User: Bonsoir Monsieur"
+Depuis ce matin vous ne m'avez pas répondu,8,INFO_GENERALE,0.562,INFO_GENERALE,0.562,False,0.000,"{'photo_collected': False, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 0, 'is_complete': False}","User: Bonjour mme je vois avec ma patronne et je vous reviens
+User: Bonjour
+User: Je parle de celui là...il est plus grand et il y a des ouvertures sur les côtés
+User: Bonsoir Monsieur
+User: Je viens aux nouvelles"
+Ça marche,2,CLARIFICATION,0.447,CLARIFICATION,0.447,False,0.000,"{'photo_collected': False, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 0, 'is_complete': False}","User: Bonjour mme je vois avec ma patronne et je vous reviens
+User: Bonjour
+User: Je parle de celui là...il est plus grand et il y a des ouvertures sur les côtés
+User: Bonsoir Monsieur
+User: Je viens aux nouvelles
+User: Depuis ce matin vous ne m'avez pas répondu"
+Pouvez-vous m’en dire plus sur votre publicité ?,8,INFO_GENERALE,0.592,INFO_GENERALE,0.603,False,0.011,"{'photo_collected': True, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 1, 'is_complete': False}",Jessica: Bonjour ! Dites-nous comment nous pouvons vous aider.
+Bjr,1,SALUT,0.950,SALUT,0.950,False,0.000,"{'photo_collected': True, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 1, 'is_complete': False}",Jessica: Bonjour ! Dites-nous comment nous pouvons vous aider.
+Avez vous la marque mamia en taille 9,8,RECHERCHE_PRODUIT,0.680,RECHERCHE_PRODUIT,0.686,False,0.005,"{'photo_collected': True, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 1, 'is_complete': False}","Jessica: Bonjour ! Dites-nous comment nous pouvons vous aider.
+User: Bjr"
+Bonjour mme non desole,4,CLARIFICATION,0.420,CLARIFICATION,0.451,False,0.031,"{'photo_collected': True, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 1, 'is_complete': False}","Jessica: Bonjour ! Dites-nous comment nous pouvons vous aider.
+User: Bjr
+User: Avez vous la marque mamia en taille 9"
+Merci,1,SALUT,0.920,SALUT,0.920,False,0.000,"{'photo_collected': True, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 1, 'is_complete': False}","Jessica: Bonjour ! Dites-nous comment nous pouvons vous aider.
+User: Bjr
+User: Avez vous la marque mamia en taille 9
+User: Bonjour mme non desole"
+46554TTTTTTTTTTTTTL/,1,CLARIFICATION,0.217,CLARIFICATION,0.276,False,0.058,"{'photo_collected': True, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 1, 'is_complete': False}","Jessica: Bonjour ! Dites-nous comment nous pouvons vous aider.
+User: Bjr
+User: Avez vous la marque mamia en taille 9
+User: Bonjour mme non desole
+User: Merci"
+"Bonsoir
+Les les couches sont disponibles",6,DISPONIBILITE,0.589,DISPONIBILITE,0.589,False,0.000,"{'photo_collected': False, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 0, 'is_complete': False}",
+"Bonjour 👋 bienvenue chez RUE DU GROSSISTE!
+
+✅Pour passer  commande ? Cliquez ici : https://wa.me/c/2250160924560",15,ACHAT_COMMANDE,0.549,ACHAT_COMMANDE,0.549,False,0.000,"{'photo_collected': False, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 0, 'is_complete': False}","User: Bonsoir
+Les les couches sont disponibles"
+Oui disponible on vous livre ou ?,7,SUIVI,0.710,SUIVI,0.710,False,0.000,"{'photo_collected': False, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 0, 'is_complete': False}","User: Bonsoir
+Les les couches sont disponibles
+User: Bonjour 👋 bienvenue chez RUE DU GROSSISTE!
+
+✅Pour passer  commande ? Cliquez ici : https://wa.me/c/2250160924560"
+Yopougon palais de justice,4,CLARIFICATION,0.396,CLARIFICATION,0.396,False,0.000,"{'photo_collected': False, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 0, 'is_complete': False}","User: Bonsoir
+Les les couches sont disponibles
+User: Bonjour 👋 bienvenue chez RUE DU GROSSISTE!
+
+✅Pour passer  commande ? Cliquez ici : https://wa.me/c/2250160924560
+User: Oui disponible on vous livre ou ?"
+C'est pour un nouveau née,5,INFO_GENERALE,0.585,INFO_GENERALE,0.585,False,0.000,"{'photo_collected': False, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 0, 'is_complete': False}","User: Bonsoir
+Les les couches sont disponibles
+User: Bonjour 👋 bienvenue chez RUE DU GROSSISTE!
+
+✅Pour passer  commande ? Cliquez ici : https://wa.me/c/2250160924560
+User: Oui disponible on vous livre ou ?
+User: Yopougon palais de justice"
+??,1,CLARIFICATION,0.255,CLARIFICATION,0.255,False,0.000,"{'photo_collected': False, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 0, 'is_complete': False}","User: Bonsoir
+Les les couches sont disponibles
+User: Bonjour 👋 bienvenue chez RUE DU GROSSISTE!
+
+✅Pour passer  commande ? Cliquez ici : https://wa.me/c/2250160924560
+User: Oui disponible on vous livre ou ?
+User: Yopougon palais de justice
+User: C'est pour un nouveau née"
+Il a quel poids precisement svp?,6,RECHERCHE_PRODUIT,0.598,RECHERCHE_PRODUIT,0.598,False,0.000,"{'photo_collected': False, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 0, 'is_complete': False}","User: Bonsoir
+Les les couches sont disponibles
+User: Bonjour 👋 bienvenue chez RUE DU GROSSISTE!
+
+✅Pour passer  commande ? Cliquez ici : https://wa.me/c/2250160924560
+User: Oui disponible on vous livre ou ?
+User: Yopougon palais de justice
+User: C'est pour un nouveau née
+User: ??"
+2kg,1,CLARIFICATION,0.255,CLARIFICATION,0.255,False,0.000,"{'photo_collected': False, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 0, 'is_complete': False}","User: Bonsoir
+Les les couches sont disponibles
+User: Bonjour 👋 bienvenue chez RUE DU GROSSISTE!
+
+✅Pour passer  commande ? Cliquez ici : https://wa.me/c/2250160924560
+User: Oui disponible on vous livre ou ?
+User: Yopougon palais de justice
+User: C'est pour un nouveau née
+User: ??
+User: Il a quel poids precisement svp?"
+Ok ca marche 17000 la livraison a 1000 total 18.000 . C’est bon pour vous?,15,LIVRAISON,0.686,LIVRAISON,0.686,False,0.000,"{'photo_collected': False, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 0, 'is_complete': False}","User: Bonsoir
+Les les couches sont disponibles
+User: Bonjour 👋 bienvenue chez RUE DU GROSSISTE!
+
+✅Pour passer  commande ? Cliquez ici : https://wa.me/c/2250160924560
+User: Oui disponible on vous livre ou ?
+User: Yopougon palais de justice
+User: C'est pour un nouveau née
+User: ??
+User: Il a quel poids precisement svp?
+User: 2kg"
+D'accord demain soir ça m'arrange je descends du boulot à 18h,11,INFO_GENERALE,0.586,INFO_GENERALE,0.586,False,0.000,"{'photo_collected': False, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 0, 'is_complete': False}","User: Bonsoir
+Les les couches sont disponibles
+User: Bonjour 👋 bienvenue chez RUE DU GROSSISTE!
+
+✅Pour passer  commande ? Cliquez ici : https://wa.me/c/2250160924560
+User: Oui disponible on vous livre ou ?
+User: Yopougon palais de justice
+User: C'est pour un nouveau née
+User: ??
+User: Il a quel poids precisement svp?
+User: 2kg
+User: Ok ca marche 17000 la livraison a 1000 total 18.000 . C’est bon pour vous?"
+Si vous voulez samedi je vais vous contacter comme ça je serai a la maison,15,INFO_GENERALE,0.830,INFO_GENERALE,0.830,False,0.000,"{'photo_collected': False, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 0, 'is_complete': False}","User: Bonsoir
+Les les couches sont disponibles
+User: Bonjour 👋 bienvenue chez RUE DU GROSSISTE!
+
+✅Pour passer  commande ? Cliquez ici : https://wa.me/c/2250160924560
+User: Oui disponible on vous livre ou ?
+User: Yopougon palais de justice
+User: C'est pour un nouveau née
+User: ??
+User: Il a quel poids precisement svp?
+User: 2kg
+User: Ok ca marche 17000 la livraison a 1000 total 18.000 . C’est bon pour vous?
+User: D'accord demain soir ça m'arrange je descends du boulot à 18h"
+Daccord ça marche donc je vous ecrirais demain pour confirmation,10,INFO_GENERALE,0.581,INFO_GENERALE,0.581,False,0.000,"{'photo_collected': False, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 0, 'is_complete': False}","User: Bonsoir
+Les les couches sont disponibles
+User: Bonjour 👋 bienvenue chez RUE DU GROSSISTE!
+
+✅Pour passer  commande ? Cliquez ici : https://wa.me/c/2250160924560
+User: Oui disponible on vous livre ou ?
+User: Yopougon palais de justice
+User: C'est pour un nouveau née
+User: ??
+User: Il a quel poids precisement svp?
+User: 2kg
+User: Ok ca marche 17000 la livraison a 1000 total 18.000 . C’est bon pour vous?
+User: D'accord demain soir ça m'arrange je descends du boulot à 18h
+User: Si vous voulez samedi je vais vous contacter comme ça je serai a la maison"
+Ok ça marche aussi,4,CLARIFICATION,0.464,CLARIFICATION,0.464,False,0.000,"{'photo_collected': False, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 0, 'is_complete': False}","User: Bonjour 👋 bienvenue chez RUE DU GROSSISTE!
+
+✅Pour passer  commande ? Cliquez ici : https://wa.me/c/2250160924560
+User: Oui disponible on vous livre ou ?
+User: Yopougon palais de justice
+User: C'est pour un nouveau née
+User: ??
+User: Il a quel poids precisement svp?
+User: 2kg
+User: Ok ca marche 17000 la livraison a 1000 total 18.000 . C’est bon pour vous?
+User: D'accord demain soir ça m'arrange je descends du boulot à 18h
+User: Si vous voulez samedi je vais vous contacter comme ça je serai a la maison
+User: Daccord ça marche donc je vous ecrirais demain pour confirmation"
+"Bonjour 👋 bienvenue chez RUE DU GROSSISTE!
+
+✅Pour passer  commande ? Cliquez ici : https://wa.me/c/2250160924560",15,ACHAT_COMMANDE,0.549,ACHAT_COMMANDE,0.549,False,0.000,"{'photo_collected': False, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 0, 'is_complete': False}",
+"Couches a pression  lot de 300 couches ; 
+Taille 1 (0 à 4 kg) : 17.000 FCFA
+Taille 2 (3 à 8 kg) : 18.500 FCFA
+Taille 3 (6 à 11 kg) : 20.500 FCFA
+Taille 4 (9 à 14 kg) : 22.500 FCFA
+Taille 5 (12 à 17 kg) : 24.000 FCFA
+Taille 6 (17 à 22 kg) : 24.000 FCFA
+
+Culotte : Lot de 3 paquets ( 150 couches en tout  ) a 13500 lot de 6 paquet ( 300    couches en tout  ) a 24.000 au lieu de 27.000",92,RECHERCHE_PRODUIT,0.583,RECHERCHE_PRODUIT,0.583,False,0.000,"{'photo_collected': False, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 0, 'is_complete': False}","User: Bonjour 👋 bienvenue chez RUE DU GROSSISTE!
+
+✅Pour passer  commande ? Cliquez ici : https://wa.me/c/2250160924560"
+Bjr je veux 3 paquets de couche culotte,8,ACHAT_COMMANDE,0.581,INFO_GENERALE,0.581,True,0.000,"{'photo_collected': True, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 1, 'is_complete': False}",Jessica: Bonjour ! Dites-nous comment nous pouvons vous aider.
+De 0 à 6 mois et de 6 mois à 12 mois,12,INFO_GENERALE,0.558,INFO_GENERALE,0.521,False,-0.037,"{'photo_collected': True, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 1, 'is_complete': False}","Jessica: Bonjour ! Dites-nous comment nous pouvons vous aider.
+User: Bjr je veux 3 paquets de couche culotte"
+C'est combien dans le paquet,5,PRIX_PROMO,0.756,PRIX_PROMO,0.779,False,0.023,"{'photo_collected': True, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 1, 'is_complete': False}","Jessica: Bonjour ! Dites-nous comment nous pouvons vous aider.
+User: Bjr je veux 3 paquets de couche culotte
+User: De 0 à 6 mois et de 6 mois à 12 mois"
+Rosier Programme 3 Rive Gauche,5,CLARIFICATION,0.379,CLARIFICATION,0.474,False,0.095,"{'photo_collected': True, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 1, 'is_complete': False}","Jessica: Bonjour ! Dites-nous comment nous pouvons vous aider.
+User: Bjr je veux 3 paquets de couche culotte
+User: De 0 à 6 mois et de 6 mois à 12 mois
+User: C'est combien dans le paquet"
+0707561911,1,CLARIFICATION,0.185,CLARIFICATION,0.279,False,0.094,"{'photo_collected': True, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 1, 'is_complete': False}","Jessica: Bonjour ! Dites-nous comment nous pouvons vous aider.
+User: Bjr je veux 3 paquets de couche culotte
+User: De 0 à 6 mois et de 6 mois à 12 mois
+User: C'est combien dans le paquet
+User: Rosier Programme 3 Rive Gauche"
+Merci,1,SALUT,0.920,SALUT,0.920,False,0.000,"{'photo_collected': True, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 1, 'is_complete': False}","Jessica: Bonjour ! Dites-nous comment nous pouvons vous aider.
+User: Bjr je veux 3 paquets de couche culotte
+User: De 0 à 6 mois et de 6 mois à 12 mois
+User: C'est combien dans le paquet
+User: Rosier Programme 3 Rive Gauche
+User: 0707561911"
+Le livreur vous appellera,4,SUIVI,0.677,SUIVI,0.677,False,0.000,"{'photo_collected': False, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 0, 'is_complete': False}","User: Bjr je veux 3 paquets de couche culotte
+User: De 0 à 6 mois et de 6 mois à 12 mois
+User: C'est combien dans le paquet
+User: Rosier Programme 3 Rive Gauche
+User: 0707561911
+User: Merci"
+Puis-je en savoir plus sur votre entreprise ?,8,INFO_GENERALE,0.556,INFO_GENERALE,0.586,False,0.030,"{'photo_collected': True, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 1, 'is_complete': False}",Jessica: Bonjour ! Dites-nous comment nous pouvons vous aider.
+Comment ?,2,CLARIFICATION,0.255,CLARIFICATION,0.255,False,0.000,"{'photo_collected': False, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 0, 'is_complete': False}",
+Puis-je en savoir plus sur votre entreprise ?,8,INFO_GENERALE,0.556,INFO_GENERALE,0.586,False,0.030,"{'photo_collected': True, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 1, 'is_complete': False}",Jessica: Bonjour ! Dites-nous comment nous pouvons vous aider.
+Nous vendons en ligne pour le moment et on livre a Abidjan au besoin,14,INFO_GENERALE,0.557,INFO_GENERALE,0.557,False,0.000,"{'photo_collected': False, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 0, 'is_complete': False}",
+Est-il possible de discuter avec quelqu’un ?,7,INFO_GENERALE,0.582,INFO_GENERALE,0.583,False,0.001,"{'photo_collected': True, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 1, 'is_complete': False}",Jessica: Bonjour ! Dites-nous comment nous pouvons vous aider.
+Bonjour mme comment pouvons-vous aider ce matin?,7,INFO_GENERALE,0.614,INFO_GENERALE,0.614,False,0.000,"{'photo_collected': False, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 0, 'is_complete': False}",
+Non on a jusqua 7,5,CLARIFICATION,0.324,CLARIFICATION,0.324,False,0.000,"{'photo_collected': False, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 0, 'is_complete': False}",
+Ok pas de soucis,4,SUIVI,0.604,SUIVI,0.604,False,0.000,"{'photo_collected': False, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 0, 'is_complete': False}",
+Passer votre commande je votes enverrai les images de ce que vous allez recevoir,14,INFO_GENERALE,0.588,INFO_GENERALE,0.588,False,0.000,"{'photo_collected': False, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 0, 'is_complete': False}",
+Pouvez-vous m’en dire plus sur votre publicité ?,8,INFO_GENERALE,0.592,INFO_GENERALE,0.603,False,0.011,"{'photo_collected': True, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 1, 'is_complete': False}",Jessica: Bonjour ! Dites-nous comment nous pouvons vous aider.
+Puis-je en savoir plus sur votre entreprise ?,8,INFO_GENERALE,0.556,INFO_GENERALE,0.586,False,0.030,"{'photo_collected': True, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 1, 'is_complete': False}",Jessica: Bonjour ! Dites-nous comment nous pouvons vous aider.
+Bonjour mme comment allez-vous ou?,5,SALUT,0.678,SALUT,0.678,False,0.000,"{'photo_collected': False, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 0, 'is_complete': False}",
+Pouvez-vous m’en dire plus sur votre publicité ?,8,INFO_GENERALE,0.592,INFO_GENERALE,0.603,False,0.011,"{'photo_collected': True, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 1, 'is_complete': False}",Jessica: Bonjour ! Dites-nous comment nous pouvons vous aider.
+Puis-je en savoir plus sur votre entreprise ?,8,INFO_GENERALE,0.556,INFO_GENERALE,0.586,False,0.030,"{'photo_collected': True, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 1, 'is_complete': False}",Jessica: Bonjour ! Dites-nous comment nous pouvons vous aider.
+Est-il possible de discuter avec quelqu’un ?,7,INFO_GENERALE,0.582,INFO_GENERALE,0.583,False,0.001,"{'photo_collected': True, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 1, 'is_complete': False}",Jessica: Bonjour ! Dites-nous comment nous pouvons vous aider.
+"Bonjour 👋 bienvenue chez RUE DU GROSSISTE!
+
+✅Pour passer  commande ? Cliquez ici : https://wa.me/c/2250160924560",15,ACHAT_COMMANDE,0.549,ACHAT_COMMANDE,0.549,False,0.000,"{'photo_collected': False, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 0, 'is_complete': False}",
+50,1,CLARIFICATION,0.244,CLARIFICATION,0.244,False,0.000,"{'photo_collected': False, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 0, 'is_complete': False}",
+L’expedition c’est entre 3 et 5000 dépendament de la quantité que vous allez acheter. Mais tout se paye a l’avance,20,SALUT,0.520,SALUT,0.520,False,0.000,"{'photo_collected': False, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 0, 'is_complete': False}",
+Puis-je en savoir plus sur votre entreprise ?,8,INFO_GENERALE,0.556,INFO_GENERALE,0.586,False,0.030,"{'photo_collected': True, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 1, 'is_complete': False}",Jessica: Bonjour ! Dites-nous comment nous pouvons vous aider.
+Puis-je en savoir plus sur votre entreprise ?,8,INFO_GENERALE,0.556,INFO_GENERALE,0.586,False,0.030,"{'photo_collected': True, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 1, 'is_complete': False}",Jessica: Bonjour ! Dites-nous comment nous pouvons vous aider.
+BOnjour. Nous proposons des couches pour bebe en pression et culottes en lot de 150 et 300 couches,18,CATALOGUE,0.589,CATALOGUE,0.589,False,0.000,"{'photo_collected': False, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 0, 'is_complete': False}",
+"Couches a pression  ; 
+Taille 1 (0 à 4 kg) : 17.000 FCFA
+Taille 2 (3 à 8 kg) : 18.500 FCFA
+Taille 3 (6 à 11 kg) : 20.500 FCFA
+Taille 4 (9 à 14 kg) : 22.500 FCFA
+Taille 5 (12 à 17 kg) : 24.000 FCFA
+Taille 6 (17 à 22 kg) : 24.000 FCFA
+
+Culotte : Lot de 3 paquets ( 150 ) a 13500 lot de 6 paquet ( 300 ) a 24.000 au lieu de 27.000",82,RECHERCHE_PRODUIT,0.531,RECHERCHE_PRODUIT,0.531,False,0.000,"{'photo_collected': False, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 0, 'is_complete': False}",
+Bonjour oui nous avons des couches adultes en pression le lot de 6 paquets de 10 couches chacun soit 60 en tout est a 27.000 . Je precise La livraison est offerte en ce moment si vs etes a abidjan✅,40,LIVRAISON,0.678,LIVRAISON,0.678,False,0.000,"{'photo_collected': False, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 0, 'is_complete': False}",
+50,1,CLARIFICATION,0.244,CLARIFICATION,0.244,False,0.000,"{'photo_collected': False, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 0, 'is_complete': False}",
+BOnjour. Nous proposons des couches pour bebe en pression et culottes en lot de 150 et 300 couches,18,CATALOGUE,0.589,CATALOGUE,0.589,False,0.000,"{'photo_collected': False, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 0, 'is_complete': False}",
+C’est bien ça plus vs en prenez plus vs économisez,10,CLARIFICATION,0.483,CLARIFICATION,0.483,False,0.000,"{'photo_collected': False, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 0, 'is_complete': False}",
+BOnjour. Nous proposons des couches pour bebe en pression et culottes en lot de 150 et 300 couches,18,CATALOGUE,0.589,CATALOGUE,0.589,False,0.000,"{'photo_collected': False, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 0, 'is_complete': False}",
+Bonjour nous vendons en ligne pr l’instant,7,INFO_GENERALE,0.575,INFO_GENERALE,0.575,False,0.000,"{'photo_collected': False, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 0, 'is_complete': False}",
+Bonsoir mme j’ai oublié,4,PROBLEME,0.559,PROBLEME,0.559,False,0.000,"{'photo_collected': False, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 0, 'is_complete': False}",
+Adultes y’en a mais enfant pas pour ce poids,9,SUIVI,0.576,SUIVI,0.576,False,0.000,"{'photo_collected': False, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 0, 'is_complete': False}",
+Le lot de 60 couches a 25.000 (6 paquets de 10 couches chacune),13,LIVRAISON,0.563,LIVRAISON,0.563,False,0.000,"{'photo_collected': False, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 0, 'is_complete': False}",
+Merci je vous reviens,4,SALUT,0.920,SALUT,0.920,False,0.000,"{'photo_collected': False, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 0, 'is_complete': False}",
+Puis-je en savoir plus sur votre entreprise ?,8,INFO_GENERALE,0.556,INFO_GENERALE,0.586,False,0.030,"{'photo_collected': True, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 1, 'is_complete': False}",Jessica: Bonjour ! Dites-nous comment nous pouvons vous aider.
+Puis-je en savoir plus sur votre entreprise ?,8,INFO_GENERALE,0.556,INFO_GENERALE,0.586,False,0.030,"{'photo_collected': True, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 1, 'is_complete': False}",Jessica: Bonjour ! Dites-nous comment nous pouvons vous aider.
+Puis-je en savoir plus sur votre entreprise ?,8,INFO_GENERALE,0.556,INFO_GENERALE,0.586,False,0.030,"{'photo_collected': True, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 1, 'is_complete': False}",Jessica: Bonjour ! Dites-nous comment nous pouvons vous aider.
+La c’est la taille 2 en couches a pression qu’il lui faut  ca va de 3 a 8kg le lot de 300 est a 18500,25,RECHERCHE_PRODUIT,0.630,RECHERCHE_PRODUIT,0.630,False,0.000,"{'photo_collected': False, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 0, 'is_complete': False}",
+Puis-je en savoir plus sur votre entreprise ?,8,INFO_GENERALE,0.556,INFO_GENERALE,0.586,False,0.030,"{'photo_collected': True, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 1, 'is_complete': False}",Jessica: Bonjour ! Dites-nous comment nous pouvons vous aider.
+Bjr,1,SALUT,0.950,SALUT,0.950,False,0.000,"{'photo_collected': True, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 1, 'is_complete': False}",Jessica: Bonjour ! Dites-nous comment nous pouvons vous aider.
+Est-il possible de discuter avec quelqu’un ?,7,INFO_GENERALE,0.582,INFO_GENERALE,0.583,False,0.001,"{'photo_collected': True, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 1, 'is_complete': False}",Jessica: Bonjour ! Dites-nous comment nous pouvons vous aider.
+"D’accord merci
+Les couches a pression sont combien a l’intérieur ?",11,PRIX_PROMO,0.696,PRIX_PROMO,0.696,False,0.000,"{'photo_collected': False, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 0, 'is_complete': False}",
+Puis-je en savoir plus sur votre entreprise ?,8,INFO_GENERALE,0.556,INFO_GENERALE,0.586,False,0.030,"{'photo_collected': True, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 1, 'is_complete': False}",Jessica: Bonjour ! Dites-nous comment nous pouvons vous aider.
+Donc je vous tiendrai au courant,6,INFO_GENERALE,0.581,INFO_GENERALE,0.581,False,0.000,"{'photo_collected': False, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 0, 'is_complete': False}",
+Lot de 3 paquets ( 150 ) a 13500 lot de 6 paquet ( 300 ) a 24.000 au lieu de 27.000,22,PRIX_PROMO,0.542,PRIX_PROMO,0.542,False,0.000,"{'photo_collected': False, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 0, 'is_complete': False}",
+Pouvez-vous m’en dire plus sur votre publicité ?,8,INFO_GENERALE,0.592,INFO_GENERALE,0.603,False,0.011,"{'photo_collected': True, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 1, 'is_complete': False}",Jessica: Bonjour ! Dites-nous comment nous pouvons vous aider.
+Puis-je en savoir plus sur votre entreprise ?,8,INFO_GENERALE,0.556,INFO_GENERALE,0.586,False,0.030,"{'photo_collected': True, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 1, 'is_complete': False}",Jessica: Bonjour ! Dites-nous comment nous pouvons vous aider.
+Ça marche merci d’avoir précisé ça 🙂‍↕️,7,INFO_GENERALE,0.566,INFO_GENERALE,0.566,False,0.000,"{'photo_collected': False, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 0, 'is_complete': False}",
+Bonjr quel modele? Pression ? Culotte ?,7,RECHERCHE_PRODUIT,0.652,RECHERCHE_PRODUIT,0.652,False,0.000,"{'photo_collected': False, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 0, 'is_complete': False}",
+Merci Mme,2,SALUT,0.920,SALUT,0.920,False,0.000,"{'photo_collected': False, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 0, 'is_complete': False}",
+Puis-je en savoir plus sur votre entreprise ?,8,INFO_GENERALE,0.556,INFO_GENERALE,0.586,False,0.030,"{'photo_collected': True, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 1, 'is_complete': False}",Jessica: Bonjour ! Dites-nous comment nous pouvons vous aider.
+Est-il possible de discuter avec quelqu’un ?,7,INFO_GENERALE,0.582,INFO_GENERALE,0.583,False,0.001,"{'photo_collected': True, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 1, 'is_complete': False}",Jessica: Bonjour ! Dites-nous comment nous pouvons vous aider.
+Couches culottes lot de 300 a 24.000 lot de 150 a 13500,12,CATALOGUE,0.530,CATALOGUE,0.530,False,0.000,"{'photo_collected': False, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 0, 'is_complete': False}",
+Puis-je en savoir plus sur votre entreprise ?,8,INFO_GENERALE,0.556,INFO_GENERALE,0.586,False,0.030,"{'photo_collected': True, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 1, 'is_complete': False}",Jessica: Bonjour ! Dites-nous comment nous pouvons vous aider.
+Puis-je en savoir plus sur votre entreprise ?,8,INFO_GENERALE,0.556,INFO_GENERALE,0.586,False,0.030,"{'photo_collected': True, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 1, 'is_complete': False}",Jessica: Bonjour ! Dites-nous comment nous pouvons vous aider.
+Y'a quel modèle là-bas,4,RECHERCHE_PRODUIT,0.632,RECHERCHE_PRODUIT,0.632,False,0.000,"{'photo_collected': False, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 0, 'is_complete': False}",
+Puis-je en savoir plus sur votre entreprise ?,8,INFO_GENERALE,0.556,INFO_GENERALE,0.586,False,0.030,"{'photo_collected': True, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 1, 'is_complete': False}",Jessica: Bonjour ! Dites-nous comment nous pouvons vous aider.
+Puis-je en savoir plus sur votre entreprise ?,8,INFO_GENERALE,0.556,INFO_GENERALE,0.586,False,0.030,"{'photo_collected': True, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 1, 'is_complete': False}",Jessica: Bonjour ! Dites-nous comment nous pouvons vous aider.
+Merci,1,SALUT,0.920,SALUT,0.920,False,0.000,"{'photo_collected': False, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 0, 'is_complete': False}",
+"Le prix en gros, combien dans le paquet et à la vente le bénéfice par paquet",16,PRIX_PROMO,0.874,PRIX_PROMO,0.874,False,0.000,"{'photo_collected': False, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 0, 'is_complete': False}",
+Oui oui,2,SUIVI,0.553,SUIVI,0.553,False,0.000,"{'photo_collected': False, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 0, 'is_complete': False}",
+Puis-je en savoir plus sur votre entreprise ?,8,INFO_GENERALE,0.556,INFO_GENERALE,0.586,False,0.030,"{'photo_collected': True, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 1, 'is_complete': False}",Jessica: Bonjour ! Dites-nous comment nous pouvons vous aider.
+Puis-je en savoir plus sur votre entreprise ?,8,INFO_GENERALE,0.556,INFO_GENERALE,0.586,False,0.030,"{'photo_collected': True, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 1, 'is_complete': False}",Jessica: Bonjour ! Dites-nous comment nous pouvons vous aider.
+Je verifierai ça,3,ACHAT_COMMANDE,0.576,ACHAT_COMMANDE,0.576,False,0.000,"{'photo_collected': False, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 0, 'is_complete': False}",
+actuellement nous proposons les lot de 300 couches culottes a 24.000 soit 4000 le paquet et les pressions à partir de 17.000 et + en fonction de la taille,29,RECHERCHE_PRODUIT,0.616,RECHERCHE_PRODUIT,0.616,False,0.000,"{'photo_collected': False, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 0, 'is_complete': False}",
+actuellement nous proposons les lot de 300 couches culottes a 24.000 soit 4000 le paquet et les pressions à partir de 17.000 et + en fonction de la taille,29,RECHERCHE_PRODUIT,0.616,RECHERCHE_PRODUIT,0.616,False,0.000,"{'photo_collected': False, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 0, 'is_complete': False}",
+actuellement nous proposons les lot de 300 couches culottes a 24.000 soit 4000 le paquet et les pressions à partir de 17.000 et + en fonction de la taille,29,RECHERCHE_PRODUIT,0.616,RECHERCHE_PRODUIT,0.616,False,0.000,"{'photo_collected': False, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 0, 'is_complete': False}",
+Hello depuis N8N 🚀,4,CLARIFICATION,0.335,CLARIFICATION,0.335,False,0.000,"{'photo_collected': False, 'paiement_collected': False, 'zone_collected': False, 'tel_collected': False, 'tel_valide': False, 'collected_count': 0, 'is_complete': False}",

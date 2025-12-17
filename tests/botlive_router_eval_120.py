@@ -14,6 +14,7 @@ if _ROOT_DIR not in sys.path:
 # Forcer le mode routeur embeddings uniquement (pas d'appel LLM)
 os.environ.setdefault("BOTLIVE_ROUTER_EMBEDDINGS_ENABLED", "true")
 os.environ.setdefault("BOTLIVE_V18_ENABLED", "false")
+os.environ.setdefault("BOTLIVE_HYDE_PRE_ENABLED", "false")
 
 from core.botlive_intent_router import route_botlive_intent
 from tests.production_test_cases import PRODUCTION_TEST_CASES
@@ -26,9 +27,9 @@ def _intent_to_group_letter(intent: str, mode_val: str) -> str:
     intent = (intent or "").upper()
     mode_val = (mode_val or "").upper()
     group_a = {"SALUT", "INFO_GENERALE", "CLARIFICATION"}
-    group_b = {"CATALOGUE", "RECHERCHE_PRODUIT", "PRIX_PROMO", "DISPONIBILITE"}
-    group_c = {"ACHAT_COMMANDE", "LIVRAISON", "PAIEMENT"}
-    group_d = {"SUIVI", "PROBLEME"}
+    group_b = {"PRODUIT_GLOBAL", "PRIX_PROMO"}
+    group_c = {"ACHAT_COMMANDE", "LIVRAISON", "PAIEMENT", "CONTACT_COORDONNEES"}
+    group_d = {"COMMANDE_EXISTANTE", "PROBLEME"}
 
     if intent in group_a:
         return "A"
@@ -46,8 +47,8 @@ def _intent_to_group_letter(intent: str, mode_val: str) -> str:
     return "A"
 
 
-async def run_router_only(limit: int = 120) -> List[Dict[str, Any]]:
-    cases = PRODUCTION_TEST_CASES[:limit]
+async def run_router_only(limit: int | None = None) -> List[Dict[str, Any]]:
+    cases = PRODUCTION_TEST_CASES if limit is None else PRODUCTION_TEST_CASES[:limit]
 
     base_state = {
         "photo_collected": False,
@@ -61,7 +62,7 @@ async def run_router_only(limit: int = 120) -> List[Dict[str, Any]]:
 
     results: List[Dict[str, Any]] = []
 
-    print("\n================= ROUTER-ONLY EVAL (120) =================\n")
+    print(f"\n================= ROUTER-ONLY EVAL ({len(cases)}) =================\n")
 
     for idx, (question, expected_label, expected_id) in enumerate(cases, 1):
         routing = await route_botlive_intent(
@@ -109,10 +110,10 @@ async def run_router_only(limit: int = 120) -> List[Dict[str, Any]]:
 
 async def main() -> None:
     os.makedirs(os.path.join(_ROOT_DIR, "results"), exist_ok=True)
-    results = await run_router_only(limit=120)
+    results = await run_router_only(limit=None)
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    out_path = os.path.join(_ROOT_DIR, "results", f"botlive_router_only_120_{timestamp}.json")
+    out_path = os.path.join(_ROOT_DIR, "results", f"botlive_router_only_{len(results)}_{timestamp}.json")
 
     with open(out_path, "w", encoding="utf-8") as f:
         json.dump(results, f, ensure_ascii=False, indent=2)

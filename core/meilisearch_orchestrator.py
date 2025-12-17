@@ -80,18 +80,12 @@ class MeilisearchOrchestrator:
                     # OU MIEUX: Modifier _search_one_index pour qu'il retourne (index_name, hits)
                     # Reprise de la logique pour un regroupement correct des hits par index d'origine.
                     # Modification de _search_one_index pour inclure l'index_name dans la sortie.
-                    pass # Sera géré après la modification de _search_one_index
+                    idx = hit.get('index_source')
+                    if isinstance(idx, str) and idx in all_hits:
+                        all_hits[idx].append(hit)
         
         # Modification: Réexécuter la phase de recherche pour regrouper correctement
         # Log supprimé pour diagnostic Supabase
-        grouped_tasks = []
-        for combo in query_combinations:
-            for index_name in self.main_indexes:
-                grouped_tasks.append(self._search_one_index_with_name(index_name, combo))
-        
-        indexed_results = await asyncio.gather(*grouped_tasks)
-        for index_name, hits in indexed_results:
-            all_hits[index_name].extend(hits)
 
         # Traitement et sélection des 2 meilleurs documents par index
         selected_documents = []
@@ -112,6 +106,7 @@ class MeilisearchOrchestrator:
             total_main_docs += len(sorted_unique_hits[:2])
             if sorted_unique_hits[:2]: # Log seulement s'il y a des documents sélectionnés
                 # Log supprimé pour diagnostic Supabase
+                pass
 
         # Phase 2: Fallback sur company_docs si nécessaire
         if total_main_docs < self.min_documents_for_fallback:
@@ -126,6 +121,7 @@ class MeilisearchOrchestrator:
                     selected_documents.append(hit)
             if fallback_hits: # Log seulement s'il y a des documents de fallback
                 # Log supprimé pour diagnostic Supabase
+                pass
 
         # Trier tous les documents finalement sélectionnés par score global
         final_sorted_docs = sorted(selected_documents, key=lambda x: x.get('relevance_score', 0), reverse=True)

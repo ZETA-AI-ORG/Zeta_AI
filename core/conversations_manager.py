@@ -1,7 +1,7 @@
-"""\n📞 CONVERSATIONS MANAGER - Gestion des conversations et messages via tables Lovable\nUtilise les tables conversations et messages (UUID) créées par Lovable\n"""\n\nimport httpx\nimport logging\nfrom typing import Dict, Any, Optional\n\nlogger = logging.getLogger(__name__)\n\n# Credentials Supabase (même projet Lovable)\nSUPABASE_URL = "https://ilbihprkxcgsigvueeme.supabase.co"\nSUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlsYmlocHJreGNnc2lndnVlZW1lIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc0OTEzMTQwNCwiZXhwIjoyMDY0NzA3NDA0fQ.Zf0EJbmP5ePGBZL5cY1tFP9FDRvJXDZ3x98zUS993GA"\n\nHEADERS = {\n    "apikey": SUPABASE_KEY,\n    "Authorization": f"Bearer {SUPABASE_KEY}",\n    "Content-Type": "application/json",\n}\n\nasync def _get_company_uuid(company_id: str) -> Optional[str]:\n    """Récupère l'UUID depuis company_mapping à partir du company_id texte"""\n    try:\n        url = f"{SUPABASE_URL}/rest/v1/company_mapping"\n        params = {\n            "company_id_text": f"eq.{company_id}",\n            "select": "company_id_uuid",\n        }\n\n        async with httpx.AsyncClient() as client:\n            response = await client.get(url, headers=HEADERS, params=params, timeout=5.0)\n\n        if response.status_code == 200:\n            data = response.json()\n            if data and len(data) > 0:\n                return data[0]["company_id_uuid"]\n\n        logger.warning(f"[CONVERSATIONS] Mapping introuvable pour company_id_text={company_id}")\n        return None\n\n    except Exception as e:\n        logger.error(f"[CONVERSATIONS] Erreur _get_company_uuid: {e}")\n        return None\n\nasync def get_or_create_conversation(company_id: str, user_id: str) -> Optional[str]:\n    """Récupère ou crée une conversation pour (company_id, user_id).\n\n    Args:\n        company_id: ID entreprise (TEXT, côté backend)\n        user_id: ID utilisateur (Messenger / WhatsApp)\n\n    Returns:\n        conversation_id (UUID) ou None en cas d'erreur\n    """\n    try:\n        company_uuid = await _get_company_uuid(company_id)\n        if not company_uuid:\n            return None\n\n        # 1) Essayer de trouver une conversation existante active pour ce client\n        url = f"{SUPABASE_URL}/rest/v1/conversations"\n        params = {\n            "company_id": f"eq.{company_uuid}",\n            "customer_phone": f"eq.{user_id}",\n            "select": "id,status",\n            "order": "created_at.desc",\n            "limit": 1,\n        }\n\n        async with httpx.AsyncClient() as client:\n            resp = await client.get(url, headers=HEADERS, params=params, timeout=5.0)\n\n        if resp.status_code == 200:\n            data = resp.json() or []\n            if data:\n                return data[0]["id"]\n\n        # 2) Sinon, créer une nouvelle conversation\n        payload = {\n            "company_id": company_uuid,\n            "customer_phone": user_id,\n            "status": "active",\n            "priority": "normal",\n        }\n\n        async with httpx.AsyncClient() as client:\n            create_resp = await client.post(\n                url,\n                headers={**HEADERS, "Prefer": "return=representation"},\n                json=payload,\n                timeout=5.0,\n            )\n\n        if create_resp.status_code in (200, 201):\n            conv = create_resp.json()\n            if isinstance(conv, list) and conv:\n                conv = conv[0]\n            return conv.get("id")\n\n        logger.error(\n            f"[CONVERSATIONS] Erreur création: {create_resp.status_code} - {create_resp.text}"\n        )\n        return None\n\n    except Exception as e:\n        logger.error(f"[CONVERSATIONS] Exception get_or_create_conversation: {e}")\n        return None\n\nasync def insert_message(conversation_id: str, role: str, content: str, metadata: Optional[Dict[str, Any]] = None) -> bool:\n    """Insère un message lié à une conversation."""\n    try:\n        url = f"{SUPABASE_URL}/rest/v1/messages"\n        payload = {\n            "conversation_id": conversation_id,\n            "role": role,\n            "content": content,\n            "metadata": metadata or {},\n        }\n\n        async with httpx.AsyncClient() as client:\n            resp = await client.post(\n                url,\n                headers={**HEADERS, "Prefer": "return=minimal"},\n                json=payload,\n                timeout=5.0,\n            )\n\n        if resp.status_code in (200, 201, 204):\n            return True\n\n        logger.error(f"[MESSAGES] Erreur insertion: {resp.status_code} - {resp.text}")\n        return False\n\n    except Exception as e:\n        logger.error(f"[MESSAGES] Exception insert_message: {e}")\n        return False\n\n"""
+"""
 📞 CONVERSATIONS MANAGER
 Gestion des conversations et messages via les tables Lovable
-
+ 
 Tables utilisées (projet Supabase ilbihprkxcgsigvueeme) :
 - company_mapping (company_id_text ↔ company_id_uuid)
 - conversations (UUID)
@@ -12,24 +12,32 @@ from typing import Dict, Any, Optional
 
 import httpx
 import logging
+import os
 
 
 logger = logging.getLogger(__name__)
 
 
 # Credentials Supabase (même projet Lovable)
-SUPABASE_URL = "https://ilbihprkxcgsigvueeme.supabase.co"
+SUPABASE_URL = os.getenv("SUPABASE_URL", "https://ilbihprkxcgsigvueeme.supabase.co")
 SUPABASE_KEY = (
-    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9."
-    "eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlsYmlocHJreGNnc2lndnVlZW1lIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc0OTEzMTQwNCwiZXhwIjoyMDY0NzA3NDA0fQ."
-    "Zf0EJbmP5ePGBZL5cY1tFP9FDRvJXDZ3x98zUS993GA"
+    os.getenv("SUPABASE_KEY")
+    or os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+    or os.getenv("SUPABASE_ANON_KEY")
+    or ""
 )
 
-HEADERS: Dict[str, str] = {
-    "apikey": SUPABASE_KEY,
-    "Authorization": f"Bearer {SUPABASE_KEY}",
-    "Content-Type": "application/json",
-}
+
+def _get_headers() -> Optional[Dict[str, str]]:
+    if not SUPABASE_KEY:
+        logger.error("[CONVERSATIONS] SUPABASE_KEY manquant (env SUPABASE_KEY / SUPABASE_SERVICE_ROLE_KEY)")
+        return None
+
+    return {
+        "apikey": SUPABASE_KEY,
+        "Authorization": f"Bearer {SUPABASE_KEY}",
+        "Content-Type": "application/json",
+    }
 
 
 async def _get_company_uuid(company_id: str) -> Optional[str]:
@@ -40,13 +48,16 @@ async def _get_company_uuid(company_id: str) -> Optional[str]:
 
     try:
         url = f"{SUPABASE_URL}/rest/v1/company_mapping"
+        headers = _get_headers()
+        if not headers:
+            return None
         params = {
             "company_id_text": f"eq.{company_id}",
             "select": "company_id_uuid",
         }
 
         async with httpx.AsyncClient() as client:
-            resp = await client.get(url, headers=HEADERS, params=params, timeout=5.0)
+            resp = await client.get(url, headers=headers, params=params, timeout=5.0)
 
         if resp.status_code != 200:
             logger.error(
@@ -81,6 +92,9 @@ async def get_or_create_conversation(company_id: str, user_id: str) -> Optional[
     """
 
     try:
+        headers = _get_headers()
+        if not headers:
+            return None
         company_uuid = await _get_company_uuid(company_id)
         if not company_uuid:
             return None
@@ -98,7 +112,7 @@ async def get_or_create_conversation(company_id: str, user_id: str) -> Optional[
         }
 
         async with httpx.AsyncClient() as client:
-            resp = await client.get(url, headers=HEADERS, params=params, timeout=5.0)
+            resp = await client.get(url, headers=headers, params=params, timeout=5.0)
 
         if resp.status_code == 200:
             rows = resp.json() or []
@@ -117,7 +131,7 @@ async def get_or_create_conversation(company_id: str, user_id: str) -> Optional[
         async with httpx.AsyncClient() as client:
             create_resp = await client.post(
                 url,
-                headers={**HEADERS, "Prefer": "return=representation"},
+                headers={**headers, "Prefer": "return=representation"},
                 json=payload,
                 timeout=5.0,
             )
@@ -158,6 +172,9 @@ async def insert_message(
 
     try:
         url = f"{SUPABASE_URL}/rest/v1/messages"
+        headers = _get_headers()
+        if not headers:
+            return False
 
         payload: Dict[str, Any] = {
             "conversation_id": conversation_id,
@@ -170,7 +187,7 @@ async def insert_message(
         async with httpx.AsyncClient() as client:
             resp = await client.post(
                 url,
-                headers={**HEADERS, "Prefer": "return=minimal"},
+                headers={**headers, "Prefer": "return=minimal"},
                 json=payload,
                 timeout=5.0,
             )

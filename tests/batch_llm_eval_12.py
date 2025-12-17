@@ -28,9 +28,9 @@ def _intent_to_group_letter(intent: str, mode_val: str) -> str:
     intent = (intent or "").upper()
     mode_val = (mode_val or "").upper()
     group_a = {"SALUT", "INFO_GENERALE", "CLARIFICATION"}
-    group_b = {"CATALOGUE", "RECHERCHE_PRODUIT", "PRIX_PROMO", "DISPONIBILITE"}
-    group_c = {"ACHAT_COMMANDE", "LIVRAISON", "PAIEMENT"}
-    group_d = {"SUIVI", "PROBLEME"}
+    group_b = {"PRODUIT_GLOBAL", "PRIX_PROMO"}
+    group_c = {"ACHAT_COMMANDE", "LIVRAISON", "PAIEMENT", "CONTACT_COORDONNEES"}
+    group_d = {"COMMANDE_EXISTANTE", "PROBLEME"}
 
     if intent in group_a:
         return "A"
@@ -151,6 +151,7 @@ async def run_batch(limit: int = 120) -> List[Dict[str, Any]]:
             filtered_transactions_str="[AUCUNE TRANSACTION VALIDE]",
             expected_deposit_str="2000 FCFA",
             enriched_checklist="[CHECKLIST TEST]",
+            routing=routing,
         )
 
         format_block = """
@@ -189,6 +190,7 @@ RÈGLE ABSOLUE: Aucun texte en dehors des balises. Un seul bloc <response>.
                 filtered_transactions_str="[AUCUNE TRANSACTION VALIDE]",
                 expected_deposit_str="2000 FCFA",
                 enriched_checklist="[CHECKLIST TEST]",
+                routing=routing,
             )
             prompt_to_use = segment_base["prompt"] + format_block
             llm_text, token_usage = await llm_complete(

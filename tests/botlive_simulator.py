@@ -18,9 +18,13 @@ import os
 from datetime import datetime
 import uuid
 import json
+import csv
+from pathlib import Path
 
-# Ajouter le path parent pour imports
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# Ajouter le path parent pour imports, en le mettant EN PREMIER dans sys.path
+project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
 
 from dotenv import load_dotenv
 load_dotenv()
@@ -31,9 +35,9 @@ TEST_COMPANY_ID = "W27PwOPiblP8TlOrhPcjOtxd0cza"  # Company ID mis à jour
 TEST_USER_ID = f"test_botlive_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:6]}"
 TEST_COMPANY_NAME = "Test Company"
 
-# URLs d'images réelles pour les tests (produit et paiement)
-PRODUCT_IMAGE_URL = "https://scontent-atl3-3.xx.fbcdn.net/v/t1.15752-9/553786504_1339650347521010_7584722332323008254_n.jpg?_nc_cat=108&ccb=1-7&_nc_sid=eb2e90&_nc_ohc=wI6F404RotMQ7kNvwEnhydb&_nc_oc=AdmqrPkDq5bTSUqR3fv3g0PrvQbXW9_9Frci7xyQgQ0werBvu95Sz_8rw99dCA-tpPzw_VcH2vgb6kW0y9q-RJI2&_nc_ad=z-m&_nc_cid=0&_nc_zt=23&_nc_ht=scontent-atl3-3.xx&oh=03_Q7cD3wFOCg_nyFNqiAFZ2JtXL-o6TYQJotUYQ0L6mr8mM1BA7g&oe=6938095A"
-PAYMENT_IMAGE_URL = "https://scontent-atl3-2.xx.fbcdn.net/v/t1.15752-9/556908482_1314851517042795_6410429215345539018_n.jpg?_nc_cat=105&ccb=1-7&_nc_sid=eb2e90&_nc_ohc=NL64Tr-lCD8Q7kNvwErQP-W&_nc_oc=Adl-2TTfwDiQ5oV7zD-apLFr6CXVJRBTBS-bGX0OviLygK6yEzKDt_DLemHYyuo4jsHi52BxJLiX6eXRztPxh2Dk&_nc_ad=z-m&_nc_cid=0&_nc_zt=23&_nc_ht=scontent-atl3-2.xx&oh=03_Q7cD3wHQnpKrTBJ4ECMmlxUMRVy5tPvbnhlsvGwaT0Dt2xJwcg&oe=6937FBCA"
+# URLs d'images réelles pour les tests (produit et paiement) - mises à jour 2025-12-11
+PRODUCT_IMAGE_URL = "https://scontent-atl3-1.xx.fbcdn.net/v/t1.15752-9/597710904_1147171930913919_423631986694765875_n.jpg?_nc_cat=106&ccb=1-7&_nc_sid=eb2e90&_nc_ohc=3eyOW7QNwAcQ7kNvwH3Zty1&_nc_oc=Adnh1EMEfdyE-OYR7-gxq6M6QqHzb9KAxWO_Z5DSgScDCrW9vX4qGtBDGpZF14lok9xw_zQ90HtzWNk9jS8cabCi&_nc_ad=z-m&_nc_cid=0&_nc_zt=23&_nc_ht=scontent-atl3-1.xx&oh=03_Q7cD4AGp3_aUPnEjxfTUMMzcgu_8DzAlUy0-TBbXej3XfasR2A&oe=696151EA"
+PAYMENT_IMAGE_URL = "https://scontent-atl3-3.xx.fbcdn.net/v/t1.15752-9/597360982_1522361755643073_1046808360937074239_n.jpg?_nc_cat=109&ccb=1-7&_nc_sid=eb2e90&_nc_ohc=hb7QgNIX-GUQ7kNvwGvvtuj&_nc_oc=AdkTUqx9yhjXuGQoB6MjjgODELCqDVx5xJcbFBDiIBwzhWq-datbBB2fNyvGMLyTD8muFGJIojldBlFi-dcNYN18&_nc_ad=z-m&_nc_cid=0&_nc_zt=23&_nc_ht=scontent-atl3-3.xx&oh=03_Q7cD4AGscacRxk_JHwC6eQflUC5FNq4YADPaVuKzZ33-sLCmng&oe=6961323F"
 
 
 class BotliveSimulator:
@@ -42,6 +46,7 @@ class BotliveSimulator:
     def __init__(self):
         self.conversation_history = ""
         self.turn_number = 0
+        self.eval_rows = []  # Collecte des mesures de routage pour le scénario
         
     def add_to_history(self, role: str, message: str):
         """Ajoute un message à l'historique"""
@@ -102,6 +107,26 @@ class BotliveSimulator:
             # Ajouter la réponse à l'historique local pour le contexte affiché
             if bot_response:
                 self.add_to_history("ASSISTANT", bot_response)
+
+            # Enregistrement évaluation: si le routeur embeddings a répondu, on logge
+            try:
+                router = result.get("router") or {}
+                if router:
+                    self.eval_rows.append(
+                        {
+                            "turn": self.turn_number,
+                            "message": message,
+                            "conversation_history": self.conversation_history,
+                            "intent": router.get("intent"),
+                            "confidence": router.get("confidence"),
+                            "mode": router.get("mode"),
+                            "missing_fields": ",".join(router.get("missing_fields") or []),
+                            "state": json.dumps(router.get("state") or {}, ensure_ascii=False),
+                        }
+                    )
+            except Exception:
+                # Ne jamais casser la simulation à cause des logs d'évaluation
+                pass
             
             # Afficher la réponse et les métadonnées de flux Botlive
             print(f"🤖 BOT (réponse en {duration_ms}ms)")
@@ -203,7 +228,32 @@ class BotliveSimulator:
         
         # Étape 6 : Confirmation
         await self.send_message("Oui c'est bon")
-        
+
+        # Sauvegarde CSV d'évaluation du scénario
+        try:
+            out_path = Path("tests/botlive_scenario_results.csv")
+            out_path.parent.mkdir(parents=True, exist_ok=True)
+            with out_path.open("w", encoding="utf-8", newline="") as f:
+                w = csv.DictWriter(
+                    f,
+                    fieldnames=[
+                        "turn",
+                        "message",
+                        "conversation_history",
+                        "intent",
+                        "confidence",
+                        "mode",
+                        "missing_fields",
+                        "state",
+                    ],
+                )
+                w.writeheader()
+                for r in self.eval_rows:
+                    w.writerow(r)
+            print(f"\nCSV saved: {out_path}\n")
+        except Exception as e:
+            print(f"\n[WARN] Impossible d'écrire le CSV scénario: {e}\n")
+
         print("\n" + "="*80)
         print("✅ SCÉNARIO TERMINÉ")
         print("="*80 + "\n")

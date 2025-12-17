@@ -759,13 +759,27 @@ Veuillez ne pas répondre à ce message."""
             if isinstance(zone_data, dict):
                 zone_nom = zone_data["name"]
                 frais = zone_data["cost"]
-                delai = zone_data.get("delai_calcule", "selon délais standard")
+                delai = zone_data.get("delai_calcule")
+                if not delai:
+                    try:
+                        from core.timezone_helper import is_same_day_delivery_possible
+                        delai = "aujourd'hui" if is_same_day_delivery_possible() else "demain"
+                    except Exception:
+                        from datetime import datetime as _dt
+                        heure_actuelle = _dt.now().hour
+                        delai = "aujourd'hui" if heure_actuelle < 13 else "demain"
             else:
                 # Fallback pour compatibilité (string simple)
                 zone_nom = zone_data
                 zones_peripheriques = ["port-bouët", "attécoubé", "bingerville", "songon", "anyama"]
                 frais = 2000 if zone_nom.lower() in zones_peripheriques else 1500
-                delai = "selon délais standard"
+                try:
+                    from core.timezone_helper import is_same_day_delivery_possible
+                    delai = "aujourd'hui" if is_same_day_delivery_possible() else "demain"
+                except Exception:
+                    from datetime import datetime as _dt
+                    heure_actuelle = _dt.now().hour
+                    delai = "aujourd'hui" if heure_actuelle < 13 else "demain"
             
             if not state["tel"]["collected"]:
                 return f"Noté 👍 Livraison à {zone_nom} → {frais}F 🚚\nLivraison prévue {delai}.\nDernière info : votre numéro de téléphone ? 📞"
