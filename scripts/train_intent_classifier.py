@@ -71,19 +71,22 @@ LR_PARAMS = {
     "multi_class": "multinomial",
 }
 
-INTENT_MAPPING = {
+# NOTE: les données "shadow" et certains jeux de tests utilisent encore des IDs
+# historiques (V3-style). On les remappe vers les labels V4 canoniques.
+LEGACY_ID_TO_V4_INTENT = {
     1: "SALUT",
     2: "INFO_GENERALE",
     3: "CLARIFICATION",
-    4: "CATALOGUE",
-    5: "RECHERCHE_PRODUIT",
+    4: "PRODUIT_GLOBAL",
+    5: "PRODUIT_GLOBAL",
     6: "PRIX_PROMO",
-    7: "DISPONIBILITE",
+    7: "PRODUIT_GLOBAL",
     8: "ACHAT_COMMANDE",
     9: "LIVRAISON",
     10: "PAIEMENT",
-    11: "SUIVI",
+    11: "COMMANDE_EXISTANTE",
     12: "PROBLEME",
+    13: "CONTACT_COORDONNEES",
 }
 
 
@@ -97,18 +100,13 @@ def load_corpus_universel() -> List[Tuple[str, str]]:
 
     # 1) Essayer d'abord le corpus Python (source canonique)
     try:
-        from core.universal_corpus import UNIVERSAL_ECOMMERCE_INTENT_CORPUS as UC
+        from core.universal_corpus import UNIVERSAL_ECOMMERCE_INTENT_CORPUS_V4 as UC
 
-        for key in sorted(UC.keys()):
-            try:
-                idx = int(key)
-            except Exception:
-                continue
-            intent_name = INTENT_MAPPING.get(idx)
+        for _, entry in UC.items():
+            intent_name = (entry.get("label") or "").strip()
             if not intent_name:
                 continue
-            entry = UC[key]
-            examples = entry.get("exemples_universels", []) or []
+            examples = entry.get("exemples", []) or []
             examples = [e.strip() for e in examples if isinstance(e, str) and e.strip()]
             for ex in examples:
                 data.append((ex, intent_name))
@@ -148,7 +146,7 @@ def load_shadow_augment() -> List[Tuple[str, str]]:
       - des IDs numériques sous forme de chaîne ("1", "8", ...)
       - ou déjà des noms canoniques ("SALUT", "LIVRAISON", ...).
 
-    On les remappe systématiquement via INTENT_MAPPING pour éviter d'avoir
+    On les remappe systématiquement via LEGACY_ID_TO_V4_INTENT pour éviter d'avoir
     des labels mélangés ('1', '10', 'SALUT', etc.).
     """
 
@@ -159,7 +157,12 @@ def load_shadow_augment() -> List[Tuple[str, str]]:
     with SHADOW_AUGMENT_PATH.open("r", encoding="utf-8") as f:
         shadow_data = json.load(f)
 
-    canonical_intents = set(INTENT_MAPPING.values())
+    try:
+        from core.universal_corpus import UNIVERSAL_ECOMMERCE_INTENT_CORPUS_V4 as UC
+
+        canonical_intents = {str(v.get("label") or "").strip() for v in UC.values() if (v.get("label") or "").strip()}
+    except Exception:
+        canonical_intents = set(LEGACY_ID_TO_V4_INTENT.values())
 
     data: List[Tuple[str, str]] = []
     for raw_key, examples in shadow_data.items():
@@ -168,15 +171,15 @@ def load_shadow_augment() -> List[Tuple[str, str]]:
 
         intent_name = str(raw_key).strip()
 
-        # Si c'est un ID numérique, remapper via INTENT_MAPPING
+        # Si c'est un ID numérique, remapper via LEGACY_ID_TO_V4_INTENT
         mapped_intent = intent_name
         try:
             idx = int(intent_name)
         except Exception:
             idx = None
 
-        if idx is not None and idx in INTENT_MAPPING:
-            mapped_intent = INTENT_MAPPING[idx]
+        if idx is not None and idx in LEGACY_ID_TO_V4_INTENT:
+            mapped_intent = LEGACY_ID_TO_V4_INTENT[idx]
 
         # Si ce n'est pas un intent canonique connu, on ignore
         if mapped_intent not in canonical_intents:

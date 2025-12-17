@@ -1,44 +1,153 @@
-{
-  "metadata": {
-    "version": "2.0",
-    "total_intents": 12,
-    "use_case": "Embedding-based intent routing pour chatbot e-commerce",
-    "embedding_model_recommended": "sentence-transformers/paraphrase-multilingual-mpnet-base-v2",
-    "language": "fr-CI (Français ivoirien + variations nouchi)"
+[
+  {
+    "intent": "SALUT",
+    "examples": [
+      "Bonjour",
+      "Salut",
+      "Bonsoir",
+      "Hello",
+      "Coucou",
+      "Wesh",
+      "Bjr",
+      "Slt"
+    ]
   },
-  "prompt_mapping": {
-    "PROMPT_A": [1, 2, 3],
-    "PROMPT_B": [4, 5, 6, 7],
-    "PROMPT_C": [8, 9, 10],
-    "PROMPT_D": [11, 12]
+  {
+    "intent": "INFO_GENERALE",
+    "examples": [
+      "Où êtes-vous situés ?",
+      "C'est où votre boutique ?",
+      "Vous êtes à Abidjan où ?",
+      "Donnez-moi votre localisation",
+      "Quelle est votre adresse ?",
+      "Vous livrez dans quel quartier ?",
+      "Vous êtes en ligne ou vous avez une boutique ?"
+    ]
   },
-  "intents": [
-    {
-      "id": 1,
-      "name": "Salut / Politesse",
-      "description": "Salutations initiales, politesse, prise de contact sociale",
-      "prompt_cible": "PROMPT_A",
-      "score_hierarchie": 3,
-      "keywords": ["bonjour", "salut", "bonsoir", "hey", "hello", "coucou"],
-      "variations_naturelles": [
-        "Bonjour !",
-        "Salut, comment ça va ?",
-        "Hey, ravie de vous lire !",
-        "Bonsoir, comment puis-je vous aider ?",
-        "Salut, bienvenue !",
-        "Bonjour, j'espère que vous allez bien !",
-        "Salut ! Prêt à découvrir nos produits ?",
-        "Bonjour, comment se passe votre journée ?",
-        "Salut, heureux de vous retrouver !",
-        "Bonjour, ravi de vous lire !",
-        "Hello !",
-        "Salut, ça fait plaisir !",
-        "Bonsoir, comment puis-je vous assister ?",
-        "Salut, besoin d'aide ?",
-        "Bonjour, je suis là pour vous aider !"
-      ],
-      "variations_bruitees": [
-        "Bjr",
-        "Slt",
-        "Heyy",
-        "Bonsoiir",
+  {
+    "intent": "CLARIFICATION",
+    "examples": [
+      "Je n'ai pas compris",
+      "Pouvez-vous préciser ?",
+      "Expliquez-moi s'il vous plaît",
+      "Hein ?",
+      "C'est pas clair",
+      "Reformule stp",
+      "Je capte pas"
+    ]
+  },
+  {
+    "intent": "CATALOGUE",
+    "examples": [
+      "Quels produits vendez-vous ?",
+      "Montrez-moi votre catalogue",
+      "Je veux voir vos articles",
+      "Vous avez quoi en stock ?",
+      "Liste des produits disponibles",
+      "Vous proposez quoi ?"
+    ]
+  },
+  {
+    "intent": "RECHERCHE_PRODUIT",
+    "examples": [
+      "Je cherche des couches taille M",
+      "Avez-vous la marque X ?",
+      "Je veux un produit spécifique",
+      "Vous avez ce modèle en stock ?",
+      "Je cherche du lait pour bébé",
+      "Je veux ce produit exact"
+    ]
+  },
+  {
+    "intent": "PRIX_PROMO",
+    "examples": [
+      "C'est combien ?",
+      "Quel est le prix ?",
+      "Vous avez une promo ?",
+      "Le tarif c'est quoi ?",
+      "Ça coûte combien en tout ?",
+      "Y'a réduction ?"
+    ]
+  },
+  {
+    "intent": "DISPONIBILITE",
+    "examples": [
+      "C'est disponible ?",
+      "Vous avez en stock ?",
+      "Il reste encore ?",
+      "C'est fini ou bien ?",
+      "Je peux avoir ça aujourd'hui ?",
+      "Ça existe encore ?"
+    ]
+  },
+  {
+    "intent": "ACHAT_COMMANDE",
+    "examples": [
+      "Je veux commander",
+      "Je passe la commande",
+      "Je prends deux",
+      "Je veux acheter maintenant",
+      "Validez ma commande",
+      "Comment je commande ?"
+    ]
+  },
+  {
+    "intent": "LIVRAISON",
+    "examples": [
+      "Vous livrez ?",
+      "C'est livré en combien de temps ?",
+      "Livraison pour Cocody c'est combien ?",
+      "Vous livrez à Yopougon ?",
+      "Quels sont les frais de livraison ?",
+      "Je veux la livraison express"
+    ]
+  },
+  {
+    "intent": "PAIEMENT",
+    "examples": [
+      "Je peux payer comment ?",
+      "Vous prenez Orange Money ?",
+      "Je veux payer par MTN",
+      "C'est possible de payer à la livraison ?",
+      "Quels moyens de paiement ?",
+      "Donnez le numéro de paiement"
+    ]
+  },
+  {
+    "intent": "SUIVI",
+    "examples": [
+      "Où est ma commande ?",
+      "Je veux suivre ma livraison",
+      "Ça arrive quand ?",
+      "Le livreur est où ?",
+      "Donnez-moi le statut de ma commande",
+      "Ma commande est en route ?"
+    ]
+  },
+  {
+    "intent": "PROBLEME",
+    "examples": [
+      "J'ai un problème avec ma commande",
+      "Je n'ai rien reçu",
+      "Le produit n'est pas conforme",
+      "Il manque un article",
+      "Je veux faire une réclamation",
+      "Le paquet est arrivé endommagé"
+    ]
+  },
+  {
+    "intent": "CONTACT_COORDONNEES",
+    "examples": [
+      "Mon numéro de téléphone est le 0707070707",
+      "Vous pouvez me joindre au 01 02 03 04 05",
+      "Voici mes coordonnées : +225 07 87 36 07 57",
+      "Je suis joignable sur WhatsApp au 0505050505",
+      "Pour me contacter : 0160724570",
+      "Appelez-moi sur ce numéro : 07 07 07 07 07",
+      "Mon contact WhatsApp : +225 07 87 36 07 57",
+      "Vous pouvez m'envoyer un message au 0787360757",
+      "tchoko moi sur whatsapp 01 60 72 45 70",
+      "appel moi direct au 05 44 44 44 44"
+    ]
+  }
+]

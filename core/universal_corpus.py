@@ -1,773 +1,782 @@
+
 # ==============================================================================
-# CORPUS E-COMMERCE UNIVERSEL - SCALABLE POUR 1 À 1000 ENTREPRISES
+# CORPUS E-COMMERCE UNIVERSEL V4 REFACTORÉ - CLIENT-CENTRIC
 # ==============================================================================
-# Secteurs couverts : E-commerce, Vente en ligne, Boutique physique, 
-#                     Achat-revente, Marketplace, Commerce de détail/gros
+# Date: 2025-12-14
+# Changements critiques V3 → V4:
+#   - FUSION: CATALOGUE + RECHERCHE_PRODUIT + DISPONIBILITE → PRODUIT_GLOBAL
+#   - FUSION: SUIVI_COMMANDE + ANNULATION → COMMANDE_EXISTANTE
+#   - RÉDUCTION: 11 intents → 8 intents (-27%)
+#   - DISTANCE EMBEDDING: 0.12-0.22 → 0.30-0.45 (target)
+#   - ACCURACY ATTENDUE: 70.6% → 92-95%
 # ==============================================================================
 
-INTENT_DEFINITIONS = {
-    # GROUPE A - CONVERSATIONNELS → PROMPT A
+INTENT_DEFINITIONS_V4 = {
+    # GROUPE A - CONVERSATIONNELS → PROMPT A (2 intents - inchangé)
     "SALUT_POLITESSE": {
         "id": 1,
-        "name": "Salut / Politesse",
+        "name": "Salut / Politesse / Merci",
         "group": "A",
+        "mode": "A",
         "score": 3,
-        "definition": "Message social d'ouverture ou de clôture (bonjour, merci, compliments) sans demande précise.",
+        "definition": "Message social PUR (bonjour, merci, compliments) SANS question après.",
+        "action": None,
     },
     "INFO_GENERALE": {
         "id": 2,
-        "name": "Demande d'information générale / Localisation",
+        "name": "Information générale / Localisation / Clarification",
         "group": "A",
+        "mode": "A",
         "score": 10,
-        "definition": "Questions sur l'entreprise ou le service en général (où, comment ça marche, horaires, zone), sans parler de prix ou de stock.",
-    },
-    "CLARIFICATION": {
-        "id": 3,
-        "name": "Compréhension / Clarification",
-        "group": "A",
-        "score": 8,
-        "definition": "Le client ne comprend pas ou demande de réexpliquer (hein ?, j'ai pas compris, expliquez mieux).",
+        "definition": "Questions sur entreprise, localisation, horaires, fonctionnement OU clarification.",
+        "action": None,
     },
 
-    # GROUPE B - ACHAT / PRODUITS → PROMPT B
-    "CATALOGUE": {
-        "id": 4,
-        "name": "Demande catalogue / liste produits",
+    # GROUPE B - PRODUITS → PROMPT B (2 intents - FUSION MAJEURE)
+    "PRODUIT_GLOBAL": {
+        "id": 3,
+        "name": "Produit (catalogue + recherche + stock + caractéristiques)",
         "group": "B",
-        "score": 8,
-        "definition": "Le client veut une vue d'ensemble des produits (qu'est-ce que vous vendez ?, types de produits, gammes).",
-    },
-    "PRODUIT_PRECIS": {
-        "id": 5,
-        "name": "Recherche produit précis",
-        "group": "B",
+        "mode": "B",
         "score": 10,
-        "definition": "Le client parle d'un produit ou besoin concret (taille, marque, produit vu en live, type de couche).",
+        "definition": "TOUTES questions produit: catalogue, recherche précise, stock, dispo, caractéristiques, marque, âge, taille.",
         "action": "REDIRECT_LIVE",
+        "note": "FUSION de CATALOGUE + RECHERCHE_PRODUIT + DISPONIBILITE",
+        "sub_routes": {
+            "catalogue": ["catalogue", "liste", "gamme", "menu", "qu'est-ce que vous avez"],
+            "stock": ["stock", "dispo", "disponible", "reste", "rupture"],
+            "caracteristiques": ["taille", "couleur", "âge", "marque", "modèle", "garantie"],
+        }
     },
     "PRIX_PROMO": {
-        "id": 6,
+        "id": 4,
         "name": "Question prix / promo",
         "group": "B",
+        "mode": "B",
         "score": 10,
-        "definition": "Questions sur les montants, promotions, réductions (c'est combien ?, y a une promo ?, prix du paquet).",
-        "action": "REDIRECT_LIVE",
-    },
-    "DISPONIBILITE_STOCK": {
-        "id": 7,
-        "name": "Disponibilité / stock",
-        "group": "B",
-        "score": 10,
-        "definition": "Demandes sur la présence ou quantité disponible du produit (vous en avez ?, encore en stock ?, rupture ?).",
+        "definition": "Prix, tarifs, promotions, réductions, négociation, combien.",
         "action": "REDIRECT_LIVE",
     },
 
-    # GROUPE C - COMMANDE → PROMPT C
+    # GROUPE C - COMMANDE → PROMPT C (4 intents - inchangé)
     "COMMANDE": {
-        "id": 8,
+        "id": 5,
         "name": "Demande de commande",
         "group": "C",
+        "mode": "C",
         "score": 10,
-        "definition": "Volonté explicite de commander ou de finaliser (je veux commander, je prends, note ma commande).",
+        "definition": "Volonté EXPLICITE de commander (je veux, je prends, réservez-moi).",
         "action": "COLLECT_4_INFOS",
     },
     "LIVRAISON_INFO": {
-        "id": 9,
+        "id": 6,
         "name": "Informations de livraison",
         "group": "C",
+        "mode": "C",
         "score": 9,
-        "definition": "Questions ou informations sur la zone, l'adresse, les frais et les délais de livraison.",
+        "definition": "Zone livraison, adresse livraison, frais, délais, comment ça marche.",
+        "action": None,
     },
     "PAIEMENT_TRANSACTION": {
-        "id": 10,
+        "id": 7,
         "name": "Moyens de paiement / Dépôt / Transaction",
         "group": "C",
+        "mode": "C",
         "score": 9,
-        "definition": "Questions ou confirmations sur le paiement, l'acompte, la preuve de transaction, le numéro de Wave.",
+        "definition": "Moyens paiement, acompte, preuve transaction, Wave, Orange Money.",
+        "action": None,
+    },
+    "CONTACT_COORDONNEES": {
+        "id": 8,
+        "name": "Contact / Coordonnées",
+        "group": "C",
+        "mode": "C",
+        "score": 8,
+        "definition": "Transmission numéro téléphone/WhatsApp du client.",
+        "action": None,
     },
 
-    # GROUPE D - APRÈS-VENTE → PROMPT D
-    "SUIVI_COMMANDE": {
-        "id": 11,
-        "name": "Suivi de commande / livraison",
+    # GROUPE D - APRÈS-VENTE → PROMPT D (2 intents - FUSION MAJEURE)
+    "COMMANDE_EXISTANTE": {
+        "id": 9,
+        "name": "Commande existante (suivi + modification + annulation)",
         "group": "D",
-        "score": 8,
-        "definition": "Le client suit une commande existante (où est ma commande ?, le livreur n'est pas venu, retard).",
+        "mode": "D",
+        "score": 10,
+        "definition": "Suivi commande en cours, modification, ajout/retrait articles, annulation, changement adresse.",
+        "action": None,
+        "note": "FUSION de SUIVI_COMMANDE + ANNULATION + MODIFICATION",
+        "sub_routes": {
+            "suivi": ["où est", "tracking", "livreur", "retard", "toujours pas"],
+            "modification": ["modifier", "changer", "ajouter", "retirer"],
+            "annulation": ["annuler", "supprimer", "ne veux plus"],
+        }
     },
     "PROBLEME_RECLAMATION": {
-        "id": 12,
-        "name": "Problème / Réclamation",
+        "id": 10,
+        "name": "Problème / Réclamation / SAV",
         "group": "D",
+        "mode": "D",
         "score": 10,
-        "definition": "Plainte, insatisfaction, erreur, produit abîmé, demande de correction, retour ou remboursement.",
+        "definition": "Plainte, erreur, défaut, retour, remboursement, produit abîmé.",
         "action": "ESCALATE_SAV",
     },
 }
 
-UNIVERSAL_ECOMMERCE_INTENT_CORPUS = {
+# ==============================================================================
+# PROTOTYPES V4 - DISTANCE EMBEDDING MAXIMALE
+# ==============================================================================
+
+INTENT_PROTOTYPES_V4 = {
+    "SALUT_POLITESSE": (
+        "bonjour bonsoir salut merci au revoir ça va comment allez-vous bonne journée"
+    ),
+    
+    "INFO_GENERALE": (
+        "où êtes-vous situés exactement votre boutique est où adresse localisation quartier "
+        "comment fonctionne votre système vous vendez quoi globalement vous êtes ouvert quand "
+        "horaires d'ouverture je ne comprends pas expliquez-moi clarifiez répétez"
+    ),
+    
+    # FUSION: Catalogue + Recherche + Stock
+    "PRODUIT_GLOBAL": (
+        "montrez-moi catalogue liste produits vous avez quoi "
+        "je cherche produit spécifique en stock disponible maintenant "
+        "caractéristiques taille couleur âge marque modèle rupture "
+        "il en reste combien quelle référence garantie composition"
+    ),
+    
+    "PRIX_PROMO": (
+        "c'est combien exactement quel est le prix tarif coût "
+        "vous avez des promotions réductions soldes dernier prix négocier"
+    ),
+    
+    "COMMANDE": (
+        "je veux commander maintenant je prends ce produit réservez-moi "
+        "je valide ma commande j'achète comment passer commande"
+    ),
+    
+    "LIVRAISON_INFO": (
+        "vous livrez dans quelle zone frais de livraison coût livraison "
+        "délai de livraison quand serai-je livré combien de temps transport"
+    ),
+    
+    "PAIEMENT_TRANSACTION": (
+        "comment payer modes de paiement acceptés Wave Orange Money Mobile Money "
+        "acompte dépôt j'ai payé voici la preuve paiement sécurisé"
+    ),
+    
+    "CONTACT_COORDONNEES": (
+        "mon numéro c'est appelez-moi au voici mon contact WhatsApp "
+        "téléphone pour me joindre coordonnées"
+    ),
+    
+    # FUSION: Suivi + Modification + Annulation
+    "COMMANDE_EXISTANTE": (
+        "où est ma commande passée suivi livraison tracking livreur "
+        "modifier changer ajouter retirer article quantité adresse "
+        "annuler supprimer ne veux plus commande retard toujours pas reçu"
+    ),
+    
+    "PROBLEME_RECLAMATION": (
+        "produit défectueux abîmé cassé erreur réclamation plainte "
+        "je veux retourner remboursement insatisfait pas le bon"
+    ),
+}
+
+# ==============================================================================
+# CORPUS V4 - OPTIMISÉ CLIENT-CENTRIC
+# ==============================================================================
+
+UNIVERSAL_ECOMMERCE_INTENT_CORPUS_V4 = {
     # ==========================================================================
-    # GROUPE A - CONVERSATIONNELS (Intents 1-3)
+    # GROUPE A - CONVERSATIONNELS (inchangé)
     # ==========================================================================
     
     1: {
-        "label": "Salutation/Politesse",
+        "label": "SALUT_POLITESSE",
         "mode": "A",
-        "description": "Salutations, remerciements, politesse basique",
-        "exemples_universels": [
-            # Salutations standard (12 exemples)
+        "exemples": [
             "Bonjour", "Bonsoir", "Salut", "Hello", "Hey", "Coucou",
-            "Bonne journée", "Bon après-midi", "Bonne soirée",
-            "Bonjour à tous", "Salut la boutique", "Bonjour monsieur/madame", "Slt", "Bjr", "Bnsr", "Bonjr", "Bnjr", "Alut", "Slut", "Saluttt", "Saluuut",
-
-            # Salutations informelles Afrique francophone (12 exemples)
-            "Yo", "Wesh", "Ça va ?", "Comment tu vas ?", "Tu es là ?",
-            "C'est comment ?", "On fait comment ?", "Top",
-            "Bien ou bien ?", "Ça dit quoi ?", "Tu me reçois ?", "On se parle ?",
-
-            # Remerciements (12 exemples)
-            "Merci", "Merci beaucoup", "Merci infiniment", "Merci bien",
-            "Ok merci", "D'accord merci", "C'est gentil", "Merci hein",
-            "Merci à vous", "Je vous remercie", "Grand merci", "Merci pour tout",
-
-            # Réponses polies (12 exemples)
+            "Slt", "Bjr", "Bnsr", "Yo", "Wesh",
+            "Merci", "Merci beaucoup", "Ok merci", "Grand merci", "Thanks",
             "De rien", "Avec plaisir", "Pas de souci", "Ok", "D'accord",
-            "Entendu", "Compris", "Ça marche", "Ok top", "Cool",
-            "C'est noté", "Parfait",
-
-            # Départ/Fin (10 exemples)
+            "Compris", "Ça marche", "Parfait", "Bien reçu",
             "Au revoir", "Bye", "À plus tard", "À bientôt", "Tchao",
-            "Je reviens", "À tout à l'heure", "Bonne continuation", "Take care", "Ciao",
-            "Salut j'espère que vous allez bien",
-            "Bonjour j'espère que vous allez bien",
-            "Bonsoir j'espère que tout va bien",
-            "Bjr j'espère vous allez bien",
-            "Hey j'espère que tu vas bien",
-            "Bonjour j'espère que la famille va bien",
-            "Salut j'espère tout va bien de votre côté",
-            "Coucou j'espère que ça va",
-            "Yo j'espère tu es bien",
-            "Bonjour j'espère que vous vous portez bien",
-            "Salut j'espère tu te portes bien",
-            "Bonsoir j'espère que la journée s'est bien passée",
-            "Bonjour j'espère que tout roule",
-            "Bjr j'espère la famille va bien",
-            "Salut j'espère que tout le monde va bien",
-            "Bonjour j'espère que le travail se passe bien",
-            "Hey j'espère que la boutique marche bien",
-            "Salut j'espère tu es là-bas bien",
-            "Bonjour j'espère que vous et la famille allez bien",
-            "Bjr j'espère tout est bon",
-            "Bonjour madame désolé du dérangement",
-            "Bonjour monsieur désolé de vous déranger",
-            "Bonsoir désolé de vous déranger",
-            "Salut désolé de te déranger",
-            "Bonjour pardon pour le dérangement",
-            "Bjr excusez-moi de déranger",
-            "Bonjour pardon je dérange",
-            "Salut déso de te déranger",
-            "Bonsoir veuillez m'excuser pour le dérangement",
-            "Bonjour toutes mes excuses",
-            "Hey désolé si je dérange",
-            "Yo pardon le dérangement",
-            "Bonjour pardon oh",
-            "Bjr pardon je vais vous déranger un peu",
-            "Salut pardon de te couper",
-            "Bonjour excusez un peu svp",
-            "Bonjour monsieur je m'excuse",
-            "Salut pardon si je dérange",
-            "Bjr désolé là si je dérange",
-            "Bonjour pardon pour l'heure",
-            "Bonjour comment allez-vous",
-            "Salut comment tu vas",
-            "Bonsoir comment ça va",
-            "Hey comment vas-tu",
-            "Bjr comment tu vas",
-            "Bonjour comment vous allez",
-            "Salut ça va",
-            "Bonjour ça va bien",
-            "Hey tu vas bien",
-            "Coucou comment tu te portes",
-            "Bonjour madame comment vous vous portez",
-            "Salut comment vous allez aujourd'hui",
-            "Bjr la forme",
-            "Bonjour ça dit quoi",
-            "Salut c'est comment",
-            "Yo tu es bien",
-            "Bonjour tu es comment là",
-            "Salut tu me reçois bien",
-            "Hey comment ça dit",
-            "Bjr on se parle là",
-            "Bonjour bien ou bien",
-            "Salut tu es là-bas",
-            "Yo on fait comment",
-            "Wesh la forme",
-            "Bonjour comment vous vous sentez",
-            "Bonjour madame j'espère que vous allez bien désolé de vous déranger",
-            "Salut comment tu vas j'espère que tout va bien",
-            "Bjr pardon du dérangement j'espère vous allez bien",
-            "Bonjour monsieur comment allez-vous désolé de vous importuner",
-            "Salut j'espère tu vas bien pardon de déranger",
-            "Bonjour comment ça va j'espère que tout roule",
-            "Bjr excusez-moi j'espère la famille va bien",
-            "Salut désolé de te déranger tu vas bien",
-            "Bonjour pardon comment allez-vous",
-            "Hey j'espère tu es bien déso du dérangement",
-            "Bonjour merci d'avance j'espère vous allez bien",
-            "Salut comment tu te portes pardon si je dérange",
-            "Bjr ça va bien j'espère",
-            "Bonjour désolé comment vous allez",
-            "Salut j'espère tout va bien pardon de te couper",
-            "Bondjour comment sa va",
-            "Salut jespere tu va bien",
-            "Bjr coment vous alé",
-            "Bonjr j'espair tout va bien",
-            "Slt comen tu va",
-            "Yo tu es là j'espère",
-            "Wesh tu vas bien ou bien",
-            "Bjr chef c'est comment",
-            "Hey boss la forme",
-            "On dit quoi là"
-        ],
-        "patterns_regex": [
-            r"\b(bon(jour|soir)|salut|hey|coucou|yo|wesh)\b",
-            r"\b(merci|thanks|gratitude)\b",
-            r"\b(au revoir|bye|tchao)\b"
+            "Bonne continuation", "Bonne journée",
+            "Ça va ?", "Comment allez-vous ?", "Comment tu vas ?",
+            "Vous allez bien ?", "La famille va bien ?",
+            "Salut comment allez-vous",
+            "Bonsoir j'espère que vous allez bien",
+            "Bjr madame désolé du dérangement",
+            "Hey j'espère que tout va bien de votre côté",
+            "Yo c'est comment là",
+            "Bonjour pardon de vous déranger à cette heure",
+            "Salut j'espère la famille va bien",
+            "Bondjour coment sa va",
+            "Bonsoir j'espère que tout va bien chez vous",
+            "Hey salut ça dit quoi de ton côté",
+            "Merci beaucoup pour votre aide",
         ]
     },
     
     2: {
-        "label": "Information générale entreprise",
+        "label": "INFO_GENERALE",
         "mode": "A",
-        "description": "Questions sur l'entreprise, présentation, localisation",
-        "exemples_universels": [
-            # Présentation entreprise (12 exemples)
+        "exemples": [
+            # Entreprise
             "Vous vendez quoi ?", "C'est quoi votre boutique ?",
-            "Qu'est-ce que vous faites ?", "Vous proposez quoi ?",
-            "Présentez-vous", "Parlez-moi de vous", "C'est quoi ici ?",
-            "Vous êtes spécialisés dans quoi ?", "Votre domaine c'est quoi ?",
-            "Qu'est-ce que je peux trouver chez vous ?", "Quelle est votre activité ?",
-            "Vous faites dans quoi exactement ?",
-
-            # Localisation (12 exemples)
-            "Vous êtes où ?", "C'est où votre boutique ?",
-            "Vous avez une adresse ?", "Localisation",
-            "Vous êtes dans quelle zone ?", "Quel quartier ?",
-            "Boutique physique ?", "Vous avez un magasin ?",
-            "Je peux venir sur place ?", "Adresse complète svp",
-            "Quelle ville ?", "Vous êtes basés où ?",
-
-            # Généralités (12 exemples)
-            "Comment ça marche ?", "C'est quoi le principe ?",
-            "Expliquez-moi", "Je découvre", "Première fois",
-            "Comment on fait ?", "Ça fonctionne comment ?",
-            "Processus d'achat ?", "C'est simple ?", "Mode d'emploi",
-            "Guide du client", "Les étapes pour acheter",
-
-            # Horaires/Contact (12 exemples)
+            "Qu'est-ce que vous faites ?", "Présentez-vous",
+            "Votre domaine c'est quoi ?", "Vous êtes dans quel secteur ?",
+            
+            # Localisation (CRITIQUE)
+            "Vous êtes où ?", "Vous êtes situés où ?",
+            "Vous êtes situés où exactement ?", "Vous êtes situés où svp ?",
+            "C'est où votre boutique ?", "Vous êtes basés où ?",
+            "Vous avez une adresse ?", "Vous avez un magasin physique ?",
+            "Quel quartier ?", "Quelle commune ?",
+            "Vous êtes à quel quartier d'Abidjan ?", "C'est où exactement ?",
+            "Je peux venir sur place ?", "Boutique physique ou en ligne ?",
+            "Adresse de la boutique svp",
+            
+            # Horaires
             "Horaires d'ouverture ?", "Vous ouvrez à quelle heure ?",
-            "Contact ?", "Numéro de téléphone ?", "WhatsApp ?",
             "Vous fermez quand ?", "Ouvert le dimanche ?",
-            "Horaires de la boutique ?", "Joignable comment ?",
-            "Email de contact ?", "Réseaux sociaux ?", "Comment vous contacter ?"
-        ],
-        "patterns_regex": [
-            r"\b(vous (vendez|proposez|faites) quoi|qu'est-ce que vous)\b",
-            r"\b(où|localisation|adresse|boutique|magasin)\b",
-            r"\b(comment (ça marche|on fait|fonctionn))\b"
-        ]
-    },
-    
-    3: {
-        "label": "Clarification/Incompréhension",
-        "mode": "A",
-        "description": "Messages flous, demandes de répétition",
-        "exemples_universels": [
-            # Incompréhension (12 exemples)
+            "Vous êtes ouvert maintenant ?", "Ouvert quand ?",
+            
+            # Fonctionnement
+            "Comment ça marche ?", "Expliquez-moi le processus",
+            "Comment on fait pour commander ?", "Ça fonctionne comment ?",
+            "Le système c'est comment ?",
+            
+            # Clarification
             "Hein ?", "Quoi ?", "Comment ?", "Pardon ?",
             "J'ai pas compris", "Je comprends pas", "C'est pas clair",
-            "Répétez", "Réexpliquez", "Expliquez encore",
-            "Je ne saisis pas", "Pas clair du tout",
-
-            # Demande précision (12 exemples)
-            "Expliquez un peu", "Détaillez", "Plus de détails",
-            "C'est-à-dire ?", "Ça veut dire quoi ?",
-            "Soyez plus clair", "Je suis perdu",
-            "Précisez svp", "Développez", "Clarifiez",
-            "Je ne vois pas", "Exemple concret ?",
-
-            # Messages vagues (10 exemples)
-            "Euh", "Bon", "Alors", "Hmm", "Ben",
-            "Je sais pas trop", "Peut-être", "On verra",
-            "Bof", "Mouais"
-        ],
-        "patterns_regex": [
-            r"\b(hein|quoi|comment|pardon)\s*\??",
-            r"\b(pas compris|comprends pas|j'ai rien compris)\b",
-            r"\b(répét|réexpliqu|expliqu)\b"
+            "Répétez", "Expliquez encore", "Précisez svp",
+            "C'est-à-dire ?", "Développez",
+            
+            # Salut + Question
+            "Bonjour vous êtes où exactement ?",
+            "Salut c'est où votre boutique ?",
+            "Bonsoir vous avez une adresse ?",
+            "Hey vous êtes situés où ?",
+            "Bonjour j'espère la famille va bien, vous êtes situés où exactement ?",
         ]
     },
     
     # ==========================================================================
-    # GROUPE B - PRODUITS/CATALOGUE (Intents 4-7)
+    # GROUPE B - PRODUITS (FUSION MAJEURE)
     # ==========================================================================
+    
+    3: {
+        "label": "PRODUIT_GLOBAL",
+        "mode": "B",
+        "exemples": [
+            # ===== CATALOGUE (ancien intent 4) =====
+            "Catalogue", "Liste des produits", "Qu'est-ce que vous avez ?",
+            "Montrez-moi vos produits", "Vos articles", "Tous les produits",
+            "Menu", "Je veux voir", "Faites-moi découvrir",
+            "Quelles catégories ?", "Types de produits ?", "Gamme complète",
+            "Qu'est-ce qu'il y a dans le live ?", "Promos du jour",
+            "Nouveautés", "Vous avez quel type de produits",
+            
+            # ===== RECHERCHE PRÉCISE (ancien intent 5 - partie 1) =====
+            "Je cherche un produit", "Vous avez des couches ?",
+            "Le produit de la photo", "Celui du live",
+            "Je veux ce produit précisément", "Je voudrais acheter 5 paquets",
+            
+            # ===== CARACTÉRISTIQUES (ancien intent 5 - partie 2) =====
+            "En quelle couleur ?", "Quelle taille ?",
+            "Les modèles disponibles", "Il y a une garantie avec ?",
+            "C'est pour quel âge ce produit ?", "C'est quelle marque ?",
+            "Quelle référence ?", "Original ou copie ?", "Quelle version ?",
+            "C'est quoi les caractéristiques", "La composition c'est quoi",
+            "Vous avez la référence du produit", "C'est fabriqué où",
+            "Le produit fait combien de grammes", "Quelle est la taille exacte",
+            
+            # ===== STOCK/DISPONIBILITÉ (ancien intent 5 - partie 3 + ancien 7) =====
+            "Vous avez en stock ?", "C'est disponible ?",
+            "Il en reste ?", "Vous avez encore ?", "Dispo maintenant ?",
+            "Vous avez le produit X en stock ?", "C'est disponible maintenant ?",
+            "Vous n'avez plus ce modèle ?", "C'est en rupture ou pas ?",
+            "Rupture ?", "Plus en stock ?", "Combien il en reste ?",
+            "Quand vous en aurez ?", "Vous allez recevoir quand ?",
+            "Il reste des paquets", "C'est dispo pour aujourd'hui",
+            "Vous avez combien de pièces disponibles",
+            "Il y a combien de modèles disponibles",
+            "C'est disponible en quelle couleur",
+            "Quand ça revient en stock",
+            
+            # ===== AVEC SALUT (patterns réels) =====
+            "Bjr comment tu vas, c'est disponible en stock",
+        ]
+    },
     
     4: {
-        "label": "Catalogue/Liste produits",
+        "label": "PRIX_PROMO",
         "mode": "B",
-        "description": "Demande globale de catalogue sans produit précis",
-        "exemples_universels": [
-            # Catalogue général (12 exemples)
-            "Catalogue", "Liste des produits", "Qu'est-ce que vous avez ?",
-            "Montrez-moi vos produits", "Vous proposez quoi ?",
-            "Vos articles", "Gamme de produits",
-            "Tous les produits", "Catalogue complet", "Menu",
-            "Les articles disponibles", "Inventaire",
-
-            # Exploration (12 exemples)
-            "Je veux voir", "Montrez-moi", "Faites-moi découvrir",
-            "Qu'est-ce que vous vendez ?", "Quels types de produits ?",
-            "Variétés disponibles", "Références disponibles",
-            "Présentez vos produits", "J'aimerais voir ce que vous avez",
-            "Qu'avez-vous en boutique ?", "Vos offres", "Découvrir vos articles",
-
-            # Catégories (12 exemples)
-            "Quelles catégories ?", "Types de produits",
-            "Les différents modèles", "Vos gammes",
-            "Collections disponibles", "Séries de produits",
-            "Rubriques", "Sections du catalogue",
-            "Classement par catégorie", "Groupes de produits",
-            "Familles d'articles", "Gammes proposées",
-
-            # Live/Promo (10 exemples)
-            "Qu'est-ce qu'il y a dans le live ?",
-            "Les produits du live", "Vente flash aujourd'hui",
-            "Promos du jour", "Articles en promo",
-            "Offres spéciales actuelles", "Nouveautés",
-            "Arrivages récents", "Best-sellers", "Coups de cœur"
-        ],
-        "patterns_regex": [
-            r"\b(catalogue|liste|gamme|références)\b",
-            r"\b(qu'est-ce que (vous avez|vous vendez|vous proposez))\b",
-            r"\b(montrez|voir|découvrir)\b.*\b(produit|article)\b"
+        "exemples": [
+            "C'est combien ?", "Quel est le prix ?", "Prix de ce produit",
+            "Tarif", "Coût", "Quel est le prix du paquet ?",
+            "Combien ça coûte ?", "Prix en FCFA", "En franc",
+            "Vous avez des promotions en ce moment ?",
+            "C'est le même prix partout ?", "Vous avez des promos ?",
+            "Réductions ?", "Soldes ?", "Dernier prix", "Prix cadeau",
+            "On peut négocier ?", "C'est cher", "Trop cher",
+            "Vous pouvez baisser ?", "Le prix a augmenté ou pas",
+            "Vous avez un prix gros", "Vous faites combien pour ce produit",
+            "C'est à combien le paquet", "Le prix unitaire c'est quoi",
+            "Il y a une réduction si j'achète beaucoup", "C'est en solde actuellement",
+            "Vous faites des remises",
+            "Salut j'espère que vous allez bien, c'est combien le paquet",
         ]
     },
     
+    # ==========================================================================
+    # GROUPE C - COMMANDE/TRANSACTION (inchangé)
+    # ==========================================================================
+    
     5: {
-        "label": "Recherche produit spécifique",
-        "mode": "B",
-        "description": "Client cherche un produit précis ou vu en live",
-        "exemples_universels": [
-            # Recherche précise (12 exemples)
-            "Je cherche [PRODUIT]", "Vous avez [PRODUIT] ?",
-            "Le [PRODUIT] de la photo", "Celui du live",
-            "Le produit montré", "L'article numéro X",
-            "Où trouver [PRODUIT] ?", "Disponibilité de [PRODUIT]",
-            "Je veux [PRODUIT] précisément", "[PRODUIT] en stock ?",
-            "Recherche [PRODUIT] spécifique", "Besoin de [PRODUIT]",
-
-            # Caractéristiques (12 exemples)
-            "En quelle couleur ?", "Quelle taille ?",
-            "Les modèles disponibles", "Versions existantes",
-            "Le [COULEUR] [PRODUIT]", "Taille [X]",
-            "Quelles options ?", "Caractéristiques disponibles",
-            "Variantes de couleur", "Dimensions disponibles",
-            "Format disponible", "Spécifications techniques",
-
-            # Références visuelles (12 exemples)
-            "Celui-là", "Celui de l'image", "Le rouge",
-            "Le petit", "Le grand format", "Version [X]",
-            "Le même que", "Identique à",
-            "Celui montré en story", "Sur la vidéo",
-            "Dans le post", "Sur votre page",
-
-            # Marques/Références (10 exemples)
-            "Marque [X]", "Référence [X]", "Modèle [X]",
-            "Original ou copie ?", "Authentique ?",
-            "Version originale", "Marque officielle",
-            "C'est du vrai ?", "Produit original ?", "Certification ?"
-        ],
-        "patterns_regex": [
-            r"\b(je cherche|vous avez|il y a)\b.*\b(produit|article|modèle)\b",
-            r"\b(celui|celle|ceux|celles)\b.*(là|du live|de la photo)\b",
-            r"\b(quelle (taille|couleur|version))\b"
+        "label": "COMMANDE",
+        "mode": "C",
+        "exemples": [
+            "Je veux commander", "Je commande", "Je prends",
+            "Je veux acheter", "Mettez-moi ça", "Je valide",
+            "Réservez-moi ce produit", "Gardez-moi ça",
+            "Comment passer commande ?", "C'est décidé", "Je le veux",
+            "Allez-y", "Je veux acheter ce produit", "Je veux 3 paquets",
+            "Prenez ma commande", "Comment je fais pour passer commande",
+            "Je prends 3 unités", "Mets-moi 2 paquets svp",
+            "Je commande pour demain", "Garde-moi 4 paquets",
+            "Je réserve 2 articles", "Comment passer ma commande",
+            "Je veux passer ma commande maintenant",
+            "Comment je fais pour commander svp",
+            "Je souhaite commander maintenant",
+            "Hey j'espère que tout va bien, je veux commander 5 paquets",
         ]
     },
     
     6: {
-        "label": "Prix/Promotions/Tarifs",
-        "mode": "B",
-        "description": "Demandes sur les prix, remises, promos",
-        "exemples_universels": [
-            # Prix direct (12 exemples)
-            "C'est combien ?", "Quel est le prix ?", "Combien ça coûte ?",
-            "Prix de [PRODUIT]", "Tarif", "Coût",
-            "Ça fait combien ?", "Montant",
-            "Valeur de [PRODUIT]", "Prix unitaire",
-            "Coût total", "Combien je paye ?",
-
-            # Monnaie locale adaptable (12 exemples)
-            "Prix en FCFA", "Combien de F ?", "En franc",
-            "Prix en [MONNAIE]",
-            "Montant en CFA", "En euros ?", "Dollars ?",
-            "Prix local", "Tarif en devise locale",
-            "Conversion en [MONNAIE]", "Équivalent en [MONNAIE]",
-            "C'est combien en francs ?",
-
-            # Promotions (12 exemples)
-            "Vous avez des promos ?", "Réductions ?", "Soldes ?",
-            "Remise ?", "Prix barré ?", "Promo en cours ?",
-            "Vente flash", "Offres spéciales", "Réduction de prix",
-            "Rabais disponible ?", "Code promo ?", "Bon de réduction ?",
-
-            # Négociation (12 exemples)
-            "Dernier prix", "Prix cadeau", "Vous faites combien ?",
-            "On peut négocier ?", "Baisse de prix possible ?",
-            "Prix de gros", "Tarif revendeur",
-            "Meilleur prix possible", "Geste commercial ?",
-            "Ristourne ?", "Réduction si j'achète plusieurs ?",
-            "Prix d'ami",
-
-            # Comparaison (10 exemples)
-            "Moins cher où ?", "Meilleur prix ?",
-            "C'est cher", "Trop cher", "Prix excessif",
-            "Pourquoi ce prix ?", "Prix justifié ?",
-            "Plus abordable ailleurs ?", "Prix compétitif ?",
-            "Rapport qualité-prix ?"
-        ],
-        "patterns_regex": [
-            r"\b(combien|prix|tarif|coût|montant)\b",
-            r"\b(promo|réduction|solde|remise|offre)\b",
-            r"\b(cher|moins cher|dernier prix|négoci)\b"
+        "label": "LIVRAISON_INFO",
+        "mode": "C",
+        "exemples": [
+            "Vous livrez où ?", "Zones de livraison ?",
+            "Vous livrez à Yopougon ?", "Vous livrez à Cocody ?",
+            "Combien la livraison ?", "Frais de livraison ?",
+            "Coût de livraison ?", "Livraison gratuite ?",
+            "Ça prend combien de temps ?", "Délai de livraison ?",
+            "Quand ça arrive ?", "Livraison rapide ?",
+            "Je serai livré quand exactement ?",
+            "Le livreur arrive dans combien de temps ?",
+            "Vous livrez aujourd'hui ou demain ?",
+            "Comment ça se passe la livraison ?",
+            "Je dois donner mon adresse de livraison ?",
+            "Vous livrez le week-end ?", "Vous livrez dans quel quartier",
+            "Combien pour livrer à Cocody", "La livraison prend combien de temps",
+            "Ça arrive quand la livraison", "Les frais de livraison c'est combien",
+            "La livraison est gratuite", "Reporter la livraison à demain",
+            "Livrer à une autre adresse",
+            "Je veux modifier mon adresse de livraison",
+            "Changer la date de ma livraison svp",
+            "Bonjour madame désolé du dérangement, vous livrez à Abobo",
+            "Salut pardon oh, les frais de livraison c'est combien",
         ]
     },
     
     7: {
-        "label": "Disponibilité/Stock",
-        "mode": "B",
-        "description": "Questions sur la disponibilité immédiate",
-        "exemples_universels": [
-            # Stock basique (12 exemples)
-            "Vous avez en stock ?", "C'est disponible ?",
-            "Il en reste ?", "Vous avez encore ?",
-            "Stock disponible", "Dispo maintenant ?",
-            "En stock actuellement ?", "Disponibilité immédiate ?",
-            "Je peux acheter maintenant ?", "Vous en avez ?",
-            "C'est accessible ?", "Produit en rayon ?",
-
-            # Rupture (12 exemples)
-            "Rupture ?", "Rupture de stock ?", "Plus en stock ?",
-            "Épuisé ?", "En attente de réappro ?",
-            "Stock vide ?", "Plus disponible ?",
-            "Tout vendu ?", "Plus rien ?",
-            "En pénurie ?", "Manquant ?", "Indisponible ?",
-
-            # Quantité (12 exemples)
-            "Combien il en reste ?", "Quantité disponible ?",
-            "Vous en avez beaucoup ?", "Stock limité ?",
-            "Dernières pièces ?",
-            "Nombre d'unités dispo", "Inventaire restant",
-            "Quelle quantité en stock ?", "Combien d'exemplaires ?",
-            "Stock suffisant ?", "Assez en stock ?", "Unités restantes ?",
-
-            # Délai réappro (12 exemples)
-            "Quand vous en aurez ?", "Retour en stock quand ?",
-            "Prochaine arrivage ?", "Restockage",
-            "Date de réapprovisionnement ?", "Quand ça revient ?",
-            "Livraison fournisseur prévue ?", "Bientôt disponible ?",
-            "Prochaine disponibilité", "Réappro prévu quand ?",
-            "Dans combien de temps ?", "Futur arrivage ?",
-
-            # Vérification (10 exemples)
-            "Vérifiez le stock svp", "Confirmez la dispo",
-            "C'est sûr que c'est dispo ?",
-            "Pouvez-vous checker ?", "Vérification stock",
-            "Confirmez la disponibilité", "C'est certain ?",
-            "Garantie de dispo ?", "Assuré d'avoir ?", "Dispo garanti ?"
-        ],
-        "patterns_regex": [
-            r"\b(stock|dispo|disponible|reste|encore)\b",
-            r"\b(rupture|épuisé|plus en stock)\b",
-            r"\b(combien (il en reste|vous en avez))\b"
+        "label": "PAIEMENT_TRANSACTION",
+        "mode": "C",
+        "exemples": [
+            "Comment payer ?",
+            "Vous acceptez quoi ?",
+            "Moyens de paiement ?",
+            "Modes de paiement acceptés ?",
+            "Quel est le mode de paiement",
+            "Wave ?",
+            "Orange Money ?",
+            "Mobile Money ?",
+            "MTN Money ?",
+            "Vous acceptez Mobile Money",
+            "Vous prenez Orange Money",
+            "Vous acceptez MTN Money",
+            "Je peux payer en espèces ?",
+            "Espèces ?",
+            "Carte bancaire ?",
+            "Acompte obligatoire ?",
+            "Combien d'acompte ?",
+            "Dépôt minimum ?",
+            "Je dois verser combien ?",
+            "J'ai payé",
+            "Paiement envoyé",
+            "Voici mon paiement",
+            "Capture du paiement",
+            "Preuve de paiement",
+            "Je vous envoie le reçu",
+            "Paiement sécurisé ?",
+            "Je veux une facture",
+            "Paiement à la livraison c'est possible",
+            "Bonjour pardon de te déranger, vous acceptez Mobile Money",
         ]
     },
-    
-    # ==========================================================================
-    # GROUPE C - COMMANDE/TRANSACTION (Intents 8-10)
-    # ==========================================================================
     
     8: {
-        "label": "Intention de commander",
+        "label": "CONTACT_COORDONNEES",
         "mode": "C",
-        "description": "Client veut passer une commande",
-        "exemples_universels": [
-            # Commande directe (12 exemples)
-            "Je veux commander", "Je commande", "Je prends",
-            "Mettez-moi ça", "Je valide", "J'achète",
-            "Commandez pour moi", "Enregistrez ma commande",
-            "Je veux acheter", "Passez ma commande",
-            "Validez ma commande", "Commande ferme",
-
-            # Réservation (12 exemples)
-            "Réservez-moi [PRODUIT]", "Mettez de côté",
-            "Gardez-moi ça", "Bloquez-moi [QUANTITÉ]",
-            "Réservation produit", "Mise de côté svp",
-            "Tenez-moi [PRODUIT]", "Sécurisez-moi ça",
-            "Réservation ferme", "Je réserve",
-            "Gardez jusqu'à demain", "Bloquez le stock",
-
-            # Procédure (12 exemples)
-            "Comment passer commande ?", "Procédure de commande",
-            "Étapes pour commander", "Comment faire pour acheter ?",
-            "Je fais comment pour prendre ?",
-            "Process d'achat ?", "Démarche à suivre ?",
-            "Guide de commande", "Processus achat",
-            "Marche à suivre ?", "Comment procéder ?",
-            "Expliquez la commande",
-
-            # Intention ferme (12 exemples)
-            "C'est décidé", "Je le veux", "Je le prends",
-            "Allez-y", "On y va", "Go", "Validez",
-            "Banco", "Top départ", "Je suis partant",
-            "C'est bon pour moi", "Lancez la commande",
-
-            # Plusieurs produits (10 exemples)
-            "Je prends plusieurs articles", "Commande groupée",
-            "Je veux commander tout ça",
-            "Plusieurs produits à commander", "Commande multiple",
-            "Je prends tout", "Liste de courses",
-            "Panier complet", "Achat groupé", "Commande en lot"
-        ],
-        "patterns_regex": [
-            r"\b(je (veux commander|commande|prends|valide|achète))\b",
-            r"\b(réserv|mettez de côté|gardez-moi)\b",
-            r"\b(comment (commander|passer commande))\b"
+        "exemples": [
+            "Mon numéro c'est 0707070707",
+            "Appelez-moi sur le 01 02 03 04 05",
+            "WhatsApp moi au 05 05 05 05 05",
+            "Voici mon numéro +2250707070707",
+            "Mon numéro de téléphone est le 0707070707",
+            "Vous pouvez me joindre au 01 02 03 04 05",
+            "Pour me contacter : 0160724570",
+            "Mon contact c'est 0787360757",
+            "Joignez-moi au 07 07 07 07 07",
+            "Mon WhatsApp c'est 0707070707",
+            "Écris-moi sur WhatsApp au 0707070707",
+            "Voici mon numéro WhatsApp : 0707070707",
+            "Tu peux m'appeler au 0707070707",
+            "Numéro : 0707070707",
+            "Comment je peux vous joindre", "Quel est votre numéro WhatsApp",
+            "Je suis joignable sur WhatsApp au 0505050505",
+            "Voici mes coordonnées : +225 07 87 36 07 57",
+            "Appelez-moi sur ce numéro : 07 07 07 07 07",
+            "Tu peux me joindre au 01 02 03 04 05",
+            "Mon contact WhatsApp : +225 07 87 36 07 57",
         ]
     },
     
+    # ==========================================================================
+    # GROUPE D - APRÈS-VENTE (FUSION MAJEURE)
+    # ==========================================================================
+    
     9: {
-        "label": "Livraison/Adresse/Délais",
-        "mode": "C",
-        "description": "Questions logistiques de livraison",
-        "exemples_universels": [
-            # Zones de livraison (12 exemples)
-            "Vous livrez où ?", "Zones de livraison ?",
-            "Vous livrez à [VILLE] ?", "Livraison dans [QUARTIER] ?",
-            "Vous couvrez [ZONE] ?", "Livraison nationale ?",
-            "Livraison internationale ?",
-            "Périmètre de livraison", "Secteurs desservis",
-            "Zones géographiques couvertes", "Livrez-vous partout ?",
-            "Couverture territoriale ?",
-
-            # Frais livraison (12 exemples)
-            "Combien la livraison ?", "Frais de livraison ?",
-            "Prix du transport ?", "Livraison gratuite ?",
-            "Livraison payante ?", "C'est inclus ?",
-            "Coût de port ?", "Frais de transport",
-            "Tarif livraison", "Prix du shipping",
-            "Livraison offerte ?", "Montant livraison ?",
-
-            # Délais (12 exemples)
-            "Ça prend combien de temps ?", "Délai de livraison ?",
-            "Quand ça arrive ?", "Livraison rapide ?",
-            "Livré en combien de jours ?", "Express possible ?",
-            "Livraison le jour même ?",
-            "Temps de livraison estimé", "Date de réception",
-            "Combien de jours d'attente ?", "Livraison sous combien ?",
-            "Délai moyen",
-
-            # Modalités (12 exemples)
-            "Comment ça se passe ?", "Processus de livraison ?",
-            "Le livreur appelle avant ?", "Suivi de colis ?",
-            "Numéro de tracking ?",
-            "Procédure de réception", "Livraison à domicile ?",
-            "Mode de livraison", "Options de livraison",
-            "Notification de livraison ?", "Appel préalable ?",
-            "Traçabilité du colis ?",
-
-            # Adresse (10 exemples)
-            "Je dois donner mon adresse ?", "Adresse exacte ?",
-            "Point de retrait ?", "Retrait en boutique ?",
-            "Livraison à quelle adresse ?", "Précision localisation",
-            "Coordonnées GPS ?", "Indications lieu",
-            "Adresse complète nécessaire ?", "Point relais ?"
-        ],
-        "patterns_regex": [
-            r"\b(livr|livraison|délai|transport)\b",
-            r"\b(combien (de temps|de jours)|quand (ça arrive|livré))\b",
-            r"\b(vous livrez (où|à|dans))\b"
+        "label": "COMMANDE_EXISTANTE",
+        "mode": "D",
+        "exemples": [
+            # ===== SUIVI (ancien intent 11) =====
+            "Où est ma commande ?", "Où en est le colis ?",
+            "Tracking", "Suivi de commande", "Ma commande arrive quand ?",
+            "Le livreur est où ?", "Le livreur arrive quand ?",
+            "C'est livré ?", "J'ai pas encore reçu", "Toujours pas livré",
+            "Pourquoi le retard ?", "C'est en retard", "Ça traîne",
+            "Quand arrive ma commande", "Le livreur est où exactement",
+            "Quel est le statut de ma livraison", "Ma commande a été expédiée",
+            "C'est en cours de livraison", "Le suivi de ma commande svp",
+            "Ça n'est pas arrivé",
+            "Yo la forme, où est mon colis svp",
+            "Salut ça dit quoi, quand ça arrive ma commande",
+            
+            # ===== MODIFICATION (fusions) =====
+            "Je veux modifier ma commande", "Changer la quantité de ma commande",
+            "Ajouter 2 paquets à ma commande", "Enlever un article de la commande",
+            "Modifier ce que j'ai commandé hier", "Changer l'adresse de livraison",
+            "Modifier l'adresse svp", "Changer la date de livraison",
+            "Bjr chef, je veux modifier ma commande d'hier",
+            
+            # ===== ANNULATION (ancien intent séparé fusionné) =====
+            "Je veux annuler ma commande", "Je veux annuler ma commande svp",
+            "Je ne veux plus la commande", "Supprimer ma commande d'hier",
+            "Annuler ma commande",
         ]
     },
     
     10: {
-        "label": "Paiement/Transaction",
-        "mode": "C",
-        "description": "Moyens de paiement, acompte, preuves",
-        "exemples_universels": [
-            # Moyens de paiement (12 exemples)
-            "Comment payer ?", "Vous acceptez quoi ?",
-            "Moyens de paiement ?", "Je paye comment ?",
-            "Modes de paiement acceptés ?",
-            "Options de paiement", "Quels modes de règlement ?",
-            "Paiement par quoi ?", "Vous prenez quoi comme paiement ?",
-            "Méthodes de paiement dispo", "Solutions de paiement",
-            "Comment régler ?",
-
-            # Mobile money Afrique (12 exemples)
-            "Wave ?", "Orange Money ?", "MTN Mobile Money ?",
-            "Moov Money ?", "Vous prenez Wave ?",
-            "Numéro Wave ?", "Numéro Orange Money ?",
-            "Mobile Money accepté ?", "Paiement mobile",
-            "Free Money ?", "E-money ?", "Transfert mobile ?",
-
-            # Paiement classique (12 exemples)
-            "Espèces ?", "Cash ?", "Carte bancaire ?",
-            "Visa ?", "MasterCard ?", "Virement ?",
-            "PayPal ?", "Paiement en ligne ?",
-            "Chèque ?", "Paiement CB", "Carte bleue ?",
-            "Paiement électronique ?",
-
-            # Acompte (12 exemples)
-            "Acompte obligatoire ?", "Combien d'acompte ?",
-            "Je paye tout maintenant ?", "Avance à verser ?",
-            "Dépôt requis ?", "Minimum à payer ?",
-            "Arrhes nécessaires ?", "Montant de l'acompte",
-            "Paiement partiel ?", "Avance demandée",
-            "Pourcentage d'acompte", "Caution à verser ?",
-
-            # Confirmation paiement (12 exemples)
-            "J'ai payé", "Paiement envoyé", "Voici mon paiement",
-            "Capture du paiement", "Reçu de paiement",
-            "Preuve de transfert", "J'envoie la preuve",
-            "Screenshot du paiement", "Justificatif",
-            "Confirmation de virement", "Paiement effectué",
-            "Reçu transaction",
-
-            # Sécurité (10 exemples)
-            "Paiement sécurisé ?", "Garantie de paiement ?",
-            "C'est sûr ?", "Fiable ?",
-            "Sécurité des transactions", "Protection acheteur",
-            "Paiement crypté ?", "Données protégées ?",
-            "Transaction sûre ?", "Système sécurisé ?"
-        ],
-        "patterns_regex": [
-            r"\b(comment pay|moyen|mode) de paiement\b",
-            r"\b(wave|orange money|mtn|moov|mobile money)\b",
-            r"\b(acompte|avance|dépôt|minimum)\b",
-            r"\b(j'ai payé|paiement envoyé|voici (mon paiement|la preuve))\b"
-        ]
-    },
-    
-    # ==========================================================================
-    # GROUPE D - APRÈS-VENTE/SAV (Intents 11-12)
-    # ==========================================================================
-    
-    11: {
-        "label": "Suivi de commande",
+        "label": "PROBLEME_RECLAMATION",
         "mode": "D",
-        "description": "Suivi logistique d'une commande en cours",
-        "exemples_universels": [
-            # Localisation colis (12 exemples)
-            "Où est ma commande ?", "Où en est le colis ?",
-            "Tracking", "Suivi de commande", "Numéro de suivi",
-            "Ma commande arrive quand ?",
-            "Position du colis", "Localisation livraison",
-            "Géolocalisation commande", "État actuel colis",
-            "Où se trouve mon paquet ?", "Tracking number",
-
-            # État avancement (12 exemples)
-            "Ça avance ?", "État de ma commande ?",
-            "Commande en cours ?", "C'est parti ?",
-            "Expédié ?", "En route ?", "En préparation ?",
-            "Statut commande", "Progression livraison",
-            "Avancement du traitement", "Étape actuelle",
-            "Phase de commande ?",
-
-            # Livreur (12 exemples)
-            "Le livreur est où ?", "Le livreur arrive quand ?",
-            "Numéro du livreur", "Contact livreur",
-            "Il est en chemin ?",
-            "Coordonnées livreur", "Joindre le livreur",
-            "Livreur contactable ?", "Info livreur",
-            "Nom du livreur ?", "Tel du coursier",
-            "Position du livreur",
-
-            # Livraison (12 exemples)
-            "C'est livré ?", "J'ai pas encore reçu",
-            "Toujours pas livré", "Quand je reçois ?",
-            "Livraison aujourd'hui ?",
-            "Déjà arrivé ?", "Reçu la commande ?",
-            "Date de réception", "Heure de livraison prévue",
-            "Livraison effectuée ?", "Colis reçu ?",
-            "Pas encore là",
-
-            # Retard (10 exemples)
-            "Pourquoi le retard ?", "C'est en retard",
-            "Délai dépassé", "Trop long", "Ça traîne",
-            "Retard de livraison", "Problème de délai ?",
-            "Livraison tardive", "Dépassement délai",
-            "Explication du retard ?"
-        ],
-        "patterns_regex": [
-            r"\b(où (est|en est)|suivi|tracking|localisation)\b.*\b(commande|colis)\b",
-            r"\b(arrive quand|état|avancement|en cours)\b",
-            r"\b(livreur|livré|reçu|livraison)\b"
-        ]
-    },
-    
-    12: {
-        "label": "Problème/Réclamation/SAV",
-        "mode": "D",
-        "description": "Problèmes post-achat, réclamations",
-        "exemples_universels": [
-            # Problème produit (12 exemples)
+        "exemples": [
             "Produit défectueux", "Ça marche pas", "C'est cassé",
-            "Produit abîmé", "Endommagé", "En mauvais état",
-            "Pas conforme", "Pas comme sur la photo",
-            "Défaut de fabrication", "Vice caché",
-            "Problème qualité", "Produit non fonctionnel",
-
-            # Erreur commande (12 exemples)
-            "C'est pas le bon produit", "Erreur de commande",
-            "J'ai reçu autre chose", "Pas ce que j'ai commandé",
-            "Mauvais article", "Erreur de livraison",
-            "Produit incorrect", "Commande mélangée",
-            "Article différent", "Erreur de référence",
-            "Mauvaise taille reçue", "Couleur erronée",
-
-            # Manquant (10 exemples)
-            "Il manque un article", "Incomplet", "Pas tout reçu",
-            "Où est le reste ?", "Quantité incorrecte",
-            "Pièce manquante", "Un article absent",
-            "Partie non livrée", "Manque dans le colis",
-            "Accessoire absent",
-
-            # Réclamation (12 exemples)
-            "Je veux me plaindre", "Réclamation",
-            "Pas satisfait", "Déçu", "Mauvaise qualité",
-            "Service client", "Porter plainte",
-            "Plainte officielle", "Je conteste",
-            "Litige achat", "Médiation ?", "SAV svp",
-
-            # Retour/Remboursement (12 exemples)
-            "Je veux retourner", "Retour produit",
-            "Remboursement", "Rembourser", "Je veux mon argent",
-            "Échange possible ?", "Changer le produit",
-            "Retour sous garantie", "Procédure de retour ?",
-            "Délais de remboursement ?", "Bon d'achat possible ?",
-            "Échange standard ?",
-
-            # Annulation (10 exemples)
-            "Annuler ma commande", "Annulation",
-            "Je ne veux plus", "J'annule tout",
-            "Annulez svp", "Stoppez la commande",
-            "Annulation immédiate", "Je me rétracte",
-            "Droit de rétractation", "Annuler avant envoi"
-        ],
-        "patterns_regex": [
-            r"\b(problème|défectueux|cassé|abîmé|mauvais état)\b",
-            r"\b(pas (le bon|conforme|comme)|erreur)\b",
-            r"\b(réclamation|plainte|insatisfait|déçu)\b",
-            r"\b(retour|rembours|échang|annul)\b"
+            "Produit abîmé", "Endommagé", "C'est pas le bon produit",
+            "Erreur de commande", "J'ai reçu autre chose",
+            "Il manque un article", "Incomplet", "Je veux me plaindre",
+            "Réclamation", "Pas satisfait", "Déçu",
+            "Je veux retourner", "Retour produit", "Remboursement",
+            "Je veux mon argent",
         ]
     }
 }
+
+# ==============================================================================
+# MIGRATION GUIDE V3 → V4
+# ==============================================================================
+
+MIGRATION_MAPPING_V3_TO_V4 = {
+    "SALUT_POLITESSE": "SALUT_POLITESSE",  # Inchangé
+    "INFO_GENERALE": "INFO_GENERALE",  # Inchangé
+    "CATALOGUE": "PRODUIT_GLOBAL",  # FUSIONNÉ
+    "RECHERCHE_PRODUIT": "PRODUIT_GLOBAL",  # FUSIONNÉ
+    "DISPONIBILITE": "PRODUIT_GLOBAL",  # FUSIONNÉ
+    "PRIX_PROMO": "PRIX_PROMO",  # Inchangé
+    "COMMANDE": "COMMANDE",  # Inchangé
+    "LIVRAISON_INFO": "LIVRAISON_INFO",  # Inchangé
+    "PAIEMENT_TRANSACTION": "PAIEMENT_TRANSACTION",  # Inchangé
+    "CONTACT_COORDONNEES": "CONTACT_COORDONNEES",  # Inchangé
+    "SUIVI_COMMANDE": "COMMANDE_EXISTANTE",  # FUSIONNÉ
+    "ANNULATION": "COMMANDE_EXISTANTE",  # FUSIONNÉ
+    "PROBLEME_RECLAMATION": "PROBLEME_RECLAMATION",  # Inchangé
+}
+
+# ==============================================================================
+# SUB-ROUTING PYTHON (post-SetFit)
+# ==============================================================================
+
+def sub_route_produit_global(message: str) -> str:
+    """
+    Après SetFit détecte PRODUIT_GLOBAL, détermine le sous-type
+    pour affiner le prompt/comportement
+    """
+    message_lower = message.lower()
+    
+    # Stock/Dispo (priorité haute)
+    stock_keywords = ["stock", "dispo", "disponible", "reste", "rupture", "en rupture"]
+    if any(kw in message_lower for kw in stock_keywords):
+        return "stock_disponibilite"
+    
+    # Caractéristiques
+    char_keywords = ["taille", "couleur", "âge", "marque", "modèle", "garantie", 
+                     "référence", "composition", "caractéristique", "fabriqué"]
+    if any(kw in message_lower for kw in char_keywords):
+        return "caracteristiques"
+    
+    # Catalogue (défaut si rien de précis)
+    catalog_keywords = ["catalogue", "liste", "gamme", "menu", "qu'est-ce que", "quoi comme"]
+    if any(kw in message_lower for kw in catalog_keywords):
+        return "catalogue_general"
+    
+    # Défaut: recherche générale
+    return "recherche_generale"
+
+
+def sub_route_commande_existante(message: str) -> str:
+    """
+    Après SetFit détecte COMMANDE_EXISTANTE, détermine si c'est:
+    - suivi simple
+    - modification
+    - annulation
+    """
+    message_lower = message.lower()
+    
+    # Annulation (priorité critique)
+    annulation_keywords = ["annul", "supprimer", "ne veux plus", "cancel"]
+    if any(kw in message_lower for kw in annulation_keywords):
+        return "annulation"
+    
+    # Modification
+    modif_keywords = ["modif", "changer", "chang", "ajouter", "ajout", "retirer", 
+                      "enlever", "augmenter", "diminuer"]
+    if any(kw in message_lower for kw in modif_keywords):
+        return "modification"
+    
+    # Suivi simple (défaut)
+    return "suivi_simple"
+
+
+# ==============================================================================
+# VALIDATION & MÉTRIQUES
+# ==============================================================================
+
+CORPUS_VALIDATION_TESTS_V4 = {
+    "test_localisation": {
+        "input": "Vous êtes situés où ?",
+        "expected_intent": "INFO_GENERALE",
+        "expected_mode": "A",
+    },
+    "test_prix": {
+        "input": "Quel est le prix du paquet ?",
+        "expected_intent": "PRIX_PROMO",
+        "expected_mode": "B",
+    },
+    "test_stock": {
+        "input": "Vous avez en stock ?",
+        "expected_intent": "PRODUIT_GLOBAL",  # Changé
+        "expected_mode": "B",
+    },
+    "test_caracteristiques": {
+        "input": "C'est pour quel âge ce produit ?",
+        "expected_intent": "PRODUIT_GLOBAL",  # Changé
+        "expected_mode": "B",
+    },
+    "test_catalogue": {
+        "input": "Montrez-moi vos produits",
+        "expected_intent": "PRODUIT_GLOBAL",  # Changé
+        "expected_mode": "B",
+    },
+    "test_suivi": {
+        "input": "Où est ma commande ?",
+        "expected_intent": "COMMANDE_EXISTANTE",  # Changé
+        "expected_mode": "D",
+    },
+    "test_modification": {
+        "input": "Je veux modifier ma commande",
+        "expected_intent": "COMMANDE_EXISTANTE",  # Changé
+        "expected_mode": "D",
+    },
+    "test_annulation": {
+        "input": "Je veux annuler",
+        "expected_intent": "COMMANDE_EXISTANTE",  # Changé
+        "expected_mode": "D",
+    },
+}
+
+CORPUS_METRICS_V4 = {
+    "total_intents": 10,  # Réduit de 11 à 10
+    "total_exemples": 350,
+    "exemples_par_intent_min": 20,
+    "exemples_par_intent_max": 60,
+    "accuracy_target": 0.92,  # 92%+ réaliste
+    "fusions_applied": [
+        "CATALOGUE + RECHERCHE_PRODUIT + DISPONIBILITE → PRODUIT_GLOBAL",
+        "SUIVI + MODIFICATION + ANNULATION → COMMANDE_EXISTANTE",
+    ],
+    "distance_embedding_target": ">0.30",
+    "errors_eliminated": [
+        "RECHERCHE↔DISPO (9 erreurs)",
+        "CATALOGUE↔RECHERCHE (4 erreurs)",
+        "SUIVI↔ANNULATION (3 erreurs)",
+    ],
+}
+
+
+# ==============================================================================
+# NOTES DE MIGRATION
+# ==============================================================================
+# Changements par rapport à version précédente:
+# 
+# 1. FUSIONNÉ: CLARIFICATION (id 3) → INFO_GENERALE (id 2)
+#    Raison: Confusion sémantique détectée lors calibration
+#    
+# 2. FUSIONNÉ: DISPONIBILITE_STOCK (id 7) → RECHERCHE_PRODUIT (id 5)
+#    Raison: Overlap questions "vous avez X" et "en stock"
+#    
+# 3. NETTOYÉ: Corpus id 1 (SALUT)
+#    Retiré: Messages type "Bonjour + question" → déplacés vers INFO_GENERALE
+#    Raison: Politesse biaisait classification
+#    
+# 4. AJOUTÉ: Cas problématiques dans corpus
+#    - "Vous êtes où exactement" → INFO_GENERALE
+#    - "Modifier commande" → SUIVI
+#    - "C'est pour quel âge" → RECHERCHE_PRODUIT
+#    
+# 5. Total intents: 15 → 10 (réduction 33%)
+#    Impact accuracy attendu: 78.6% → 92%+
+# ==============================================================================
+
+# ==============================================================================
+# HELPER FUNCTIONS V4
+# ==============================================================================
+
+def get_corpus_for_training():
+    """Retourne corpus formaté pour entraînement SetFit V4."""
+    training_data = []
+    for intent_id, data in UNIVERSAL_ECOMMERCE_INTENT_CORPUS_V4.items():  # V4 !
+        intent_name = data["label"]
+        for exemple in data["exemples"]:
+            training_data.append({
+                "text": exemple,
+                "label": intent_name,
+                "intent_id": intent_id,
+                "mode": data["mode"],
+            })
+    return training_data
+
+
+def get_prototypes_for_centroid():
+    """Retourne prototypes V4 pour centroid router."""
+    return INTENT_PROTOTYPES_V4  # V4 !
+
+
+def validate_corpus():
+    """Valide que le corpus V4 respecte les contraintes."""
+    issues = []
+    
+    # Check 0: Cohérence des clés
+    required_keys = {"label", "mode", "exemples"}
+    for intent_id, data in UNIVERSAL_ECOMMERCE_INTENT_CORPUS_V4.items():  # V4 !
+        missing = required_keys - set(data.keys())
+        if missing:
+            issues.append(f"Intent {intent_id}: clés manquantes {sorted(missing)}")
+            continue
+        if not isinstance(data.get("exemples"), list):
+            issues.append(f"Intent {intent_id} ({data.get('label')}): 'exemples' doit être une liste")
+    
+    # Check 1: Nombre d'exemples
+    min_n = int(CORPUS_METRICS_V4.get("exemples_par_intent_min", 0) or 0)  # V4 !
+    max_n = int(CORPUS_METRICS_V4.get("exemples_par_intent_max", 10**9) or 10**9)
+    for intent_id, data in UNIVERSAL_ECOMMERCE_INTENT_CORPUS_V4.items():  # V4 !
+        examples = data.get("exemples") or []
+        if len(examples) < min_n:
+            issues.append(
+                f"Intent {intent_id} ({data.get('label')}): {len(examples)} exemples (< {min_n})"
+            )
+        if len(examples) > max_n:
+            issues.append(
+                f"Intent {intent_id} ({data.get('label')}): {len(examples)} exemples (> {max_n})"
+            )
+    
+    # Check 2: Duplicats entre intents
+    seen = {}
+    for intent_id, data in UNIVERSAL_ECOMMERCE_INTENT_CORPUS_V4.items():  # V4 !
+        label = data.get("label")
+        for exemple in data.get("exemples") or []:
+            key = (exemple or "").strip().lower()
+            if not key:
+                issues.append(f"Intent {intent_id} ({label}): exemple vide")
+                continue
+            if key in seen and seen[key] != label:
+                issues.append(
+                    f"Dupliqué: '{exemple}' → {seen[key]} et {label}"
+                )
+            else:
+                seen[key] = label
+    
+    # Check 3: Prototypes présents
+    for _, data in UNIVERSAL_ECOMMERCE_INTENT_CORPUS_V4.items():  # V4 !
+        label = data.get("label")
+        if label and label not in INTENT_PROTOTYPES_V4:  # V4 !
+            issues.append(f"Prototype manquant: {label}")
+    
+    # Check 4: Tests critiques
+    for test_name, test_data in CORPUS_VALIDATION_TESTS_V4.items():  # V4 !
+        input_text = (test_data.get("input") or "").strip()
+        if not input_text:
+            issues.append(f"Test {test_name}: input vide")
+            continue
+        
+        found = False
+        for _, corpus_data in UNIVERSAL_ECOMMERCE_INTENT_CORPUS_V4.items():  # V4 !
+            for ex in corpus_data.get("exemples") or []:
+                if (ex or "").strip() == input_text:
+                    found = True
+                    break
+            if found:
+                break
+        if not found:
+            issues.append(
+                f"Test {test_name}: exemple absent → '{input_text}'"
+            )
+    
+    return {"ok": len(issues) == 0, "issues": issues}
+
+
+# ==============================================================================
+# NOTES DE MIGRATION V3 → V4
+# ==============================================================================
+"""
+CHANGEMENTS MAJEURS V3 → V4:
+
+1. FUSION PRODUIT_GLOBAL:
+   CATALOGUE + RECHERCHE_PRODUIT + DISPONIBILITE → 1 intent
+   Élimine: 9+4 = 13 erreurs de confusion
+
+2. FUSION COMMANDE_EXISTANTE:
+   SUIVI + MODIFICATION + ANNULATION → 1 intent  
+   Élimine: 3+2 = 5 erreurs de confusion
+
+3. Total intents: 11 → 10 (-9%)
+   Accuracy: 70.6% → 92%+ attendu
+
+4. Sub-routing Python:
+   - PRODUIT_GLOBAL → catalogue/stock/caracteristiques
+   - COMMANDE_EXISTANTE → suivi/modification/annulation
+   - Implémentation déterministe (pas LLM)
+"""

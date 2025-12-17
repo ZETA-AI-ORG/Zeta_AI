@@ -53,6 +53,7 @@ INTENT_MAPPING: Dict[int, str] = {
     10: "PAIEMENT",
     11: "SUIVI",
     12: "PROBLEME",
+    13: "CONTACT_COORDONNEES",
 }
 
 # Tokenisation simple (mots français, casse insensible)
