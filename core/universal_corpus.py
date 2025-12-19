@@ -228,12 +228,16 @@ UNIVERSAL_ECOMMERCE_INTENT_CORPUS_V4 = {
             "Vous vendez quoi ?", "C'est quoi votre boutique ?",
             "Qu'est-ce que vous faites ?", "Présentez-vous",
             "Votre domaine c'est quoi ?", "Vous êtes dans quel secteur ?",
+            "Pouvez-vous m'en dire plus sur votre entreprise ?",
+            "Je veux en savoir plus sur votre entreprise",
+            "Puis-je en savoir plus sur votre entreprise ?",
             
             # Localisation (CRITIQUE)
             "Vous êtes où ?", "Vous êtes situés où ?",
             "Vous êtes situés où exactement ?", "Vous êtes situés où svp ?",
             "C'est où votre boutique ?", "Vous êtes basés où ?",
             "Vous avez une adresse ?", "Vous avez un magasin physique ?",
+            "Où vous trouvez-vous ?",
             "Quel quartier ?", "Quelle commune ?",
             "Vous êtes à quel quartier d'Abidjan ?", "C'est où exactement ?",
             "Je peux venir sur place ?", "Boutique physique ou en ligne ?",
@@ -284,6 +288,8 @@ UNIVERSAL_ECOMMERCE_INTENT_CORPUS_V4 = {
             "Je cherche un produit", "Vous avez des couches ?",
             "Le produit de la photo", "Celui du live",
             "Je veux ce produit précisément", "Je voudrais acheter 5 paquets",
+            "Je veux 6paquets de couche culotte xxxl",
+            "Je veux 6 paquets de couche culotte xxxl",
             
             # ===== CARACTÉRISTIQUES (ancien intent 5 - partie 2) =====
             "En quelle couleur ?", "Quelle taille ?",
@@ -319,6 +325,9 @@ UNIVERSAL_ECOMMERCE_INTENT_CORPUS_V4 = {
             "C'est combien ?", "Quel est le prix ?", "Prix de ce produit",
             "Tarif", "Coût", "Quel est le prix du paquet ?",
             "Combien ça coûte ?", "Prix en FCFA", "En franc",
+            "Pouvez-vous vérifier le prix d'un produit ?",
+            "Pouvez-vous vérifier le prix d’un produit ?",
+            "Pouvez-vous verifier le prix d'un produit ?",
             "Vous avez des promotions en ce moment ?",
             "C'est le même prix partout ?", "Vous avez des promos ?",
             "Réductions ?", "Soldes ?", "Dernier prix", "Prix cadeau",

@@ -2,9 +2,19 @@ import argparse
 import asyncio
 import csv
 import json
+import os
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
 import sys
+
+try:
+    from dotenv import load_dotenv
+
+    load_dotenv()
+except Exception:
+    pass
+
+os.environ.setdefault("BOTLIVE_HYDE_PRE_ENABLED", "false")
 
 # Ensure project root on path
 sys.path.append(str(Path(__file__).resolve().parents[1]))
@@ -14,6 +24,33 @@ from core.botlive_intent_router import route_botlive_intent
 
 def _is_company_jid(jid: str, company_suffix: str = "@c.us") -> bool:
     return isinstance(jid, str) and jid.endswith(company_suffix)
+
+
+def _is_client_to_business_message(
+    m: Dict[str, Any],
+    business_jid: str,
+    extra_business_jids: List[str],
+    include_lid_to: bool,
+) -> bool:
+    if not isinstance(m, dict):
+        return False
+    if (m.get("type") or "") != "chat":
+        return False
+
+    frm = str(m.get("from") or "")
+    to = str(m.get("to") or "")
+
+    # côté client = tout ce qui n'est pas le JID business principal
+    if frm == business_jid:
+        return False
+
+    to_is_business = (to == business_jid) or (to in set(extra_business_jids or []))
+    to_is_operator = bool(include_lid_to) and isinstance(to, str) and to.endswith("@lid")
+    if not (to_is_business or to_is_operator):
+        return False
+
+    body = (m.get("body") or "").strip()
+    return bool(body)
 
 
 def _derive_user_id(chat: Dict[str, Any]) -> Tuple[str, str]:
@@ -61,7 +98,14 @@ def _build_history_and_state(messages: List[Dict[str, Any]], idx: int, max_lines
     return "\n".join(lines), state
 
 
-async def eval_chat(chat: Dict[str, Any], company_id: str, limit: int) -> List[Dict[str, Any]]:
+async def eval_chat(
+    chat: Dict[str, Any],
+    company_id: str,
+    business_jid: str,
+    extra_business_jids: List[str],
+    include_lid_to: bool,
+    limit: int,
+) -> List[Dict[str, Any]]:
     messages = sorted(chat.get("messages") or [], key=lambda x: x.get("timestamp") or 0)
     user_id, _ = _derive_user_id(chat)
 
@@ -69,12 +113,14 @@ async def eval_chat(chat: Dict[str, Any], company_id: str, limit: int) -> List[D
     count = 0
 
     for i, m in enumerate(messages):
+        if not _is_client_to_business_message(m, business_jid, extra_business_jids, include_lid_to):
+            continue
+
         body = (m.get("body") or "").strip()
-        if not body:
-            continue
-        # Only user-side messages
-        if _is_company_jid(m.get("from") or ""):
-            continue
+        timestamp = int(m.get("timestamp") or 0)
+        msg_id = str(m.get("_id") or "")
+        frm = str(m.get("from") or "")
+        to = str(m.get("to") or "")
 
         history, state_compact = _build_history_and_state(messages, i)
 
@@ -106,6 +152,12 @@ async def eval_chat(chat: Dict[str, Any], company_id: str, limit: int) -> List[D
 
         results.append(
             {
+                "chat_id": str(chat.get("chatId") or ""),
+                "chat_name": str(chat.get("chatName") or ""),
+                "timestamp": timestamp,
+                "message_id": msg_id,
+                "from": frm,
+                "to": to,
                 "message": body,
                 "len": len(body.split()),
                 "intent_no_ctx": r0.intent,
@@ -130,6 +182,17 @@ async def main() -> None:
     parser = argparse.ArgumentParser(description="Evaluate router on WhatsApp export (with/without context)")
     parser.add_argument("--input", default=str(Path("data/imports/whatsapp-export/whatsapp_export_2025-12-05.json")), help="Path to whatsapp export JSON")
     parser.add_argument("--company-id", default="ZETADEV", help="Company ID")
+    parser.add_argument("--business-jid", default="2250160924560@c.us", help="Business WhatsApp JID (messages with to==business_jid are treated as client messages)")
+    parser.add_argument(
+        "--extra-business-jids",
+        default="",
+        help="Comma-separated extra business JIDs to treat as business recipients (optional)",
+    )
+    parser.add_argument(
+        "--include-lid-to",
+        action="store_true",
+        help="If set, also treat messages with to ending in @lid as client-to-business (operator) messages",
+    )
     parser.add_argument("--limit", type=int, default=200, help="Max user messages to evaluate")
     parser.add_argument("--out", default=str(Path("tests/router_eval_results.csv")), help="CSV output path")
 
@@ -152,8 +215,17 @@ async def main() -> None:
 
     rows: List[Dict[str, Any]] = []
     total = 0
+
+    extra_business_jids = [x.strip() for x in (args.extra_business_jids or "").split(",") if x.strip()]
     for chat in data:
-        part = await eval_chat(chat, args.company_id, max(0, args.limit - total))
+        part = await eval_chat(
+            chat,
+            args.company_id,
+            args.business_jid,
+            extra_business_jids,
+            bool(args.include_lid_to),
+            max(0, args.limit - total),
+        )
         rows.extend(part)
         total += len(part)
         if total >= args.limit:
@@ -166,6 +238,12 @@ async def main() -> None:
         w = csv.DictWriter(
             f,
             fieldnames=[
+                "chat_id",
+                "chat_name",
+                "timestamp",
+                "message_id",
+                "from",
+                "to",
                 "message",
                 "len",
                 "intent_no_ctx",

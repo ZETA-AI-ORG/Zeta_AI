@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from dataclasses import dataclass
 from collections import deque
@@ -402,17 +402,20 @@ def _normalize_text_basic(message: str) -> str:
 
 
 def _has_payment_signal(message: str) -> bool:
-    """Détecte si le message contient un signal de PAIEMENT explicite."""
-
+    """
+    Détecte si le message contient un signal de PAIEMENT explicite.
+    
+    PATCH V2 (2025-12-16): Ajout d'une blacklist pour forcer PRIX_PROMO
+    quand "combien", "prix", "coût" apparaissent SANS verbe paiement.
+    """
     t = _normalize_text_basic(message)
     if not t:
         return False
-
+    
+    # Mots-clés transactionnels PAIEMENT
     payment_keywords = [
         "paiement",
         "payer",
-        "paie",
-        "paies",
         "pay",
         "wave",
         "orange money",
@@ -431,20 +434,122 @@ def _has_payment_signal(message: str) -> bool:
         "dépôt",
         "verser",
     ]
-
-    # Blacklist PRIX (bloque PAIEMENT) : si question de prix SANS mention paiement.
+    
+    # NOUVEAUTÉ: Blacklist PRIX (bloque PAIEMENT)
     price_keywords = ["combien", "prix", "coût", "cout", "tarif"]
-
+    
     has_payment = any(k in t for k in payment_keywords)
     has_price = any(k in t for k in price_keywords)
-
+    
+    # Si question de prix SANS mention paiement → PAS PAIEMENT
     if has_price and not has_payment:
         return False
-
+    
     return has_payment
 
 
+def _lexical_fallback(message: str) -> Optional[str]:
+    text = _normalize_text_basic(message)
+    if not text:
+        return None
+
+    prix_keywords = {
+        "combien",
+        "prix",
+        "coût",
+        "cout",
+        "tarif",
+        "promo",
+        "promotion",
+        "réduction",
+        "solde",
+        "remise",
+    }
+    if any(k in text for k in prix_keywords):
+        return "PRIX_PROMO"
+
+    achat_keywords = {
+        "commander",
+        "commande",
+        "acheter",
+        "achète",
+        "prendre",
+        "prends",
+        "je veux",
+        "je prend",
+        "mets-moi",
+        "garde-moi",
+        "réserve",
+    }
+    if any(k in text for k in achat_keywords):
+        if "ma commande" not in text and "modifier" not in text and "annuler" not in text:
+            return "ACHAT_COMMANDE"
+
+    produit_keywords = {
+        "disponible",
+        "dispo",
+        "stock",
+        "rupture",
+        "taille",
+        "couleur",
+        "âge",
+        "age",
+        "marque",
+        "modèle",
+        "modele",
+        "caractéristique",
+        "caracteristique",
+        "garantie",
+        "référence",
+        "reference",
+    }
+    if any(k in text for k in produit_keywords):
+        return "PRODUIT_GLOBAL"
+
+    info_keywords = {
+        "adresse",
+        "où",
+        "ou",
+        "situé",
+        "située",
+        "situés",
+        "quartier",
+        "boutique",
+        "magasin",
+        "horaires",
+        "ouvert",
+        "ouvrez",
+        "fermez",
+    }
+    if any(k in text for k in info_keywords):
+        return "INFO_GENERALE"
+
+    salut_keywords = {
+        "bonjour",
+        "bonsoir",
+        "salut",
+        "hello",
+        "hey",
+        "coucou",
+        "yo",
+        "wesh",
+        "merci",
+        "thanks",
+    }
+    tokens = text.split()
+    if len(tokens) < 8 and any(k in text for k in salut_keywords):
+        return "SALUT"
+
+    return None
+
+
 def _looks_like_social_only(message: str) -> bool:
+    """
+    Détecte si le message est UNIQUEMENT une salutation sociale.
+    
+    PATCH V2 (2025-12-16): Seuil réduit de 12 → 5 tokens pour éviter
+    de classer "Bonjour, c'est combien" comme SALUT.
+    """
     raw = (message or "").strip()
     if not raw:
         return False
@@ -458,16 +563,8 @@ def _looks_like_social_only(message: str) -> bool:
         return False
 
     greetings = {
-        "bonjour",
-        "bonsoir",
-        "salut",
-        "hello",
-        "hey",
-        "coucou",
-        "yo",
-        "wesh",
-        "merci",
-        "thanks",
+        "bonjour", "bonsoir", "salut", "hello", "hey", "coucou",
+        "yo", "wesh", "merci", "thanks",
     }
 
     has_greeting = any(tok in greetings for tok in tokens)
@@ -475,31 +572,15 @@ def _looks_like_social_only(message: str) -> bool:
         return False
 
     action_verbs = {
-        "commander",
-        "acheter",
-        "prendre",
-        "reserver",
-        "réserver",
-        "livrer",
-        "livraison",
-        "payer",
-        "paie",
-        "paiement",
-        "modifier",
-        "annuler",
-        "changer",
-        "prix",
-        "combien",
-        "adresse",
-        "ou",
-        "où",
-        "whatsapp",
-        "numero",
-        "numéro",
+        "commander", "acheter", "prendre", "reserver", "réserver",
+        "livrer", "livraison", "payer", "paiement", "modifier",
+        "annuler", "changer", "prix", "combien", "adresse",
+        "ou", "où", "whatsapp", "numero", "numéro",
     }
     if any(tok in action_verbs for tok in tokens):
         return False
 
+    # SEUIL RÉDUIT: 5 au lieu de 12
     return len(tokens) <= 5
 
 
@@ -534,6 +615,10 @@ def _deterministic_prefilter(
             "echanger",
             "mauvais produit",
             "pas bon",
+            "pas reçu",
+            "pas recu",
+            "pas encore reçu",
+            "pas encore recu",
             "ne marche pas",
             "ça marche pas",
             "ca marche pas",
@@ -554,6 +639,114 @@ def _deterministic_prefilter(
                 },
             )
 
+    t_norm = _normalize_text_basic(raw)
+
+    contact_markers = [
+        "numéro",
+        "numero",
+        "téléphone",
+        "telephone",
+        "coordonnées",
+        "coordonnees",
+        "joindre",
+        "appeler",
+        "appel",
+        "whatsapp",
+    ]
+    if any(k in t_norm for k in contact_markers):
+        return "CONTACT_COORDONNEES", 0.90, {"prefilter": "lexical_contact"}
+
+    achat_markers = [
+        "je commande",
+        "je veux commander",
+        "je veux acheter",
+        "je passe commande",
+        "je passe la commande",
+        "je veux passer commande",
+        "je prends",
+        "passer commande",
+        "passe commande",
+        "commander maintenant",
+        "je commande maintenant",
+        "je reviens pour commander",
+        "envoie-moi",
+        "envoie moi",
+    ]
+    if any(k in t_norm for k in achat_markers):
+        return "ACHAT_COMMANDE", 0.88, {"prefilter": "lexical_achat"}
+
+    if "il en reste" in t_norm or "en reste combien" in t_norm or "il vous reste" in t_norm:
+        return "PRODUIT_GLOBAL", 0.82, {"prefilter": "lexical_stock"}
+
+    if "livraison" in t_norm or "livrer" in t_norm or "livrez" in t_norm or "livré" in t_norm:
+        if any(k in t_norm for k in ["combien", "prix", "tarif", "coute", "coûte", "ça coûte", "ca coute"]):
+            return "LIVRAISON", 0.85, {"prefilter": "lexical_livraison_prix"}
+        if "temps" in t_norm or "duree" in t_norm or "durée" in t_norm or "délai" in t_norm or "delai" in t_norm:
+            return "LIVRAISON", 0.85, {"prefilter": "lexical_livraison_delai"}
+
+    if any(k in t_norm for k in ["combien", "prix", "tarif", "coute", "coûte", "ça coûte", "ca coute"]):
+        return "PRIX_PROMO", 0.85, {"prefilter": "lexical_prix_over_quantity"}
+
+    if re.search(r"\b\d+\b", t_norm) and ("paquet" in t_norm or "paquets" in t_norm):
+        return "ACHAT_COMMANDE", 0.85, {"prefilter": "lexical_achat_quantity"}
+
+    if "paiement" in t_norm and "livraison" in t_norm:
+        return "PAIEMENT", 0.88, {"prefilter": "lexical_paiement_livraison"}
+
+    produit_markers = [
+        "vous vendez",
+        "tu vends",
+        "vous avez quoi",
+        "vous avez quoi comme",
+        "qu'est-ce que vous vendez",
+        "qu'est ce que vous vendez",
+        "vous vendez quoi",
+        "vous proposez quoi",
+        "articles",
+        "catalogue",
+        "couches",
+        "couche",
+        "culotte",
+    ]
+    if any(k in t_norm for k in produit_markers):
+        return "PRODUIT_GLOBAL", 0.86, {"prefilter": "lexical_produit"}
+
+    more_info_markers = [
+        "m en dire plus",
+        "men dire plus",
+        "en dire plus",
+        "plus d infos",
+        "plus d info",
+        "plus d information",
+        "plus d informations",
+        "plus de detail",
+        "plus de details",
+        "plus de détail",
+        "plus de détails",
+        "plus de precisions",
+        "plus de précision",
+    ]
+    if any(k in t_norm for k in more_info_markers):
+        return "PRODUIT_GLOBAL", 0.82, {"prefilter": "lexical_more_info_to_produit"}
+
+    livraison_sav_markers = [
+        "ma commande",
+        "mon colis",
+        "numéro",
+        "numero",
+        "suivi",
+        "tracking",
+        "statut",
+        "où est mon",
+        "ou est mon",
+    ]
+    if "livraison" in t_norm or "livrer" in t_norm or "livrez" in t_norm or "livré" in t_norm or "delai" in t_norm or "délai" in t_norm:
+        if not any(k in t_norm for k in livraison_sav_markers):
+            return "LIVRAISON", 0.82, {"prefilter": "lexical_livraison"}
+
+    if any(k in t_norm for k in ["commune", "quartier", "localisation", "localisation exacte", "adresse exacte", "position", "localiser", "localisez"]):
+        return "INFO_GENERALE", 0.80, {"prefilter": "lexical_location"}
+
     phone_pattern = re.compile(r"\b(?:\+?225)?\s*(?:0[1-9])(?:[ .-]?\d){7,}\b")
     if phone_pattern.search(raw):
         return "CONTACT_COORDONNEES", 0.98, {"prefilter": "phone_regex"}
@@ -563,10 +756,7 @@ def _deterministic_prefilter(
 
     try:
         processed = preprocess_for_routing(raw)
-        if not processed and any(
-            k in _normalize_text_basic(raw)
-            for k in ["bonjour", "bonsoir", "salut", "hey", "hello", "yo", "wesh"]
-        ):
+        if not processed and any(k in _normalize_text_basic(raw) for k in ["bonjour", "bonsoir", "salut", "hey", "hello", "yo", "wesh"]):
             return "SALUT", 0.90, {"prefilter": "salut_empty_after_preprocess"}
     except Exception:
         pass
@@ -1006,20 +1196,9 @@ def _post_validate_intent(
             for k in [
                 "je veux commander",
                 "je veux acheter",
-                "je commande",
-                "je commande maintenant",
-                "je passe commande",
-                "je passe la commande",
-                "je veux passer commande",
                 "je prends",
                 "passer commande",
-                "passe commande",
                 "envoie-moi",
-                "envoie moi",
-                "mets-moi",
-                "mets moi",
-                "je reviens pour commander",
-                "commander maintenant",
             ]
         ):
             debug["post_validation_applied"] = True

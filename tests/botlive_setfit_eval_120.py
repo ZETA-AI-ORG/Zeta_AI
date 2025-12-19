@@ -63,6 +63,7 @@ def _expected_label_to_internal_intent(expected_label: str, expected_intent_id: 
         "DELIVERY_INFO": "LIVRAISON",
         "DELIVERY_MODIFY": "LIVRAISON",
         "TRACKING": "COMMANDE_EXISTANTE",
+        "PROBLEME": "COMMANDE_EXISTANTE",
     }
 
     if label in mapping:
@@ -81,7 +82,7 @@ def _expected_label_to_internal_intent(expected_label: str, expected_intent_id: 
         9: "LIVRAISON",
         10: "PAIEMENT",
         11: "COMMANDE_EXISTANTE",
-        12: "PROBLEME",
+        12: "COMMANDE_EXISTANTE",
         13: "CONTACT_COORDONNEES",
     }
     return id_map.get(int(expected_intent_id), "INFO_GENERALE")
@@ -270,6 +271,7 @@ async def run_eval(limit: int | None = None) -> Dict[str, Any]:
             "confusion": {g: dict(cnt) for g, cnt in group_confusion.items()},
             "by_expected": dict(by_expected_group),
         },
+        "pipeline_stats": pipeline.get_stats() if hasattr(pipeline, "get_stats") else getattr(pipeline, "stats", {}),
     }
 
     print("\n================= RÉSUMÉ SETFIT =================")
@@ -737,7 +739,15 @@ async def run_eval(limit: int | None = None) -> Dict[str, Any]:
 async def main() -> None:
     os.makedirs(os.path.join(_ROOT_DIR, "results"), exist_ok=True)
 
-    results = await run_eval(limit=None)
+    limit_env = os.environ.get("BOTLIVE_EVAL_LIMIT", "").strip()
+    limit = None
+    if limit_env:
+        try:
+            limit = int(limit_env)
+        except Exception:
+            limit = None
+
+    results = await run_eval(limit=limit)
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     out_path = os.path.join(_ROOT_DIR, "results", f"botlive_setfit_eval_{results['summary']['total']}_{timestamp}.json")
@@ -747,6 +757,15 @@ async def main() -> None:
 
     print("\n=== SETFIT EVAL TERMINÉ ===")
     print(f"Fichier JSON généré: {out_path}")
+
+    try:
+        stats = results.get("summary", {}).get("pipeline_stats", {})
+        if isinstance(stats, dict) and stats:
+            print("\n================= PIPELINE STATS =================")
+            for k in sorted(stats.keys()):
+                print(f"{k}: {stats.get(k)}")
+    except Exception:
+        pass
 
 
 if __name__ == "__main__":

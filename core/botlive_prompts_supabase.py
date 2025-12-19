@@ -332,11 +332,19 @@ class BotlivePromptsManager:
 # Instance globale réutilisable
 _prompts_manager = None
 
+# Sentinel: si l'initialisation Supabase a échoué, on ne réessaie pas en boucle.
+_prompts_manager_init_failed = False
+
 def get_prompts_manager() -> BotlivePromptsManager:
     """
     Retourne l'instance globale du gestionnaire de prompts
     """
     global _prompts_manager
+    global _prompts_manager_init_failed
+
+    if _prompts_manager_init_failed:
+        return None
+
     if _prompts_manager is None:
         try:
             _prompts_manager = BotlivePromptsManager()
@@ -345,6 +353,7 @@ def get_prompts_manager() -> BotlivePromptsManager:
             logger.error(f"❌ Erreur initialisation BotlivePromptsManager: {e}")
             logger.error(f"⚠️ FALLBACK: Utilisation prompts hardcodés")
             # Retourner None pour forcer l'utilisation des prompts hardcodés
+            _prompts_manager_init_failed = True
             return None
     return _prompts_manager
 

@@ -78,6 +78,7 @@ ABBREVIATIONS = {
 PURE_GREETINGS = {
     "bonjour", "bonsoir", "salut", "hello", "hey", "coucou",
     "slt", "bjr", "bnsr", "yo", "wesh",
+    "cc", "ndk", "ndkw",
     "merci", "merci beaucoup", "ok merci", "grand merci", "thanks",
     "de rien", "avec plaisir", "pas de souci",
     "ok", "d accord", "daccord", "compris", "ca marche", "parfait", "bien recu",
