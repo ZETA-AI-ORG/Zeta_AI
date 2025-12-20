@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import os
@@ -11,6 +12,65 @@ from core.semantic_cache import semantic_cache_decorator, is_cache_enabled
 from core.model_router import choose_model
 
 logger = logging.getLogger(__name__)
+
+
+_shadow_supabase_client = None
+
+
+def _get_shadow_supabase_client():
+    global _shadow_supabase_client
+    if _shadow_supabase_client is not None:
+        return _shadow_supabase_client
+
+    supabase_url = os.getenv("SUPABASE_URL")
+    supabase_key = os.getenv("SUPABASE_SERVICE_KEY") or os.getenv("SUPABASE_KEY")
+    if not supabase_url or not supabase_key:
+        return None
+
+    try:
+        from supabase import create_client
+
+        _shadow_supabase_client = create_client(supabase_url, supabase_key)
+        return _shadow_supabase_client
+    except Exception:
+        return None
+
+
+async def _shadow_write_to_supabase(payload: Dict[str, Any]) -> None:
+    client = _get_shadow_supabase_client()
+    if client is None:
+        return
+
+    row = {
+        "company_id": payload.get("company_id"),
+        "user_id": payload.get("user_id"),
+        "message": payload.get("message"),
+        "final_intent": payload.get("final_intent"),
+        "final_conf": payload.get("final_conf"),
+        "mode": payload.get("mode"),
+        "cache_hit": payload.get("cache_hit"),
+        "latency_ms": payload.get("latency_ms"),
+        "dual_router_mode": payload.get("dual_router_mode"),
+        "dual_router_stage": payload.get("dual_router_stage"),
+        "hyde_used": payload.get("hyde_used"),
+        "hyde_stage": payload.get("hyde_stage"),
+        "hyde_trigger_reason": payload.get("hyde_trigger_reason"),
+        "smart_hyde_checked": payload.get("smart_hyde_checked"),
+        "smart_hyde_should_trigger": payload.get("smart_hyde_should_trigger"),
+        "smart_hyde_trigger_reason": payload.get("smart_hyde_trigger_reason"),
+        "guard_applied": payload.get("guard_applied"),
+        "guard_reason": payload.get("guard_reason"),
+        "post_validation_applied": payload.get("post_validation_applied"),
+        "post_validation_reason": payload.get("post_validation_reason"),
+        "human_handoff": payload.get("human_handoff"),
+        "human_handoff_reason": payload.get("human_handoff_reason"),
+        "raw": payload,
+    }
+
+    try:
+        await asyncio.to_thread(lambda: client.table("routing_events").insert(row).execute())
+    except Exception:
+        return
 
 
 def _truthy_env(name: str, default: str = "false") -> bool:
@@ -201,8 +261,11 @@ async def _route_botlive_intent_smart_hyde(*args, **kwargs) -> BotliveRoutingRes
     conversation_history = kwargs.get("conversation_history")
     state_compact = kwargs.get("state_compact")
 
+    base_kwargs = dict(kwargs)
+    base_kwargs.pop("hyde_pre_enabled", None)
+
     # Tier 1: Terrain only (disable internal HYDE_PRE to avoid double triggers)
-    res_terrain = await route_botlive_intent(*args, **{**kwargs, "hyde_pre_enabled": False})
+    res_terrain = await route_botlive_intent(*args, **{**base_kwargs, "hyde_pre_enabled": False})
     should_hyde, reason = _should_trigger_smart_hyde(res=res_terrain)
 
     try:
@@ -225,7 +288,10 @@ async def _route_botlive_intent_smart_hyde(*args, **kwargs) -> BotliveRoutingRes
         reformulator = HydeReformulator()
         ctx = {"conversation_history": str(conversation_history or ""), "state": state_compact or {}}
         hyde_message = await reformulator.reformulate(str(company_id or ""), str(message or ""), ctx)
-        res_hyde = await route_botlive_intent(*args, **{**kwargs, "message": hyde_message, "hyde_pre_enabled": False})
+        res_hyde = await route_botlive_intent(
+            *args,
+            **{**base_kwargs, "message": hyde_message, "hyde_pre_enabled": False},
+        )
 
         try:
             # Preserve Smart HYDE observability on the returned result
@@ -308,8 +374,11 @@ async def _route_botlive_intent_inverted_hyde(*args, **kwargs) -> BotliveRouting
     conversation_history = kwargs.get("conversation_history")
     state_compact = kwargs.get("state_compact")
 
+    base_kwargs = dict(kwargs)
+    base_kwargs.pop("hyde_pre_enabled", None)
+
     # Primary: Academic (disable HYDE_PRE to avoid double triggers)
-    res_academic = await route_academic(*args, **{**kwargs, "hyde_pre_enabled": False})
+    res_academic = await route_academic(*args, **{**base_kwargs, "hyde_pre_enabled": False})
     academic_intent = str(getattr(res_academic, "intent", "") or "CLARIFICATION").upper()
 
     if academic_intent != "CLARIFICATION":
@@ -328,7 +397,10 @@ async def _route_botlive_intent_inverted_hyde(*args, **kwargs) -> BotliveRouting
         reformulator = HydeReformulator()
         ctx = {"conversation_history": str(conversation_history or ""), "state": state_compact or {}}
         hyde_message = await reformulator.reformulate(str(company_id or ""), str(message or ""), ctx)
-        res_hyde = await route_academic(*args, **{**kwargs, "message": hyde_message, "hyde_pre_enabled": False})
+        res_hyde = await route_academic(
+            *args,
+            **{**base_kwargs, "message": hyde_message, "hyde_pre_enabled": False},
+        )
 
         try:
             res_hyde.debug["dual_router_mode"] = "inverted_hyde"
@@ -368,6 +440,9 @@ async def _route_botlive_intent_three_tier(*args, **kwargs) -> BotliveRoutingRes
     conversation_history = kwargs.get("conversation_history")
     state_compact = kwargs.get("state_compact")
 
+    base_kwargs = dict(kwargs)
+    base_kwargs.pop("hyde_pre_enabled", None)
+
     handoff_res, handoff_debug = _global_sav_handoff_if_needed(
         message=str(message or ""),
         company_id=str(company_id or ""),
@@ -389,7 +464,7 @@ async def _route_botlive_intent_three_tier(*args, **kwargs) -> BotliveRoutingRes
     academic_accept_threshold = float(os.environ.get("BOTLIVE_THREE_TIER_ACADEMIC_ACCEPT_THRESHOLD", "0.75"))
 
     # Tier 1: Terrain (HYDE disabled here; HYDE is tier-3 only)
-    res_terrain = await route_botlive_intent(*args, **{**kwargs, "hyde_pre_enabled": False})
+    res_terrain = await route_botlive_intent(*args, **{**base_kwargs, "hyde_pre_enabled": False})
     terrain_intent = str(getattr(res_terrain, "intent", "") or "CLARIFICATION").upper()
     terrain_conf = float(getattr(res_terrain, "confidence", 0.0) or 0.0)
 
@@ -411,7 +486,7 @@ async def _route_botlive_intent_three_tier(*args, **kwargs) -> BotliveRoutingRes
 
     res_academic: Optional[BotliveRoutingResult] = None
     if tier2_should_try:
-        res_academic = await route_academic(*args, **{**kwargs, "hyde_pre_enabled": False})
+        res_academic = await route_academic(*args, **{**base_kwargs, "hyde_pre_enabled": False})
         academic_intent = str(getattr(res_academic, "intent", "") or "CLARIFICATION").upper()
         academic_conf = float(getattr(res_academic, "confidence", 0.0) or 0.0)
 
@@ -442,7 +517,10 @@ async def _route_botlive_intent_three_tier(*args, **kwargs) -> BotliveRoutingRes
             reformulator = HydeReformulator()
             ctx = {"conversation_history": str(conversation_history or ""), "state": state_compact or {}}
             hyde_message = await reformulator.reformulate(str(company_id or ""), str(message or ""), ctx)
-            res_hyde = await route_botlive_intent(*args, **{**kwargs, "message": hyde_message, "hyde_pre_enabled": False})
+            res_hyde = await route_botlive_intent(
+                *args,
+                **{**base_kwargs, "message": hyde_message, "hyde_pre_enabled": False},
+            )
 
             try:
                 res_hyde.debug["dual_router_mode"] = "three_tier"
@@ -519,6 +597,24 @@ class ProductionPipeline:
         cache_hit = False
         result: Optional[BotliveRoutingResult] = None
 
+        # Normalize positional args to kwargs to avoid passing hyde_pre_enabled twice
+        # Expected positional order: company_id, user_id, message, conversation_history, state_compact, hyde_pre_enabled
+        if args:
+            keys = [
+                "company_id",
+                "user_id",
+                "message",
+                "conversation_history",
+                "state_compact",
+                "hyde_pre_enabled",
+            ]
+            norm_kwargs = dict(kwargs)
+            for idx, val in enumerate(args[: len(keys)]):
+                if keys[idx] not in norm_kwargs:
+                    norm_kwargs[keys[idx]] = val
+            kwargs = norm_kwargs
+            args = ()
+
         dual_mode = (os.environ.get("BOTLIVE_DUAL_ROUTER_MODE", "").strip().lower() or "")
         dual_enabled = dual_mode in {"inverted", "inverted_hyde", "three_tier"}
         if dual_enabled:
@@ -530,32 +626,32 @@ class ProductionPipeline:
 
         if self.cache_enabled:
             try:
-                result = await self.route_with_cache(*args, **kwargs)
+                result = await self.route_with_cache(**kwargs)
                 # GPTCache sets a special attribute if hit; check via result.debug if needed
                 cache_hit = getattr(result, "_from_cache", False) or result.debug.get("from_cache", False)
             except Exception as e:
                 logger.error(f"[PRODUCTION_PIPELINE] Cache error: {e}")
                 if dual_mode == "inverted":
-                    result = await _route_botlive_intent_dual_inverted(*args, **kwargs)
+                    result = await _route_botlive_intent_dual_inverted(**kwargs)
                 elif dual_mode == "inverted_hyde":
-                    result = await _route_botlive_intent_inverted_hyde(*args, **kwargs)
+                    result = await _route_botlive_intent_inverted_hyde(**kwargs)
                 elif dual_mode == "three_tier":
-                    result = await _route_botlive_intent_three_tier(*args, **kwargs)
+                    result = await _route_botlive_intent_three_tier(**kwargs)
                 elif _truthy_env("BOTLIVE_SMART_HYDE_ENABLED", "false"):
-                    result = await _route_botlive_intent_smart_hyde(*args, **kwargs)
+                    result = await _route_botlive_intent_smart_hyde(**kwargs)
                 else:
-                    result = await route_botlive_intent(*args, **kwargs)
+                    result = await route_botlive_intent(**kwargs)
         else:
             if dual_mode == "inverted":
-                result = await _route_botlive_intent_dual_inverted(*args, **kwargs)
+                result = await _route_botlive_intent_dual_inverted(**kwargs)
             elif dual_mode == "inverted_hyde":
-                result = await _route_botlive_intent_inverted_hyde(*args, **kwargs)
+                result = await _route_botlive_intent_inverted_hyde(**kwargs)
             elif dual_mode == "three_tier":
-                result = await _route_botlive_intent_three_tier(*args, **kwargs)
+                result = await _route_botlive_intent_three_tier(**kwargs)
             elif _truthy_env("BOTLIVE_SMART_HYDE_ENABLED", "false"):
-                result = await _route_botlive_intent_smart_hyde(*args, **kwargs)
+                result = await _route_botlive_intent_smart_hyde(**kwargs)
             else:
-                result = await route_botlive_intent(*args, **kwargs)
+                result = await route_botlive_intent(**kwargs)
         if cache_hit:
             self.stats["cache_hits"] += 1
         else:
@@ -649,6 +745,12 @@ class ProductionPipeline:
                 }
 
                 logger.info("BOTLIVE_SHADOW %s", json.dumps(payload, ensure_ascii=False))
+
+                if _truthy_env("BOTLIVE_SHADOW_TO_SUPABASE_ENABLED", "false"):
+                    try:
+                        asyncio.create_task(_shadow_write_to_supabase(payload))
+                    except Exception:
+                        pass
             except Exception:
                 pass
 

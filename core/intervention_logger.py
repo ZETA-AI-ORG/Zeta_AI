@@ -6,11 +6,8 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
-SUPABASE_URL = os.getenv("SUPABASE_URL", "https://ilbihprkxcgsigvueeme.supabase.co")
-SUPABASE_KEY = os.getenv(
-    "SUPABASE_SERVICE_KEY",
-    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlsYmlocHJreGNnc2lndnVlZW1lIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc0OTEzMTQwNCwiZXhwIjoyMDY0NzA3NDA0fQ.Zf0EJbmP5ePGBZL5cY1tFP9FDRvJXDZ3x98zUS993GA",
-)
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_KEY") or os.getenv("SUPABASE_KEY")
 
 HEADERS = {
     "apikey": SUPABASE_KEY,
@@ -29,7 +26,7 @@ async def log_intervention_in_conversation_logs(
     metadata: Dict[str, Any],
     *,
     channel: str = "botlive",
-    direction: str = "system",
+    direction: str = "assistant",
     conversation_id: Optional[str] = None,
     source: str = "backend",
 ) -> bool:
@@ -52,6 +49,7 @@ async def log_intervention_in_conversation_logs(
         "user_id": user_id,
         "direction": direction,
         "message": truncated_message,
+        "content": truncated_message,
         "source": source,
         "status": "active",
         "metadata": metadata or {},
@@ -72,10 +70,14 @@ async def log_intervention_in_conversation_logs(
         async with httpx.AsyncClient(timeout=5.0) as client:
             resp = await client.post(url, headers=HEADERS, json=payload)
         if resp.status_code not in (200, 201):
+            none_fields = [k for k, v in payload.items() if v is None]
             logger.error(
-                "[INTERVENTION_LOGGER] Failed to insert into conversation_logs: %s %s",
+                "[INTERVENTION_LOGGER] Failed to insert into conversation_logs: %s %s | none_fields=%s | message_len=%s | message_preview=%r",
                 resp.status_code,
-                resp.text[:200],
+                resp.text[:800],
+                none_fields,
+                len(str(payload.get("message") or "")),
+                (str(payload.get("message") or "")[:160]),
             )
             return False
         logger.info(
@@ -104,6 +106,10 @@ async def log_message_in_conversation_logs(
         logger.error("[INTERVENTION_LOGGER] Missing Supabase configuration for log_message")
         return False
 
+    # Align direction with DB constraint (user/assistant)
+    if direction not in {"user", "assistant"}:
+        direction = "assistant" if str(direction).strip().lower() != "user" else "user"
+
     # Normaliser le message utilisateur aussi pour éviter les contraintes côté DB
     base_message = message or ""
     if not base_message.strip():
@@ -117,6 +123,7 @@ async def log_message_in_conversation_logs(
         "user_id": user_id,
         "direction": direction,
         "message": truncated_message,
+        "content": truncated_message,
         "source": source,
         "status": status,
         "metadata": metadata or {},
@@ -128,10 +135,14 @@ async def log_message_in_conversation_logs(
         async with httpx.AsyncClient(timeout=5.0) as client:
             resp = await client.post(url, headers=HEADERS, json=payload)
         if resp.status_code not in (200, 201):
+            none_fields = [k for k, v in payload.items() if v is None]
             logger.error(
-                "[INTERVENTION_LOGGER] Failed to insert message into conversation_logs: %s %s",
+                "[INTERVENTION_LOGGER] Failed to insert message into conversation_logs: %s %s | none_fields=%s | message_len=%s | message_preview=%r",
                 resp.status_code,
-                resp.text[:200],
+                resp.text[:800],
+                none_fields,
+                len(str(payload.get("message") or "")),
+                (str(payload.get("message") or "")[:160]),
             )
             return False
         return True

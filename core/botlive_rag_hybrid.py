@@ -105,7 +105,10 @@ class BotliveRAGHybrid:
 
         print("\n========== DEBUG BOTLIVE SUPABASE ==========")
         print(f"SUPABASE_URL: {os.getenv('SUPABASE_URL')}")
-        print(f"SUPABASE_SERVICE_KEY: {os.getenv('SUPABASE_SERVICE_KEY')}")
+        _svc = os.getenv('SUPABASE_SERVICE_KEY')
+        if _svc and len(_svc) > 12:
+            _svc = _svc[:6] + "..." + _svc[-4:]
+        print(f"SUPABASE_SERVICE_KEY: {_svc if _svc else 'MISSING'}")
         print(f"prompts_manager: {self.prompts_manager}")
         print(f"company_id reçu: {company_id} | self.company_id: {self.company_id}")
         print("============================================\n")
@@ -1062,51 +1065,13 @@ class BotliveRAGHybrid:
                 final_response = cleaned or raw_response.strip()
             
             # ═══ ÉTAPE 6: VALIDATION ANTI-HALLUCINATION ═══
-            from core.llm_response_validator import validator as llm_validator
-            from core.order_state_tracker import order_tracker
-            
-            validation_result = llm_validator.validate(
-                response=final_response,
-                thinking=thinking,
-                order_state=order_tracker.get_state(user_id),
-                payment_validation=payment_validation,
-                context_documents=[context.get('context_used', '')]
-            )
-            
-            # Si hallucination détectée, régénérer
-            if validation_result.should_regenerate:
-                logger.warning(f"🚨 [HALLUCINATION] Régénération requise pour {user_id}")
-                logger.warning(f"   Erreurs: {validation_result.errors}")
+            validation_enabled = os.getenv("BOTLIVE_VALIDATION_ENABLED", "false").strip().lower() in {"1", "true", "yes", "y", "on"}
+            validation_result = None
+            if validation_enabled:
+                from core.llm_response_validator import validator as llm_validator
+                from core.order_state_tracker import order_tracker
                 
-                # Régénérer avec prompt corrigé
-                corrected_prompt = prompt + "\n\n" + validation_result.correction_prompt
-                
-                logger.info(f"🔄 [REGENERATION] Appel LLM avec correction...")
-                # Botlive : toujours Groq 70B pour la régénération
-                response_data = await self._call_groq(corrected_prompt, user_id)
-                
-                # Extraire nouvelle réponse
-                raw_response = response_data.get('response', '')
-
-                meta_match = regex.search(r'<meta>(.*?)</meta>', raw_response, regex.DOTALL | regex.IGNORECASE)
-                if meta_match:
-                    thinking = meta_match.group(1).strip()
-                else:
-                    thinking_match = regex.search(r'<thinking>(.*?)</thinking>', raw_response, regex.DOTALL | regex.IGNORECASE)
-                    if thinking_match:
-                        thinking = thinking_match.group(1).strip()
-
-                response_match = regex.search(r'<response>(.*?)</response>', raw_response, regex.DOTALL | regex.IGNORECASE)
-                if response_match:
-                    final_response = response_match.group(1).strip()
-                else:
-                    cleaned = raw_response
-                    cleaned = regex.sub(r'<meta>.*?</meta>', '', cleaned, flags=regex.DOTALL | regex.IGNORECASE)
-                    cleaned = regex.sub(r'<thinking>.*?</thinking>', '', cleaned, flags=regex.DOTALL | regex.IGNORECASE)
-                    final_response = cleaned.strip() or raw_response.strip()
-                
-                # Valider à nouveau
-                validation_result2 = llm_validator.validate(
+                validation_result = llm_validator.validate(
                     response=final_response,
                     thinking=thinking,
                     order_state=order_tracker.get_state(user_id),
@@ -1114,8 +1079,49 @@ class BotliveRAGHybrid:
                     context_documents=[context.get('context_used', '')]
                 )
                 
-                if not validation_result2.valid:
-                    logger.error("❌ [REGENERATION] Échec après correction, réponse conservée")
+                # Si hallucination détectée, régénérer (DEBUG uniquement)
+                if validation_result.should_regenerate:
+                    logger.warning(f"🚨 [HALLUCINATION] Régénération requise pour {user_id}")
+                    logger.warning(f"   Erreurs: {validation_result.errors}")
+                    
+                    # Régénérer avec prompt corrigé
+                    corrected_prompt = prompt + "\n\n" + validation_result.correction_prompt
+                    
+                    logger.info(f"🔄 [REGENERATION] Appel LLM avec correction...")
+                    # Botlive : toujours Groq 70B pour la régénération
+                    response_data = await self._call_groq(corrected_prompt, user_id)
+                    
+                    # Extraire nouvelle réponse
+                    raw_response = response_data.get('response', '')
+
+                    meta_match = regex.search(r'<meta>(.*?)</meta>', raw_response, regex.DOTALL | regex.IGNORECASE)
+                    if meta_match:
+                        thinking = meta_match.group(1).strip()
+                    else:
+                        thinking_match = regex.search(r'<thinking>(.*?)</thinking>', raw_response, regex.DOTALL | regex.IGNORECASE)
+                        if thinking_match:
+                            thinking = thinking_match.group(1).strip()
+
+                    response_match = regex.search(r'<response>(.*?)</response>', raw_response, regex.DOTALL | regex.IGNORECASE)
+                    if response_match:
+                        final_response = response_match.group(1).strip()
+                    else:
+                        cleaned = raw_response
+                        cleaned = regex.sub(r'<meta>.*?</meta>', '', cleaned, flags=regex.DOTALL | regex.IGNORECASE)
+                        cleaned = regex.sub(r'<thinking>.*?</thinking>', '', cleaned, flags=regex.DOTALL | regex.IGNORECASE)
+                        final_response = cleaned.strip() or raw_response.strip()
+                    
+                    # Valider à nouveau
+                    validation_result2 = llm_validator.validate(
+                        response=final_response,
+                        thinking=thinking,
+                        order_state=order_tracker.get_state(user_id),
+                        payment_validation=payment_validation,
+                        context_documents=[context.get('context_used', '')]
+                    )
+                    
+                    if not validation_result2.valid:
+                        logger.error("❌ [REGENERATION] Échec après correction, réponse conservée")
             
             # ═══ ÉTAPE 7: EXÉCUTION OUTILS ═══
             processed_response = execute_tools_in_response(final_response, user_id)
@@ -1303,11 +1309,11 @@ class BotliveRAGHybrid:
                 'thinking': "" if python_short_circuit else thinking,
                 'llm_used': 'python' if python_short_circuit else llm_choice,
                 'validation': {  # ← NOUVEAU: Résultats validation
-                    'valid': validation_result.valid,
-                    'errors': validation_result.errors,
-                    'warnings': validation_result.warnings,
-                    'should_regenerate': validation_result.should_regenerate
-                } if 'validation_result' in locals() else None,
+                    'valid': validation_result.valid if validation_result is not None else None,
+                    'errors': validation_result.errors if validation_result is not None else None,
+                    'warnings': validation_result.warnings if validation_result is not None else None,
+                    'should_regenerate': validation_result.should_regenerate if validation_result is not None else None
+                },
                 'routing_reason': routing_reason,
                 'processing_time': processing_time,
                 'timings': timings,

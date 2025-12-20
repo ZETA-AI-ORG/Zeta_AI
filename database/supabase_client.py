@@ -7,6 +7,7 @@ except ImportError:
 
 SUPABASE_URL = os.getenv('SUPABASE_URL')
 SUPABASE_KEY = os.getenv('SUPABASE_KEY')
+SUPABASE_SERVICE_KEY = os.getenv('SUPABASE_SERVICE_KEY')
 if not SUPABASE_KEY or not SUPABASE_URL:
     print(f"[SUPABASE][CRITIQUE] Variable SUPABASE_KEY ou SUPABASE_URL absente !")
 
@@ -45,8 +46,10 @@ async def get_botlive_prompt(company_id: str) -> str:
     """
     try:
         # Utilisation du même accès direct que _fetch_prompt_from_database pour robustesse
-        supabase_url = "https://ilbihprkxcgsigvueeme.supabase.co"
-        supabase_key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlsYmlocHJreGNnc2lndnVlZW1lIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc0OTEzMTQwNCwiZXhwIjoyMDY0NzA3NDA0fQ.Zf0EJbmP5ePGBZL5cY1tFP9FDRvJXDZ3x98zUS993GA"
+        supabase_url = os.getenv('SUPABASE_URL')
+        supabase_key = os.getenv('SUPABASE_SERVICE_KEY') or os.getenv('SUPABASE_KEY')
+        if not supabase_url or not supabase_key:
+            raise ValueError("SUPABASE_URL et SUPABASE_SERVICE_KEY/SUPABASE_KEY requis")
         headers = {
             "apikey": supabase_key,
             "Authorization": f"Bearer {supabase_key}",
@@ -58,55 +61,55 @@ async def get_botlive_prompt(company_id: str) -> str:
             "select": "prompt_botlive_groq_70b"
         }
         
-        print(f"🔍 [BOTLIVE_PROMPT] URL: {url}")
-        print(f"🔍 [BOTLIVE_PROMPT] Params: {params}")
+        print(f" [BOTLIVE_PROMPT] URL: {url}")
+        print(f" [BOTLIVE_PROMPT] Params: {params}")
         
-        print(f"🔍 [BOTLIVE_PROMPT] Requête Supabase pour company_id={company_id}")
+        print(f" [BOTLIVE_PROMPT] Requête Supabase pour company_id={company_id}")
         
-        # 🔧 SYSTÈME ROBUSTE POUR TOUTES LES ENTREPRISES
+        # SYSTÈME ROBUSTE POUR TOUTES LES ENTREPRISES
         timeout_config = httpx.Timeout(connect=5.0, read=10.0, write=5.0, pool=15.0)
         async with httpx.AsyncClient(timeout=timeout_config) as client:
             max_retries = 3
             for attempt in range(max_retries):
                 try:
                     response = await client.get(url, headers=headers, params=params)
-                    print(f"🔍 [PROMPT_LOAD] {company_id[:8]}... Status: {response.status_code} (attempt {attempt + 1})")
+                    print(f" [PROMPT_LOAD] {company_id[:8]}... Status: {response.status_code} (attempt {attempt + 1})")
                     break
                 except Exception as retry_error:
-                    print(f"⚠️ [PROMPT_LOAD] {company_id[:8]}... Retry {attempt + 1} failed: {retry_error}")
+                    print(f" [PROMPT_LOAD] {company_id[:8]}... Retry {attempt + 1} failed: {retry_error}")
                     if attempt == max_retries - 1:
                         raise retry_error
                     await asyncio.sleep(0.5 * (attempt + 1))  # Backoff progressif
             
             if response.status_code == 200:
                 data = response.json() or []
-                print(f"🔍 [BOTLIVE_PROMPT] Données reçues: {len(data)} ligne(s)")
+                print(f" [BOTLIVE_PROMPT] Données reçues: {len(data)} ligne(s)")
                 
                 if data:
                     prompt = data[0].get("prompt_botlive_groq_70b", "")
-                    print(f"🔍 [BOTLIVE_PROMPT] Taille prompt: {len(prompt)} chars")
-                    print(f"🔍 [BOTLIVE_PROMPT] Contient '═══ 1. ANALYSE': {'═══ 1. ANALYSE' in prompt}")
-                    print(f"🔍 [BOTLIVE_PROMPT] Premiers 200 chars: {prompt[:200]}")
+                    print(f" [BOTLIVE_PROMPT] Taille prompt: {len(prompt)} chars")
+                    print(f" [BOTLIVE_PROMPT] Contient '═══ 1. ANALYSE': {'═══ 1. ANALYSE' in prompt}")
+                    print(f" [BOTLIVE_PROMPT] Premiers 200 chars: {prompt[:200]}")
                     
-                    # 🔧 VALIDATION UNIVERSELLE POUR TOUTES LES ENTREPRISES
+                    # VALIDATION UNIVERSELLE POUR TOUTES LES ENTREPRISES
                     if not prompt or len(prompt.strip()) == 0:
-                        print(f"❌ [PROMPT_LOAD] {company_id[:8]}... Empty prompt in database!")
+                        print(f" [PROMPT_LOAD] {company_id[:8]}... Empty prompt in database!")
                         # Fallback générique pour toutes les entreprises
                         return "Vous êtes un assistant IA professionnel. Aidez les clients avec leurs demandes de manière courtoise et efficace."
                     
                     if len(prompt) < 100:
-                        print(f"⚠️ [PROMPT_LOAD] {company_id[:8]}... Short prompt ({len(prompt)} chars) - using anyway")
+                        print(f" [PROMPT_LOAD] {company_id[:8]}... Short prompt ({len(prompt)} chars) - using anyway")
                     
-                    print(f"✅ [PROMPT_LOAD] {company_id[:8]}... Loaded successfully ({len(prompt)} chars)")
+                    print(f" [PROMPT_LOAD] {company_id[:8]}... Loaded successfully ({len(prompt)} chars)")
                     return prompt
             else:
                 logger.warning(f"[SUPABASE][BOTLIVE_PROMPT] HTTP {response.status_code}: {response.text}")
     except Exception as e:
         log3("[SUPABASE][BOTLIVE_PROMPT_EXC]", f"{type(e).__name__}: {e}")
-        print(f"❌ [BOTLIVE_PROMPT] ERREUR CRITIQUE: {e}")
+        print(f" [BOTLIVE_PROMPT] ERREUR CRITIQUE: {e}")
         
-        # 🔧 FALLBACK UNIVERSEL POUR TOUTES LES ENTREPRISES
-        print(f"🔧 [PROMPT_LOAD] {company_id[:8]}... Using universal fallback")
+        # FALLBACK UNIVERSEL POUR TOUTES LES ENTREPRISES
+        print(f" [PROMPT_LOAD] {company_id[:8]}... Using universal fallback")
         return "Vous êtes un assistant IA professionnel. Aidez les clients avec leurs demandes de manière courtoise et efficace. En cas de problème technique, dirigez-les vers le support client."
 
 
@@ -115,9 +118,10 @@ async def _fetch_prompt_from_database(company_id: str) -> str:
     Récupère le prompt depuis la base de données Supabase (clé et URL HARDCODÉES pour robustesse)
     """
     try:
-        # Clé et URL service_role HARDCODÉES (comme dans l’archive)
-        supabase_url = "https://ilbihprkxcgsigvueeme.supabase.co"
-        supabase_key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlsYmlocHJreGNnc2lndnVlZW1lIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc0OTEzMTQwNCwiZXhwIjoyMDY0NzA3NDA0fQ.Zf0EJbmP5ePGBZL5cY1tFP9FDRvJXDZ3x98zUS993GA"
+        supabase_url = os.getenv('SUPABASE_URL')
+        supabase_key = os.getenv('SUPABASE_SERVICE_KEY') or os.getenv('SUPABASE_KEY')
+        if not supabase_url or not supabase_key:
+            raise ValueError("SUPABASE_URL et SUPABASE_SERVICE_KEY/SUPABASE_KEY requis")
         headers = {
             "apikey": supabase_key,
             "Authorization": f"Bearer {supabase_key}",
@@ -159,8 +163,8 @@ async def search_supabase_semantic(query: str, company_id: str) -> str:
     """
     async with httpx.AsyncClient() as client:
         response = await client.get(
-            f"{SUPABASE_URL}/rest/v1/semantic_data",
-            headers={"apikey": SUPABASE_KEY, "Authorization": f"Bearer {SUPABASE_KEY}"},
+            f"{os.getenv('SUPABASE_URL')}/rest/v1/semantic_data",
+            headers={"apikey": os.getenv('SUPABASE_KEY'), "Authorization": f"Bearer {os.getenv('SUPABASE_KEY')}", "Content-Type": "application/json"},
             params={"query": query, "company_id": company_id}
         )
         print(f" [SUPABASE] Requête semantic_data status={response.status_code}")
@@ -171,7 +175,7 @@ async def search_supabase_semantic(query: str, company_id: str) -> str:
         
         return "\n".join([item['content'] for item in data])
     else:
-        print(f" [SUPABASE] ❌ Erreur HTTP {response.status_code}: {response.text}")
+        print(f" [SUPABASE] Erreur HTTP {response.status_code}: {response.text}")
         return ""
 
 
@@ -180,10 +184,10 @@ async def get_company_context(company_id: str) -> dict:
     Récupère le contexte complet d'une entreprise depuis la table company_rag_configs.
     Retourne un dict avec tous les champs disponibles ou {} si non trouvé.
     """
-    url = f"{SUPABASE_URL}/rest/v1/company_rag_configs"
+    url = f"{os.getenv('SUPABASE_URL')}/rest/v1/company_rag_configs"
     headers = {
-        "apikey": SUPABASE_KEY,
-        "Authorization": f"Bearer {SUPABASE_KEY}"
+        "apikey": os.getenv('SUPABASE_KEY'),
+        "Authorization": f"Bearer {os.getenv('SUPABASE_KEY')}"
     }
     params = {
         "company_id": f"eq.{company_id}",
@@ -228,10 +232,10 @@ async def get_semantic_company_context(embedding: list, company_id: str, top_k: 
     Récupère les chunks de contexte d'entreprise les plus pertinents via une recherche sémantique.
     Appelle une RPC Supabase dédiée et retourne un contexte textuel formaté.
     """
-    url = f"{SUPABASE_URL}/rest/v1/rpc/search_company_context_chunks"
+    url = f"{os.getenv('SUPABASE_URL')}/rest/v1/rpc/search_company_context_chunks"
     headers = {
-        "apikey": SUPABASE_KEY,
-        "Authorization": f"Bearer {SUPABASE_KEY}",
+        "apikey": os.getenv('SUPABASE_KEY'),
+        "Authorization": f"Bearer {os.getenv('SUPABASE_KEY')}",
         "Content-Type": "application/json"
     }
     payload = {
@@ -270,11 +274,11 @@ async def delete_all_chunks_for_company(company_id: str) -> int:
     import asyncio
     client = get_supabase_client()
     
-    log3("[SUPABASE][DELETE]", f"🎯 SUPPRESSION DANS TABLE 'documents' pour company_id={company_id}")
+    log3("[SUPABASE][DELETE]", f" SUPPRESSION DANS TABLE 'documents' pour company_id={company_id}")
     
     # D'abord, compter les chunks existants
     try:
-        log3("[SUPABASE][DELETE]", f"🔍 Comptage dans table 'documents'...")
+        log3("[SUPABASE][DELETE]", f" Comptage dans table 'documents'...")
         count_result = await asyncio.to_thread(
             lambda: client.table("documents")
                 .select("id", count="exact")
@@ -282,19 +286,19 @@ async def delete_all_chunks_for_company(company_id: str) -> int:
                 .execute()
         )
         existing_count = getattr(count_result, 'count', 0)
-        log3("[SUPABASE][DELETE]", f"📊 Chunks existants dans 'documents' pour company_id={company_id}: {existing_count}")
+        log3("[SUPABASE][DELETE]", f" Chunks existants dans 'documents' pour company_id={company_id}: {existing_count}")
         
         if existing_count == 0:
-            log3("[SUPABASE][DELETE]", f"✅ Aucun chunk à supprimer pour company_id={company_id}")
+            log3("[SUPABASE][DELETE]", f" Aucun chunk à supprimer pour company_id={company_id}")
             return 0
             
     except Exception as count_e:
-        log3("[SUPABASE][DELETE]", f"❌ Erreur comptage: {str(count_e)}")
+        log3("[SUPABASE][DELETE]", f" Erreur comptage: {str(count_e)}")
         existing_count = -1
     
     # Suppression
     try:
-        log3("[SUPABASE][DELETE]", f"🗑️  SUPPRESSION EN COURS dans table 'documents' pour company_id={company_id}...")
+        log3("[SUPABASE][DELETE]", f"  SUPPRESSION EN COURS dans table 'documents' pour company_id={company_id}...")
         result = await asyncio.to_thread(
             lambda: client.table("documents")
                 .delete()
@@ -302,16 +306,16 @@ async def delete_all_chunks_for_company(company_id: str) -> int:
                 .execute()
         )
         
-        log3("[SUPABASE][DELETE]", f"📊 Réponse suppression reçue de table 'documents'")
+        log3("[SUPABASE][DELETE]", f" Réponse suppression reçue de table 'documents'")
         
         # Vérifier le résultat
         deleted_data = getattr(result, 'data', [])
         deleted_count = len(deleted_data) if deleted_data else 0
         
-        log3("[SUPABASE][DELETE]", f"✅ SUPPRESSION TERMINÉE dans 'documents': {deleted_count} chunks supprimés pour company_id={company_id}")
+        log3("[SUPABASE][DELETE]", f" SUPPRESSION TERMINÉE dans 'documents': {deleted_count} chunks supprimés pour company_id={company_id}")
         
         # Vérification post-suppression
-        log3("[SUPABASE][DELETE]", f"🔍 Vérification post-suppression dans table 'documents'...")
+        log3("[SUPABASE][DELETE]", f" Vérification post-suppression dans table 'documents'...")
         verify_result = await asyncio.to_thread(
             lambda: client.table("documents")
                 .select("id", count="exact")
@@ -319,15 +323,15 @@ async def delete_all_chunks_for_company(company_id: str) -> int:
                 .execute()
         )
         remaining_count = getattr(verify_result, 'count', -1)
-        log3("[SUPABASE][DELETE]", f"📊 Vérification 'documents': {remaining_count} chunks restants pour company_id={company_id}")
+        log3("[SUPABASE][DELETE]", f" Vérification 'documents': {remaining_count} chunks restants pour company_id={company_id}")
         
         if remaining_count > 0:
-            log3("[SUPABASE][DELETE]", f"⚠️  ATTENTION: {remaining_count} chunks non supprimés!")
+            log3("[SUPABASE][DELETE]", f"  ATTENTION: {remaining_count} chunks non supprimés!")
             
         return deleted_count
         
     except Exception as e:
-        log3("[SUPABASE][EXCEPTION DELETE]", f"❌ {type(e).__name__}: {str(e)}")
+        log3("[SUPABASE][EXCEPTION DELETE]", f" {type(e).__name__}: {str(e)}")
         return 0
 
 def get_supabase_client():
@@ -336,7 +340,9 @@ def get_supabase_client():
     Fonction utilitaire pour l'initialisation du client.
     """
     from supabase import create_client
-    return create_client(SUPABASE_URL, SUPABASE_KEY)
+    supabase_url = os.getenv('SUPABASE_URL')
+    supabase_key = os.getenv('SUPABASE_SERVICE_KEY') or os.getenv('SUPABASE_KEY')
+    return create_client(supabase_url, supabase_key)
 
 async def onboard_company_to_supabase(
     company_id: str,

@@ -6,6 +6,7 @@ import asyncio
 from typing import Optional, Dict, Any
 from .rate_limiter import rate_limited_llm_call
 from .circuit_breaker import protected_groq_call
+import os
 
 class GroqLLMClient:
     """
@@ -27,6 +28,7 @@ class GroqLLMClient:
     ) -> str:
         import httpx
         from utils import log3
+        import traceback
         
         # Wrapper avec rate limiting
         async def _make_request():
@@ -66,6 +68,20 @@ class GroqLLMClient:
                 payload["top_p"] = float(top_p)
             # Log réduit - seulement le modèle et la taille
             log3("[LLM]", f"Groq {payload['model']} | {len(str(payload))} chars")
+
+            debug_callers = os.getenv("BOTLIVE_DEBUG_LLM_CALLERS", "false").strip().lower() in {
+                "1",
+                "true",
+                "yes",
+                "y",
+                "on",
+            }
+            if debug_callers:
+                try:
+                    stack = "".join(traceback.format_stack(limit=20))
+                    log3("[LLM][CALLER_STACK]", stack, max_lines=40, max_length=4000)
+                except Exception:
+                    pass
             
             async with httpx.AsyncClient() as client:
                 resp = await client.post(self.api_url, json=payload, headers=headers, timeout=30)
