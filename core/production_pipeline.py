@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
+import math
 import json
 import logging
 import os
 import re
 import time
+from collections import deque
 from typing import Any, Dict, Optional, Tuple
 from core.setfit_intent_router import route_botlive_intent, BotliveRoutingResult
 from core.semantic_cache import semantic_cache_decorator, is_cache_enabled
@@ -13,8 +16,10 @@ from core.model_router import choose_model
 
 logger = logging.getLogger(__name__)
 
-
 _shadow_supabase_client = None
+_shadow_supabase_queue = deque()
+_shadow_supabase_lock: Optional[asyncio.Lock] = None
+_shadow_supabase_worker_task: Optional[asyncio.Task] = None
 
 
 def _get_shadow_supabase_client():
@@ -37,13 +42,10 @@ def _get_shadow_supabase_client():
 
 
 async def _shadow_write_to_supabase(payload: Dict[str, Any]) -> None:
-    client = _get_shadow_supabase_client()
-    if client is None:
-        return
-
     row = {
         "company_id": payload.get("company_id"),
         "user_id": payload.get("user_id"),
+        "conversation_id": payload.get("conversation_id"),
         "message": payload.get("message"),
         "final_intent": payload.get("final_intent"),
         "final_conf": payload.get("final_conf"),
@@ -55,6 +57,7 @@ async def _shadow_write_to_supabase(payload: Dict[str, Any]) -> None:
         "hyde_used": payload.get("hyde_used"),
         "hyde_stage": payload.get("hyde_stage"),
         "hyde_trigger_reason": payload.get("hyde_trigger_reason"),
+        "hyde_message": payload.get("hyde_message"),
         "smart_hyde_checked": payload.get("smart_hyde_checked"),
         "smart_hyde_should_trigger": payload.get("smart_hyde_should_trigger"),
         "smart_hyde_trigger_reason": payload.get("smart_hyde_trigger_reason"),
@@ -67,10 +70,84 @@ async def _shadow_write_to_supabase(payload: Dict[str, Any]) -> None:
         "raw": payload,
     }
 
+    global _shadow_supabase_lock, _shadow_supabase_worker_task
+
+    if _shadow_supabase_lock is None:
+        _shadow_supabase_lock = asyncio.Lock()
+
+    max_queue = int(os.getenv("BOTLIVE_SHADOW_SUPABASE_MAX_QUEUE", "2000") or 2000)
+    if max_queue < 1:
+        max_queue = 1
+
     try:
-        await asyncio.to_thread(lambda: client.table("routing_events").insert(row).execute())
+        async with _shadow_supabase_lock:
+            if len(_shadow_supabase_queue) >= max_queue:
+                _shadow_supabase_queue.popleft()
+            _shadow_supabase_queue.append(row)
+
+            if _shadow_supabase_worker_task is None or _shadow_supabase_worker_task.done():
+                _shadow_supabase_worker_task = asyncio.create_task(_shadow_supabase_worker())
     except Exception:
         return
+
+
+async def _shadow_supabase_worker() -> None:
+    client = _get_shadow_supabase_client()
+    if client is None:
+        return
+
+    batch_size = int(os.getenv("BOTLIVE_SHADOW_SUPABASE_BATCH_SIZE", "50") or 50)
+    if batch_size < 1:
+        batch_size = 1
+    flush_interval_s = float(os.getenv("BOTLIVE_SHADOW_SUPABASE_FLUSH_INTERVAL_S", "2.0") or 2.0)
+    flush_interval_s = max(0.1, flush_interval_s)
+    max_retries = int(os.getenv("BOTLIVE_SHADOW_SUPABASE_MAX_RETRIES", "4") or 4)
+    max_retries = max(0, max_retries)
+    base_backoff_s = float(os.getenv("BOTLIVE_SHADOW_SUPABASE_BACKOFF_S", "0.4") or 0.4)
+    base_backoff_s = max(0.05, base_backoff_s)
+
+    last_flush = time.monotonic()
+    while True:
+        rows: list[Dict[str, Any]] = []
+        try:
+            if _shadow_supabase_lock is None:
+                return
+
+            async with _shadow_supabase_lock:
+                now = time.monotonic()
+                should_flush = (len(_shadow_supabase_queue) >= batch_size) or ((now - last_flush) >= flush_interval_s)
+                if not should_flush:
+                    pass
+                else:
+                    n = min(batch_size, len(_shadow_supabase_queue))
+                    for _ in range(n):
+                        rows.append(_shadow_supabase_queue.popleft())
+                    last_flush = now
+
+            if not rows:
+                await asyncio.sleep(flush_interval_s)
+                if _shadow_supabase_lock is None:
+                    return
+                async with _shadow_supabase_lock:
+                    if len(_shadow_supabase_queue) == 0:
+                        return
+                continue
+
+            attempt = 0
+            while True:
+                try:
+                    await asyncio.to_thread(lambda: client.table("routing_events").insert(rows).execute())
+                    break
+                except Exception as e:
+                    attempt += 1
+                    if attempt > max_retries:
+                        logger.warning("[SHADOW_SUPABASE] drop batch after retries: %s", str(e))
+                        break
+                    backoff = base_backoff_s * math.pow(2.0, float(attempt - 1))
+                    await asyncio.sleep(backoff)
+        except Exception:
+            with contextlib.suppress(Exception):
+                await asyncio.sleep(flush_interval_s)
 
 
 def _truthy_env(name: str, default: str = "false") -> bool:
@@ -709,7 +786,8 @@ class ProductionPipeline:
 
                 company_id = kwargs.get("company_id")
                 user_id = kwargs.get("user_id")
-                message = kwargs.get("message")
+                message = (kwargs.get("message") or "")
+                conversation_id = kwargs.get("conversation_id")
 
                 dbg = {}
                 try:
@@ -723,7 +801,8 @@ class ProductionPipeline:
                     "company_id": company_id,
                     "user_id": user_id,
                     "message": message,
-                    "final_intent": getattr(result, "intent", None),
+                    "conversation_id": conversation_id,
+                    "final_intent": (getattr(result, "intent", None) or "UNKNOWN"),
                     "final_conf": float(getattr(result, "confidence", 0.0) or 0.0) if result is not None else 0.0,
                     "mode": getattr(result, "mode", None),
                     "cache_hit": bool(cache_hit),
@@ -733,6 +812,7 @@ class ProductionPipeline:
                     "hyde_used": bool(dbg.get("hyde_used")),
                     "hyde_stage": dbg.get("hyde_stage"),
                     "hyde_trigger_reason": dbg.get("hyde_trigger_reason"),
+                    "hyde_message": dbg.get("hyde_message"),
                     "smart_hyde_checked": dbg.get("smart_hyde_checked"),
                     "smart_hyde_should_trigger": dbg.get("smart_hyde_should_trigger"),
                     "smart_hyde_trigger_reason": dbg.get("smart_hyde_trigger_reason"),
