@@ -74,6 +74,14 @@ try:
 except Exception as e:
     logger.warning(f"⚠️ Erreur chargement auth routes: {e}")
 
+# Étape 2b : Human labels (Active Learning)
+try:
+    from routes.human_labels import router as human_labels_router
+    app.include_router(human_labels_router, prefix="/api", tags=["human_labels"])
+    logger.info("✅ Routes human_labels chargées")
+except Exception as e:
+    logger.warning(f"⚠️ Erreur chargement human_labels routes: {e}")
+
 @app.get("/auth-test")
 async def auth_test():
     """Test que les routes auth sont chargées"""
