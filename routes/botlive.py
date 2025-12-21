@@ -19,6 +19,7 @@ from config import N8N_OUTBOUND_WEBHOOK_URL, N8N_API_KEY, N8N_DEBUG_MODE
 from core.intervention_logger import log_intervention_in_conversation_logs, log_message_in_conversation_logs
 from core.intervention_guardian import get_intervention_guardian
 from core.production_pipeline import ProductionPipeline
+from core.rule_overrides import RuleOverrides
 
 logger = logging.getLogger(__name__)
 
@@ -325,6 +326,48 @@ async def process_botlive_message(req: BotliveMessageRequest, background_tasks: 
             user_id=req.user_id,
         )
 
+        # ═══════════════════════════════════════════════════════════════
+        # RULE OVERRIDES (avant le routeur)
+        # ═══════════════════════════════════════════════════════════════
+        override_action = None
+        forced_intent = None
+        if os.getenv("BOTLIVE_RULE_OVERRIDES_ENABLED", "true").lower() == "true" and (req.message or ""):
+            try:
+                # ctx minimal (le runtime lit company_id/user_id)
+                ctx = {"company_id": req.company_id, "user_id": req.user_id}
+                override_triggered, override_reason = RuleOverrides.should_trigger_before_router(req.message or "", ctx)
+                if override_triggered:
+                    override_action = RuleOverrides.get_override_action(override_reason, req.message or "", ctx)
+                    if override_reason.startswith("deployed_rule_force_intent:"):
+                        try:
+                            forced_intent = override_reason.split(":", 3)[3]
+                        except Exception:
+                            forced_intent = None
+                    logger.info(
+                        "[BOTLIVE][%s] RULE_OVERRIDE triggered: %s -> %s",
+                        request_id,
+                        override_reason,
+                        (override_action or ""),
+                    )
+                    if override_action:
+                        # Court-circuit: réponse immédiate (MVP direct_response)
+                        return JSONResponse(
+                            content={
+                                "success": True,
+                                "response": override_action,
+                                "order_status": pre_order_status,
+                                "next_step": pre_next_step,
+                                "duration_ms": int((time.time() - start_time) * 1000),
+                                "request_id": request_id,
+                                "router": {
+                                    "mode": "RULE_OVERRIDE",
+                                    "reason": override_reason,
+                                },
+                            }
+                        )
+            except Exception as _over_e:
+                logger.warning("[BOTLIVE][%s] RULE_OVERRIDE error: %s", request_id, _over_e)
+
         # 🔀 NOUVEAU: passer par le système hybride Botlive (Jessica + HYDE) au lieu de _botlive_handle
         from core.botlive_rag_hybrid import botlive_hybrid
         from core.botlive_prompts_hardcoded import DEEPSEEK_V3_PROMPT
@@ -417,7 +460,7 @@ async def process_botlive_message(req: BotliveMessageRequest, background_tasks: 
                 req.message or "",
                 conversation_history,
                 state_compact,
-                None,
+                forced_intent=forced_intent,
             )
             routing_result = pipeline_result.get("result") if isinstance(pipeline_result, dict) else None
             cache_hit = bool(pipeline_result.get("cache_hit")) if isinstance(pipeline_result, dict) else False

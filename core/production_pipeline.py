@@ -674,6 +674,8 @@ class ProductionPipeline:
         cache_hit = False
         result: Optional[BotliveRoutingResult] = None
 
+        forced_intent = kwargs.pop("forced_intent", None)
+
         # Normalize positional args to kwargs to avoid passing hyde_pre_enabled twice
         # Expected positional order: company_id, user_id, message, conversation_history, state_compact, hyde_pre_enabled
         if args:
@@ -701,7 +703,36 @@ class ProductionPipeline:
         if (not dual_enabled) and _truthy_env("BOTLIVE_SMART_HYDE_ENABLED", "false"):
             self.stats["smart_hyde_total"] += 1
 
-        if self.cache_enabled:
+        if forced_intent:
+            company_id = str(kwargs.get("company_id") or "")
+            user_id = str(kwargs.get("user_id") or "")
+            message = str(kwargs.get("message") or "")
+            conversation_history = str(kwargs.get("conversation_history") or "")
+            state_compact = kwargs.get("state_compact")
+
+            intent = str(forced_intent or "CLARIFICATION").upper()
+            intent_group = _intent_to_group(intent)
+            mode = _determine_mode(intent, state_compact)
+            missing_fields = _missing_fields_from_state(state_compact)
+
+            result = BotliveRoutingResult(
+                intent=intent,
+                confidence=1.0,
+                intent_group=intent_group,
+                mode=mode,
+                missing_fields=missing_fields,
+                state=state_compact or {},
+                debug={
+                    "company_id": company_id,
+                    "user_id": user_id,
+                    "raw_message": message,
+                    "conversation_history_sample": (conversation_history or "")[-300:],
+                    "router": "rule_override",
+                    "rule_override_forced_intent": intent,
+                },
+            )
+            cache_hit = False
+        elif self.cache_enabled:
             try:
                 result = await self.route_with_cache(**kwargs)
                 # GPTCache sets a special attribute if hit; check via result.debug if needed
