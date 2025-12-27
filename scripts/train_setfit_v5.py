@@ -22,8 +22,12 @@ from pathlib import Path
 project_root = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(project_root))
 
-from core.universal_corpus import CORPUS_V5, POLES_V5_LABELS, get_corpus_for_training
 from core.corpus_v5_migration import CORPUS_V5_AUTO
+
+try:
+    from core.universal_corpus import POLES_V5_LABELS
+except Exception:
+    POLES_V5_LABELS = ["REASSURANCE", "SHOPPING", "ACQUISITION", "SAV_SUIVI"]
 from datasets import Dataset
 from setfit import SetFitModel, Trainer, TrainingArguments
 
