@@ -1,13 +1,30 @@
 import logging
+import os
 from typing import Dict, Any, Optional
 import re
 
 logger = logging.getLogger(__name__)
 
-BOTLIVE_PROMPT_LIGHT_THRESHOLD = 0.90
-BOTLIVE_STANDARD_MIN = 0.70
-BOTLIVE_HYDE_MIN = 0.55
-BOTLIVE_PROMPT_X_MAX = 0.55
+def _env_float(name: str, default: float) -> float:
+    raw = os.getenv(name)
+    if raw is None:
+        return float(default)
+    try:
+        return float(str(raw).strip())
+    except Exception:
+        return float(default)
+
+
+BOTLIVE_PROMPT_LIGHT_THRESHOLD = _env_float("JESSICA_GATE_LIGHT_MIN", 0.90)
+BOTLIVE_STANDARD_MIN = _env_float("JESSICA_GATE_STANDARD_MIN", 0.70)
+BOTLIVE_HYDE_MIN = _env_float("JESSICA_GATE_HYDE_MIN", 0.55)
+BOTLIVE_PROMPT_X_MAX = _env_float("JESSICA_GATE_PROMPTX_MAX", 0.55)
+
+if not (0.0 <= BOTLIVE_PROMPT_X_MAX <= BOTLIVE_HYDE_MIN <= BOTLIVE_STANDARD_MIN <= BOTLIVE_PROMPT_LIGHT_THRESHOLD <= 1.0):
+    BOTLIVE_PROMPT_LIGHT_THRESHOLD = 0.90
+    BOTLIVE_STANDARD_MIN = 0.70
+    BOTLIVE_HYDE_MIN = 0.55
+    BOTLIVE_PROMPT_X_MAX = 0.55
 
 def build_jessica_prompt_segment(
     base_prompt_template: str,
@@ -15,6 +32,7 @@ def build_jessica_prompt_segment(
     *,
     question_with_context: str,
     conversation_history: str,
+    resume_faits_saillants: str = "",
     detected_objects_str: str,
     filtered_transactions_str: str,
     expected_deposit_str: str,
@@ -47,12 +65,78 @@ def build_jessica_prompt_segment(
         missing_fields,
     )
 
-    # 1) Sélection du bloc de prompt: priorité aux nouveaux tags A/B/C/D
+    # 1) Sélection du bloc de prompt: priorité au prompt UNIQUE si présent,
+    # sinon fallback A/B/C/D legacy.
     raw_intent = str(hyde_result.get("intent") or "").upper()
+
+    def _anti_fuite_override_letter(
+        *,
+        intent: str,
+        confidence_val: float,
+        message: str,
+        history: str,
+    ) -> Optional[str]:
+        try:
+            msg_lc = (message or "").strip().lower()
+            hist_lc = (history or "").strip().lower()
+
+            sav_keywords = [
+                "reçu",
+                "recu",
+                "colis",
+                "abîmé",
+                "abime",
+                "mauvais",
+                "livreur",
+                "problème",
+                "probleme",
+                "plainte",
+                "remboursement",
+                "retour",
+                "échanger",
+                "echanger",
+            ]
+            if (intent or "") == "COMMANDE_EXISTANTE" or any(w in msg_lc for w in sav_keywords):
+                return "D"
+
+            # INFOS & CONTACT: rester en A si pas de signal d'achat explicite
+            if (intent or "") in {"CONTACT_COORDONNEES", "PRIX_PROMO", "LIVRAISON"}:
+                buy_markers = ["commander", "acheter", "je prends", "je prend", "prends", "je veux", "payer"]
+                if not any(w in msg_lc for w in buy_markers):
+                    return "A"
+
+            # VENTE: uniquement si intention claire d'achat
+            achat_keywords = ["commander", "achat", "payer", "prix de gros", "combien pour", "je prends", "je prend"]
+            if (intent or "") == "ACHAT_COMMANDE" and (
+                float(confidence_val or 0.0) > 0.85 or any(w in msg_lc for w in achat_keywords)
+            ):
+                return "C"
+
+            # Anti-répétition bonjour: si déjà salué récemment, ne pas retomber en A sur un faux SALUT
+            if (intent or "") == "SALUT":
+                try:
+                    tail = "\n".join([ln.strip() for ln in hist_lc.split("\n") if ln.strip()][-6:])
+                except Exception:
+                    tail = hist_lc[-400:]
+                if any(k in tail for k in ["assistant: bonjour", "assistant: bonsoir", "assistant: salut", "assistant: hello"]):
+                    return "A"
+
+            return None
+        except Exception:
+            return None
 
     def _intent_to_group_letter(intent: str, mode_val: str) -> str:
         group_a = {"SALUT", "INFO_GENERALE", "CLARIFICATION"}
-        group_b = {"CATALOGUE", "RECHERCHE_PRODUIT", "PRIX_PROMO", "DISPONIBILITE"}
+        group_b = {
+            "PRODUIT_GLOBAL",
+            "CATALOGUE",
+            "RECHERCHE_PRODUIT",
+            "PRIX_PROMO",
+            "PRIX",
+            "DISPONIBILITE",
+            "STOCK",
+            "DETAILS_PRODUIT",
+        }
         group_c = {"ACHAT_COMMANDE", "LIVRAISON", "PAIEMENT", "CONTACT_COORDONNEES"}
         group_d = {"SUIVI", "PROBLEME"}
 
@@ -83,9 +167,15 @@ def build_jessica_prompt_segment(
             return "D"
         return "A"  # GUIDEUR par défaut → A
 
-    letter = _intent_to_group_letter(raw_intent, mode)
-
     confidence = float(hyde_result.get("confidence") or 0.0)
+    forced_letter = _anti_fuite_override_letter(
+        intent=raw_intent,
+        confidence_val=confidence,
+        message=question_with_context,
+        history=conversation_history,
+    )
+
+    letter = forced_letter or _intent_to_group_letter(raw_intent, mode)
     gating_path = "standard"
 
     # Ranges attendues:
@@ -95,7 +185,7 @@ def build_jessica_prompt_segment(
     # - sinon                     -> "standard" (prompts dynamiques A/B/C/D normaux)
     if confidence >= BOTLIVE_PROMPT_LIGHT_THRESHOLD:
         gating_path = "light"
-    elif confidence < BOTLIVE_HYDE_MIN:
+    elif confidence <= BOTLIVE_PROMPT_X_MAX or confidence < BOTLIVE_HYDE_MIN:
         gating_path = "prompt_x"
     elif confidence < BOTLIVE_STANDARD_MIN:
         gating_path = "hyde"
@@ -111,6 +201,12 @@ def build_jessica_prompt_segment(
     used_light_block = False
     used_prompt_x_block = False
 
+    # Prompt UNIQUE (si fourni dans Supabase) :
+    # - utilisé pour tous les chemins hors PROMPT_X
+    # - le mode (accueil/collecte) est géré par la checklist et le contenu du prompt.
+    unique_block = _extract_block(base_prompt_template, "JESSICA_PROMPT_UNIQUE")
+    unique_light_block = _extract_block(base_prompt_template, "JESSICA_PROMPT_LIGHT_UNIQUE")
+
     if gating_path == "prompt_x":
         x_block = _extract_block(base_prompt_template, "JESSICA_PROMPT_X")
         if x_block:
@@ -125,13 +221,16 @@ def build_jessica_prompt_segment(
         )
         reduced_template = base_prompt_template
 
-    if not reduced_template and gating_path == "light":
-        prompt_tag_letter_light = f"JESSICA_PROMPT_LIGHT_{letter}"
-        letter_block_light = _extract_block(base_prompt_template, prompt_tag_letter_light)
-        if letter_block_light:
-            logger.info("[BOTLIVE][PROMPT] Segment LIGHT sélectionné | letter=%s confidence=%.2f", letter, confidence)
-            reduced_template = letter_block_light
+    if not reduced_template and unique_block:
+        if gating_path == "light" and unique_light_block:
+            logger.info("[BOTLIVE][PROMPT] Segment UNIQUE LIGHT sélectionné | confidence=%.2f", confidence)
+            reduced_template = unique_light_block
             used_light_block = True
+            letter = "U"
+        else:
+            logger.info("[BOTLIVE][PROMPT] Segment UNIQUE sélectionné | confidence=%.2f", confidence)
+            reduced_template = unique_block
+            letter = "U"
 
     if not reduced_template:
         prompt_tag_letter = f"JESSICA_PROMPT_{letter}"
@@ -163,9 +262,7 @@ def build_jessica_prompt_segment(
 
             reduced_template = "\n\n".join(fragments)
 
-    # 2) Construire un checklist humain compact
-    lines = ["📋 CHECKLIST HUMAIN (basé sur état Python):"]
-
+    # 2) Construire un état/checklist ultra-compact (économie tokens)
     def _flag(ok: bool) -> str:
         return "✅" if ok else "❌"
 
@@ -175,10 +272,12 @@ def build_jessica_prompt_segment(
     zone_ok = bool(state.get("zone_collected"))
     tel_ok = bool(state.get("tel_collected") and state.get("tel_valide"))
 
+    # Checklist humain compact (fallback si enriched_checklist vide)
+    lines = ["📋 CHECKLIST HUMAIN (basé sur état Python):"]
     lines.append(f"- PHOTO PRODUIT : {_flag(photo_ok)}")
-    lines.append(f"- PAIEMENT / ACOMPTE : {_flag(pay_ok)}")
     lines.append(f"- ZONE LIVRAISON : {_flag(zone_ok)}")
     lines.append(f"- NUMÉRO TÉLÉPHONE : {_flag(tel_ok)}")
+    lines.append(f"- PAIEMENT / ACOMPTE : {_flag(pay_ok)}")
 
     if missing_fields:
         lines.append("")
@@ -186,49 +285,58 @@ def build_jessica_prompt_segment(
         for f in missing_fields:
             if f == "photo":
                 lines.append("- PHOTO PRODUIT nette du pack ou du produit")
-            elif f == "paiement":
-                lines.append("- PREUVE DE PAIEMENT claire (capture ou reçu)")
             elif f == "zone":
                 lines.append("- ZONE DE LIVRAISON précise (quartier, commune)")
             elif f == "tel":
                 lines.append("- NUMÉRO DE TÉLÉPHONE valide (format CI 10 chiffres)")
+            elif f == "paiement":
+                lines.append("- PREUVE DE PAIEMENT claire (capture ou reçu)")
 
     checklist_text = "\n".join(lines)
 
     # 3) Préparer les variables pour formatage
-    question_text = question_with_context or ""
-    history_text = conversation_history or ""
+    question_text = (question_with_context or "").strip()
+    history_text = (conversation_history or "").strip()
+    summary_text = (resume_faits_saillants or "").strip()
 
-    # Calcul du score de routage (0.0-1.0) en priorité depuis routing,
-    # avec fallback sur hyde_result["confidence"] si routing est absent.
-    routing_conf = 0.0
-    if routing:
-        if isinstance(routing, dict):
-            try:
-                routing_conf = float(routing.get("confidence", 0.0) or 0.0)
-            except Exception:
-                routing_conf = 0.0
-        else:
-            try:
-                routing_conf = float(getattr(routing, "confidence", 0.0) or 0.0)
-            except Exception:
-                routing_conf = 0.0
-    else:
-        try:
-            routing_conf = float(hyde_result.get("confidence", 0.0) or 0.0)
-        except Exception:
-            routing_conf = 0.0
+    try:
+        routing_conf = float(
+            (routing or {}).get("confidence")
+            if isinstance(routing, dict)
+            else (hyde_result.get("confidence") or 0.0)
+        )
+    except Exception:
+        routing_conf = float(hyde_result.get("confidence") or 0.0)
 
     format_vars = {
         "question": question_text,
         "conversation_history": history_text,
+        "resume_faits_saillants": summary_text,
         "detected_objects": detected_objects_str or "",
         "filtered_transactions": filtered_transactions_str or "[AUCUNE TRANSACTION VALIDE]",
         "expected_deposit": expected_deposit_str or "2000 FCFA",
         "checklist": enriched_checklist or checklist_text or "",
         "routing_score": f"{routing_conf:.2f}",
         "delai_message": delai_message or "",
+        "routing_intent": raw_intent or "",
+        "routing_confidence": f"{routing_conf:.2f}",
+        "routing_group": letter or "",
     }
+    try:
+        m = re.search(r"(\d+)", str(expected_deposit_str or ""))
+        format_vars["expected_deposit_amount"] = m.group(1) if m else ""
+    except Exception:
+        format_vars["expected_deposit_amount"] = ""
+
+    format_vars.setdefault(
+        "routing_group_name",
+        {
+            "A": "INFO",
+            "B": "PRODUIT",
+            "C": "COMMANDE",
+            "D": "SAV",
+        }.get(letter or "", "INFO"),
+    )
 
 
     # Prevents noisy KeyError warnings for unused variables like {dict}
@@ -270,6 +378,7 @@ def build_jessica_prompt_segment(
         prompt = re.sub(r"\{([^{}:]+):[^{}]+\}", r"{\1}", reduced_template)
         prompt = prompt.replace("{question}", question_text)
         prompt = prompt.replace("{conversation_history}", history_text)
+        prompt = prompt.replace("{resume_faits_saillants}", summary_text)
         prompt = prompt.replace("{detected_objects}", format_vars["detected_objects"])
         prompt = prompt.replace("{filtered_transactions}", format_vars["filtered_transactions"])
         prompt = prompt.replace("{expected_deposit}", format_vars["expected_deposit"])

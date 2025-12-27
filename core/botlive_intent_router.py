@@ -33,12 +33,34 @@ async def route_botlive_intent(
     """
     if _should_use_embeddings_router():
         logger.info("[ROUTER] Embeddings legacy forcé par variable d'environnement.")
-        return await _route_embeddings(company_id, user_id, message, conversation_history, state_compact, hyde_pre_enabled)
+        res = await _route_embeddings(company_id, user_id, message, conversation_history, state_compact, hyde_pre_enabled)
+        try:
+            if isinstance(getattr(res, "debug", None), dict):
+                res.debug.setdefault("router", "embeddings")
+                res.debug["router_source"] = "embeddings_forced_env"
+        except Exception:
+            pass
+        return res
     try:
-        return await _route_setfit(company_id, user_id, message, conversation_history, state_compact, hyde_pre_enabled)
+        res = await _route_setfit(company_id, user_id, message, conversation_history, state_compact, hyde_pre_enabled)
+        try:
+            if isinstance(getattr(res, "debug", None), dict):
+                res.debug.setdefault("router", "setfit")
+                res.debug["router_source"] = "setfit"
+        except Exception:
+            pass
+        return res
     except Exception as e:
         logger.error(f"[ROUTER] Fallback embeddings legacy: {e}")
-        return await _route_embeddings(company_id, user_id, message, conversation_history, state_compact, hyde_pre_enabled)
+        res = await _route_embeddings(company_id, user_id, message, conversation_history, state_compact, hyde_pre_enabled)
+        try:
+            if isinstance(getattr(res, "debug", None), dict):
+                res.debug.setdefault("router", "embeddings")
+                res.debug["router_source"] = "embeddings_fallback_error"
+                res.debug["router_fallback_error"] = str(e)
+        except Exception:
+            pass
+        return res
 
 # Pour compatibilité :
 # from core.botlive_intent_router import get_delivery_delay_similarity

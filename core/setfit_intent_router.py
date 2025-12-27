@@ -11,6 +11,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from core.decision_engine import is_safe_to_trust
 from core.hyde_reformulator import HydeReformulator
 from core.text_preprocessing import preprocess_for_routing, should_skip_preprocessing
+from core.sub_routing import sub_route_pole
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +30,7 @@ class BotliveRoutingResult:
 _MODEL_DIR = Path(__file__).resolve().parents[1] / "models" / "setfit-intent-classifier-v1"
 _SET_FIT_MODEL: Any | None = None
 _HYDE_MARGIN_HISTORY: deque[float] = deque(maxlen=500)
+_MODEL_VERSION: str | None = None  # "V4" ou "V5"
 
 
 # ==============================================================================
@@ -81,7 +83,7 @@ def is_setfit_model_available(model_dir: Optional[Path] = None) -> bool:
 
 
 def _load_setfit_model() -> Any:
-    global _SET_FIT_MODEL, SetFitModel
+    global _SET_FIT_MODEL, _MODEL_VERSION, SetFitModel
 
     if _SET_FIT_MODEL is not None:
         return _SET_FIT_MODEL
@@ -105,7 +107,63 @@ def _load_setfit_model() -> Any:
         raise FileNotFoundError(f"Modèle SetFit introuvable: {_MODEL_DIR}")
 
     _SET_FIT_MODEL = SetFitModel.from_pretrained(str(_MODEL_DIR))  # type: ignore[call-arg]
+    
+    # Detect model version from labels
+    _MODEL_VERSION = _detect_model_version(_SET_FIT_MODEL)
+    logger.info(f"[SETFIT] Modèle chargé: version={_MODEL_VERSION}, labels={_SET_FIT_MODEL.labels}")
+    
     return _SET_FIT_MODEL
+
+
+def _detect_model_version(model: Any) -> str:
+    """
+    Détecte la version du modèle SetFit selon les labels.
+    
+    V4: 10 intents (SALUT, INFO_GENERALE, PRODUIT_GLOBAL, PRIX_PROMO, ...)
+    V5: 4 pôles (REASSURANCE, SHOPPING, ACQUISITION, SAV_SUIVI)
+    
+    Returns:
+        "V5" si 4 pôles détectés, "V4" sinon
+    """
+    try:
+        labels = [str(lbl).upper() for lbl in model.labels]
+        v5_poles = {"REASSURANCE", "SHOPPING", "ACQUISITION", "SAV_SUIVI"}
+        
+        if v5_poles.issubset(set(labels)):
+            return "V5"
+        return "V4"
+    except Exception as e:
+        logger.warning(f"[SETFIT] Erreur détection version: {e}, assume V4")
+        return "V4"
+
+
+def _map_v4_intent_to_v5_pole(intent: str) -> str:
+    """
+    Mapping V4 intent → V5 pôle (fallback si modèle V4 chargé).
+    
+    Utilise POLE_MAPPING_V4_TO_V5 de universal_corpus.py.
+    """
+    from core.universal_corpus import INTENT_DEFINITIONS_V4, POLE_MAPPING_V4_TO_V5
+    
+    upper_intent = (intent or "").upper()
+    
+    # Trouver l'ID V4 de l'intent
+    intent_id = None
+    for iid, idef in INTENT_DEFINITIONS_V4.items():
+        if idef["name"].upper() == upper_intent:
+            intent_id = iid
+            break
+    
+    if intent_id is None:
+        logger.warning(f"[V4→V5] Intent V4 inconnu: {intent}, fallback REASSURANCE")
+        return "REASSURANCE"
+    
+    pole = POLE_MAPPING_V4_TO_V5.get(intent_id)
+    if not pole:
+        logger.warning(f"[V4→V5] Pas de mapping pour intent_id={intent_id}, fallback REASSURANCE")
+        return "REASSURANCE"
+    
+    return pole
 
 
 # ==============================================================================
@@ -155,9 +213,15 @@ def _map_intent_to_group(intent: str) -> str:
     Mapping intent → groupe métier.
     
     V4: PRODUIT_GLOBAL remplace CATALOGUE + RECHERCHE_PRODUIT + DISPONIBILITE
+    V5: 4 pôles (REASSURANCE, SHOPPING, ACQUISITION, SAV_SUIVI)
     """
     upper_intent = (intent or "").upper()
 
+    # V5 poles
+    if upper_intent in {"REASSURANCE", "SHOPPING", "ACQUISITION", "SAV_SUIVI"}:
+        return upper_intent
+
+    # V4 intents
     if upper_intent in {"PRODUIT_GLOBAL", "PRIX_PROMO"}:  # V4
         return "PRODUIT"
     if upper_intent in {"ACHAT_COMMANDE", "COMMANDE_EXISTANTE"}:  # V4
@@ -174,14 +238,18 @@ def _map_intent_to_group(intent: str) -> str:
 
 def _determine_mode_from_intent(intent: str, *, is_complete: bool, collected_count: int) -> str:
     """
-    Détermine le mode Jessica selon intent V4.
+    Détermine le mode Jessica selon intent V4 ou pôle V5.
     
     PATCH V2 (2025-12-16): Mode basé sur l'INTENT d'abord, puis le state.
-    Cela évite que is_complete=True force RECEPTION_SAV partout.
+    V5 (2025-12-26): Mode = Pôle directement (REASSURANCE, SHOPPING, ACQUISITION, SAV_SUIVI)
     """
     upper_intent = (intent or "").upper()
 
-    # PRIORITÉ 1: Intent prime sur state
+    # V5: Mode = Pôle (priorité absolue)
+    if upper_intent in {"REASSURANCE", "SHOPPING", "ACQUISITION", "SAV_SUIVI"}:
+        return upper_intent
+
+    # V4: PRIORITÉ 1: Intent prime sur state
     mode_mapping = {
         # COMMANDE (même si is_complete=True)
         "ACHAT_COMMANDE": "COMMANDE",
@@ -503,14 +571,138 @@ def _looks_like_social_only(message: str) -> bool:
     return len(tokens) <= 5
 
 
-def _deterministic_prefilter(
-    *,
-    message: str,
-    conversation_history: str,
-) -> Tuple[Optional[str], Optional[float], Dict[str, Any]]:
+def _deterministic_prefilter(message: str, *, conversation_history: str = "") -> Tuple[Optional[str], Optional[float], Dict[str, Any]]:
     raw = (message or "").strip()
     if not raw:
         return None, None, {}
+
+    t_norm = _normalize_text_basic(raw)
+
+    has_commande_existante_guard = any(
+        [
+            (("ou en est" in t_norm or "où en est" in t_norm) and "commande" in t_norm),
+            "ma commande" in t_norm,
+            "suivi" in t_norm,
+            "livreur" in t_norm,
+            "pas encore recu" in t_norm,
+            "pas encore reçu" in t_norm,
+        ]
+    )
+    if has_commande_existante_guard:
+        intent = "SAV_SUIVI" if _MODEL_VERSION == "V5" else "COMMANDE_EXISTANTE"
+        return intent, 0.97, {"prefilter": "guard_commande_existante_tracking"}
+
+    has_paiement_modalites_guard = ("paiement" in t_norm) and any(
+        k in t_norm for k in ["obligatoire", "autre", "options", "especes", "espece"]
+    )
+    if has_paiement_modalites_guard:
+        intent = "REASSURANCE" if _MODEL_VERSION == "V5" else "PAIEMENT"
+        return intent, 0.95, {"prefilter": "guard_paiement_modalites"}
+
+    # OVERRIDE V5: Questions de localisation → REASSURANCE (IN-SCOPE, jamais TRANSMISSIONXXX)
+    # Patterns: "où êtes-vous", "vous êtes où", "votre adresse", "vous situez où"
+    location_patterns = [
+        "ou etes vous",
+        "où etes vous",
+        "ou êtes vous",
+        "où êtes vous",
+        "vous etes ou",
+        "vous êtes ou",
+        "vous etes où",
+        "vous êtes où",
+        "ou se trouve",
+        "où se trouve",
+        "ou vous trouvez",
+        "où vous trouvez",
+        "vous situez ou",
+        "vous situez où",
+        "votre adresse",
+        "votre localisation",
+        "votre boutique",
+        "votre magasin",
+        "votre emplacement",
+    ]
+    
+    has_location_question = any(pattern in t_norm for pattern in location_patterns)
+    
+    # Vérifier aussi les patterns avec "?" (questions directes)
+    if not has_location_question and "?" in raw:
+        location_keywords = ["ou", "où", "adresse", "situé", "situe", "trouve", "localisation", "emplacement"]
+        business_keywords = ["vous", "votre", "boutique", "magasin", "shop", "entreprise"]
+        has_where = any(k in t_norm for k in location_keywords)
+        has_business = any(k in t_norm for k in business_keywords)
+        if has_where and has_business:
+            has_location_question = True
+    
+    if has_location_question:
+        # V5: REASSURANCE, V4: INFO_GENERALE
+        intent_label = "REASSURANCE" if _MODEL_VERSION == "V5" else "INFO_GENERALE"
+        return intent_label, 0.95, {"prefilter": "location_question_override", "v5_override": True}
+
+    # Horaires / ouverture (doit router vers Prompt A, pas clarification)
+    horaires_markers = [
+        "horaire",
+        "horaires",
+        "ouvert",
+        "ouverte",
+        "ouvrez",
+        "ouvrez-vous",
+        "fermez",
+        "fermeture",
+        "dimanche",
+        "aujourd",
+        "24h",
+        "24 h",
+        "7j",
+        "7 j",
+        "7/7",
+        "7j/7",
+        "7 j/7",
+        "7jours",
+        "7 jours",
+        "7 jours sur 7",
+    ]
+    if any(k in t_norm for k in horaires_markers):
+        # Éviter de capturer les demandes purement livraison (traitées ailleurs)
+        if not any(k in t_norm for k in ["livraison", "livrer", "livrez", "livré", "delai", "délai"]):
+            intent = "REASSURANCE" if _MODEL_VERSION == "V5" else "INFO_GENERALE"
+            return intent, 0.90, {"prefilter": "lexical_horaires"}
+
+    # Questions produit précises (doit router vers Prompt B, pas Prompt C)
+    produit_markers = [
+        "couche",
+        "couches",
+        "culotte",
+        "taille",
+        "tailles",
+        "bébé",
+        "bebe",
+        "1 an",
+        "un an",
+        "12 mois",
+        "dispo",
+        "disponible",
+        "stock",
+        "rupture",
+        "en rupture",
+        "il en reste",
+        "reste combien",
+        "modèle",
+        "modele",
+        "modèles",
+        "modeles",
+    ]
+    if any(k in t_norm for k in produit_markers):
+        # V5: Attention à ne pas voler l'intent ACQUISITION ("je veux commander des couches")
+        if _MODEL_VERSION == "V5":
+            # Si intention de commande explicite, laisser SetFit gérer (ACQUISITION)
+            acquisition_verbs = ["commander", "acheter", "prendre", "réserver", "reserver", "commande", "achat"]
+            if any(v in t_norm for v in acquisition_verbs):
+                pass # Laisser passer vers SetFit
+            else:
+                return "SHOPPING", 0.90, {"prefilter": "lexical_produit_v5"}
+        else:
+            return "PRODUIT_GLOBAL", 0.90, {"prefilter": "lexical_produit"}
 
     if _truthy_env("BOTLIVE_HUMAN_HANDOFF_ENABLED", "false"):
         t_norm = _normalize_text_basic(raw)
@@ -544,8 +736,9 @@ def _deterministic_prefilter(
             "jai recu autre",
         ]
         if any(k in t_norm for k in sav_markers):
+            intent = "SAV_SUIVI" if _MODEL_VERSION == "V5" else "COMMANDE_EXISTANTE"
             return (
-                "COMMANDE_EXISTANTE",
+                intent,
                 0.95,
                 {
                     "prefilter": "human_handoff_sav_marker",
@@ -556,10 +749,43 @@ def _deterministic_prefilter(
 
     phone_pattern = re.compile(r"\b(?:\+?225)?\s*(?:0[1-9])(?:[ .-]?\d){7,}\b")
     if phone_pattern.search(raw):
-        return "CONTACT_COORDONNEES", 0.98, {"prefilter": "phone_regex"}
+        intent = "ACQUISITION" if _MODEL_VERSION == "V5" else "CONTACT_COORDONNEES"
+        return intent, 0.98, {"prefilter": "phone_regex"}
 
+    exclusion_salut = [
+        "merci",
+        "gentil",
+        "ok",
+        "d'accord",
+        "daccord",
+        "top",
+        "super",
+        "bien reçu",
+        "bien recu",
+    ]
+
+    def _assistant_recently_greeted(hist: str) -> bool:
+        try:
+            lines = [ln.strip() for ln in (hist or "").split("\n") if ln.strip()]
+            tail = lines[-6:]
+            tail_text = "\n".join(tail).lower()
+            if "assistant:" not in tail_text:
+                return False
+            return any(k in tail_text for k in ["assistant: bonjour", "assistant: bonsoir", "assistant: salut", "assistant: hello"]) 
+        except Exception:
+            return False
+
+    raw_lc = raw.lower()
     if should_skip_preprocessing(raw) or _looks_like_social_only(raw):
-        return "SALUT", 0.98, {"prefilter": "salut_rule"}
+        if any(w in raw_lc for w in exclusion_salut):
+            return None, None, {}
+        
+        intent_salut = "REASSURANCE" if _MODEL_VERSION == "V5" else "SALUT"
+        intent_info = "REASSURANCE" if _MODEL_VERSION == "V5" else "INFO_GENERALE"
+        
+        if _assistant_recently_greeted(conversation_history):
+            return intent_info, 0.75, {"prefilter": "salut_repeat_degraded"}
+        return intent_salut, 0.98, {"prefilter": "salut_rule"}
 
     try:
         processed = preprocess_for_routing(raw)
@@ -567,18 +793,29 @@ def _deterministic_prefilter(
             k in _normalize_text_basic(raw)
             for k in ["bonjour", "bonsoir", "salut", "hey", "hello", "yo", "wesh"]
         ):
-            return "SALUT", 0.90, {"prefilter": "salut_empty_after_preprocess"}
+            if any(w in raw_lc for w in exclusion_salut):
+                return None, None, {}
+            
+            intent_salut = "REASSURANCE" if _MODEL_VERSION == "V5" else "SALUT"
+            intent_info = "REASSURANCE" if _MODEL_VERSION == "V5" else "INFO_GENERALE"
+            
+            if _assistant_recently_greeted(conversation_history):
+                return intent_info, 0.70, {"prefilter": "salut_empty_repeat_degraded"}
+            return intent_salut, 0.90, {"prefilter": "salut_empty_after_preprocess"}
     except Exception:
         pass
 
     if _is_short_confirmation(raw):
         req = _infer_last_bot_request(conversation_history)
         if req == "tel":
-            return "CONTACT_COORDONNEES", 0.85, {"prefilter": "short_confirm_after_tel_request"}
+            intent = "ACQUISITION" if _MODEL_VERSION == "V5" else "CONTACT_COORDONNEES"
+            return intent, 0.85, {"prefilter": "short_confirm_after_tel_request"}
         if req == "zone":
-            return "LIVRAISON", 0.75, {"prefilter": "short_confirm_after_zone_request"}
+            intent = "ACQUISITION" if _MODEL_VERSION == "V5" else "LIVRAISON"
+            return intent, 0.75, {"prefilter": "short_confirm_after_zone_request"}
         if req == "paiement":
-            return "PAIEMENT", 0.75, {"prefilter": "short_confirm_after_payment_request"}
+            intent = "ACQUISITION" if _MODEL_VERSION == "V5" else "PAIEMENT"
+            return intent, 0.75, {"prefilter": "short_confirm_after_payment_request"}
 
     return None, None, {}
 
@@ -739,15 +976,22 @@ def _route_with_setfit(
             top2_prob = float(probs[top2_idx]) if len(order) > 1 else 0.0
             margin = float(max(0.0, conf - top2_prob))
 
-            legacy_intent = _map_setfit_label_to_legacy_intent(label)
-            legacy_top2_intent = _map_setfit_label_to_legacy_intent(top2_label)
-            intent_after, conf_after, guard_applied, guard_reason = _apply_setfit_guards(
-                legacy_intent=legacy_intent,
-                legacy_top2_intent=legacy_top2_intent,
-                conf=conf,
-                top2_prob=top2_prob,
-                raw_message=raw,
-            )
+            # V5: labels are poles directly, V4: map to legacy intents
+            if _MODEL_VERSION == "V5":
+                legacy_intent = label.upper()  # REASSURANCE, SHOPPING, etc.
+                legacy_top2_intent = top2_label.upper()
+                # V5: no guards needed (poles are stable)
+                intent_after, conf_after, guard_applied, guard_reason = legacy_intent, conf, False, None
+            else:
+                legacy_intent = _map_setfit_label_to_legacy_intent(label)
+                legacy_top2_intent = _map_setfit_label_to_legacy_intent(top2_label)
+                intent_after, conf_after, guard_applied, guard_reason = _apply_setfit_guards(
+                    legacy_intent=legacy_intent,
+                    legacy_top2_intent=legacy_top2_intent,
+                    conf=conf,
+                    top2_prob=top2_prob,
+                    raw_message=raw,
+                )
 
             score = float(conf_after) * float(margin) * float(weight)
 
@@ -802,6 +1046,7 @@ def _route_with_setfit(
 
     debug = {
         "router": "setfit_v4",
+        "router_source": "setfit",
         "raw_message": raw,
         "model_dir": str(_MODEL_DIR),
         "ensemble_voting": True,
@@ -1087,6 +1332,59 @@ def _post_validate_intent(
     return upper_intent, conf, debug
 
 
+def _apply_delivery_price_guard(*, message: str, intent: str, confidence: float) -> Tuple[str, float, Dict[str, Any]]:
+    t = _normalize_text_basic(message)
+    debug: Dict[str, Any] = {
+        "delivery_price_guard_applied": False,
+        "delivery_price_guard_reason": None,
+    }
+
+    if not t:
+        return (intent or "CLARIFICATION"), float(confidence or 0.0), debug
+
+    has_combien = "combien" in t
+    has_delivery_anchor = any(k in t for k in ["livraison", "livrer", "frais", "frais de livraison", "livré", "delai", "délai"])
+
+    if has_combien and has_delivery_anchor:
+        debug["delivery_price_guard_applied"] = True
+        debug["delivery_price_guard_reason"] = "COMBIEN_WITH_LIVRAISON_OR_FRAIS"
+        return "LIVRAISON", max(float(confidence or 0.0), 0.80), debug
+
+    return (intent or "CLARIFICATION"), float(confidence or 0.0), debug
+
+
+def _get_human_required_intents_from_env() -> List[str]:
+    raw = (os.getenv("HUMAN_REQUIRED_INTENTS", "COMMANDE_EXISTANTE,PRIX_PROMO") or "").strip()
+    if not raw:
+        return []
+    return [x.strip().upper() for x in raw.split(",") if x.strip()]
+
+
+def _message_requires_human_for_intent(*, intent: str, message: str) -> bool:
+    upper_intent = (intent or "").strip().upper()
+    if not upper_intent:
+        return False
+
+    required = set(_get_human_required_intents_from_env())
+    if upper_intent not in required:
+        return False
+
+    if upper_intent == "PRODUIT_GLOBAL":
+        t = _normalize_text_basic(message)
+        stock_markers = [
+            "dispo",
+            "disponible",
+            "rupture",
+            "en rupture",
+            "stock",
+            "il en reste",
+            "reste",
+        ]
+        return any(k in t for k in stock_markers)
+
+    return True
+
+
 async def route_botlive_intent(
     company_id: str,
     user_id: str,
@@ -1113,7 +1411,9 @@ async def route_botlive_intent(
     if forced_intent:
         intent = forced_intent
         conf = float(forced_conf or 0.0)
-        router_debug: Dict[str, Any] = {"router": "prefilter", **prefilter_debug}
+        router_debug: Dict[str, Any] = {"router": "prefilter", "router_source": "setfit_prefilter", **prefilter_debug}
+        if "prefilter" in prefilter_debug:
+            router_debug["router_metrics.prefilter"] = prefilter_debug.get("prefilter")
         margin_val = 0.0
     else:
         intent, conf, router_debug = _route_with_setfit(
@@ -1123,6 +1423,13 @@ async def route_botlive_intent(
         )
         margin_val = float(router_debug.get("setfit_margin") or 0.0)
         _HYDE_MARGIN_HISTORY.append(margin_val)
+
+        try:
+            pf = router_debug.get("prefilter")
+            if pf:
+                router_debug["router_metrics.prefilter"] = pf
+        except Exception:
+            pass
 
         safe_to_trust = is_safe_to_trust(intent, float(conf or 0.0), float(margin_val or 0.0))
         enforce_gate = _truthy_env("BOTLIVE_SAFETY_GATE_ENFORCE", "false")
@@ -1181,11 +1488,32 @@ async def route_botlive_intent(
         router_debug["hyde_gating_error"] = str(e)
         hyde_pre_reason = "HYDE_ERROR"
 
-    sub_route, sub_route_reason = _apply_sub_routing(intent, original_message)
-    if sub_route:
-        router_debug["business_subroute"] = sub_route
-    if sub_route_reason:
-        router_debug["business_subroute_reason"] = sub_route_reason
+    # Guard global (unique): priorise LIVRAISON quand c'est une question de prix de livraison
+    # Placement: après HYDE (si utilisé), avant sub-routing.
+    intent, conf, guard_debug = _apply_delivery_price_guard(
+        message=original_message,
+        intent=intent,
+        confidence=float(conf or 0.0),
+    )
+    router_debug.update(guard_debug)
+
+    # Sub-routing: V5 (poles) ou V4 (intents)
+    if _MODEL_VERSION == "V5" and (intent or "").upper() in {"REASSURANCE", "SHOPPING", "ACQUISITION", "SAV_SUIVI"}:
+        try:
+            sub_routing_result = sub_route_pole((intent or "").upper(), original_message)
+            router_debug["business_subroute_v5"] = sub_routing_result.get("sub_intent")
+            router_debug["business_subroute_v5_action"] = sub_routing_result.get("action")
+            router_debug["business_subroute_v5_keywords"] = sub_routing_result.get("keywords_matched", [])
+        except Exception as e:
+            logger.warning(f"[V5_SUB_ROUTING] Erreur: {e}")
+            router_debug["business_subroute_v5_error"] = str(e)
+    else:
+        # V4 sub-routing (legacy)
+        sub_route, sub_route_reason = _apply_sub_routing(intent, original_message)
+        if sub_route:
+            router_debug["business_subroute"] = sub_route
+        if sub_route_reason:
+            router_debug["business_subroute_reason"] = sub_route_reason
 
     upper_intent, conf2, post_debug = _post_validate_intent(
         intent=intent,
@@ -1217,12 +1545,22 @@ async def route_botlive_intent(
         "user_id": user_id,
         "raw_message": message,
         "conversation_history_sample": conversation_history[-300:] if conversation_history else "",
+        "model_version": _MODEL_VERSION or "UNKNOWN",
         "hyde_pre_used": hyde_pre_used,
         "hyde_pre_reason": hyde_pre_reason,
         "original_message": original_message,
         "routed_message": routed_message,
         **router_debug,
     }
+
+    try:
+        cooperative = _truthy_env("BOTLIVE_COOPERATIVE_HUMAN_MODE", "false")
+        human_required = cooperative and _message_requires_human_for_intent(intent=upper_intent, message=original_message)
+        debug["cooperative_mode"] = bool(cooperative)
+        debug["human_required"] = bool(human_required)
+        debug["bypass_llm"] = bool(human_required)
+    except Exception:
+        pass
 
     return BotliveRoutingResult(
         intent=upper_intent,
