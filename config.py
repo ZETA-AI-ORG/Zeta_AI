@@ -11,6 +11,7 @@ load_dotenv(dotenv_path=_ENV_PATH)
 # Variables d'environnement principales
 SUPABASE_URL = os.getenv('SUPABASE_URL')
 SUPABASE_KEY = os.getenv('SUPABASE_KEY')
+SUPABASE_SERVICE_KEY = os.getenv('SUPABASE_SERVICE_KEY')
 MEILI_URL = os.getenv('MEILI_URL')
 MEILI_API_KEY = os.getenv('MEILI_API_KEY')  # Utilise MEILI_API_KEY du .env (standard Meilisearch)
 GROQ_API_KEY = os.getenv('GROQ_API_KEY')  # GROQ (pas GROK) dans le .env
