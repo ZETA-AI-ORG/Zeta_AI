@@ -334,7 +334,10 @@ class RAGSimulator:
                 try:
                     from Zeta_AI.app import chat_endpoint
                 except Exception:
-                    from app import chat_endpoint
+                    try:
+                        from app_optimized import chat_endpoint
+                    except Exception:
+                        from app import chat_endpoint
 
                 req = ChatRequest(**payload)
                 scope = {
