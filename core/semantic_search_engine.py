@@ -23,12 +23,17 @@ except ImportError:
 
 try:
     from config import SUPABASE_URL, SUPABASE_KEY
+    try:
+        from config import SUPABASE_SERVICE_KEY
+    except Exception:
+        SUPABASE_SERVICE_KEY = ""
     from utils import log3, timing_metric
     from core.global_embedding_cache import get_cached_model, get_cached_embedding
 except ImportError:
     # Fallback pour tests
     SUPABASE_URL = ""
     SUPABASE_KEY = ""
+    SUPABASE_SERVICE_KEY = ""
     def log3(*args, **kwargs): print(*args, **kwargs)
     def timing_metric(name): return lambda f: f
 
@@ -171,9 +176,12 @@ class OptimizedSemanticSearchEngine:
         try:
             # Requête optimisée avec pgvector
             url = f"{SUPABASE_URL}/rest/v1/documents"
+            # Important: sur backend, utiliser la service key si dispo pour éviter que RLS
+            # masque les docs/embeddings.
+            auth_key = (SUPABASE_SERVICE_KEY or SUPABASE_KEY)
             headers = {
-                "apikey": SUPABASE_KEY,
-                "Authorization": f"Bearer {SUPABASE_KEY}",
+                "apikey": auth_key,
+                "Authorization": f"Bearer {auth_key}",
                 "Content-Type": "application/json"
             }
             
@@ -202,6 +210,10 @@ class OptimizedSemanticSearchEngine:
             # Traitement des résultats
             raw_results = response.json() or []
             scored: List[SearchResult] = []
+            
+            total_candidates = len(raw_results)
+            candidates_with_embedding = 0
+            best_score_seen = -1.0
 
             # Similarité cosinus robuste (sans numpy)
             def _cosine_similarity(a: List[float], b: List[float]) -> float:
@@ -230,6 +242,8 @@ class OptimizedSemanticSearchEngine:
                 if not emb:
                     continue
 
+                candidates_with_embedding += 1
+
                 # embedding peut être une string JSON
                 if isinstance(emb, str):
                     try:
@@ -243,6 +257,8 @@ class OptimizedSemanticSearchEngine:
                     continue
 
                 score = _cosine_similarity(query_embedding, emb)
+                if score > best_score_seen:
+                    best_score_seen = score
                 if score < config.min_score:
                     continue
 
@@ -258,7 +274,20 @@ class OptimizedSemanticSearchEngine:
 
             scored.sort(key=lambda r: r.score, reverse=True)
             final_results = scored[: config.top_k]
-            log3("[VECTOR_SEARCH]", f"✅ {len(final_results)} résultats trouvés (score >= {config.min_score})")
+            if not final_results:
+                log3(
+                    "[VECTOR_SEARCH]",
+                    {
+                        "status": "no_results",
+                        "company_id": company_id,
+                        "candidates": total_candidates,
+                        "candidates_with_embedding": candidates_with_embedding,
+                        "best_score_seen": best_score_seen,
+                        "min_score": config.min_score,
+                    },
+                )
+            else:
+                log3("[VECTOR_SEARCH]", f"✅ {len(final_results)} résultats trouvés (score >= {config.min_score})")
             return final_results
             
         except Exception as e:
