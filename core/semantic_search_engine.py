@@ -174,6 +174,60 @@ class OptimizedSemanticSearchEngine:
         Utilise directement pgvector sans RPC
         """
         try:
+            # 0) Chemin recommandé: PGVector natif (SQL direct) si PG_CONNECTION_STRING est configuré.
+            # Supabase PostgREST ne renvoie souvent pas les colonnes de type vector, ce qui empêche
+            # le calcul des similarités côté backend.
+            try:
+                from database.pgvector_config import PG_CONNECTION_STRING
+
+                pg_conn = (PG_CONNECTION_STRING or "").strip()
+                pg_is_placeholder = (
+                    "user:password@localhost" in pg_conn
+                    or "yourdb" in pg_conn
+                    or pg_conn.endswith("/yourdb")
+                )
+                if pg_conn and not pg_is_placeholder:
+                    from database.pgvector_client import search_company_documents
+
+                    pg_results = await search_company_documents(
+                        company_id=company_id,
+                        query_embedding=query_embedding,
+                        limit=config.top_k,
+                        score_threshold=config.min_score,
+                        mode="dense",
+                    )
+
+                    out: List[SearchResult] = []
+                    for row in pg_results or []:
+                        # native_pgvector_client retourne similarity_score (1 - distance)
+                        try:
+                            score = float(row.get("similarity_score") or 0.0)
+                        except Exception:
+                            score = 0.0
+
+                        if score < config.min_score:
+                            continue
+
+                        out.append(
+                            SearchResult(
+                                id=str(row.get("id") or ""),
+                                content=str(row.get("content") or ""),
+                                metadata=row.get("metadata") or {},
+                                score=score,
+                                source="pgvector",
+                            )
+                        )
+
+                    out.sort(key=lambda r: r.score, reverse=True)
+                    log3(
+                        "[VECTOR_SEARCH]",
+                        f"✅ {len(out)} résultats pgvector (score >= {config.min_score})",
+                    )
+                    return out[: config.top_k]
+            except Exception as e:
+                # PGVector non dispo ou erreur => fallback REST
+                log3("[VECTOR_SEARCH]", f"⚠️ PGVector fallback vers REST: {type(e).__name__}: {e}")
+
             # Requête optimisée avec pgvector
             url = f"{SUPABASE_URL}/rest/v1/documents"
             # Important: sur backend, utiliser la service key si dispo pour éviter que RLS
