@@ -493,7 +493,7 @@ async def semantic_search(
         enable_reranking=True
     )
     
-    engine = await get_search_engine()
+    engine = get_search_engine()
     results, context = await engine.search(query, company_id, config)
     
     # Conversion en dict pour compatibilité
