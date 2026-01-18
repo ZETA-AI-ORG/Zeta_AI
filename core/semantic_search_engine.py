@@ -5,6 +5,7 @@ Recherche sémantique optimisée avec embeddings multilingues, txtai, et fusion 
 import asyncio
 import time
 import logging
+import math
 from typing import List, Dict, Any, Optional, Tuple
 from dataclasses import dataclass
 from enum import Enum
@@ -168,9 +169,6 @@ class OptimizedSemanticSearchEngine:
         Utilise directement pgvector sans RPC
         """
         try:
-            # Format embedding pour PostgreSQL
-            embedding_str = f"[{','.join(map(str, query_embedding))}]"
-            
             # Requête optimisée avec pgvector
             url = f"{SUPABASE_URL}/rest/v1/documents"
             headers = {
@@ -179,12 +177,17 @@ class OptimizedSemanticSearchEngine:
                 "Content-Type": "application/json"
             }
             
-            # Paramètres optimisés
+            # PostgREST ne supporte pas l'ORDER BY sur une fonction pgvector du type
+            # embedding.cosine_distance(...). On récupère donc un lot de candidats (avec embeddings)
+            # et on calcule la similarité cosinus côté application.
+            select_fields = "id,content,embedding,metadata"
+            
+            # Paramètres REST
             params = {
                 "company_id": f"eq.{company_id}",
-                "select": "id,content,metadata",
-                "order": f"embedding.cosine_distance({embedding_str}).asc",
-                "limit": str(config.top_k)
+                "select": select_fields,
+                # On récupère plus que top_k pour avoir un peu de marge sur le ranking local
+                "limit": str(max(config.top_k * 5, config.top_k))
             }
             
             log3("[VECTOR_SEARCH]", f"🔍 Recherche pgvector (company_id={company_id}, top_k={config.top_k})")
@@ -198,26 +201,65 @@ class OptimizedSemanticSearchEngine:
             
             # Traitement des résultats
             raw_results = response.json() or []
-            results = []
-            
-            for i, doc in enumerate(raw_results):
-                # Score basé sur le rang (pgvector trie par distance croissante)
-                score = max(0.1, 1.0 - (i * 0.1))
-                
-                result = SearchResult(
-                    id=doc.get('id', ''),
-                    content=doc.get('content', ''),
-                    metadata=doc.get('metadata', {}),
-                    score=score,
-                    source='supabase'
+            scored: List[SearchResult] = []
+
+            # Similarité cosinus robuste (sans numpy)
+            def _cosine_similarity(a: List[float], b: List[float]) -> float:
+                try:
+                    if not a or not b:
+                        return 0.0
+                    if len(a) != len(b):
+                        return 0.0
+                    dot = 0.0
+                    na = 0.0
+                    nb = 0.0
+                    for x, y in zip(a, b):
+                        fx = float(x)
+                        fy = float(y)
+                        dot += fx * fy
+                        na += fx * fx
+                        nb += fy * fy
+                    if na <= 0.0 or nb <= 0.0:
+                        return 0.0
+                    return float(dot / (math.sqrt(na) * math.sqrt(nb)))
+                except Exception:
+                    return 0.0
+
+            for doc in raw_results:
+                emb = doc.get("embedding")
+                if not emb:
+                    continue
+
+                # embedding peut être une string JSON
+                if isinstance(emb, str):
+                    try:
+                        import json
+
+                        emb = json.loads(emb)
+                    except Exception:
+                        continue
+
+                if not isinstance(emb, list):
+                    continue
+
+                score = _cosine_similarity(query_embedding, emb)
+                if score < config.min_score:
+                    continue
+
+                scored.append(
+                    SearchResult(
+                        id=doc.get("id", ""),
+                        content=doc.get("content", ""),
+                        metadata=doc.get("metadata", {}) or {},
+                        score=score,
+                        source="supabase",
+                    )
                 )
-                
-                # Filtrage par score minimum
-                if score >= config.min_score:
-                    results.append(result)
-            
-            log3("[VECTOR_SEARCH]", f"✅ {len(results)} résultats trouvés (score >= {config.min_score})")
-            return results
+
+            scored.sort(key=lambda r: r.score, reverse=True)
+            final_results = scored[: config.top_k]
+            log3("[VECTOR_SEARCH]", f"✅ {len(final_results)} résultats trouvés (score >= {config.min_score})")
+            return final_results
             
         except Exception as e:
             log3("[VECTOR_SEARCH]", f"💥 Erreur: {type(e).__name__}: {str(e)}")
