@@ -26,6 +26,8 @@ def validate_payment_cumulative(
     Returns:
         {
             'valid': bool,
+            'status': 'VALID' | 'INSUFFICIENT' | 'REFUSED' | 'NONE',
+            'required_amount': int,
             'total_received': int,
             'payments_history': [202, 1800],
             'current_payment': int,
@@ -53,6 +55,8 @@ def validate_payment_cumulative(
         logger.warning(f"⚠️ Trop de paiements fragmentés: {len(all_payments)}")
         return {
             'valid': False,
+            'status': 'REFUSED',
+            'required_amount': required_amount,
             'total_received': total_received,
             'payments_history': all_payments,
             'current_payment': current_payment,
@@ -64,6 +68,8 @@ def validate_payment_cumulative(
         logger.warning(f"⚠️ Montant suspect: {current_payment}")
         return {
             'valid': False,
+            'status': 'REFUSED',
+            'required_amount': required_amount,
             'total_received': 0,
             'payments_history': [],
             'current_payment': current_payment,
@@ -78,6 +84,8 @@ def validate_payment_cumulative(
     if len(all_payments) == 0:
         return {
             'valid': False,
+            'status': 'NONE',
+            'required_amount': required_amount,
             'total_received': 0,
             'payments_history': [],
             'current_payment': 0,
@@ -99,6 +107,8 @@ def validate_payment_cumulative(
         
         return {
             'valid': True,
+            'status': 'VALID',
+            'required_amount': required_amount,
             'total_received': total_received,
             'payments_history': all_payments,
             'current_payment': current_payment,
@@ -121,6 +131,8 @@ def validate_payment_cumulative(
         
         return {
             'valid': False,
+            'status': 'INSUFFICIENT',
+            'required_amount': required_amount,
             'total_received': total_received,
             'payments_history': all_payments,
             'current_payment': current_payment,
@@ -206,20 +218,24 @@ def format_payment_for_prompt(validation_result: Dict[str, Any]) -> str:
     if not validation_result:
         return ""
     
-    if validation_result['valid']:
-        # Paiement validé (version optimisée tokens)
-        return f"""
+    status = str(validation_result.get('status') or '').strip().upper() or ('VALID' if validation_result.get('valid') else 'INSUFFICIENT')
+    required_amount = int(validation_result.get('required_amount') or 0)
+    total_received = int(validation_result.get('total_received') or 0)
+    difference = int(validation_result.get('difference') or (total_received - required_amount))
+    missing = abs(difference) if difference < 0 else 0
+    message = str(validation_result.get('message') or '').strip()
 
-💳 VALIDATION PAIEMENT:
-✅ VALIDÉ: {validation_result['message']}
-"""
-    else:
-        # Paiement insuffisant (version optimisée tokens)
-        return f"""
-
-💳 VALIDATION PAIEMENT:
-❌ INSUFFISANT: {validation_result['message']}
-"""
+    # Format compact & stable pour le LLM (facile à parser via _kv_parse)
+    # NOTE: champs séparés par "|".
+    return (
+        "PAYMENT_VERDICT"
+        f"|status={status}"
+        f"|received={total_received}"
+        f"|required={required_amount}"
+        f"|diff={difference}"
+        f"|missing={missing}"
+        f"|message={message}"
+    )
 
 # Tests unitaires
 if __name__ == "__main__":

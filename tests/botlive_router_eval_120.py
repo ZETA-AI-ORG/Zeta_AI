@@ -2,6 +2,7 @@ import asyncio
 import json
 import os
 import sys
+import csv
 from datetime import datetime
 from typing import Any, Dict, List, Tuple
 
@@ -11,25 +12,50 @@ _ROOT_DIR = os.path.abspath(os.path.join(_THIS_DIR, ".."))
 if _ROOT_DIR not in sys.path:
     sys.path.insert(0, _ROOT_DIR)
 
-# Forcer le mode routeur embeddings uniquement (pas d'appel LLM)
-os.environ.setdefault("BOTLIVE_ROUTER_EMBEDDINGS_ENABLED", "true")
+# ROUTEUR UNIQUE (V5 SetFit): pas d'LLM, pas d'embeddings fallback, pas de dual-router.
+os.environ.setdefault("BOTLIVE_ROUTER_EMBEDDINGS_ENABLED", "false")
 os.environ.setdefault("BOTLIVE_V18_ENABLED", "false")
 os.environ.setdefault("BOTLIVE_HYDE_PRE_ENABLED", "false")
+os.environ.setdefault("BOTLIVE_DUAL_ROUTER_MODE", "")
 
-from core.botlive_intent_router import route_botlive_intent
+from core.setfit_intent_router import route_botlive_intent
 from tests.production_test_cases import PRODUCTION_TEST_CASES
 
 TEST_COMPANY_ID = "W27PwOPiblP8TlOrhPcjOtxd0cza"
 TEST_USER_ID = "router_only_eval_120"
 
 
+BOTLIVE_PROMPT_LIGHT_THRESHOLD = 0.90
+BOTLIVE_STANDARD_MIN = 0.70
+BOTLIVE_HYDE_MIN = 0.55
+
+
 def _intent_to_group_letter(intent: str, mode_val: str) -> str:
     intent = (intent or "").upper()
     mode_val = (mode_val or "").upper()
+
+    # V5 mapping (priorité absolue)
+    if intent in {"REASSURANCE", "SHOPPING", "ACQUISITION", "SAV_SUIVI"}:
+        return {
+            "REASSURANCE": "A",
+            "SHOPPING": "B",
+            "ACQUISITION": "C",
+            "SAV_SUIVI": "D",
+        }[intent]
+
     group_a = {"SALUT", "INFO_GENERALE", "CLARIFICATION"}
-    group_b = {"PRODUIT_GLOBAL", "PRIX_PROMO"}
+    group_b = {
+        "PRODUIT_GLOBAL",
+        "CATALOGUE",
+        "RECHERCHE_PRODUIT",
+        "PRIX_PROMO",
+        "PRIX",
+        "DISPONIBILITE",
+        "STOCK",
+        "DETAILS_PRODUIT",
+    }
     group_c = {"ACHAT_COMMANDE", "LIVRAISON", "PAIEMENT", "CONTACT_COORDONNEES"}
-    group_d = {"COMMANDE_EXISTANTE", "PROBLEME"}
+    group_d = {"SUIVI", "PROBLEME"}
 
     if intent in group_a:
         return "A"
@@ -45,6 +71,19 @@ def _intent_to_group_letter(intent: str, mode_val: str) -> str:
     if mode_val == "RECEPTION_SAV":
         return "D"
     return "A"
+
+
+def _prompt_tag(letter: str, confidence: float) -> Tuple[str, str]:
+    """Retourne (gating_path, prompt_tag) comme utilisé par la logique Jessica."""
+    letter = (letter or "A").upper()
+    score = float(confidence or 0.0)
+    if score >= BOTLIVE_PROMPT_LIGHT_THRESHOLD:
+        return ("light", f"JESSICA_PROMPT_LIGHT_{letter}")
+    if score < BOTLIVE_HYDE_MIN:
+        return ("prompt_x", "JESSICA_PROMPT_X")
+    if score < BOTLIVE_STANDARD_MIN:
+        return ("hyde", f"JESSICA_PROMPT_{letter}")
+    return ("standard", f"JESSICA_PROMPT_{letter}")
 
 
 async def run_router_only(limit: int | None = None) -> List[Dict[str, Any]]:
@@ -71,13 +110,16 @@ async def run_router_only(limit: int | None = None) -> List[Dict[str, Any]]:
             message=question,
             conversation_history="",
             state_compact=base_state,
+            hyde_pre_enabled=False,
         )
 
         letter = _intent_to_group_letter(routing.intent, routing.mode)
         score = float(routing.confidence or 0.0)
 
+        gating_path, prompt_tag = _prompt_tag(letter, score)
+
         print(
-            f"[{idx:03d}] score={score:.3f} | intent={routing.intent:<15} | mode={routing.mode:<14} | letter={letter} | q={question}"
+            f"[{idx:03d}] score={score:.3f} | intent={routing.intent:<15} | mode={routing.mode:<14} | prompt={prompt_tag:<22} | q={question}"
         )
 
         result: Dict[str, Any] = {
@@ -91,6 +133,8 @@ async def run_router_only(limit: int | None = None) -> List[Dict[str, Any]]:
                 "missing_fields": routing.missing_fields,
                 "confidence": score,
                 "segment_letter": letter,
+                "gating_path": gating_path,
+                "prompt_tag": prompt_tag,
                 "debug": routing.debug,
             },
         }
@@ -114,12 +158,48 @@ async def main() -> None:
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     out_path = os.path.join(_ROOT_DIR, "results", f"botlive_router_only_{len(results)}_{timestamp}.json")
+    csv_path = os.path.join(_ROOT_DIR, "results", f"router_eval_prompts_{len(results)}_{timestamp}.csv")
 
     with open(out_path, "w", encoding="utf-8") as f:
         json.dump(results, f, ensure_ascii=False, indent=2)
 
+    with open(csv_path, "w", encoding="utf-8", newline="") as f:
+        writer = csv.DictWriter(
+            f,
+            fieldnames=[
+                "index",
+                "question",
+                "expected_label",
+                "expected_intent_id",
+                "intent_internal",
+                "mode",
+                "confidence",
+                "segment_letter",
+                "gating_path",
+                "prompt_tag",
+            ],
+        )
+        writer.writeheader()
+        for r in results:
+            router = r.get("router") or {}
+            writer.writerow(
+                {
+                    "index": r.get("index"),
+                    "question": r.get("question"),
+                    "expected_label": r.get("expected_label"),
+                    "expected_intent_id": r.get("expected_intent_id"),
+                    "intent_internal": router.get("intent_internal"),
+                    "mode": router.get("mode"),
+                    "confidence": f"{float(router.get('confidence') or 0.0):.3f}",
+                    "segment_letter": router.get("segment_letter"),
+                    "gating_path": router.get("gating_path"),
+                    "prompt_tag": router.get("prompt_tag"),
+                }
+            )
+
     print("\n=== ROUTER BATCH TERMINÉ ===")
     print(f"Fichier JSON généré: {out_path}")
+    print(f"Fichier CSV généré:  {csv_path}")
 
 
 if __name__ == "__main__":

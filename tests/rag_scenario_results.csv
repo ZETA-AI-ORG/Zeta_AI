@@ -1,0 +1,7 @@
+turn,question,response,duration_ms,status_code,prompt_tokens,completion_tokens,total_tokens,cached_tokens,cost,search_method
+1,Je veux commander des couches,Tu veux quel produit exactement (marque/modèle) stp ?,84734,200,5465,315,5780,0,0.0,simplified_prompt_system
+2,Livraison à Cocody Angré,Ok pour Cocody ! Tu veux quel produit exactement stp ?,17159,200,5498,330,5828,0,0.0,simplified_prompt_system
+3,Mon numéro c'est +225 0787360757,Ok pour ton numéro ! Tu veux quel produit exactement stp ?,16905,200,5595,345,5940,0,0.0,simplified_prompt_system
+4,Je vais faire l'acompte là mais j'ai que 1000F sur Wave…,"<response>
+Ah, le dépôt c'est 2000F sur le 078",15870,200,5650,420,6070,0,0.0,simplified_prompt_system
+5,Voici la capture Wave (acompte insuffisant) [img_ref:1a7a5d4b],"Ah, le dépôt c'est 2000F sur le 0787360757. Tu peux envoyer le reste stp ? 😉",19718,200,5965,409,6374,0,0.0,simplified_prompt_system

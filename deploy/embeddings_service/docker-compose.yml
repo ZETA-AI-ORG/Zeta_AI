@@ -1,0 +1,21 @@
+version: "3.8"
+
+services:
+  embeddings:
+    build:
+      context: ../..
+      dockerfile: services/embeddings_service/Dockerfile
+    container_name: zeta-embeddings
+    restart: always
+    environment:
+      EMBEDDINGS_MODEL_NAME: ${EMBEDDINGS_MODEL_NAME:-dangvantuan/sentence-camembert-large}
+      EMBEDDINGS_NORMALIZE: ${EMBEDDINGS_NORMALIZE:-true}
+      EMBEDDINGS_MAX_SEQ_LENGTH: ${EMBEDDINGS_MAX_SEQ_LENGTH:-384}
+      EMBEDDINGS_BATCH_SIZE: ${EMBEDDINGS_BATCH_SIZE:-32}
+    ports:
+      - "127.0.0.1:8010:8010"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8010/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3

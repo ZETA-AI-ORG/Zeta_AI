@@ -24,16 +24,55 @@ class OrderState:
     """État de collecte d'une commande"""
     user_id: str
     produit: Optional[str] = None
+    produit_details: Optional[str] = None
+    quantite: Optional[str] = None
     paiement: Optional[str] = None
     zone: Optional[str] = None
     numero: Optional[str] = None
+
+    def _is_paiement_valid(self) -> bool:
+        try:
+            p = str(self.paiement or "").strip()
+            if not p:
+                return False
+            p_up = p.upper()
+            # Méthode seule (ex: "WAVE") ne doit pas compter comme paiement.
+            if p_up in {"WAVE", "ORANGE", "ORANGE MONEY", "MTN", "MTN MONEY", "MOBILE MONEY"}:
+                return False
+            # Paiement validé par verdict
+            if p_up.startswith("VALIDÉ_") or p_up.startswith("VALIDE_") or p_up.startswith("VALIDE"):
+                return True
+            # Montant explicite (fallback)
+            digits = "".join(ch for ch in p if ch.isdigit())
+            if digits:
+                try:
+                    amt = int(digits)
+                except Exception:
+                    amt = 0
+                return amt >= 2000
+            return False
+        except Exception:
+            return False
     
     def get_missing_fields(self) -> Set[str]:
         """Retourne les champs manquants"""
         missing = set()
         if not self.produit:
             missing.add("PRODUIT")
-        if not self.paiement:
+        # SPECS: pour certaines catégories (ex: culottes), on peut avancer sans specs.
+        # Pour pressions (taille T1..T7) et autres produits, specs restent obligatoires.
+        try:
+            prod_l = str(self.produit or "").lower()
+        except Exception:
+            prod_l = ""
+        specs_required = True
+        if "culott" in prod_l:
+            specs_required = False
+        if specs_required and (not self.produit_details):
+            missing.add("SPECS")
+        if not self.quantite:
+            missing.add("QUANTITÉ")
+        if not self._is_paiement_valid():
             missing.add("PAIEMENT")
         if not self.zone:
             missing.add("ZONE")
@@ -47,15 +86,19 @@ class OrderState:
     
     def get_completion_rate(self) -> float:
         """Retourne le taux de complétion (0.0 à 1.0)"""
-        collected = 4 - len(self.get_missing_fields())
-        return collected / 4.0
+        collected = 6 - len(self.get_missing_fields())
+        return collected / 6.0
     
     def to_notepad_format(self) -> str:
         """Convertit en format notepad"""
         parts = []
         if self.produit:
             parts.append(f"✅PRODUIT:{self.produit}")
-        if self.paiement:
+        if self.produit_details:
+            parts.append(f"✅SPECS:{self.produit_details}")
+        if self.quantite:
+            parts.append(f"✅QUANTITÉ:{self.quantite}")
+        if self._is_paiement_valid():
             parts.append(f"✅PAIEMENT:{self.paiement}")
         if self.zone:
             parts.append(f"✅ZONE:{self.zone}")
@@ -90,6 +133,8 @@ class OrderStateTracker:
             CREATE TABLE IF NOT EXISTS order_states (
                 user_id TEXT PRIMARY KEY,
                 produit TEXT,
+                produit_details TEXT,
+                quantite TEXT,
                 paiement TEXT,
                 zone TEXT,
                 numero TEXT,
@@ -97,8 +142,169 @@ class OrderStateTracker:
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
+
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS order_state_meta (
+                user_id TEXT PRIMARY KEY,
+                turn INTEGER DEFAULT 0,
+                ask_counts_json TEXT,
+                last_asked_json TEXT,
+                slot_meta_json TEXT,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
+        try:
+            cursor.execute("PRAGMA table_info(order_states)")
+            cols = [str(r[1]) for r in (cursor.fetchall() or [])]
+            if "produit_details" not in cols:
+                cursor.execute("ALTER TABLE order_states ADD COLUMN produit_details TEXT")
+            if "quantite" not in cols:
+                cursor.execute("ALTER TABLE order_states ADD COLUMN quantite TEXT")
+        except Exception as e:
+            logger.debug(f"[ORDER_STATE] Migration colonne produit_details ignorée: {e}")
+
         conn.commit()
         conn.close()
+
+    def _get_meta(self, user_id: str) -> Dict:
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            SELECT turn, ask_counts_json, last_asked_json, slot_meta_json
+            FROM order_state_meta
+            WHERE user_id = ?
+            """,
+            (user_id,),
+        )
+        row = cursor.fetchone()
+        conn.close()
+
+        if not row:
+            return {"turn": 0, "ask_counts": {}, "last_asked": {}, "slot_meta": {}}
+
+        try:
+            ask_counts = json.loads(row[1]) if row[1] else {}
+        except Exception:
+            ask_counts = {}
+        try:
+            last_asked = json.loads(row[2]) if row[2] else {}
+        except Exception:
+            last_asked = {}
+        try:
+            slot_meta = json.loads(row[3]) if row[3] else {}
+        except Exception:
+            slot_meta = {}
+
+        return {
+            "turn": int(row[0] or 0),
+            "ask_counts": ask_counts if isinstance(ask_counts, dict) else {},
+            "last_asked": last_asked if isinstance(last_asked, dict) else {},
+            "slot_meta": slot_meta if isinstance(slot_meta, dict) else {},
+        }
+
+    def _save_meta(self, user_id: str, meta: Dict) -> None:
+        turn = int((meta or {}).get("turn") or 0)
+        ask_counts = (meta or {}).get("ask_counts")
+        last_asked = (meta or {}).get("last_asked")
+        slot_meta = (meta or {}).get("slot_meta")
+
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            INSERT OR REPLACE INTO order_state_meta
+            (user_id, turn, ask_counts_json, last_asked_json, slot_meta_json, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (
+                user_id,
+                turn,
+                json.dumps(ask_counts or {}, ensure_ascii=False),
+                json.dumps(last_asked or {}, ensure_ascii=False),
+                json.dumps(slot_meta or {}, ensure_ascii=False),
+                datetime.now().isoformat(),
+            ),
+        )
+        conn.commit()
+        conn.close()
+
+    def bump_turn(self, user_id: str) -> int:
+        meta = self._get_meta(user_id)
+        meta["turn"] = int(meta.get("turn") or 0) + 1
+        self._save_meta(user_id, meta)
+        return int(meta["turn"])
+
+    def record_asked(self, user_id: str, field_name: str, turn: int) -> None:
+        f = str(field_name or "").upper().strip()
+        if not f:
+            return
+        meta = self._get_meta(user_id)
+        ask_counts = meta.get("ask_counts") if isinstance(meta.get("ask_counts"), dict) else {}
+        last_asked = meta.get("last_asked") if isinstance(meta.get("last_asked"), dict) else {}
+        ask_counts[f] = int(ask_counts.get(f) or 0) + 1
+        last_asked[f] = int(turn or 0)
+        meta["ask_counts"] = ask_counts
+        meta["last_asked"] = last_asked
+        self._save_meta(user_id, meta)
+
+    def get_slot_meta(self, user_id: str) -> Dict:
+        meta = self._get_meta(user_id)
+        return {
+            "turn": int(meta.get("turn") or 0),
+            "ask_counts": meta.get("ask_counts") if isinstance(meta.get("ask_counts"), dict) else {},
+            "last_asked": meta.get("last_asked") if isinstance(meta.get("last_asked"), dict) else {},
+            "slot_meta": meta.get("slot_meta") if isinstance(meta.get("slot_meta"), dict) else {},
+        }
+
+    def get_custom_meta(self, user_id: str, key: str, default=None):
+        try:
+            k = str(key or "").strip()
+            if not k:
+                return default
+            meta = self._get_meta(user_id)
+            slot_meta = meta.get("slot_meta") if isinstance(meta.get("slot_meta"), dict) else {}
+            custom = slot_meta.get("__custom__") if isinstance(slot_meta.get("__custom__"), dict) else {}
+            return custom.get(k, default)
+        except Exception:
+            return default
+
+    def set_custom_meta(self, user_id: str, key: str, value) -> None:
+        try:
+            k = str(key or "").strip()
+            if not k:
+                return
+            meta = self._get_meta(user_id)
+            slot_meta = meta.get("slot_meta") if isinstance(meta.get("slot_meta"), dict) else {}
+            custom = slot_meta.get("__custom__") if isinstance(slot_meta.get("__custom__"), dict) else {}
+            custom[k] = value
+            slot_meta["__custom__"] = custom
+            meta["slot_meta"] = slot_meta
+            self._save_meta(user_id, meta)
+        except Exception:
+            return
+
+    def get_flag(self, user_id: str, flag_name: str) -> bool:
+        v = self.get_custom_meta(user_id, f"flag:{flag_name}", default=False)
+        return bool(v)
+
+    def set_flag(self, user_id: str, flag_name: str, value: bool) -> None:
+        self.set_custom_meta(user_id, f"flag:{flag_name}", bool(value))
+
+    def set_slot_meta(self, user_id: str, field_name: str, *, source: str, confidence: float) -> None:
+        f = str(field_name or "").upper().strip()
+        if not f:
+            return
+        meta = self._get_meta(user_id)
+        slot_meta = meta.get("slot_meta") if isinstance(meta.get("slot_meta"), dict) else {}
+        slot_meta[f] = {
+            "source": str(source or "").strip() or "UNKNOWN",
+            "confidence": float(confidence) if confidence is not None else None,
+            "updated_at": datetime.now().isoformat(),
+        }
+        meta["slot_meta"] = slot_meta
+        self._save_meta(user_id, meta)
     
     def _cleanup_old_entries(self):
         """Supprime les entrées de plus de 168 heures (7 jours)"""
@@ -111,6 +317,16 @@ class OrderStateTracker:
                 WHERE updated_at < ?
             """, (cutoff.isoformat(),))
             deleted = cursor.rowcount
+
+            # Best-effort: nettoyer aussi les metas orphelines
+            try:
+                cursor.execute("""
+                    DELETE FROM order_state_meta
+                    WHERE user_id NOT IN (SELECT user_id FROM order_states)
+                """)
+            except Exception:
+                pass
+
             conn.commit()
             conn.close()
             if deleted > 0:
@@ -123,7 +339,7 @@ class OrderStateTracker:
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
         cursor.execute("""
-            SELECT produit, paiement, zone, numero 
+            SELECT produit, produit_details, quantite, paiement, zone, numero 
             FROM order_states 
             WHERE user_id = ?
         """, (user_id,))
@@ -134,9 +350,11 @@ class OrderStateTracker:
             return OrderState(
                 user_id=user_id,
                 produit=row[0],
-                paiement=row[1],
-                zone=row[2],
-                numero=row[3]
+                produit_details=row[1],
+                quantite=row[2],
+                paiement=row[3],
+                zone=row[4],
+                numero=row[5]
             )
         else:
             # Créer une nouvelle entrée
@@ -148,11 +366,13 @@ class OrderStateTracker:
         cursor = conn.cursor()
         cursor.execute("""
             INSERT OR REPLACE INTO order_states 
-            (user_id, produit, paiement, zone, numero, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?)
+            (user_id, produit, produit_details, quantite, paiement, zone, numero, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             state.user_id,
             state.produit,
+            state.produit_details,
+            state.quantite,
             state.paiement,
             state.zone,
             state.numero,
@@ -161,35 +381,93 @@ class OrderStateTracker:
         conn.commit()
         conn.close()
     
-    def update_produit(self, user_id: str, produit: str) -> OrderState:
+    def update_produit(self, user_id: str, produit: str, source: str = "USER_TEXT", confidence: float = 1.0) -> OrderState:
         """Met à jour le produit"""
         state = self.get_state(user_id)
         state.produit = produit
         self._save_state(state)
+        self.set_slot_meta(user_id, "PRODUIT", source=source, confidence=confidence)
         logger.info(f"[{user_id}] PRODUIT collecté: {produit}")
         return state
-    
-    def update_paiement(self, user_id: str, paiement: str) -> OrderState:
-        """Met à jour le paiement"""
+
+    def update_produit_details(self, user_id: str, produit_details: str, source: str = "USER_TEXT", confidence: float = 1.0) -> OrderState:
+        """Met à jour les détails produit (sans valider le champ produit)"""
         state = self.get_state(user_id)
-        state.paiement = paiement
+        state.produit_details = produit_details
         self._save_state(state)
-        logger.info(f"[{user_id}] PAIEMENT collecté: {paiement}")
+        self.set_slot_meta(user_id, "SPECS", source=source, confidence=confidence)
+        logger.info(f"[{user_id}] PRODUIT_DETAILS mémorisés: {produit_details}")
+        return state
+
+    def update_quantite(self, user_id: str, quantite: str, source: str = "USER_TEXT", confidence: float = 1.0) -> OrderState:
+        """Met à jour la quantité"""
+        state = self.get_state(user_id)
+        state.quantite = quantite
+        self._save_state(state)
+        self.set_slot_meta(user_id, "QUANTITÉ", source=source, confidence=confidence)
+        logger.info(f"[{user_id}] QUANTITÉ collectée: {quantite}")
         return state
     
-    def update_zone(self, user_id: str, zone: str) -> OrderState:
+    def update_paiement(self, user_id: str, paiement: str, source: str = "USER_TEXT", confidence: float = 1.0) -> OrderState:
+        """Met à jour le paiement"""
+        state = self.get_state(user_id)
+
+        new_p = str(paiement or "").strip()
+        old_p = str(state.paiement or "").strip()
+        new_up = new_p.upper()
+        old_up = old_p.upper()
+
+        # Niveaux / priorités (du plus faible au plus fort)
+        # - MÉTHODE: "WAVE" / "ORANGE" / ... (déclaratif)
+        # - VERDICT NON-VALIDANT: "INSUFFISANT_XXXF" / "REFUSÉ" (preuve négative)
+        # - VERDICT VALIDANT: "VALIDÉ_XXXXF" (preuve positive)
+        method_values = {"WAVE", "ORANGE", "ORANGE MONEY", "MTN", "MTN MONEY", "MOOV", "MOBILE MONEY"}
+
+        def _is_method(v_up: str) -> bool:
+            return v_up in method_values
+
+        def _is_validated(v_up: str) -> bool:
+            return v_up.startswith("VALIDÉ_") or v_up.startswith("VALIDE_") or v_up.startswith("VALIDE")
+
+        def _is_negative_verdict(v_up: str) -> bool:
+            return v_up.startswith("INSUFFISANT") or v_up.startswith("REFUS") or v_up.startswith("REJET")
+
+        # Règles de protection :
+        # 1) Ne jamais écraser un paiement validé par un état plus faible.
+        if _is_validated(old_up) and not _is_validated(new_up):
+            logger.info(f"[{user_id}] PAIEMENT inchangé (déjà validé): {old_p}")
+            return state
+
+        # 2) Ne jamais écraser un verdict négatif par une simple méthode.
+        if _is_negative_verdict(old_up) and _is_method(new_up):
+            logger.info(f"[{user_id}] PAIEMENT inchangé (verdict existant): {old_p}")
+            return state
+
+        # 3) Si nouvelle valeur vide, ne rien faire.
+        if not new_p:
+            return state
+
+        state.paiement = new_p
+        self._save_state(state)
+        self.set_slot_meta(user_id, "PAIEMENT", source=source, confidence=confidence)
+        logger.info(f"[{user_id}] PAIEMENT collecté: {new_p}")
+        return state
+    
+    def update_zone(self, user_id: str, zone: str, source: str = "USER_TEXT", confidence: float = 1.0) -> OrderState:
         """Met à jour la zone"""
         state = self.get_state(user_id)
         state.zone = zone
         self._save_state(state)
+        self.set_slot_meta(user_id, "ZONE", source=source, confidence=confidence)
         logger.info(f"[{user_id}] ZONE collectée: {zone}")
         return state
     
-    def update_numero(self, user_id: str, numero: str) -> OrderState:
+    def update_numero(self, user_id: str, numero: str, source: str = "USER_TEXT", confidence: float = 1.0) -> OrderState:
         """Met à jour le numéro"""
         state = self.get_state(user_id)
         state.numero = numero
         self._save_state(state)
+        self.set_slot_meta(user_id, "NUMÉRO", source=source, confidence=confidence)
         logger.info(f"[{user_id}] NUMÉRO collecté: {numero}")
         return state
     
@@ -198,20 +476,69 @@ class OrderStateTracker:
         state = self.get_state(user_id)
         return state.is_complete()
     
-    def get_next_required_field(self, user_id: str) -> Optional[str]:
+    def get_next_required_field(self, user_id: str, current_turn: Optional[int] = None) -> Optional[str]:
         """Retourne le prochain champ requis (ou None si complet)"""
         state = self.get_state(user_id)
         missing = state.get_missing_fields()
         
         if not missing:
             return None
-        
-        # Ordre de priorité suggéré (mais pas obligatoire)
-        priority = ["PRODUIT", "PAIEMENT", "ZONE", "NUMÉRO"]
+
+        # Si un verdict négatif est présent (paiement insuffisant/refusé),
+        # il faut traiter le paiement en priorité (demander le complément / nouvelle preuve)
+        # avant de poursuivre la collecte du reste.
+        try:
+            p_up = str(getattr(state, "paiement", "") or "").strip().upper()
+        except Exception:
+            p_up = ""
+
+        payment_is_blocking = bool(p_up) and (
+            p_up.startswith("INSUFFISANT")
+            or p_up.startswith("REFUS")
+            or p_up.startswith("REJET")
+        )
+
+        if payment_is_blocking:
+            priority = ["PAIEMENT", "PRODUIT", "SPECS", "QUANTITÉ", "ZONE", "NUMÉRO"]
+        else:
+            # Anti-répétition: on alterne la collecte (ex: produit puis quantité)
+            # pour éviter de re-demander PRODUIT à chaque tour quand l'utilisateur fournit
+            # d'autres infos (zone/téléphone/paiement).
+            priority = ["PRODUIT", "QUANTITÉ", "SPECS", "ZONE", "NUMÉRO", "PAIEMENT"]
+
+        slot_meta = self.get_slot_meta(user_id)
+        last_asked = slot_meta.get("last_asked") if isinstance(slot_meta.get("last_asked"), dict) else {}
+        turn = int(current_turn or slot_meta.get("turn") or 0)
+
+        cooldowns = {
+            # Les champs de collecte principaux doivent éviter le bégaiement.
+            # Si on vient de poser la question, on laisse 1-2 tours pour que le client réponde.
+            "PRODUIT": 2,
+            "SPECS": 2,
+            "QUANTITÉ": 2,
+            "ZONE": 1,
+            "NUMÉRO": 2,
+            # Paiement: doit pouvoir être redemandé immédiatement quand c'est bloquant.
+            "PAIEMENT": 0,
+        }
+
+        def _cooldown_active(f: str) -> bool:
+            last = int(last_asked.get(f) or 0)
+            cd = int(cooldowns.get(f) or 0)
+            if cd <= 0:
+                return False
+            if last <= 0:
+                return False
+            return (turn - last) < cd
+
+        for field in priority:
+            if field in missing and not _cooldown_active(field):
+                return field
+
         for field in priority:
             if field in missing:
                 return field
-        
+
         return list(missing)[0]
     
     def get_progress_message(self, user_id: str) -> str:
@@ -223,10 +550,10 @@ class OrderStateTracker:
             return "✅ Toutes les informations collectées !"
         
         completion = state.get_completion_rate()
-        collected = int(completion * 4)
+        collected = int(completion * 6)
         
         missing_list = ", ".join(missing)
-        return f"📊 {collected}/4 collectées. Manque: {missing_list}"
+        return f"📊 {collected}/6 collectées. Manque: {missing_list}"
     
     def finalize_order(self, user_id: str) -> Dict:
         """Finalise la commande et retourne les données"""
@@ -238,6 +565,7 @@ class OrderStateTracker:
         order_data = {
             "user_id": user_id,
             "produit": state.produit,
+            "quantite": state.quantite,
             "paiement": state.paiement,
             "zone": state.zone,
             "numero": state.numero,
@@ -256,6 +584,10 @@ class OrderStateTracker:
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
         cursor.execute("DELETE FROM order_states WHERE user_id = ?", (user_id,))
+        try:
+            cursor.execute("DELETE FROM order_state_meta WHERE user_id = ?", (user_id,))
+        except Exception:
+            pass
         conn.commit()
         conn.close()
         logger.info(f"[{user_id}] État effacé de la DB")

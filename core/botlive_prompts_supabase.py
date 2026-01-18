@@ -8,6 +8,7 @@ import os
 import logging
 from typing import Dict, Any, Optional
 from supabase import create_client, Client
+import time
 
 logger = logging.getLogger(__name__)
 
@@ -27,11 +28,57 @@ class BotlivePromptsManager:
         self.supabase: Client = create_client(supabase_url, supabase_key)
         self._cache = {}  # Cache en mémoire pour performance
         self._cache_timestamps = {}  # Timestamps pour TTL
-        self._cache_ttl = 300  # TTL 5 minutes (300 secondes) - RÉDUIT pour dev
+
+        enabled_raw = (os.getenv("PROMPT_LOCAL_CACHE_ENABLED", "true") or "true").strip().lower()
+        self._cache_enabled = enabled_raw in {"1", "true", "yes", "y", "on"}
+        try:
+            self._cache_ttl = int(os.getenv("PROMPT_CACHE_TTL", "3600") or 3600)
+        except Exception:
+            self._cache_ttl = 3600
+        if self._cache_ttl < 0:
+            self._cache_ttl = 0
         
         logger.info("✅ BotlivePromptsManager initialisé avec Supabase")
         logger.info("🗑️ Cache prompts vidé (démarrage propre)")
-        logger.info(f"⏰ TTL cache: {self._cache_ttl}s (5 min)")
+        logger.info(
+            "📦 [PROMPT_CACHE] local_cache=%s ttl=%ss",
+            "on" if self._cache_enabled else "off",
+            self._cache_ttl,
+        )
+
+    def _cache_get(self, cache_key: str) -> Optional[str]:
+        try:
+            if not getattr(self, "_cache_enabled", True):
+                return None
+            if cache_key not in self._cache:
+                return None
+            ts = float(self._cache_timestamps.get(cache_key) or 0.0)
+            if ts <= 0.0:
+                return None
+            age = time.time() - ts
+            ttl = float(getattr(self, "_cache_ttl", 0) or 0)
+            if ttl <= 0:
+                return None
+            if age > ttl:
+                # TTL expired
+                try:
+                    self._cache.pop(cache_key, None)
+                    self._cache_timestamps.pop(cache_key, None)
+                except Exception:
+                    pass
+                return None
+            return self._cache.get(cache_key)
+        except Exception:
+            return None
+
+    def _cache_set(self, cache_key: str, value: str) -> None:
+        try:
+            if not getattr(self, "_cache_enabled", True):
+                return
+            self._cache[cache_key] = value
+            self._cache_timestamps[cache_key] = time.time()
+        except Exception:
+            pass
     
     def get_prompt(self, company_id: str, llm_choice: str) -> str:
         """
@@ -48,17 +95,29 @@ class BotlivePromptsManager:
             ValueError: Si company_id invalide ou prompts manquants
         """
         print(f"[DEBUG] Appel get_prompt avec company_id={company_id}, llm_choice={llm_choice}")
-        # Vérifier cache
-        cache_key = f"{company_id}_{llm_choice}"
-        if cache_key in self._cache:
-            logger.info(f"📦 [CACHE] Cache hit pour {cache_key} ({len(self._cache[cache_key])} chars)")
-            return self._cache[cache_key]
+
+        original_llm_choice = llm_choice
+        # IMPORTANT: pour OpenRouter on force le prompt Supabase DeepSeek (champ prompt_botlive_deepseek_v3).
+        # C'est là que le prompt "global + catalogue" est stocké.
+        if llm_choice == "openrouter":
+            llm_choice = "deepseek-v3"
+
+        logger.info(
+            "🧩 [PROMPT_SOURCE] runtime_llm_choice=%s resolved_prompt_source=%s",
+            original_llm_choice,
+            llm_choice,
+        )
+
+        # NOTE: le cache est versionné après lecture Supabase via botlive_prompts_updated_at.
+        # Ici on ne peut donc pas faire de cache-hit avant d'avoir l'info de version.
+        if not getattr(self, "_cache_enabled", True):
+            logger.info("📦 [CACHE] Cache désactivé (PROMPT_LOCAL_CACHE_ENABLED=false)")
         
         try:
             # Récupérer depuis Supabase (table company_rag_configs)
             logger.info(f"🔍 [SUPABASE] Requête: table=company_rag_configs, company_id={company_id}")
             response = self.supabase.table("company_rag_configs") \
-                .select("prompt_botlive_groq_70b, prompt_botlive_deepseek_v3, company_name, ai_name") \
+                .select("prompt_botlive_groq_70b, prompt_botlive_deepseek_v3, company_name, ai_name, botlive_prompts_updated_at") \
                 .eq("company_id", company_id) \
                 .single() \
                 .execute()
@@ -68,6 +127,14 @@ class BotlivePromptsManager:
                 raise ValueError(f"❌ Aucune config trouvée pour company_id: {company_id}")
             
             data = response.data
+
+            # Version pour invalidation automatique du cache local.
+            version_tag = str(data.get("botlive_prompts_updated_at") or "").strip() or "noversion"
+            cache_key = f"{company_id}_{original_llm_choice}_{version_tag}"
+            cached = self._cache_get(cache_key)
+            if cached is not None:
+                logger.info(f"📦 [CACHE] Cache hit pour {cache_key} ({len(cached)} chars)")
+                return cached
             
             # Sélectionner le bon prompt
             if llm_choice == "groq-70b":
@@ -82,7 +149,7 @@ class BotlivePromptsManager:
                 raise ValueError(f"❌ llm_choice invalide: {llm_choice}")
             
             # Mettre en cache
-            self._cache[cache_key] = prompt
+            self._cache_set(cache_key, prompt)
             
             print(f"[DEBUG SUPABASE] Prompt récupéré: {len(prompt)} chars")
             print(f"[DEBUG SUPABASE] Début du prompt: {prompt[:200]}...")
@@ -109,6 +176,7 @@ class BotlivePromptsManager:
             start_tag="[[HYDE_PRE_ROUTING_START]]",
             end_tag="[[HYDE_PRE_ROUTING_END]]",
             cache_suffix="hyde_pre_routing",
+            required=False,
         )
 
     def get_prompt_block(
@@ -118,6 +186,7 @@ class BotlivePromptsManager:
         end_tag: str,
         cache_suffix: str,
         source_column: str = "prompt_botlive_groq_70b",
+        required: bool = True,
     ) -> str:
         """Récupère un bloc de prompt délimité par des balises START/END dans le prompt principal.
 
@@ -126,9 +195,10 @@ class BotlivePromptsManager:
         """
 
         cache_key = f"{company_id}_{cache_suffix}"
-        if cache_key in self._cache:
+        cached = self._cache_get(cache_key)
+        if cached is not None:
             logger.info(f"📦 [CACHE] Prompt block hit pour {cache_key}")
-            return self._cache[cache_key]
+            return cached
 
         try:
             logger.info(
@@ -146,15 +216,34 @@ class BotlivePromptsManager:
                 raise ValueError(f"❌ Aucune config trouvée pour company_id: {company_id}")
 
             full_prompt = response.data.get(source_column) or ""
-            block = self._extract_block(full_prompt, start_tag=start_tag, end_tag=end_tag)
+            try:
+                block = self._extract_block(full_prompt, start_tag=start_tag, end_tag=end_tag)
+            except Exception as e:
+                if not required:
+                    logger.warning(
+                        f"⚠️ Prompt block optionnel manquant: {cache_suffix} pour {company_id} ({e})"
+                    )
+                    block = ""
+                else:
+                    raise
 
-            self._cache[cache_key] = block
+            self._cache_set(cache_key, block)
             logger.info(
                 f"✅ Prompt block chargé pour {response.data.get('company_name', company_id)} "
                 f"(block={cache_suffix}, {len(block)} chars)"
             )
             return block
         except Exception as e:
+            if not required:
+                logger.warning(
+                    f"⚠️ Prompt block optionnel indisponible: {cache_suffix} pour {company_id} ({e})"
+                )
+                try:
+                    self._cache_set(cache_key, "")
+                except Exception:
+                    pass
+                return ""
+
             import traceback
 
             logger.error(

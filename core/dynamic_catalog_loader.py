@@ -13,6 +13,8 @@ from database.vector_store_clean import search_meili_keywords
 
 import re
 
+from core.global_catalog_cache import get_global_catalog_cache
+
 logger = logging.getLogger(__name__)
 
 # --- Fonctions utilitaires d'extraction (rendues globales) ---
@@ -322,13 +324,25 @@ async def load_company_catalog(company_id: str) -> Dict[str, Any]:
     Returns:
         Dictionnaire avec le catalogue complet
     """
-    loader = DynamicCatalogLoader(company_id)
-    
-    return {
-        "products": await loader.load_products_catalog(),
-        "delivery_zones": await loader.load_delivery_zones(),
-        "payment_info": await loader.load_payment_info()
-    }
+    cache = get_global_catalog_cache()
+
+    async def _build() -> Dict[str, Any]:
+        loader = DynamicCatalogLoader(company_id)
+        return {
+            "products": await loader.load_products_catalog(),
+            "delivery_zones": await loader.load_delivery_zones(),
+            "payment_info": await loader.load_payment_info(),
+        }
+
+    return await cache.get_catalog(company_id=company_id, builder=_build)
+
+
+async def prewarm_company_catalog(company_id: str) -> bool:
+    try:
+        _ = await load_company_catalog(company_id)
+        return True
+    except Exception:
+        return False
 
 
 

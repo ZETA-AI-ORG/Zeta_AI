@@ -109,9 +109,13 @@ class SecurityValidator:
         
         threats = []
         risk_level = "LOW"
+
+        # Masquer les URLs (souvent très longues) pour éviter les faux positifs
+        # sur la détection d'encodage (ex: regex base64 qui matche des segments d'URL)
+        prompt_no_urls = re.sub(r"https?://\S+", "[URL]", prompt, flags=re.IGNORECASE)
         
         # 1. Détection d'injections de prompt
-        injection_threats = self._detect_prompt_injections(prompt)
+        injection_threats = self._detect_prompt_injections(prompt_no_urls)
         if injection_threats:
             threats.extend(injection_threats)
             risk_level = "HIGH"
@@ -127,7 +131,7 @@ class SecurityValidator:
                 risk_level="HIGH",
                 threats_detected=threats,
                 sanitized_prompt="",
-                blocked_reason="Tentative de fausse autorité détectée"
+                reason="Tentative de fausse autorité détectée"
             )
         
         # Détection des données personnelles - RENFORCÉE
@@ -150,7 +154,7 @@ class SecurityValidator:
             risk_level = max(risk_level, "MEDIUM", key=self._risk_priority)
         
         # 4. Détection d'encodage suspect
-        encoding_threats = self._detect_suspicious_encoding(prompt)
+        encoding_threats = self._detect_suspicious_encoding(prompt_no_urls)
         if encoding_threats:
             threats.extend(encoding_threats)
             risk_level = max(risk_level, "HIGH", key=self._risk_priority)

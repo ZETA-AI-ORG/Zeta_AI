@@ -8,10 +8,16 @@ import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-from core.decision_engine import is_safe_to_trust
-from core.hyde_reformulator import HydeReformulator
-from core.text_preprocessing import preprocess_for_routing, should_skip_preprocessing
-from core.sub_routing import sub_route_pole
+try:
+    from colorama import Fore, Style, init as colorama_init
+    colorama_init(autoreset=True)
+    COLORS_ENABLED = True
+except ImportError:
+    COLORS_ENABLED = False
+    class Fore:
+        GREEN = RED = YELLOW = CYAN = MAGENTA = BLUE = ""
+    class Style:
+        RESET_ALL = BRIGHT = ""
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +33,7 @@ class BotliveRoutingResult:
     state: Dict[str, Any]
     debug: Dict[str, Any]
 
-_MODEL_DIR = Path(__file__).resolve().parents[1] / "models" / "setfit-intent-classifier-v1"
+_MODEL_DIR = Path(__file__).resolve().parents[1] / "models" / "setfit-intent-classifier-v5"
 _SET_FIT_MODEL: Any | None = None
 _HYDE_MARGIN_HISTORY: deque[float] = deque(maxlen=500)
 _MODEL_VERSION: str | None = None  # "V4" ou "V5"
@@ -242,6 +248,8 @@ def _determine_mode_from_intent(intent: str, *, is_complete: bool, collected_cou
     
     PATCH V2 (2025-12-16): Mode basé sur l'INTENT d'abord, puis le state.
     V5 (2025-12-26): Mode = Pôle directement (REASSURANCE, SHOPPING, ACQUISITION, SAV_SUIVI)
+    
+    Action #4: En V5, JAMAIS retourner GUIDEUR - utiliser le pôle V5 directement.
     """
     upper_intent = (intent or "").upper()
 
@@ -249,7 +257,45 @@ def _determine_mode_from_intent(intent: str, *, is_complete: bool, collected_cou
     if upper_intent in {"REASSURANCE", "SHOPPING", "ACQUISITION", "SAV_SUIVI"}:
         return upper_intent
 
-    # V4: PRIORITÉ 1: Intent prime sur state
+    # ==========================================================================
+    # Action #4: En V5, mapper les intents legacy vers les pôles V5
+    # JAMAIS retourner GUIDEUR en V5
+    # ==========================================================================
+    if _MODEL_VERSION == "V5":
+        # Mapping intents legacy V4 → pôles V5
+        v5_mode_mapping = {
+            # Intents d'achat → ACQUISITION
+            "ACHAT_COMMANDE": "ACQUISITION",
+            "CONFIRMATION_PAIEMENT": "ACQUISITION",
+            "CONTACT_COORDONNEES": "ACQUISITION",
+            
+            # Intents produit/info → SHOPPING
+            "PRODUIT_GLOBAL": "SHOPPING",
+            "INFO_GENERALE": "REASSURANCE",
+            "QUESTION_PAIEMENT": "REASSURANCE",
+            "PAIEMENT": "ACQUISITION",
+            "LIVRAISON": "SHOPPING",
+            "PRIX_PROMO": "SHOPPING",
+            
+            # Intents smalltalk/clarification → REASSURANCE
+            "SALUT": "REASSURANCE",
+            "CLARIFICATION": "REASSURANCE",  # ← Plus jamais GUIDEUR!
+            
+            # Intents SAV → SAV_SUIVI
+            "COMMANDE_EXISTANTE": "SAV_SUIVI",
+            "PROBLEME": "SAV_SUIVI",
+            "PROBLEME_LIVRAISON": "SAV_SUIVI",
+        }
+        
+        if upper_intent in v5_mode_mapping:
+            return v5_mode_mapping[upper_intent]
+        
+        # Fallback V5: REASSURANCE (jamais GUIDEUR)
+        if is_complete:
+            return "SAV_SUIVI"
+        return "REASSURANCE"
+
+    # V4: PRIORITÉ 1: Intent prime sur state (comportement legacy)
     mode_mapping = {
         # COMMANDE (même si is_complete=True)
         "ACHAT_COMMANDE": "COMMANDE",
@@ -458,58 +504,44 @@ def _is_short_confirmation(message: str) -> bool:
         "ca marche",
         "vas-y",
         "vasy",
-        "go",
     }
     return t in confirm
 
 
-def _normalize_text_basic(message: str) -> str:
-    raw = (message or "").strip().lower()
-    raw = re.sub(r"[\s\t\r\n]+", " ", raw)
+def _normalize_text_basic(text: str) -> str:
+    raw = (text or "").strip().lower()
+    raw = re.sub(r"\s+", " ", raw)
     return raw
 
 
-def _has_payment_signal(message: str) -> bool:
-    """Détecte si le message contient un signal de PAIEMENT explicite."""
+def should_skip_preprocessing(text: str) -> bool:
+    raw = (text or "").strip()
+    if not raw:
+        return True
 
-    t = _normalize_text_basic(message)
-    if not t:
-        return False
+    t_norm = _normalize_text_basic(raw)
+    tokens = [t for t in t_norm.split(" ") if t]
 
-    payment_keywords = [
-        "paiement",
-        "payer",
-        "paie",
-        "paies",
-        "pay",
-        "wave",
-        "orange money",
-        "mobile money",
-        "mtn",
-        "moov",
-        "espece",
-        "espèce",
-        "carte",
-        "facture",
-        "recu",
-        "reçu",
-        "preuve",
-        "acompte",
-        "depot",
-        "dépôt",
-        "verser",
-    ]
+    # Messages très courts: on évite de les dégrader via preprocessing.
+    if len(tokens) < 3:
+        return True
 
-    # Blacklist PRIX (bloque PAIEMENT) : si question de prix SANS mention paiement.
-    price_keywords = ["combien", "prix", "coût", "cout", "tarif"]
+    # Petits messages de politesse / salutations uniquement.
+    smalltalk_only = {
+        "salut",
+        "bonjour",
+        "bonsoir",
+        "coucou",
+        "hello",
+        "hey",
+        "yo",
+        "wesh",
+        "merci",
+    }
+    if len(tokens) <= 4 and all(tok in smalltalk_only for tok in tokens):
+        return True
 
-    has_payment = any(k in t for k in payment_keywords)
-    has_price = any(k in t for k in price_keywords)
-
-    if has_price and not has_payment:
-        return False
-
-    return has_payment
+    return False
 
 
 def _looks_like_social_only(message: str) -> bool:
@@ -571,17 +603,225 @@ def _looks_like_social_only(message: str) -> bool:
     return len(tokens) <= 5
 
 
+def _looks_like_media_url(raw: str) -> bool:
+    try:
+        s = (raw or "").strip().lower()
+        if not s:
+            return False
+        if not (s.startswith("http://") or s.startswith("https://")):
+            return False
+        if any(x in s for x in ["fbcdn.net/", "scontent."]):
+            return True
+        if re.search(r"\.(jpg|jpeg|png|webp|gif)(\?|$)", s):
+            return True
+        return False
+    except Exception:
+        return False
+
+
 def _deterministic_prefilter(message: str, *, conversation_history: str = "") -> Tuple[Optional[str], Optional[float], Dict[str, Any]]:
     raw = (message or "").strip()
     if not raw:
         return None, None, {}
 
+    # IMPORTANT: une URL d'image ne doit jamais être classée comme SALUT/REASSURANCE par heuristique.
+    # Elle sera traitée via le pipeline vision + l'état (photo/paiement/etc.).
+    is_media_url = _looks_like_media_url(raw)
+
+    # Le prefilter est appelé avant le premier appel SetFit dans route_botlive_intent.
+    # Donc _MODEL_VERSION peut être None ici: on charge le modèle pour détecter V4/V5.
+    try:
+        global _MODEL_VERSION
+        if _MODEL_VERSION is None:
+            _load_setfit_model()
+    except Exception as e:
+        # Si le modèle n'est pas dispo, on force un fallback déterministe V5.
+        # L'objectif est de garder les prefilters V5/V6 actifs même si SetFit est indisponible.
+        try:
+            if _MODEL_VERSION is None:
+                _MODEL_VERSION = "V5"
+        except Exception:
+            _MODEL_VERSION = "V5"
+        logger.warning(f"[SETFIT][PREFILTER] SetFit indisponible, fallback _MODEL_VERSION=V5 (err={e})")
+
+    print(f"\n🔥 [PREFILTER][DEBUG] message='{raw}' | _MODEL_VERSION={_MODEL_VERSION}")
+
     t_norm = _normalize_text_basic(raw)
+
+    # V5: small-talk pur (salut + comment ça va) doit rester en REASSURANCE (Prompt A)
+    # même si SetFit se trompe avec une confiance élevée.
+    print(f"🔥 [PREFILTER][DEBUG] t_norm='{t_norm}'")
+    try:
+        print(f"🔥 [PREFILTER][DEBUG] Checking V5 block, _MODEL_VERSION={_MODEL_VERSION}")
+        if _MODEL_VERSION == "V5" and (not is_media_url):
+            smalltalk_markers = [
+                "salut",
+                "bonjour",
+                "bonsoir",
+                "coucou",
+                "hello",
+                "hey",
+                "comment allez vous",
+                "comment allez-vous",
+                "comment ca va",
+                "comment ça va",
+                "ca va",
+                "ça va",
+                "la forme",
+                "tout va bien",
+                # Action #3: Ajouter merci/politesse au prefilter REASSURANCE
+                "merci",
+                "merci beaucoup",
+                "ok merci",
+                "grand merci",
+                "de rien",
+                "avec plaisir",
+                "c'est gentil",
+                "c est gentil",
+                "super merci",
+                "parfait merci",
+                "ok parfait",
+                "ok super",
+                "ok d'accord",
+                "ok d accord",
+                "d'accord merci",
+                "d accord merci",
+                "bien recu",
+                "bien reçu",
+                "c'est note",
+                "c est note",
+                "c'est noté",
+                "c est noté",
+            ]
+            has_smalltalk = any(k in t_norm for k in smalltalk_markers)
+
+            # Si présence de verbes d'achat/produit/prix, ce n'est plus du small-talk pur.
+            shopping_or_buy_markers = [
+                "prix",
+                "combien",
+                "tarif",
+                "coute",
+                "coût",
+                "cout",
+                "dispo",
+                "disponible",
+                "stock",
+                "rupture",
+                "catalogue",
+                "produit",
+                "couche",
+                "couches",
+                "commander",
+                "commande",
+                "acheter",
+                "payer",
+                "livraison",
+            ]
+            has_shopping_or_buy = any(k in t_norm for k in shopping_or_buy_markers)
+
+            print(f"🔥 [PREFILTER][V5] has_smalltalk={has_smalltalk} | has_shopping_or_buy={has_shopping_or_buy}")
+            if has_smalltalk and not has_shopping_or_buy:
+                print("🔥 [PREFILTER][V5] ✅ Small-talk pur détecté → REASSURANCE forcé")
+                logger.info(
+                    f"{Fore.GREEN}✅ [SETFIT][PREFILTER][V5_SMALLTALK] Détecté: small-talk pur sans signal achat → REASSURANCE forcé{Style.RESET_ALL}"
+                )
+                return "REASSURANCE", 0.98, {"prefilter": "v5_smalltalk_override"}
+    except Exception:
+        pass
+
+    # ==========================================================================
+    # PREFILTER V6 (V5): Paiement / Contact → REASSURANCE (Prompt A)
+    # Objectif: éviter les conf=0.30 sur Wave/Orange/Mtn + demandes de numéro.
+    # ==========================================================================
+    if _MODEL_VERSION == "V5" and (not is_media_url):
+        pay_keywords = [
+            "wave",
+            "orange",
+            "mtn",
+            "moov",
+            "money",
+            "especes",
+            "espèces",
+            "payer",
+            "paie",
+            "paiement",
+            "versement",
+            "depot",
+            "dépôt",
+            "acceptez",
+        ]
+        if any(k in t_norm for k in pay_keywords):
+            print("🔥 [PREFILTER][V6_PAIEMENT] ✅ Paiement détecté → REASSURANCE forcé")
+            logger.info(f"{Fore.GREEN}✅ [SETFIT][PREFILTER][V6_PAIEMENT] Paiement → REASSURANCE{Style.RESET_ALL}")
+            return "REASSURANCE", 0.95, {"prefilter": "v6_paiement"}
+
+        contact_keywords = [
+            "numero",
+            "numéro",
+            "appeler",
+            "appel",
+            "contact",
+            "coordonnees",
+            "coordonnées",
+            "joindre",
+            "joignable",
+            "telephone",
+            "téléphone",
+            "tel",
+            "whatsapp",
+        ]
+        has_contact_kw = any(k in t_norm for k in contact_keywords)
+        has_ci_07 = ("07" in t_norm) and any(k in t_norm for k in ["ton", "votre", "numero", "numéro"])
+        if has_contact_kw or has_ci_07:
+            print("🔥 [PREFILTER][V6_CONTACT] ✅ Demande contact détectée → REASSURANCE forcé")
+            logger.info(f"{Fore.GREEN}✅ [SETFIT][PREFILTER][V6_CONTACT] Contact → REASSURANCE{Style.RESET_ALL}")
+            return "REASSURANCE", 0.93, {"prefilter": "v6_contact"}
+
+    # ==========================================================================
+    # PREFILTER V6 (V5): Tracking / Problèmes → SAV_SUIVI (Disjoncteur)
+    # Objectif: escalade immédiate, éviter réponses IA risquées.
+    # ==========================================================================
+    if _MODEL_VERSION == "V5" and (not is_media_url):
+        tracking_keywords = [
+            "mon colis",
+            "ma commande",
+            "arrive quand",
+            "a quel niveau",
+            "à quel niveau",
+            "au niveau",
+            "quel niveau",
+            "pas encore recu",
+            "pas encore reçu",
+            "retard",
+        ]
+        if any(k in t_norm for k in tracking_keywords):
+            print("🔥 [PREFILTER][V6_TRACKING] ✅ Tracking détecté → SAV_SUIVI forcé")
+            logger.info(f"{Fore.GREEN}✅ [SETFIT][PREFILTER][V6_TRACKING] Tracking → SAV_SUIVI{Style.RESET_ALL}")
+            return "SAV_SUIVI", 0.97, {"prefilter": "v6_tracking"}
+
+        probleme_keywords = [
+            "abime",
+            "abîmé",
+            "casse",
+            "cassé",
+            "probleme",
+            "problème",
+            "defectueux",
+            "défectueux",
+            "endommage",
+            "endommagé",
+            "manque",
+        ]
+        if any(k in t_norm for k in probleme_keywords):
+            print("🔥 [PREFILTER][V6_PROBLEME] ✅ Problème détecté → SAV_SUIVI forcé")
+            logger.info(f"{Fore.GREEN}✅ [SETFIT][PREFILTER][V6_PROBLEME] Problème → SAV_SUIVI{Style.RESET_ALL}")
+            return "SAV_SUIVI", 0.98, {"prefilter": "v6_probleme"}
 
     has_commande_existante_guard = any(
         [
             (("ou en est" in t_norm or "où en est" in t_norm) and "commande" in t_norm),
             "ma commande" in t_norm,
+            (("mon colis" in t_norm) and any(k in t_norm for k in ["arrive quand", "a quel niveau", "au niveau", "quel niveau"])),
             "suivi" in t_norm,
             "livreur" in t_norm,
             "pas encore recu" in t_norm,
@@ -610,31 +850,88 @@ def _deterministic_prefilter(message: str, *, conversation_history: str = "") ->
         "vous êtes ou",
         "vous etes où",
         "vous êtes où",
+        "vous etes situes ou",
+        "vous etes situes où",
+        "vous êtes situes ou",
+        "vous êtes situes où",
+        "vous etes situés ou",
+        "vous etes situés où",
+        "vous êtes situés ou",
+        "vous êtes situés où",
+        "vous etes situe ou",
+        "vous etes situe où",
+        "vous êtes situe ou",
+        "vous êtes situe où",
+        "vous etes situé ou",
+        "vous etes situé où",
+        "vous êtes situé ou",
+        "vous êtes situé où",
+        "vous etes située ou",
+        "vous etes située où",
+        "vous êtes située ou",
+        "vous êtes située où",
         "ou se trouve",
         "où se trouve",
         "ou vous trouvez",
         "où vous trouvez",
         "vous situez ou",
         "vous situez où",
+        "c'est ou",
+        "c'est où",
         "votre adresse",
         "votre localisation",
         "votre boutique",
         "votre magasin",
         "votre emplacement",
+        "vos locaux",
+        "votre local",
+        "votre position",
     ]
     
     has_location_question = any(pattern in t_norm for pattern in location_patterns)
+    sav_context = [
+        "commande",
+        "colis",
+        "livreur",
+        "livraison",
+        "suivi",
+        "tracking",
+        "arrive",
+        "arrivé",
+        "pas recu",
+        "pas reçu",
+        "retard",
+        "expedie",
+        "expédié",
+    ]
+    has_sav_context = any(kw in t_norm for kw in sav_context)
+    words_count = len([w for w in t_norm.split() if w])
     
     # Vérifier aussi les patterns avec "?" (questions directes)
     if not has_location_question and "?" in raw:
-        location_keywords = ["ou", "où", "adresse", "situé", "situe", "trouve", "localisation", "emplacement"]
+        location_keywords = [
+            "ou",
+            "où",
+            "adresse",
+            "situé",
+            "situe",
+            "située",
+            "situes",
+            "situés",
+            "situez",
+            "trouve",
+            "localisation",
+            "emplacement",
+            "position",
+            "locaux",
+        ]
         business_keywords = ["vous", "votre", "boutique", "magasin", "shop", "entreprise"]
         has_where = any(k in t_norm for k in location_keywords)
         has_business = any(k in t_norm for k in business_keywords)
         if has_where and has_business:
             has_location_question = True
     
-    if has_location_question:
+    if has_location_question and (not has_sav_context) and words_count <= 10:
         # V5: REASSURANCE, V4: INFO_GENERALE
         intent_label = "REASSURANCE" if _MODEL_VERSION == "V5" else "INFO_GENERALE"
         return intent_label, 0.95, {"prefilter": "location_question_override", "v5_override": True}
@@ -667,6 +964,349 @@ def _deterministic_prefilter(message: str, *, conversation_history: str = "") ->
         if not any(k in t_norm for k in ["livraison", "livrer", "livrez", "livré", "delai", "délai"]):
             intent = "REASSURANCE" if _MODEL_VERSION == "V5" else "INFO_GENERALE"
             return intent, 0.90, {"prefilter": "lexical_horaires"}
+        acquisition_question_patterns = [
+            "comment commander",
+            "comment passer commande",
+            "comment faire pour commander",
+            "comment ça se passe pour commander",
+            "comment ca se passe pour commander",
+            "ça se passe comment pour commander",
+            "ca se passe comment pour commander",
+            "je fais comment pour commander",
+            "pour commander c'est comment",
+            "pour commander c est comment",
+        ]
+        if any(p in t_norm for p in acquisition_question_patterns):
+            print("🔥 [PREFILTER][V5_ACQUISITION_QUESTION] ✅ Question 'comment commander' → ACQUISITION forcé")
+            logger.info(
+                f"{Fore.GREEN}✅ [SETFIT][PREFILTER][V5_ACQUISITION_QUESTION] Question 'comment commander' détectée → ACQUISITION{Style.RESET_ALL}"
+            )
+            return "ACQUISITION", 0.92, {"prefilter": "v5_acquisition_question"}
+
+        # Verbes d'achat explicites
+        achat_verbs_explicit = [
+            "je veux commander",
+            "je veux acheter",
+            "je veux prendre",
+            "je voudrais commander",
+            "je voudrais acheter",
+            "je voudrais prendre",
+            "je commande",
+            "je prends",
+            "je prend",
+            "j'achete",
+            "j'achète",
+            "j achete",
+            "j achète",
+            "passer commande",
+            "faire une commande",
+            "envoie-moi",
+            "envoie moi",
+            "envoyez-moi",
+            "envoyez moi",
+            "mets-moi",
+            "mets moi",
+            "mettez-moi",
+            "mettez moi",
+            "garde-moi",
+            "garde moi",
+            "gardez-moi",
+            "gardez moi",
+            "reserve-moi",
+            "reserve moi",
+            "réserve-moi",
+            "réserve moi",
+            "reservez-moi",
+            "reservez moi",
+            "réservez-moi",
+            "réservez moi",
+            "j'en veux",
+            "j en veux",
+            "j'en prends",
+            "j en prends",
+        ]
+        
+        # Verbes d'achat simples (nécessitent contexte produit/quantité)
+        achat_verbs_simple = [
+            "je veux",
+            "je voudrais",
+            "commander",
+            "commande",
+            "acheter",
+            "prendre",
+            "reserver",
+            "réserver",
+        ]
+        
+        qty_markers = [
+            "1", "2", "3", "4", "5", "6", "7", "8", "9", "10",
+            "un", "une", "deux", "trois", "quatre", "cinq", "six", "sept", "huit", "neuf", "dix",
+            "quelques", "plusieurs", "des",
+        ]
+        pack_markers = ["paquet", "paquets", "pack", "packs", "carton", "cartons", "boite", "boîte", "boites", "boîtes"]
+        product_markers = ["couche", "couches", "culotte", "culottes", "produit", "produits", "article", "articles"]
+        
+        # Questions générales à exclure ("comment commander" = question, pas achat)
+        question_markers = ["comment", "quoi", "quel", "quelle", "quels", "quelles", "est-ce que", "est ce que", "c'est quoi", "c est quoi"]
+        has_question = any(q in t_norm for q in question_markers)
+        
+        # Cas 1: Verbe d'achat explicite (ex: "je veux commander") → ACQUISITION direct
+        has_explicit_achat = any(v in t_norm for v in achat_verbs_explicit)
+        if has_explicit_achat and not has_question:
+            print("🔥 [PREFILTER][V5_ACQUISITION] ✅ Verbe achat explicite → ACQUISITION forcé")
+            logger.info(f"{Fore.GREEN}✅ [SETFIT][PREFILTER][V5_ACQUISITION] Verbe achat explicite détecté → ACQUISITION{Style.RESET_ALL}")
+            return "ACQUISITION", 0.95, {"prefilter": "lexical_achat_explicit_v5"}
+        
+        # Cas 2: Verbe simple + produit/quantité (ex: "je veux 3 paquets de couches")
+        has_simple_achat = any(v in t_norm for v in achat_verbs_simple)
+        has_qty = any(q in t_norm.split() for q in qty_markers) or bool(re.search(r"\b\d+\b", t_norm))
+        has_pack = any(p in t_norm for p in pack_markers)
+        has_product = any(p in t_norm for p in product_markers)
+        
+        if has_simple_achat and not has_question:
+            # Avec produit ET (quantité OU pack)
+            if has_product and (has_qty or has_pack):
+                print("🔥 [PREFILTER][V5_ACQUISITION] ✅ Verbe + produit + qty/pack → ACQUISITION forcé")
+                logger.info(f"{Fore.GREEN}✅ [SETFIT][PREFILTER][V5_ACQUISITION] Verbe + produit + quantité → ACQUISITION{Style.RESET_ALL}")
+                return "ACQUISITION", 0.92, {"prefilter": "lexical_achat_product_qty_v5"}
+            # Avec juste quantité + pack (ex: "je veux 3 paquets")
+            if has_qty and has_pack:
+                print("🔥 [PREFILTER][V5_ACQUISITION] ✅ Verbe + qty + pack → ACQUISITION forcé")
+                logger.info(f"{Fore.GREEN}✅ [SETFIT][PREFILTER][V5_ACQUISITION] Verbe + quantité + pack → ACQUISITION{Style.RESET_ALL}")
+                return "ACQUISITION", 0.90, {"prefilter": "lexical_achat_qty_pack_v5"}
+
+    # ==========================================================================
+    # PREFILTER V5: Questions CATALOGUE/PRODUITS → SHOPPING (Prompt B)
+    # Objectif: capturer "vous vendez quoi", "vous avez quoi", "catalogue", "marque".
+    # ==========================================================================
+    if _MODEL_VERSION == "V5" and (not is_media_url):
+        catalogue_markers = [
+            "catalogue",
+            "catalogues",
+            "produits",
+            "produit",
+            "articles",
+            "article",
+            "liste",
+            "menu",
+            "gamme",
+            "collection",
+            "qu'est-ce que vous avez",
+            "qu est ce que vous avez",
+            "vous avez quoi",
+            "avez quoi",
+            "montrez-moi",
+            "montrez moi",
+            "dites-moi",
+            "dites moi",
+            "vendez quoi",
+            "vous vendez",
+            "presentez",
+            "présentez",
+            "aimerais voir",
+            "aimerais connaitre",
+            "aimerais connaître",
+            "en dire plus",
+            "m'en dire plus",
+            "m en dire plus",
+        ]
+        marque_markers = ["marque", "marques", "pampers", "huggies"]
+
+        has_catalogue = any(marker in t_norm for marker in catalogue_markers)
+        has_marque = any(marker in t_norm for marker in marque_markers)
+
+        sav_context_catalogue = ["ma commande", "mon colis", "le livreur", "ma livraison", "mon livreur"]
+        has_sav_catalogue = any(kw in t_norm for kw in sav_context_catalogue)
+
+        if (has_catalogue or has_marque) and not has_sav_catalogue:
+            print("🔥 [PREFILTER][V5_SHOPPING_CATALOGUE] ✅ Question catalogue → SHOPPING forcé")
+            logger.info(f"{Fore.GREEN}✅ [SETFIT][PREFILTER][V5_SHOPPING_CATALOGUE] Question catalogue/marque → SHOPPING{Style.RESET_ALL}")
+            return "SHOPPING", 0.92, {"prefilter": "v5_shopping_catalogue"}
+
+    # ==========================================================================
+    # PREFILTER V5: Questions LIVRAISON → REASSURANCE (Prompt A)
+    # Objectif: capturer "vous livrez où", "frais de livraison", communes, délais.
+    # ==========================================================================
+    if _MODEL_VERSION == "V5" and (not is_media_url):
+        livraison_markers = [
+            "livrez",
+            "livrer",
+            "livraison",
+            "livré",
+            "livre",
+            "vous livrez",
+            "peut livrer",
+            "livrez dans",
+            "livrez à",
+            "frais de livraison",
+            "frais livraison",
+            "se passe la livraison",
+            "comment livraison",
+            "delai",
+            "délai",
+        ]
+        commune_markers = [
+            "yopougon",
+            "cocody",
+            "abobo",
+            "adjame",
+            "adjamé",
+            "marcory",
+            "plateau",
+            "treichville",
+            "koumassi",
+            "port-bouet",
+            "port bouet",
+            "zone",
+            "commune",
+            "quartier",
+        ]
+
+        has_livraison = any(marker in t_norm for marker in livraison_markers)
+        has_commune = any(marker in t_norm for marker in commune_markers)
+
+        sav_livraison = [
+            "le livreur",
+            "livreur est",
+            "livreur ne",
+            "ma livraison",
+            "mon livreur",
+            "pas encore recu",
+            "pas encore reçu",
+            "retard",
+            "suivi",
+        ]
+        has_sav_livraison = any(kw in t_norm for kw in sav_livraison)
+
+        if (has_livraison or (has_commune and "livr" in t_norm)) and not has_sav_livraison:
+            print("🔥 [PREFILTER][V5_LIVRAISON] ✅ Question livraison → REASSURANCE forcé")
+            logger.info(f"{Fore.GREEN}✅ [SETFIT][PREFILTER][V5_LIVRAISON] Question livraison → REASSURANCE{Style.RESET_ALL}")
+            return "REASSURANCE", 0.92, {"prefilter": "v5_livraison"}
+
+    # ==========================================================================
+    # PREFILTER V5: ACQUISITION (questions "comment" + déclarations commande)
+    # Objectif: capturer "comment passer commande", "comment acheter" + phrases type
+    # "je passe commande" qui sont parfois mal classées.
+    # ==========================================================================
+    if _MODEL_VERSION == "V5" and (not is_media_url):
+        comment_achat_patterns = [
+            "comment commander",
+            "comment passer commande",
+            "comment acheter",
+            "comment faire pour acheter",
+            "comment pour commander",
+            "comment je commande",
+            "je vais prendre ça",
+            "je vais prendre",
+            "je passe commande",
+            "je passe une commande",
+            "je reviens pour commander",
+            "je passe commander",
+        ]
+        has_comment_achat = any(pattern in t_norm for pattern in comment_achat_patterns)
+
+        if has_comment_achat:
+            print("🔥 [PREFILTER][V5_ACQUISITION_COMMENT] ✅ Intention achat → ACQUISITION forcé")
+            logger.info(f"{Fore.GREEN}✅ [SETFIT][PREFILTER][V5_ACQUISITION_COMMENT] Comment/phrase achat → ACQUISITION{Style.RESET_ALL}")
+            return "ACQUISITION", 0.92, {"prefilter": "v5_acquisition_comment"}
+
+    # ==========================================================================
+    # PREFILTER V5: Questions de PRIX → SHOPPING (Prompt B)
+    # Objectif: capturer "combien", "prix", "tarif" avant SetFit
+    # ==========================================================================
+    if _MODEL_VERSION == "V5" and (not is_media_url):
+        prix_markers = [
+            "combien",
+            "prix",
+            "tarif",
+            "coute",
+            "coûte",
+            "cout",
+            "coût",
+            "c'est à combien",
+            "c est a combien",
+            "ça coûte combien",
+            "ca coute combien",
+            "le prix",
+            "quel prix",
+            "prix de",
+            "prix du",
+            "prix des",
+            "prix en gros",
+            "prix gros",
+            "tarif de",
+            "tarif du",
+            "tarif des",
+            "promotion",
+            "promotions",
+            "promo",
+            "promos",
+            "réduction",
+            "reduction",
+            "réductions",
+            "reductions",
+            "remise",
+            "remises",
+            "offre",
+            "offres",
+        ]
+        has_prix = any(p in t_norm for p in prix_markers)
+        # Exclure les questions SAV (prix remboursement, etc.)
+        sav_context_prix = ["remboursement", "rembourser", "réclamation", "reclamation", "retour"]
+        has_sav_prix = any(s in t_norm for s in sav_context_prix)
+        
+        if has_prix and not has_sav_prix:
+            print("🔥 [PREFILTER][V5_PRIX] ✅ Question prix détectée → SHOPPING forcé")
+            logger.info(f"{Fore.GREEN}✅ [SETFIT][PREFILTER][V5_PRIX] Question prix → SHOPPING{Style.RESET_ALL}")
+            return "SHOPPING", 0.92, {"prefilter": "lexical_prix_v5"}
+
+    # ==========================================================================
+    # PREFILTER V5: Questions de LOCALISATION étendu → REASSURANCE (Prompt A)
+    # Objectif: capturer "quartier", "zone", "commune", "boutique", "point de vente"
+    # ==========================================================================
+    if _MODEL_VERSION == "V5" and (not is_media_url):
+        localisation_markers = [
+            "quartier",
+            "zone",
+            "commune",
+            "secteur",
+            "boutique",
+            "magasin",
+            "point de vente",
+            "point vente",
+            "showroom",
+            "abidjan",
+            "cocody",
+            "yopougon",
+            "marcory",
+            "plateau",
+            "treichville",
+            "adjame",
+            "adjamé",
+            "abobo",
+            "bingerville",
+            "vous êtes où",
+            "vous etes ou",
+            "vous êtes situé",
+            "vous etes situe",
+            "c'est où",
+            "c est ou",
+            "en ligne seulement",
+            "ligne seulement",
+            "venir à la boutique",
+            "venir a la boutique",
+            "passer à la boutique",
+            "passer a la boutique",
+        ]
+        has_localisation = any(loc in t_norm for loc in localisation_markers)
+        # Exclure les questions de livraison (zone de livraison)
+        livraison_context = ["livraison", "livrer", "livrez", "livré"]
+        has_livraison_context = any(l in t_norm for l in livraison_context)
+        
+        if has_localisation and not has_livraison_context:
+            print("🔥 [PREFILTER][V5_LOCALISATION] ✅ Question localisation détectée → REASSURANCE forcé")
+            logger.info(f"{Fore.GREEN}✅ [SETFIT][PREFILTER][V5_LOCALISATION] Question localisation → REASSURANCE{Style.RESET_ALL}")
+            return "REASSURANCE", 0.92, {"prefilter": "lexical_localisation_v5"}
 
     # Questions produit précises (doit router vers Prompt B, pas Prompt C)
     produit_markers = [
@@ -776,7 +1416,7 @@ def _deterministic_prefilter(message: str, *, conversation_history: str = "") ->
             return False
 
     raw_lc = raw.lower()
-    if should_skip_preprocessing(raw) or _looks_like_social_only(raw):
+    if (not is_media_url) and (should_skip_preprocessing(raw) or _looks_like_social_only(raw)):
         if any(w in raw_lc for w in exclusion_salut):
             return None, None, {}
         
@@ -793,6 +1433,8 @@ def _deterministic_prefilter(message: str, *, conversation_history: str = "") ->
             k in _normalize_text_basic(raw)
             for k in ["bonjour", "bonsoir", "salut", "hey", "hello", "yo", "wesh"]
         ):
+            if is_media_url:
+                return None, None, {}
             if any(w in raw_lc for w in exclusion_salut):
                 return None, None, {}
             
@@ -1016,12 +1658,18 @@ def _route_with_setfit(
                 }
             )
     except Exception as e:
-        return "CLARIFICATION", 0.0, {"router": "setfit", "reason": f"PREDICT_ERROR:{e}"}
+        # Action #1: V5 fallback vers REASSURANCE au lieu de CLARIFICATION
+        fallback_intent = "REASSURANCE" if _MODEL_VERSION == "V5" else "CLARIFICATION"
+        return fallback_intent, 0.30, {"router": "setfit", "reason": f"PREDICT_ERROR:{e}", "v5_fallback": _MODEL_VERSION == "V5"}
 
     if not variants:
         if _looks_like_social_only(raw):
-            return "SALUT", 0.90, {"router": "setfit", "reason": "SOCIAL_ONLY_EMPTY_AFTER_PREPROCESS"}
-        return "CLARIFICATION", 0.0, {"router": "setfit", "reason": "EMPTY_PROBS"}
+            # V5: Retourne REASSURANCE au lieu de SALUT
+            return_intent = "REASSURANCE" if _MODEL_VERSION == "V5" else "SALUT"
+            return return_intent, 0.90, {"router": "setfit", "reason": "SOCIAL_ONLY_EMPTY_AFTER_PREPROCESS"}
+        # Action #1: V5 fallback vers REASSURANCE au lieu de CLARIFICATION
+        fallback_intent = "REASSURANCE" if _MODEL_VERSION == "V5" else "CLARIFICATION"
+        return fallback_intent, 0.30, {"router": "setfit", "reason": "EMPTY_PROBS", "v5_fallback": _MODEL_VERSION == "V5"}
 
     intent_votes: Dict[str, int] = {}
     for v in variants:
@@ -1069,7 +1717,31 @@ def _route_with_setfit(
         "payment_guard_reason": chosen.get("payment_guard_reason"),
     }
 
-    return str(chosen.get("intent_after_guard") or "CLARIFICATION"), float(chosen.get("confidence_after_guard") or 0.0), debug
+    # Action #1: V5 - si confiance < 0.5, forcer REASSURANCE au lieu de CLARIFICATION
+    final_intent = str(chosen.get("intent_after_guard") or "")
+    final_conf = float(chosen.get("confidence_after_guard") or 0.0)
+    
+    if _MODEL_VERSION == "V5":
+        # Fallback sécurisé V5: si intent vide ou CLARIFICATION avec faible confiance
+        if not final_intent or final_intent.upper() == "CLARIFICATION":
+            final_intent = "REASSURANCE"
+            final_conf = max(final_conf, 0.30)
+            debug["v5_fallback_applied"] = True
+            debug["v5_fallback_reason"] = "clarification_to_reassurance"
+        # Si confiance très faible (<0.5), forcer REASSURANCE comme filet de sécurité
+        elif final_conf < 0.5:
+            debug["v5_low_conf_original_intent"] = final_intent
+            debug["v5_low_conf_original_conf"] = final_conf
+            final_intent = "REASSURANCE"
+            final_conf = 0.30
+            debug["v5_fallback_applied"] = True
+            debug["v5_fallback_reason"] = "low_confidence_fallback"
+    else:
+        # V4: comportement legacy
+        if not final_intent:
+            final_intent = "CLARIFICATION"
+    
+    return final_intent, final_conf, debug
 
 
 def _post_validate_intent(
@@ -1177,8 +1849,10 @@ def _post_validate_intent(
 
         if (has_salut or has_smalltalk) and not info_keywords_present:
             debug["post_validation_applied"] = True
-            debug["post_validation_reason"] = "SMALLTALK_TO_SALUT"
-            return "SALUT", min(conf, 0.75), debug
+            debug["post_validation_reason"] = "SMALLTALK_TO_REASSURANCE"
+            # V5: Retourne REASSURANCE au lieu de SALUT
+            return_intent = "REASSURANCE" if _MODEL_VERSION == "V5" else "SALUT"
+            return return_intent, min(conf, 0.75), debug
 
     if upper_intent == "SALUT":
         has_where_word = bool(re.search(r"\b(?:ou|où)\b", t))
@@ -1360,8 +2034,17 @@ def _get_human_required_intents_from_env() -> List[str]:
     return [x.strip().upper() for x in raw.split(",") if x.strip()]
 
 
+def _get_human_bypass_intents_from_env() -> List[str]:
+    # Intents/pôles qui doivent court-circuiter le LLM en mode coopératif.
+    # Par défaut en V5: SAV_SUIVI (disjoncteur humain).
+    raw = (os.getenv("HUMAN_BYPASS_INTENTS", "SAV_SUIVI") or "").strip()
+    if not raw:
+        return []
+    return [x.strip().upper() for x in raw.split(",") if x.strip()]
+
+
 def _message_requires_human_for_intent(*, intent: str, message: str) -> bool:
-    upper_intent = (intent or "").strip().upper()
+    upper_intent = (intent or "").upper().strip()
     if not upper_intent:
         return False
 
@@ -1403,142 +2086,222 @@ async def route_botlive_intent(
     hyde_pre_used = False
     hyde_pre_reason = "NOT_TRIGGERED"
 
-    forced_intent, forced_conf, prefilter_debug = _deterministic_prefilter(
-        message=original_message,
-        conversation_history=conversation_history or "",
-    )
+    try:
+        if _looks_like_media_url(original_message):
+            st = state_compact or {}
+            has_any_state = bool(
+                st.get("photo_collected")
+                or st.get("paiement_collected")
+                or st.get("zone_collected")
+                or st.get("tel_collected")
+            )
+            if has_any_state and (not bool(st.get("is_complete"))):
+                forced_intent = "ACQUISITION"
+                forced_conf = 0.98
+                prefilter_debug = {
+                    "prefilter": "media_url_force_acquisition",
+                    "media_url": True,
+                    "state_photo": bool(st.get("photo_collected")),
+                    "state_paiement": bool(st.get("paiement_collected")),
+                    "state_zone": bool(st.get("zone_collected")),
+                    "state_tel": bool(st.get("tel_collected")),
+                }
+            else:
+                forced_intent, forced_conf, prefilter_debug = _deterministic_prefilter(
+                    message=original_message,
+                    conversation_history=conversation_history or "",
+                )
+        else:
+            forced_intent, forced_conf, prefilter_debug = _deterministic_prefilter(
+                message=original_message,
+                conversation_history=conversation_history or "",
+            )
+    except Exception:
+        forced_intent, forced_conf, prefilter_debug = _deterministic_prefilter(
+            message=original_message,
+            conversation_history=conversation_history or "",
+        )
+
+    # 🔍 LOG COULEUR: Prefilter check
+    if forced_intent:
+        prefilter_name = prefilter_debug.get("prefilter", "unknown")
+        logger.info(
+            f"{Fore.GREEN}🔍 [SETFIT][PREFILTER] Activé: {prefilter_name} | intent={forced_intent} | conf={forced_conf:.3f}{Style.RESET_ALL}"
+        )
+    else:
+        enable_emb_v65 = os.getenv("ENABLE_EMBEDDINGS_V65", "false").lower() == "true"
+        if enable_emb_v65:
+            logger.info(f"{Fore.CYAN}🔍 [SETFIT][PREFILTER] Aucun prefilter appliqué, passage à Layer 3 Embeddings{Style.RESET_ALL}")
+        else:
+            logger.info(f"{Fore.CYAN}🔍 [SETFIT][PREFILTER] Aucun prefilter appliqué, Embeddings V6.5 désactivé → passage SetFit ML{Style.RESET_ALL}")
 
     if forced_intent:
         intent = forced_intent
         conf = float(forced_conf or 0.0)
-        router_debug: Dict[str, Any] = {"router": "prefilter", "router_source": "setfit_prefilter", **prefilter_debug}
+        prefilter_name = (prefilter_debug or {}).get("prefilter")
+        routing_layer = "prefilter_v6" if isinstance(prefilter_name, str) and prefilter_name.lower().startswith("v6_") else "prefilter_v5"
+        router_debug: Dict[str, Any] = {
+            "router": "prefilter",
+            "router_source": "setfit_prefilter",
+            "routing_layer": routing_layer,
+            **prefilter_debug,
+        }
         if "prefilter" in prefilter_debug:
             router_debug["router_metrics.prefilter"] = prefilter_debug.get("prefilter")
         margin_val = 0.0
     else:
-        intent, conf, router_debug = _route_with_setfit(
-            routed_message,
-            conversation_history=conversation_history or "",
-            state_compact=state_compact or {},
-        )
-        margin_val = float(router_debug.get("setfit_margin") or 0.0)
-        _HYDE_MARGIN_HISTORY.append(margin_val)
+        # =====================================================================
+        # LAYER 3 : Embeddings V6.5 (Filet de sécurité)
+        # Activé uniquement si V6/V5 prefilters n'ont pas matché
+        # Seuil conservateur : 0.75 min, 0.88 max
+        # =====================================================================
+        emb_intent, emb_conf, emb_proto, emb_debug = None, 0.0, None, {}
+        enable_emb_v65 = os.getenv("ENABLE_EMBEDDINGS_V65", "false").lower() == "true"
+        if enable_emb_v65:
+            try:
+                from core.embeddings_v6_5 import SemanticFilterV65, SuggestionLoggerV65
 
-        try:
-            pf = router_debug.get("prefilter")
-            if pf:
-                router_debug["router_metrics.prefilter"] = pf
-        except Exception:
-            pass
+                # Lazy singleton pour éviter rechargement à chaque requête
+                if not hasattr(route_botlive_intent, "_semantic_filter_v65"):
+                    route_botlive_intent._semantic_filter_v65 = SemanticFilterV65()
+                    route_botlive_intent._suggestion_logger_v65 = SuggestionLoggerV65()
 
-        safe_to_trust = is_safe_to_trust(intent, float(conf or 0.0), float(margin_val or 0.0))
-        enforce_gate = _truthy_env("BOTLIVE_SAFETY_GATE_ENFORCE", "false")
-        router_debug["safety_gate_applied"] = True
-        router_debug["safety_gate_safe_to_trust"] = bool(safe_to_trust)
-        if not safe_to_trust:
-            router_debug["safety_gate_action"] = "NEEDS_LLM"
-            router_debug["safety_gate_intent_before"] = (intent or "").upper()
-            router_debug["safety_gate_enforced"] = bool(enforce_gate)
-            if enforce_gate:
-                intent = "CLARIFICATION"
-                conf = float(min(float(conf or 0.0), 0.40))
+                semantic_filter = route_botlive_intent._semantic_filter_v65
+                suggestion_logger = route_botlive_intent._suggestion_logger_v65
+
+                emb_intent, emb_conf, emb_proto, emb_debug = semantic_filter.detect(routed_message)
+
+                if emb_intent and emb_conf >= 0.75:
+                    logger.info(
+                        f"{Fore.BLUE}🧠 [EMBEDDINGS_V6.5] Match: intent={emb_intent} | conf={emb_conf:.3f} | proto='{emb_proto[:40] if emb_proto else ''}...'{Style.RESET_ALL}"
+                    )
+
+                    # Log suggestion si confiance >= 0.82
+                    if emb_conf >= 0.82 and emb_proto:
+                        suggestion_logger.log_high_confidence_case(
+                            message=routed_message,
+                            intent=emb_intent,
+                            similarity=emb_conf,
+                            matched_prototype=emb_proto,
+                            v6_checked=True,
+                            v5_checked=True,
+                        )
+            except ImportError:
+                # sentence-transformers non installé, Layer 3 désactivé
+                pass
+            except Exception as e:
+                logger.warning(f"[EMBEDDINGS_V6.5] Erreur: {e}")
+        
+        # Si Layer 3 a matché avec confiance suffisante, utiliser son résultat
+        if emb_intent and emb_conf >= 0.75:
+            intent = emb_intent
+            conf = emb_conf
+            router_debug = {
+                "router": "embeddings_v6_5",
+                "router_source": "semantic_filter_v6_5",
+                "routing_layer": "embeddings_v6_5",
+                "embeddings_similarity": emb_conf,
+                "embeddings_prototype": emb_proto,
+                **emb_debug,
+            }
+            margin_val = 0.0
+            
+            logger.info(
+                f"{Fore.BLUE}🧠 [EMBEDDINGS_V6.5] Utilisé comme fallback: intent={intent} | conf={conf:.3f}{Style.RESET_ALL}"
+            )
         else:
-            router_debug["safety_gate_action"] = "TRUST_SET_FIT"
-            router_debug["safety_gate_enforced"] = bool(enforce_gate)
+            # LAYER 4 : SetFit ML (Fallback ultime)
+            intent, conf, router_debug = _route_with_setfit(
+                routed_message,
+                conversation_history=conversation_history or "",
+                state_compact=state_compact or {},
+            )
+            if isinstance(router_debug, dict) and not router_debug.get("routing_layer"):
+                router_debug["routing_layer"] = "setfit"
+            margin_val = float(router_debug.get("setfit_margin") or 0.0)
+            _HYDE_MARGIN_HISTORY.append(margin_val)
+            
+            # 🔍 LOG COULEUR: SetFit prediction
+            logger.info(
+                f"{Fore.MAGENTA}🤖 [SETFIT][PREDICT] intent={intent} | conf={conf:.3f} | margin={margin_val:.3f} | version={_MODEL_VERSION}{Style.RESET_ALL}"
+            )
+
+        pf = router_debug.get("prefilter")
+        if pf:
+            router_debug["router_metrics.prefilter"] = pf
+
+    # Post-validation (non destructif) + garde livraison/prix
+    # ⚠️ IMPORTANT: Si le prefilter a forcé l'intent (V5), on NE PAS appeler _post_validate_intent
+    # car il pourrait changer REASSURANCE en SALUT (label V4)
+    upper_intent = (intent or "").upper().strip() or "CLARIFICATION"
+    conf2, post_debug = conf, {}
+    
+    # Skip post-validation si prefilter V5 a déjà décidé
+    prefilter_forced = bool(forced_intent and prefilter_debug.get("prefilter"))
+    if prefilter_forced:
+        print(f"🔥 [ROUTER][DEBUG] Prefilter a forcé intent={upper_intent}, skip post_validate_intent")
+        post_debug = {"post_validation_skipped": True, "reason": "prefilter_forced"}
+    else:
+        try:
+            intent2, conf2, post_debug = _post_validate_intent(
+                intent=upper_intent,
+                confidence=float(conf or 0.0),
+                message=original_message,
+                state_compact=state_compact or {},
+            )
+            upper_intent = (intent2 or "").upper().strip() or upper_intent
+        except Exception as e:
+            post_debug = {"post_validation": True, "post_validation_error": str(e)}
 
     try:
-        effective_hyde_pre_enabled = hyde_pre_enabled
-        if effective_hyde_pre_enabled is None:
-            effective_hyde_pre_enabled = _truthy_env("BOTLIVE_HYDE_PRE_ENABLED", "true")
+        intent3, conf3, delivery_debug = _apply_delivery_price_guard(
+            message=original_message,
+            intent=upper_intent,
+            confidence=float(conf2 or 0.0),
+        )
+        upper_intent = (intent3 or "").upper().strip() or upper_intent
+        conf2 = float(conf3 or conf2 or 0.0)
+        post_debug.update(delivery_debug or {})
+    except Exception:
+        pass
 
-        if effective_hyde_pre_enabled and not forced_intent and not (router_debug.get("safety_gate_enforced") and router_debug.get("safety_gate_action") == "NEEDS_LLM"):
-            thr, thr_source = _hyde_margin_threshold()
-            router_debug["hyde_margin"] = margin_val
-            router_debug["hyde_margin_threshold"] = thr
-            router_debug["hyde_margin_threshold_source"] = thr_source
-            router_debug["hyde_margin_history_size"] = len(_HYDE_MARGIN_HISTORY)
-
-            should_use_hyde = margin_val <= float(thr)
-            if should_use_hyde:
-                hyde_pre_reason = f"LOW_MARGIN<=THR({thr_source})"
-                try:
-                    reformulator = HydeReformulator()
-                    routed_message = await reformulator.reformulate(company_id, original_message, ctx)
-                    hyde_pre_used = routed_message != original_message
-
-                    intent2, conf2, router_debug2 = _route_with_setfit(
-                        routed_message,
-                        conversation_history=conversation_history or "",
-                        state_compact=state_compact or {},
-                    )
-                    router_debug["hyde_routed_message"] = routed_message
-                    router_debug["hyde_setfit_intent_before"] = (intent or "").upper()
-                    router_debug["hyde_setfit_conf_before"] = float(conf or 0.0)
-                    router_debug["hyde_setfit_intent_after"] = (intent2 or "").upper()
-                    router_debug["hyde_setfit_conf_after"] = float(conf2 or 0.0)
-                    router_debug.update({f"hyde_after_{k}": v for k, v in router_debug2.items()})
-                    intent, conf = intent2, conf2
-                except Exception as e:
-                    router_debug["hyde_error"] = str(e)
-            else:
-                hyde_pre_reason = "MARGIN_OK"
-        else:
-            hyde_pre_reason = "HYDE_PRE_DISABLED" if not effective_hyde_pre_enabled else "SKIP_HYDE"
-    except Exception as e:
-        router_debug["hyde_gating_error"] = str(e)
-        hyde_pre_reason = "HYDE_ERROR"
-
-    # Guard global (unique): priorise LIVRAISON quand c'est une question de prix de livraison
-    # Placement: après HYDE (si utilisé), avant sub-routing.
-    intent, conf, guard_debug = _apply_delivery_price_guard(
-        message=original_message,
-        intent=intent,
-        confidence=float(conf or 0.0),
-    )
-    router_debug.update(guard_debug)
-
-    # Sub-routing: V5 (poles) ou V4 (intents)
-    if _MODEL_VERSION == "V5" and (intent or "").upper() in {"REASSURANCE", "SHOPPING", "ACQUISITION", "SAV_SUIVI"}:
-        try:
-            sub_routing_result = sub_route_pole((intent or "").upper(), original_message)
-            router_debug["business_subroute_v5"] = sub_routing_result.get("sub_intent")
-            router_debug["business_subroute_v5_action"] = sub_routing_result.get("action")
-            router_debug["business_subroute_v5_keywords"] = sub_routing_result.get("keywords_matched", [])
-        except Exception as e:
-            logger.warning(f"[V5_SUB_ROUTING] Erreur: {e}")
-            router_debug["business_subroute_v5_error"] = str(e)
-    else:
-        # V4 sub-routing (legacy)
-        sub_route, sub_route_reason = _apply_sub_routing(intent, original_message)
-        if sub_route:
-            router_debug["business_subroute"] = sub_route
-        if sub_route_reason:
-            router_debug["business_subroute_reason"] = sub_route_reason
-
-    upper_intent, conf2, post_debug = _post_validate_intent(
-        intent=intent,
-        confidence=float(conf or 0.0),
-        message=original_message,
-        state_compact=state_compact or {},
-    )
     router_debug.update(post_debug)
 
     confidence = float(max(0.0, min(1.0, conf2)))
     intent_group = _map_intent_to_group(upper_intent)
 
+    try:
+        layer_used = (router_debug or {}).get("routing_layer") or (router_debug or {}).get("router") or "unknown"
+        logger.info(
+            "[ROUTER][LAYER] layer=%s intent=%s conf=%.3f",
+            layer_used,
+            upper_intent,
+            confidence,
+        )
+    except Exception:
+        pass
+
     collected_count = int((state_compact or {}).get("collected_count", 0) or 0)
     is_complete = bool((state_compact or {}).get("is_complete", False))
     mode = _determine_mode_from_intent(upper_intent, is_complete=is_complete, collected_count=collected_count)
-
-    missing: List[str] = []
+    
+    # 🔍 LOG COULEUR: Mode computation
+    logger.info(
+        f"{Fore.YELLOW}📋 [SETFIT][MODE] intent={upper_intent} → mode={mode} | complete={is_complete} | collected={collected_count}/5{Style.RESET_ALL}"
+    )
+    
+    # Initialiser la liste missing_fields (ordre strict: photo → specs → zone → tel → paiement)
+    missing = []
     if not (state_compact or {}).get("photo_collected", False):
         missing.append("photo")
-    if not (state_compact or {}).get("paiement_collected", False):
-        missing.append("paiement")
+    if not (state_compact or {}).get("specs_collected", False):
+        missing.append("specs")
     if not (state_compact or {}).get("zone_collected", False):
         missing.append("zone")
     if not (state_compact or {}).get("tel_collected", False) or not (state_compact or {}).get("tel_valide", False):
         missing.append("tel")
+    if not (state_compact or {}).get("paiement_collected", False):
+        missing.append("paiement")
 
     debug = {
         "company_id": company_id,
@@ -1558,7 +2321,19 @@ async def route_botlive_intent(
         human_required = cooperative and _message_requires_human_for_intent(intent=upper_intent, message=original_message)
         debug["cooperative_mode"] = bool(cooperative)
         debug["human_required"] = bool(human_required)
-        debug["bypass_llm"] = bool(human_required)
+        # Par défaut, bypass_llm est piloté par une liste dédiée (pas identique à human_required).
+        bypass_intents = set(_get_human_bypass_intents_from_env())
+        debug["bypass_llm"] = bool(cooperative and upper_intent in bypass_intents)
+    except Exception:
+        pass
+
+    # V5 SEMI-AUTO: si SHOPPING, on notifie l'humain mais on laisse le LLM répondre via Prompt B.
+    try:
+        if _MODEL_VERSION == "V5" and upper_intent == "SHOPPING":
+            if _truthy_env("BOTLIVE_SEMI_AUTO_SHOPPING_HANDOFF", "true"):
+                debug["human_required"] = True
+                debug.setdefault("handoff_reason", "semi_auto_shopping")
+                debug["bypass_llm"] = False
     except Exception:
         pass
 

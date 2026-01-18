@@ -40,7 +40,11 @@ class HydeReformulator:
         try:
             template = self.prompts_manager.get_hyde_pre_routing_prompt(company_id)
         except Exception as e:
-            logger.error(f"[HYDE_PRE] Impossible de charger le prompt HYDE: {e}")
+            logger.warning(f"[HYDE_PRE] Prompt optionnel indisponible → skip HYDE_PRE ({e})")
+            return message
+
+        if not str(template or "").strip():
+            logger.info("[HYDE_PRE] Prompt vide → skip HYDE_PRE")
             return message
 
         template_str = str(template or "")

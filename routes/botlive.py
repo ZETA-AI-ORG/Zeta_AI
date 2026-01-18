@@ -14,16 +14,161 @@ import asyncio
 from datetime import datetime
 import os
 import httpx
+import re
 
 from config import N8N_OUTBOUND_WEBHOOK_URL, N8N_API_KEY, N8N_DEBUG_MODE
 from core.intervention_logger import log_intervention_in_conversation_logs, log_message_in_conversation_logs
 from core.intervention_guardian import get_intervention_guardian
 from core.production_pipeline import ProductionPipeline
 from core.rule_overrides import RuleOverrides
+from config import BOTLIVE_COOPERATIVE_HUMAN_MODE
 
 logger = logging.getLogger(__name__)
 
 production_pipeline = ProductionPipeline()
+
+_PENDING_HUMAN: Dict[str, Dict[str, Any]] = {}
+
+FAREWELL_PATTERNS = [
+    "bonne continuation",
+    "au revoir",
+    "a bientot",
+    "à bientôt",
+    "bonne journée",
+    "bonne journee",
+    "bonne soirée",
+    "bonne soiree",
+    "bonne nuit",
+    "merci bye",
+    "bye",
+    "ciao",
+]
+
+# Messages de handoff contextuels par intent
+HANDOFF_MESSAGES = {
+    "SAV_SUIVI": {
+        "tracking": "Je transfère ta demande de suivi à l'équipe ! Un instant. 📦",
+        "probleme": "Je comprends ton problème. L'équipe SAV va te contacter rapidement ! 🙏",
+        "reclamation": "Je note ta réclamation et la transmets immédiatement à l'équipe. 💬",
+        "default": "Je transfère ta demande à l'équipe qui va t'aider au plus vite ! 😊"
+    },
+    "MODIFICATION_COMMANDE": {
+        "default": "Je transmets ta demande de modification à l'équipe. Un instant ! ✏️"
+    },
+    "HORS_ZONE": {
+        "default": "On ne livre pas encore dans ta zone 😔 mais je note ta demande pour l'équipe !"
+    },
+    "QUESTION_TECHNIQUE": {
+        "default": "Je transfère ta question technique à un expert qui va te répondre ! 🔧"
+    },
+    "DEFAULT": {
+        "default": "Je transfère ta demande à l'équipe. Un instant ! 😊"
+    }
+}
+
+def get_handoff_message(intent: str, message_text: str = "") -> str:
+    """Retourne un message contextuel selon l'intent et le contenu du message.
+    
+    Args:
+        intent: Intent détecté (SAV_SUIVI, MODIFICATION_COMMANDE, etc.)
+        message_text: Message original de l'utilisateur
+        
+    Returns:
+        Message de transfert empathique et contextualisé
+    """
+    intent_messages = HANDOFF_MESSAGES.get(intent, HANDOFF_MESSAGES["DEFAULT"])
+    
+    # Détection du sous-type pour SAV_SUIVI
+    if intent == "SAV_SUIVI":
+        message_lower = (message_text or "").lower()
+        # Normalisation légère: on garde aussi une version sans accents pour matcher robustement
+        try:
+            message_ascii = (
+                message_lower
+                .replace("à", "a")
+                .replace("â", "a")
+                .replace("ä", "a")
+                .replace("é", "e")
+                .replace("è", "e")
+                .replace("ê", "e")
+                .replace("ë", "e")
+                .replace("î", "i")
+                .replace("ï", "i")
+                .replace("ô", "o")
+                .replace("ö", "o")
+                .replace("ù", "u")
+                .replace("û", "u")
+                .replace("ü", "u")
+                .replace("ç", "c")
+            )
+        except Exception:
+            message_ascii = message_lower
+
+        def _has_word(*words: str) -> bool:
+            # Match mots entiers pour éviter les faux positifs (ex: "ou" dans "remboursement")
+            for w in words:
+                if not w:
+                    continue
+                pattern = r"\\b" + re.escape(w) + r"\\b"
+                if re.search(pattern, message_lower, flags=re.IGNORECASE) or re.search(pattern, message_ascii, flags=re.IGNORECASE):
+                    return True
+            return False
+
+        def _has_any_substring(*subs: str) -> bool:
+            for s in subs:
+                if s and (s in message_lower or s in message_ascii):
+                    return True
+            return False
+
+        # IMPORTANT: ordre de priorité
+        # 1) Réclamation / Retour
+        if _has_any_substring(
+            "remboursement",
+            "rembourser",
+            "rembourse",
+            "retour",
+            "retourner",
+            "annulation",
+            "annuler",
+            "reclamation",
+            "réclamation",
+            "insatisfait",
+            "insatisfaite",
+        ):
+            return intent_messages["reclamation"]
+
+        # 2) Problème / Défaut
+        if _has_any_substring(
+            "abime",
+            "abîme",
+            "abimee",
+            "abîmée",
+            "casse",
+            "cassé",
+            "cassee",
+            "cassée",
+            "probleme",
+            "problème",
+            "defaut",
+            "défaut",
+            "manque",
+            "manquant",
+            "incomplet",
+        ):
+            return intent_messages["probleme"]
+
+        # 3) Tracking / Suivi (sans "ou" qui provoque des faux positifs)
+        if (
+            _has_word("ou", "où", "quand")
+            or _has_any_substring("arrive", "livraison", "delai", "délai", "colis", "suivi", "tracking")
+        ):
+            return intent_messages["tracking"]
+    
+    return intent_messages["default"]
+
+
+def _pending_key(company_id: str, user_id: str) -> str:
+    return f"{company_id}::{user_id}"
 
 ENABLE_POST_RECAP_STOP_FLOW = False
 
@@ -116,6 +261,7 @@ async def process_botlive_message(req: BotliveMessageRequest, background_tasks: 
         }
     """
     request_id = str(uuid.uuid4())[:8]
+    start_time = time.time()
     logger.info(f"[BOTLIVE][{request_id}] Message reçu: user={req.user_id}, company={req.company_id}")
     
     try:
@@ -130,6 +276,42 @@ async def process_botlive_message(req: BotliveMessageRequest, background_tasks: 
         # Détection simple d'escalade explicite ou de frustration forte
         msg_text = req.message or ""
         msg_lower = msg_text.lower()
+
+        if msg_lower and any(p in msg_lower for p in FAREWELL_PATTERNS):
+            return JSONResponse(
+                content={
+                    "success": True,
+                    "response": "Merci à vous ! Bonne continuation ! 😊",
+                    "status": "OK",
+                    "human_required": False,
+                    "bypass_llm": True,
+                    "llm_used": None,
+                    "intent": "FAREWELL",
+                    "confidence": 0.95,
+                    "mode": "REASSURANCE",
+                    "source": "python",
+                    "cache_hit": False,
+                    "missing_fields": [],
+                    "router_metrics": {
+                        "intent": "FAREWELL",
+                        "confidence": 0.95,
+                        "mode": "REASSURANCE",
+                        "router_source": "prefilter_farewell",
+                    },
+                    "order_status": {
+                        "produit": "",
+                        "paiement": "",
+                        "zone": "",
+                        "numero": "",
+                        "completion_rate": 0.0,
+                        "is_complete": False,
+                    },
+                    "next_step": "produit",
+                    "duration_ms": int((time.time() - start_time) * 1000),
+                    "request_id": request_id,
+                },
+                media_type="application/json; charset=utf-8",
+            )
 
         explicit_handoff_keywords = [
             "parler a un humain",
@@ -198,7 +380,6 @@ async def process_botlive_message(req: BotliveMessageRequest, background_tasks: 
                 logger.error("[BOTLIVE][%s] Failed to log explicit/frustration intervention: %s", request_id, log_err)
 
         # Traiter le message
-        start_time = time.time()
         user_display_name = req.user_display_name
 
         # Vérifier si la commande est déjà complétée AVANT d'appeler le moteur Botlive
@@ -321,10 +502,15 @@ async def process_botlive_message(req: BotliveMessageRequest, background_tasks: 
             )
 
         # Construire automatiquement l'historique depuis Supabase (conversations + messages)
-        conversation_history = await _build_conversation_history_from_messages(
-            company_id=req.company_id,
-            user_id=req.user_id,
-        )
+        # NOTE: en local/simulateur on veut pouvoir bypass Supabase pour éviter timeouts.
+        skip_supabase_history = os.getenv("BOTLIVE_SKIP_SUPABASE_HISTORY", "false").strip().lower() in {"1", "true", "yes", "y", "on"}
+        if skip_supabase_history or (req.conversation_history or "").strip():
+            conversation_history = req.conversation_history or ""
+        else:
+            conversation_history = await _build_conversation_history_from_messages(
+                company_id=req.company_id,
+                user_id=req.user_id,
+            )
 
         # ═══════════════════════════════════════════════════════════════
         # RULE OVERRIDES (avant le routeur)
@@ -406,15 +592,54 @@ async def process_botlive_message(req: BotliveMessageRequest, background_tasks: 
             "company_phone": company_phone,
         }
 
+        images_list: List[str] = []
+        try:
+            if isinstance(req.images, list) and req.images:
+                images_list = [str(u).strip() for u in req.images if str(u).strip()]
+        except Exception:
+            images_list = []
+
+        if not images_list:
+            try:
+                msg_for_media = str(req.message or "")
+                candidates = re.findall(r"https?://[^\s\]\)\}\>\"']+", msg_for_media)
+                extracted: List[str] = []
+                for u in candidates:
+                    uu = (u or "").strip().rstrip(".,;:)")
+                    uul = uu.lower()
+                    is_img = any(uul.endswith(ext) for ext in [".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp"]) or "fbcdn" in uul or "scontent" in uul
+                    if is_img:
+                        extracted.append(uu)
+                if extracted:
+                    images_list = extracted
+            except Exception:
+                images_list = []
+
+        if images_list:
+            context["images"] = images_list
+        logger.info(
+            "🔍 [SCAN][VISION_INPUT] images_count=%s source=%s",
+            len(images_list),
+            "req.images" if (isinstance(req.images, list) and req.images) else ("message_url" if images_list else "none"),
+        )
+
         # Vision: si une image est présente, réutiliser le pipeline léger de Zeta_AI.app
-        if req.images and len(req.images) > 0:
+        if images_list and len(images_list) > 0:
             try:
                 vision_result = await zeta_app._process_botlive_vision(
-                    req.images[0],
+                    images_list[0],
                     company_phone=company_phone,
                 )
                 if isinstance(vision_result, dict):
                     context.update(vision_result)
+                    try:
+                        logger.info(
+                            "🔍 [SCAN][OCR/BLIP] Résultat : detected_objects=%s filtered_transactions=%s",
+                            len(vision_result.get("detected_objects") or []),
+                            len(vision_result.get("filtered_transactions") or []),
+                        )
+                    except Exception:
+                        pass
             except Exception as vision_err:
                 # Gérer gracieusement les erreurs vision (403 Facebook, timeouts, etc.)
                 logger.warning(
@@ -435,6 +660,7 @@ async def process_botlive_message(req: BotliveMessageRequest, background_tasks: 
         pipeline_result = None
         routing_result = None
         cache_hit = False
+        pipeline_error = None
         try:
             order_status_for_routing = pre_order_status or {}
             produit = str(order_status_for_routing.get("produit") or "").strip()
@@ -465,7 +691,8 @@ async def process_botlive_message(req: BotliveMessageRequest, background_tasks: 
             routing_result = pipeline_result.get("result") if isinstance(pipeline_result, dict) else None
             cache_hit = bool(pipeline_result.get("cache_hit")) if isinstance(pipeline_result, dict) else False
         except Exception as e:
-            logger.warning("[BOTLIVE][%s] ProductionPipeline routing failed: %s", request_id, e)
+            pipeline_error = str(e)
+            logger.error("[BOTLIVE][%s] ProductionPipeline routing failed: %s", request_id, e, exc_info=True)
 
         hybrid_result = await botlive_hybrid.process_request(
             user_id=req.user_id,
@@ -475,7 +702,51 @@ async def process_botlive_message(req: BotliveMessageRequest, background_tasks: 
             company_id=req.company_id,
         )
 
-        response = hybrid_result.get("response", "")
+        response = hybrid_result.get("response", "") if isinstance(hybrid_result, dict) else ""
+        status = hybrid_result.get("status") if isinstance(hybrid_result, dict) else None
+        if BOTLIVE_COOPERATIVE_HUMAN_MODE and status == "PENDING_HUMAN":
+            # IMPORTANT: En mode coopératif, on peut vouloir notifier l'humain SANS appeler le LLM,
+            # tout en envoyant un court message fallback au client.
+            # Si une réponse non vide est fournie, on la conserve.
+            try:
+                if not (isinstance(response, str) and response.strip()):
+                    response = None
+            except Exception:
+                response = None
+
+            try:
+                _PENDING_HUMAN[_pending_key(req.company_id, req.user_id)] = {
+                    "status": "PENDING_HUMAN",
+                    "created_at": datetime.utcnow().isoformat(),
+                    "company_id": req.company_id,
+                    "user_id": req.user_id,
+                    "message": req.message or "",
+                    "router_metrics": hybrid_result.get("router_metrics"),
+                    "router_debug": getattr(routing_result, "debug", None) if routing_result else None,
+                    "request_id": request_id,
+                }
+            except Exception:
+                pass
+
+            try:
+                await log_intervention_in_conversation_logs(
+                    company_id_text=req.company_id,
+                    user_id=req.user_id,
+                    message=req.message or "",
+                    metadata={
+                        "needs_intervention": True,
+                        "reason": "cooperative_pending_human",
+                        "priority": "high",
+                        "cooperative_mode": True,
+                        "status": "PENDING_HUMAN",
+                        "router_metrics": hybrid_result.get("router_metrics") if isinstance(hybrid_result, dict) else None,
+                    },
+                    channel="botlive",
+                    direction="user",
+                    source="botlive_cooperative",
+                )
+            except Exception as log_err:
+                logger.error("[BOTLIVE][%s] Failed to log cooperative pending human: %s", request_id, log_err)
         duration_ms = int((time.time() - start_time) * 1000)
         
         # Récupérer l'état de la commande
@@ -728,13 +999,88 @@ async def process_botlive_message(req: BotliveMessageRequest, background_tasks: 
                 "order_status": order_status
             })
         
+        router_debug_out = getattr(routing_result, "debug", None) if routing_result else None
+        try:
+            if isinstance(router_debug_out, dict) and not router_debug_out.get("router_source"):
+                rname = str(router_debug_out.get("router") or "").strip().lower()
+                if rname in {"setfit_v4", "setfit"}:
+                    router_debug_out["router_source"] = "setfit"
+                elif rname == "prefilter":
+                    router_debug_out["router_source"] = "setfit_prefilter"
+                elif rname in {"embeddings", "emb_router"}:
+                    router_debug_out["router_source"] = "embeddings"
+                elif rname == "rule_override":
+                    router_debug_out["router_source"] = "rule_override"
+                elif rname == "global_handoff":
+                    router_debug_out["router_source"] = "global_handoff"
+        except Exception:
+            pass
+
+        pipeline_intent = getattr(routing_result, "intent", None) if routing_result else None
+        pipeline_confidence = getattr(routing_result, "confidence", None) if routing_result else None
+        pipeline_mode = getattr(routing_result, "mode", None) if routing_result else None
+
+        final_intent = pipeline_intent
+        final_confidence = pipeline_confidence
+        final_mode = pipeline_mode
+        try:
+            rm = (hybrid_result.get("router_metrics") or {}) if isinstance(hybrid_result, dict) else {}
+            if isinstance(rm, dict):
+                if rm.get("intent") is not None:
+                    final_intent = rm.get("intent")
+                if rm.get("confidence") is not None:
+                    final_confidence = rm.get("confidence")
+                if rm.get("mode") is not None:
+                    final_mode = rm.get("mode")
+        except Exception:
+            pass
+
+        # Vérifier si la réponse est vide et appliquer un message contextuel si handoff
+        if response is None or (isinstance(response, str) and not response.strip()):
+            logger.warning(
+                "[BOTLIVE][%s] Réponse vide détectée (llm_used=%s, intent=%s). Fallback appliqué.",
+                request_id,
+                (hybrid_result.get("llm_used") if isinstance(hybrid_result, dict) else None),
+                final_intent
+            )
+            
+            # Message contextuel si handoff détecté, sinon fallback générique
+            if final_intent and final_intent in ["SAV_SUIVI", "MODIFICATION_COMMANDE", "HORS_ZONE", "QUESTION_TECHNIQUE"]:
+                response = get_handoff_message(final_intent, req.message or "")
+                logger.info(
+                    "[BOTLIVE][%s] Handoff contextuel: intent=%s message='%s'",
+                    request_id,
+                    final_intent,
+                    response[:50]
+                )
+            else:
+                response = "Désolé, je n'ai pas pu générer une réponse. Peux-tu reformuler ta demande ?"
+
         return JSONResponse(content={
             "success": True,
             "response": response,
-            "intent": getattr(routing_result, "intent", None) if routing_result else None,
-            "confidence": getattr(routing_result, "confidence", None) if routing_result else None,
-            "mode": getattr(routing_result, "mode", None) if routing_result else None,
+            "status": ("PENDING_HUMAN" if (BOTLIVE_COOPERATIVE_HUMAN_MODE and status == "PENDING_HUMAN") else "OK"),
+            "human_required": bool(hybrid_result.get("human_required")) if isinstance(hybrid_result, dict) else False,
+            "bypass_llm": bool(hybrid_result.get("bypass_llm")) if isinstance(hybrid_result, dict) else False,
+            "llm_used": hybrid_result.get("llm_used") if isinstance(hybrid_result, dict) else None,
+            "thinking": hybrid_result.get("thinking") if isinstance(hybrid_result, dict) else None,
+            "llm_raw": hybrid_result.get("llm_raw") if isinstance(hybrid_result, dict) else None,
+            "prompt_tokens": hybrid_result.get("prompt_tokens") if isinstance(hybrid_result, dict) else None,
+            "completion_tokens": hybrid_result.get("completion_tokens") if isinstance(hybrid_result, dict) else None,
+            "total_tokens": hybrid_result.get("total_tokens") if isinstance(hybrid_result, dict) else None,
+            "total_cost": hybrid_result.get("total_cost") if isinstance(hybrid_result, dict) else None,
+            "cost": hybrid_result.get("cost") if isinstance(hybrid_result, dict) else None,
+            "usage": hybrid_result.get("usage") if isinstance(hybrid_result, dict) else None,
+            "intent": final_intent,
+            "confidence": final_confidence,
+            "mode": final_mode,
+            "pipeline_intent": pipeline_intent,
+            "pipeline_confidence": pipeline_confidence,
+            "pipeline_mode": pipeline_mode,
             "missing_fields": getattr(routing_result, "missing_fields", None) if routing_result else None,
+            "router_debug": router_debug_out,
+            "router_error": pipeline_error,
+            "router_metrics": hybrid_result.get("router_metrics") if isinstance(hybrid_result, dict) else None,
             "source": "cache" if cache_hit else "llm",
             "cache_hit": cache_hit,
             "latency_ms": duration_ms,
@@ -764,6 +1110,7 @@ async def process_botlive_message(req: BotliveMessageRequest, background_tasks: 
             logger.error("[BOTLIVE][%s] Failed to log system error intervention: %s", request_id, log_err)
         raise HTTPException(status_code=500, detail=f"Erreur traitement message: {str(e)}")
 
+    logger.warning(f"[BOTLIVE][{request_id}] ZETA-AI v6.5 active | RequestID: {request_id}")
 
 @router.post("/human-reply")
 async def send_human_reply(req: HumanReplyRequest):
@@ -912,6 +1259,15 @@ async def send_human_reply(req: HumanReplyRequest):
     except Exception as e:
         logger.error(f"[BOTLIVE][HUMAN_REPLY] Exception lors de l'appel N8N: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Erreur interne lors de l'envoi à N8N")
+
+
+@router.get("/pending-response")
+async def get_pending_response(company_id: str, user_id: str):
+    key = _pending_key(company_id, user_id)
+    payload = _PENDING_HUMAN.get(key)
+    if not payload:
+        return JSONResponse(content={"success": True, "status": "NONE", "response": None})
+    return JSONResponse(content={"success": True, **payload, "response": None})
 
 @router.post("/message/stream")
 async def process_botlive_message_stream(req: BotliveMessageRequest):
@@ -1327,6 +1683,7 @@ async def get_order_state(user_id: str, company_id: str) -> Dict[str, Any]:
         
         return {
             "produit": state.produit or "",
+            "produit_details": getattr(state, "produit_details", None) or "",
             "paiement": state.paiement or "",
             "zone": state.zone or "",
             "numero": state.numero or "",
@@ -1337,6 +1694,7 @@ async def get_order_state(user_id: str, company_id: str) -> Dict[str, Any]:
         logger.error(f"[BOTLIVE] Erreur get_order_state: {e}")
         return {
             "produit": "",
+            "produit_details": "",
             "paiement": "",
             "zone": "",
             "numero": "",
@@ -1402,202 +1760,7 @@ async def get_or_create_conversation(
             "Content-Type": "application/json",
         }
 
-        url = f"{SUPABASE_URL}/rest/v1/conversations"
-
         # 1) Chercher une conversation existante pour ce couple
-        params = {
-            "company_id": f"eq.{company_uuid}",
-            "customer_name": f"eq.{user_id}",
-            "select": "id,metadata",
-            "order": "created_at.desc",
-            "limit": "1",
-        }
-
-        async with httpx.AsyncClient() as client:
-            resp = await client.get(url, headers=headers, params=params, timeout=5.0)
-
-        if resp.status_code == 200:
-            rows = resp.json() or []
-            if rows:
-                conv = rows[0]
-                conv_id = conv.get("id")
-                if conv_id:
-                    # Si un user_display_name est fourni et absent de la metadata existante,
-                    # on met à jour la conversation pour faciliter l'affichage dans le dashboard.
-                    if user_display_name:
-                        try:
-                            existing_meta = conv.get("metadata") or {}
-                            # metadata peut être une chaîne JSON ou un dict
-                            if isinstance(existing_meta, str):
-                                import json as _json
-                                try:
-                                    existing_meta = _json.loads(existing_meta)
-                                except Exception:
-                                    existing_meta = {}
-
-                            if not isinstance(existing_meta, dict):
-                                existing_meta = {}
-
-                            if existing_meta.get("user_display_name") != user_display_name:
-                                existing_meta.setdefault("user_id", user_id)
-                                existing_meta["user_display_name"] = user_display_name
-
-                                # Mettre à jour metadata + nouvelle colonne customer_display_name
-                                patch_payload = {
-                                    "metadata": existing_meta,
-                                    "customer_display_name": user_display_name,
-                                }
-                                patch_params = {"id": f"eq.{conv_id}"}
-
-                                async with httpx.AsyncClient() as client:
-                                    await client.patch(
-                                        url,
-                                        headers=headers,
-                                        params=patch_params,
-                                        json=patch_payload,
-                                        timeout=5.0,
-                                    )
-                        except Exception as meta_err:
-                            logger.warning(
-                                "[CONVERSATIONS] Impossible de mettre à jour metadata pour %s: %s",
-                                conv_id,
-                                meta_err,
-                            )
-
-                    return conv_id
-
-        # 2) Aucune conversation → en créer une nouvelle
-        metadata: Dict[str, Any] = {"user_id": user_id}
-        if user_display_name:
-            metadata["user_display_name"] = user_display_name
-
-        payload: Dict[str, Any] = {
-            "company_id": company_uuid,
-            "customer_name": user_id,
-            "metadata": metadata,
-        }
-
-        # Nouvelle colonne texte: customer_display_name
-        if user_display_name:
-            payload["customer_display_name"] = user_display_name
-
-        async with httpx.AsyncClient() as client:
-            create_resp = await client.post(
-                url,
-                headers={**headers, "Prefer": "return=representation"},
-                json=payload,
-                timeout=5.0,
-            )
-
-        if create_resp.status_code in (200, 201):
-            body = create_resp.json()
-            if isinstance(body, list) and body:
-                return body[0].get("id")
-            if isinstance(body, dict):
-                return body.get("id")
-
-        logger.error(
-            "[CONVERSATIONS] Erreur création conversation: %s - %s",
-            create_resp.status_code,
-            create_resp.text,
-        )
-        return None
-
-    except Exception as exc:  # pragma: no cover - log uniquement
-        logger.error("[CONVERSATIONS] Exception get_or_create_conversation: %s", exc)
-        return None
-
-
-async def insert_message(
-    conversation_id: str,
-    role: str,
-    content: str,
-    metadata: Optional[Dict[str, Any]] = None,
-) -> bool:
-    """Insère un message dans la table messages."""
-
-    try:
-        import httpx
-        from core.botlive_dashboard_data import SUPABASE_URL, SUPABASE_KEY
-
-        headers = {
-            "apikey": SUPABASE_KEY,
-            "Authorization": f"Bearer {SUPABASE_KEY}",
-            "Content-Type": "application/json",
-        }
-
-        url = f"{SUPABASE_URL}/rest/v1/messages"
-
-        payload: Dict[str, Any] = {
-            "conversation_id": conversation_id,
-            "role": role,
-            "content": content,
-        }
-
-        if metadata is not None:
-            # Si un author_name est fourni dans metadata, le refléter aussi
-            # dans la colonne texte dédiée messages.author_name.
-            author_name = metadata.get("author_name") if isinstance(metadata, dict) else None
-            if author_name:
-                payload["author_name"] = author_name
-
-            payload["metadata"] = metadata
-
-        async with httpx.AsyncClient() as client:
-            resp = await client.post(
-                url,
-                headers={**headers, "Prefer": "return=minimal"},
-                json=payload,
-                timeout=5.0,
-            )
-
-        if resp.status_code in (200, 201, 204):
-            logger.info(
-                "[CONVERSATIONS] Message inséré (conv=%s, role=%s, len=%s)",
-                conversation_id,
-                role,
-                len(content or ""),
-            )
-            return True
-
-        logger.error(
-            "[CONVERSATIONS] Erreur insert_message: %s - %s",
-            resp.status_code,
-            resp.text,
-        )
-        return False
-
-    except Exception as exc:  # pragma: no cover - log uniquement
-        logger.error("[CONVERSATIONS] Exception insert_message: %s", exc)
-        return False
-
-
-async def _build_conversation_history_from_messages(company_id: str, user_id: str, max_messages: int = 20) -> str:
-    """Reconstruit l'historique textuel depuis les tables conversations/messages.
-
-    Format de sortie aligné avec les anciens tests Botlive:
-        user: Bonjour, je veux commander
-        IA: D'accord ! ...
-
-    On récupère la conversation la plus récente pour (company_id_text, user_id)
-    puis les messages associés, triés par created_at asc.
-    """
-    try:
-        import httpx
-        from core.botlive_dashboard_data import SUPABASE_URL, SUPABASE_KEY, _get_company_uuid
-
-        # Mapper company_id texte -> UUID si possible
-        company_uuid = await _get_company_uuid(company_id)
-        if not company_uuid:
-            company_uuid = company_id
-
-        headers = {
-            "apikey": SUPABASE_KEY,
-            "Authorization": f"Bearer {SUPABASE_KEY}",
-            "Content-Type": "application/json",
-        }
-
-        # 1) Récupérer la conversation la plus récente pour ce couple
         conv_url = f"{SUPABASE_URL}/rest/v1/conversations"
         conv_params = [
             ("company_id", f"eq.{company_uuid}"),
@@ -1608,7 +1771,7 @@ async def _build_conversation_history_from_messages(company_id: str, user_id: st
             ("limit", "1"),
         ]
 
-        async with httpx.AsyncClient(timeout=10.0) as client:
+        async with httpx.AsyncClient() as client:
             conv_resp = await client.get(conv_url, headers=headers, params=conv_params)
 
         if conv_resp.status_code != 200:
@@ -1629,10 +1792,10 @@ async def _build_conversation_history_from_messages(company_id: str, user_id: st
             ("conversation_id", f"eq.{conversation_id}"),
             ("select", "role,content,created_at"),
             ("order", "created_at.asc"),
-            ("limit", str(max_messages)),
+            ("limit", "20"),
         ]
 
-        async with httpx.AsyncClient(timeout=10.0) as client:
+        async with httpx.AsyncClient() as client:
             msg_resp = await client.get(msg_url, headers=headers, params=msg_params)
 
         if msg_resp.status_code != 200:

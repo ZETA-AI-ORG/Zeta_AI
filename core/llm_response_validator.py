@@ -444,3 +444,299 @@ class LLMResponseValidator:
 # ═══════════════════════════════════════════════════════════════════════════════
 
 validator = LLMResponseValidator()
+
+
+def build_system_state_check(context: Dict[str, Any]) -> str:
+    try:
+        ctx = context if isinstance(context, dict) else {}
+        verdict_global = ctx.get("verdict_global") if isinstance(ctx, dict) else None
+        verdict_global = verdict_global if isinstance(verdict_global, dict) else {}
+
+        def _sym(status: str) -> str:
+            s = str(status or "").upper().strip()
+            if s == "VALIDATED":
+                return "✅"
+            if s in {"INVALID", "REFUSED"}:
+                return "❌"
+            if s == "MISSING":
+                return "∅"
+            return "⏳"
+
+        photo = verdict_global.get("photo") or {}
+        zone = verdict_global.get("zone") or {}
+        tel = verdict_global.get("telephone") or verdict_global.get("tel") or {}
+        pay = verdict_global.get("paiement") or verdict_global.get("pay") or {}
+
+        photo_status = _sym((photo.get("status") if isinstance(photo, dict) else ""))
+        zone_status = _sym((zone.get("status") if isinstance(zone, dict) else ""))
+        tel_status = _sym((tel.get("status") if isinstance(tel, dict) else ""))
+        payment_status = _sym((pay.get("status") if isinstance(pay, dict) else ""))
+
+        # SPECS: par défaut, on se base sur l'order_state (si présent dans context)
+        specs_status = "∅"
+        try:
+            order_state = ctx.get("order_state")
+            if getattr(order_state, "produit_details", None):
+                specs_status = "✅"
+        except Exception:
+            specs_status = "∅"
+
+        next_step = str(verdict_global.get("next_action") or ctx.get("next_step") or "").strip()
+        if not next_step:
+            next_step = "COLLECT_PHOTO"
+
+        system_state = (
+            "CHECKLIST_SYSTEM_STATE\n"
+            f"PHOTO: {photo_status}\n"
+            f"SPECS: {specs_status}\n"
+            f"ZONE: {zone_status}\n"
+            f"TEL: {tel_status}\n"
+            f"PAY: {payment_status}\n"
+            f"NEXT: {next_step}\n"
+        )
+        return system_state
+    except Exception:
+        return ""
+
+
+def extract_system_state_dict(context: Dict[str, Any]) -> Dict[str, str]:
+    try:
+        ctx = context if isinstance(context, dict) else {}
+        verdict_global = ctx.get("verdict_global") if isinstance(ctx, dict) else None
+        verdict_global = verdict_global if isinstance(verdict_global, dict) else {}
+
+        def _sym(status: str) -> str:
+            s = str(status or "").upper().strip()
+            if s == "VALIDATED":
+                return "✅"
+            if s in {"INVALID", "REFUSED"}:
+                return "❌"
+            if s == "MISSING":
+                return "∅"
+            return "⏳"
+
+        photo = verdict_global.get("photo") or {}
+        zone = verdict_global.get("zone") or {}
+        tel = verdict_global.get("telephone") or verdict_global.get("tel") or {}
+        pay = verdict_global.get("paiement") or verdict_global.get("pay") or {}
+
+        # SPECS: fallback sur order_state si disponible
+        specs_status = "∅"
+        try:
+            order_state = ctx.get("order_state")
+            if getattr(order_state, "produit_details", None):
+                specs_status = "✅"
+        except Exception:
+            specs_status = "∅"
+
+        next_step = str(verdict_global.get("next_action") or ctx.get("next_step") or "").strip()
+        if not next_step:
+            next_step = "COLLECT_PHOTO"
+
+        return {
+            "photo_status": _sym((photo.get("status") if isinstance(photo, dict) else "")),
+            "zone_status": _sym((zone.get("status") if isinstance(zone, dict) else "")),
+            "tel_status": _sym((tel.get("status") if isinstance(tel, dict) else "")),
+            "payment_status": _sym((pay.get("status") if isinstance(pay, dict) else "")),
+            "specs_status": specs_status,
+            "next_step": next_step,
+        }
+    except Exception:
+        return {
+            "photo_status": "∅",
+            "specs_status": "∅",
+            "zone_status": "∅",
+            "tel_status": "∅",
+            "payment_status": "⏳",
+            "next_step": "COLLECT_PHOTO",
+        }
+
+
+class ChecklistLLMResponseValidator:
+    FORBIDDEN_PATTERNS = {
+        "photo": {
+            "∅": [
+                r"photo.*(?:reçue?|recu|validée?|validee?|ok)",
+                r"✅.*(?:photo|image)",
+                r"bien reçu.*image",
+                r"image.*claire.*reçue?",
+                r"j'ai.*(?:photo|image)",
+            ],
+            "❌": [
+                r"photo.*(?:reçue?|validée?|ok)",
+                r"✅.*photo",
+            ],
+        },
+        "zone": {
+            "∅": [
+                r"(?:parfait|super|noté|note).*(?:pour|livraison à).*(?:cocody|yopougon|abobo|marcory|koumassi|adjamé|adjame|port-?bouet|treichville|plateau|attécoubé|attecoube)",
+                r"✅.*(?:commune|zone|livraison)",
+                r"on livre à",
+                r"livraison.*(?:commune|zone).*✅",
+                r"noté pour.*commune",
+            ],
+            "❌": [
+                r"parfait.*livraison",
+                r"✅.*commune",
+            ],
+        },
+        "tel": {
+            "∅": [
+                r"✅.*(?:numéro|numero|téléphone|telephone|contact)",
+                r"(?:parfait|super|noté|note).*(?:numéro|numero|téléphone|telephone|contact)",
+                r"on te joint au.*0[57]\d{8}",
+                r"noté.*(?:0[57]\d{8})",
+                r"numéro.*enregistré",
+                r"numero.*enregistre",
+            ],
+            "❌": [
+                r"✅.*(?:numéro|numero|téléphone|telephone)",
+                r"parfait.*contact",
+                r"numéro.*(?:ok|bon|validé)",
+                r"numero.*(?:ok|bon|valide)",
+            ],
+        },
+        "payment": {
+            "∅": [
+                r"(?:paiement|avance|dépôt|depot).*(?:reçu|recu|validé|valide)",
+                r"✅.*(?:wave|paiement|avance)",
+                r"capture.*reçue",
+                r"capture.*recu",
+                r"paiement.*confirmé",
+                r"paiement.*confirme",
+            ],
+            "❌": [
+                r"paiement.*validé",
+                r"paiement.*valide",
+                r"✅.*wave",
+                r"avance.*ok",
+            ],
+        },
+    }
+
+    FALLBACK_MESSAGES = {
+        "photo": "J'aurais besoin d'une image claire du produit qui t'intéresse svp 📸",
+        "zone": "Quelle commune d'Abidjan pour la livraison ? (Cocody, Yopougon, Abobo...)",
+        "tel": "On te joint à quel numéro svp ?",
+        "payment": "Envoie {expected_deposit}F via Wave {company_phone}. Puis envoie la capture de dépôt.",
+    }
+
+    def validate_response(self, response: str, system_state: Dict[str, str], context: Optional[Dict[str, Any]] = None) -> str:
+        if not response:
+            return response
+
+        resp_lc = response.lower()
+        state = system_state if isinstance(system_state, dict) else {}
+
+        # Si la réponse est une question (collecte/clarification), on évite de la réécrire.
+        # Objectif: ne pas casser des réponses LLM déjà bonnes.
+        try:
+            if "?" in response or re.search(r"\b(quel|quelle|quels|quelles|où|ou|comment|quand|pourquoi|est-ce que|peux-tu|pouvez-vous)\b", resp_lc):
+                return response
+        except Exception:
+            pass
+
+        next_step = str(state.get("next_step") or "")
+        if next_step == "COLLECT_PHOTO":
+            if any(
+                kw in resp_lc
+                for kw in [
+                    "commune",
+                    "zone",
+                    "livraison",
+                    "numéro",
+                    "numero",
+                    "téléphone",
+                    "telephone",
+                    "wave",
+                    "paiement",
+                ]
+            ):
+                logger.warning(
+                    "🚨 [CHECKLIST_VALIDATION] NEXT_STEP ignored: NEXT=COLLECT_PHOTO but response asks other fields"
+                )
+                try:
+                    if isinstance(context, dict):
+                        context["checklist_rewrite_reason"] = "next_step_ignored_collect_photo"
+                except Exception:
+                    pass
+                return self.FALLBACK_MESSAGES["photo"]
+
+        if next_step == "COLLECT_ZONE" and str(state.get("photo_status")) != "✅":
+            logger.warning("🚨 [CHECKLIST_VALIDATION] Incoherence: NEXT=COLLECT_ZONE but PHOTO!=✅")
+            try:
+                if isinstance(context, dict):
+                    context["checklist_rewrite_reason"] = "incoherence_collect_zone_photo_missing"
+            except Exception:
+                pass
+            return self.FALLBACK_MESSAGES["photo"]
+
+        if next_step in {"COLLECT_TEL", "VALIDATE_TEL"} and str(state.get("zone_status")) != "✅":
+            logger.warning("🚨 [CHECKLIST_VALIDATION] Incoherence: NEXT=%s but ZONE!=✅", next_step)
+            try:
+                if isinstance(context, dict):
+                    context["checklist_rewrite_reason"] = "incoherence_collect_tel_zone_missing"
+            except Exception:
+                pass
+            return self.FALLBACK_MESSAGES["zone"]
+
+        if next_step == "COLLECT_SPECS" and str(state.get("photo_status")) != "✅":
+            logger.warning("🚨 [CHECKLIST_VALIDATION] Incoherence: NEXT=COLLECT_SPECS but PHOTO!=✅")
+            try:
+                if isinstance(context, dict):
+                    context["checklist_rewrite_reason"] = "incoherence_collect_specs_photo_missing"
+            except Exception:
+                pass
+            return self.FALLBACK_MESSAGES["photo"]
+
+        # Réécriture uniquement en cas d'affirmation de validation (pas juste un mot "livraison" dans une question).
+        validation_markers = ["✅", "validé", "valide", "confirmé", "confirme", "enregistré", "enregistre", "noté", "note", "parfait"]
+
+        for field, status_key in [
+            ("photo", "photo_status"),
+            ("specs", "specs_status"),
+            ("zone", "zone_status"),
+            ("tel", "tel_status"),
+            ("payment", "payment_status"),
+        ]:
+            current_status = str(state.get(status_key, "∅"))
+            if current_status in {"∅", "❌"}:
+                if not any(m in response for m in validation_markers):
+                    continue
+                patterns = self.FORBIDDEN_PATTERNS.get(field, {}).get(current_status, [])
+                for pattern in patterns:
+                    if re.search(pattern, resp_lc):
+                        logger.warning(
+                            "🚨 [CHECKLIST_VALIDATION] Hallucination: field=%s status=%s pattern=%s",
+                            field,
+                            current_status,
+                            pattern,
+                        )
+
+                        try:
+                            if isinstance(context, dict):
+                                context["checklist_rewrite_reason"] = f"hallucination_{field}_{current_status}"
+                        except Exception:
+                            pass
+
+                        fallback = self.FALLBACK_MESSAGES.get(field, "")
+                        if field == "payment":
+                            ctx = context if isinstance(context, dict) else {}
+                            fallback = fallback.format(
+                                expected_deposit=str(ctx.get("expected_deposit") or "2000"),
+                                company_phone=str(ctx.get("company_phone") or COMPANY_PHONES.get("wave") or "0787360757"),
+                            )
+                        return fallback or response
+
+        return response
+
+
+_checklist_validator = ChecklistLLMResponseValidator()
+
+
+def validate_llm_response_checklist(
+    response: str,
+    system_state: Dict[str, str],
+    context: Optional[Dict[str, Any]] = None,
+) -> str:
+    return _checklist_validator.validate_response(response, system_state, context)

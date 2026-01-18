@@ -396,35 +396,19 @@ UNIVERSAL_ECOMMERCE_INTENT_CORPUS_V4 = {
         "label": "PAIEMENT_TRANSACTION",
         "mode": "C",
         "exemples": [
-            "Comment payer ?",
-            "Vous acceptez quoi ?",
-            "Moyens de paiement ?",
-            "Modes de paiement acceptés ?",
-            "Quel est le mode de paiement",
-            "Wave ?",
-            "Orange Money ?",
-            "Mobile Money ?",
-            "MTN Money ?",
-            "Vous acceptez Mobile Money",
-            "Vous prenez Orange Money",
-            "Vous acceptez MTN Money",
-            "Je peux payer en espèces ?",
-            "Espèces ?",
-            "Carte bancaire ?",
-            "Acompte obligatoire ?",
-            "Combien d'acompte ?",
-            "Dépôt minimum ?",
-            "Je dois verser combien ?",
-            "J'ai payé",
-            "Paiement envoyé",
-            "Voici mon paiement",
-            "Capture du paiement",
-            "Preuve de paiement",
-            "Je vous envoie le reçu",
-            "Paiement sécurisé ?",
-            "Je veux une facture",
+            "Paiement", "Comment payer ?", "Modes de paiement",
+            "Vous acceptez Wave ?", "Vous acceptez Orange Money ?", "Vous acceptez MTN ?",
+            "Je peux payer par Mobile Money ?",
+            "Je peux payer en espèces ?", "Je peux payer en liquide ?",
+            "Je peux payer par carte ?",
+            "C'est possible de payer après ?", "Je dois payer avant la livraison ?",
+            "Je viens de payer", "J'ai payé", "Voici mon paiement",
+            "Capture du paiement", "Preuve de paiement", "Je vous envoie le reçu",
+            "Paiement sécurisé ?", "Je veux une facture",
             "Paiement à la livraison c'est possible",
             "Bonjour pardon de te déranger, vous acceptez Mobile Money",
+            "Le paiement Wave est obligatoire ?",
+            "Je peux payer autrement ?", "Autres options de paiement ?",
         ]
     },
     
@@ -455,19 +439,19 @@ UNIVERSAL_ECOMMERCE_INTENT_CORPUS_V4 = {
         ]
     },
     
-    # ==========================================================================
-    # GROUPE D - APRÈS-VENTE (FUSION MAJEURE)
-    # ==========================================================================
-    
     9: {
         "label": "COMMANDE_EXISTANTE",
         "mode": "D",
         "exemples": [
             # ===== SUIVI (ancien intent 11) =====
             "Où est ma commande ?", "Où en est le colis ?",
+            "Où en est ma commande ?",
             "Tracking", "Suivi de commande", "Ma commande arrive quand ?",
             "Le livreur est où ?", "Le livreur arrive quand ?",
+            "Le livreur ne m'a pas appelé",
+            "Ma commande actuelle",
             "C'est livré ?", "J'ai pas encore reçu", "Toujours pas livré",
+            "Je n'ai pas encore reçu",
             "Pourquoi le retard ?", "C'est en retard", "Ça traîne",
             "Quand arrive ma commande", "Le livreur est où exactement",
             "Quel est le statut de ma livraison", "Ma commande a été expédiée",
@@ -475,14 +459,14 @@ UNIVERSAL_ECOMMERCE_INTENT_CORPUS_V4 = {
             "Ça n'est pas arrivé",
             "Yo la forme, où est mon colis svp",
             "Salut ça dit quoi, quand ça arrive ma commande",
-            
+
             # ===== MODIFICATION (fusions) =====
             "Je veux modifier ma commande", "Changer la quantité de ma commande",
             "Ajouter 2 paquets à ma commande", "Enlever un article de la commande",
             "Modifier ce que j'ai commandé hier", "Changer l'adresse de livraison",
             "Modifier l'adresse svp", "Changer la date de livraison",
             "Bjr chef, je veux modifier ma commande d'hier",
-            
+
             # ===== ANNULATION (ancien intent séparé fusionné) =====
             "Je veux annuler ma commande", "Je veux annuler ma commande svp",
             "Je ne veux plus la commande", "Supprimer ma commande d'hier",
@@ -622,7 +606,7 @@ CORPUS_VALIDATION_TESTS_V4 = {
     },
     "test_annulation": {
         "input": "Je veux annuler",
-        "expected_intent": "COMMANDE_EXISTANTE",  # Changé
+        "expected_intent": "COMMANDE_EXISTANTE",
         "expected_mode": "D",
     },
 }
@@ -645,30 +629,260 @@ CORPUS_METRICS_V4 = {
     ],
 }
 
+# ==============================================================================
+# CORPUS V5 - 4 PÔLES FUSION
+# ==============================================================================
+# Date: 2025-12-26
+# Changements V4 → V5:
+#   - RÉDUCTION: 10 intents → 4 pôles (-60%)
+#   - FUSION REASSURANCE: SALUT + INFO_GENERALE + LIVRAISON + PAIEMENT
+#   - FUSION SHOPPING: PRODUIT_GLOBAL + PRIX_PROMO
+#   - FUSION ACQUISITION: COMMANDE + CONTACT
+#   - FUSION SAV_SUIVI: COMMANDE_EXISTANTE + PROBLEME_RECLAMATION
+#   - DISTANCE EMBEDDING: 0.30-0.45 → 0.50-0.70 (target +56%)
+#   - ACCURACY ATTENDUE: 92-95% → 96-98%
+#   - MODE = POLE (contrat simplifié)
+# ==============================================================================
 
-# ==============================================================================
-# NOTES DE MIGRATION
-# ==============================================================================
-# Changements par rapport à version précédente:
-# 
-# 1. FUSIONNÉ: CLARIFICATION (id 3) → INFO_GENERALE (id 2)
-#    Raison: Confusion sémantique détectée lors calibration
-#    
-# 2. FUSIONNÉ: DISPONIBILITE_STOCK (id 7) → RECHERCHE_PRODUIT (id 5)
-#    Raison: Overlap questions "vous avez X" et "en stock"
-#    
-# 3. NETTOYÉ: Corpus id 1 (SALUT)
-#    Retiré: Messages type "Bonjour + question" → déplacés vers INFO_GENERALE
-#    Raison: Politesse biaisait classification
-#    
-# 4. AJOUTÉ: Cas problématiques dans corpus
-#    - "Vous êtes où exactement" → INFO_GENERALE
-#    - "Modifier commande" → SUIVI
-#    - "C'est pour quel âge" → RECHERCHE_PRODUIT
-#    
-# 5. Total intents: 15 → 10 (réduction 33%)
-#    Impact accuracy attendu: 78.6% → 92%+
-# ==============================================================================
+POLES_V5_LABELS = ["REASSURANCE", "SHOPPING", "ACQUISITION", "SAV_SUIVI"]
+
+
+POLES_V5 = {
+    "REASSURANCE": {
+        "id": 1,
+        "name": "Réassurance (Accueil + Info + Livraison + Paiement)",
+        "intents_v4_fusionnés": [1, 2, 6, 7],
+        "mission": "Gérer accueil, localisation, frais livraison, modes paiement",
+        "prompt_mode": "REASSURANCE",
+        "exemples_clés": [
+            "Bonjour",
+            "Vous êtes où",
+            "Vous livrez à Yopougon",
+            "Vous acceptez Wave",
+            "Horaires d'ouverture",
+        ],
+        "sub_routing_keywords": {
+            "salut": ["bonjour", "salut", "merci", "bye", "bonsoir"],
+            "localisation": ["où", "situé", "adresse", "boutique", "situe", "ou sommes"],
+            "livraison": ["livrez", "frais", "délai", "zone", "livraison"],
+            "paiement": ["payer", "wave", "orange money", "espèce", "paiement"],
+        },
+    },
+    "SHOPPING": {
+        "id": 2,
+        "name": "Shopping (Catalogue + Prix)",
+        "intents_v4_fusionnés": [3, 4],
+        "mission": "Catalogue, stock, tailles, prix, promos",
+        "prompt_mode": "SHOPPING",
+        "exemples_clés": [
+            "Vous avez quoi",
+            "C'est combien",
+            "En stock",
+            "Taille 4",
+            "Promotions",
+            "Catalogue",
+        ],
+        "sub_routing_keywords": {
+            "catalogue": ["catalogue", "liste", "avez quoi", "menu"],
+            "stock": ["stock", "disponible", "reste", "dispo", "rupture"],
+            "caracteristiques": ["taille", "couleur", "marque", "âge", "modèle"],
+            "prix": ["combien", "prix", "tarif", "promo", "réduction", "coût"],
+        },
+    },
+    "ACQUISITION": {
+        "id": 3,
+        "name": "Acquisition (Commande + Contact)",
+        "intents_v4_fusionnés": [5, 8],
+        "mission": "Passage à l'acte (je veux commander + numéro)",
+        "prompt_mode": "ACQUISITION",
+        "exemples_clés": [
+            "Je veux commander",
+            "Je prends",
+            "Je commande",
+            "Réservez-moi",
+            "Je valide",
+            "Mettez-moi ça",
+            "Comment passer commande",
+            "Je veux acheter",
+            "Prenez ma commande",
+            "Mon numéro c'est 0707070707",
+            "Appelez-moi au 01 02 03 04 05",
+            "WhatsApp moi au 0505050505",
+            "Voici mon numéro +2250707070707",
+            "Vous pouvez me joindre au",
+            "Mon contact c'est",
+        ],
+        "sub_routing_keywords": {
+            "commande": ["commander", "prends", "réserve", "acheter", "veux"],
+            "contact": ["numéro", "téléphone", "whatsapp", "joindre", "appel"],
+        },
+    },
+    "SAV_SUIVI": {
+        "id": 4,
+        "name": "SAV & Suivi (Commande existante + Réclamation)",
+        "intents_v4_fusionnés": [9, 10],
+        "mission": "Gestion post-commande, problèmes, retours → TRANSMISSIONXXX",
+        "prompt_mode": "SAV_SUIVI",
+        "exemples_clés": [
+            "Où est ma commande",
+            "Tracking",
+            "Suivi de commande",
+            "Le livreur est où",
+            "Ma commande arrive quand",
+            "Je n'ai pas encore reçu",
+            "C'est en retard",
+            "Je veux modifier ma commande",
+            "Changer la quantité",
+            "Ajouter un article",
+            "Enlever un produit",
+            "Je veux annuler",
+            "Supprimer ma commande",
+            "Je ne veux plus",
+            "Annuler svp",
+            "Produit défectueux",
+            "Produit abîmé",
+            "C'est cassé",
+            "Je veux retourner",
+            "Remboursement",
+            "Réclamation",
+            "Pas satisfait",
+            "Ce n'est pas le bon produit",
+        ],
+        "sub_routing_keywords": {
+            "suivi": ["où est", "tracking", "livreur", "arrive quand", "ma commande"],
+            "modification": ["modifier", "changer", "ajouter", "enlever"],
+            "annulation": ["annuler", "supprimer", "ne veux plus", "cancel"],
+            "reclamation": ["abîmé", "défectueux", "retourner", "remboursement", "plainte"],
+        },
+    },
+}
+
+
+CORPUS_V5 = {
+    "REASSURANCE": [
+        "Bonjour",
+        "Bonsoir",
+        "Salut",
+        "Merci",
+        "Au revoir",
+        "Ça va",
+        "Vous êtes où ?",
+        "Vous êtes situés où ?",
+        "Vous êtes situés où exactement ?",
+        "C'est où votre boutique ?",
+        "Adresse svp",
+        "Vous avez un magasin physique",
+        "Je peux venir sur place",
+        "Quel quartier",
+        "Quelle commune",
+        "Vous livrez où ?",
+        "Zones de livraison",
+        "Vous livrez à Yopougon",
+        "Combien la livraison",
+        "Frais de livraison",
+        "Délai de livraison",
+        "Quand ça arrive",
+        "Livraison gratuite",
+        "Vous livrez aujourd'hui",
+        "Comment payer",
+        "Modes de paiement",
+        "Vous acceptez Wave",
+        "Vous acceptez Orange Money",
+        "Je peux payer en espèces",
+        "Paiement à la livraison",
+        "J'ai payé",
+        "Voici mon paiement",
+    ],
+    "SHOPPING": [
+        "Catalogue",
+        "Vous avez quoi",
+        "Montrez-moi vos produits",
+        "Je cherche un produit",
+        "Vous avez des couches",
+        "Quelle taille",
+        "Quelle marque",
+        "C'est pour quel âge",
+        "En stock",
+        "Disponible",
+        "Il en reste",
+        "Rupture",
+        "C'est combien",
+        "Quel est le prix",
+        "Tarif",
+        "Coût",
+        "Vous avez des promotions",
+        "Réductions",
+        "Soldes",
+        "Prix en gros",
+        "Dernier prix",
+        "On peut négocier",
+    ],
+    "ACQUISITION": [
+        "Je veux commander",
+        "Je prends",
+        "Je commande",
+        "Réservez-moi",
+        "Je valide",
+        "Mettez-moi ça",
+        "Comment passer commande",
+        "Je veux acheter",
+        "Prenez ma commande",
+        "Mon numéro c'est 0707070707",
+        "Appelez-moi au 01 02 03 04 05",
+        "WhatsApp moi au 0505050505",
+        "Voici mon numéro +2250707070707",
+        "Vous pouvez me joindre au",
+        "Mon contact c'est",
+    ],
+    "SAV_SUIVI": [
+        "Où est ma commande",
+        "Tracking",
+        "Suivi de commande",
+        "Le livreur est où",
+        "Ma commande arrive quand",
+        "Je n'ai pas encore reçu",
+        "C'est en retard",
+        "Je veux modifier ma commande",
+        "Changer la quantité",
+        "Ajouter un article",
+        "Enlever un produit",
+        "Je veux annuler",
+        "Supprimer ma commande",
+        "Je ne veux plus",
+        "Annuler svp",
+        "Produit défectueux",
+        "Produit abîmé",
+        "C'est cassé",
+        "Je veux retourner",
+        "Remboursement",
+        "Réclamation",
+        "Pas satisfait",
+        "Ce n'est pas le bon produit",
+    ],
+}
+
+
+POLE_MAPPING_V4_TO_V5 = {
+    1: "REASSURANCE",
+    2: "REASSURANCE",
+    3: "SHOPPING",
+    4: "SHOPPING",
+    5: "ACQUISITION",
+    6: "REASSURANCE",
+    7: "REASSURANCE",
+    8: "ACQUISITION",
+    9: "SAV_SUIVI",
+    10: "SAV_SUIVI",
+}
+
+
+POLE_TO_V4_INTENTS = {
+    "REASSURANCE": [1, 2, 6, 7],
+    "SHOPPING": [3, 4],
+    "ACQUISITION": [5, 8],
+    "SAV_SUIVI": [9, 10],
+}
+
 
 # ==============================================================================
 # HELPER FUNCTIONS V4

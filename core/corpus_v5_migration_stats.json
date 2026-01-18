@@ -1,0 +1,61 @@
+{
+  "total_exemples": 353,
+  "by_pole": {
+    "REASSURANCE": 156,
+    "SHOPPING": 92,
+    "ACQUISITION": 47,
+    "SAV_SUIVI": 58
+  },
+  "by_intent_v4": {
+    "1": {
+      "label": "SALUT_POLITESSE",
+      "pole": "REASSURANCE",
+      "count": 48
+    },
+    "2": {
+      "label": "INFO_GENERALE",
+      "pole": "REASSURANCE",
+      "count": 53
+    },
+    "3": {
+      "label": "PRODUIT_GLOBAL",
+      "pole": "SHOPPING",
+      "count": 60
+    },
+    "4": {
+      "label": "PRIX_PROMO",
+      "pole": "SHOPPING",
+      "count": 32
+    },
+    "5": {
+      "label": "COMMANDE",
+      "pole": "ACQUISITION",
+      "count": 26
+    },
+    "6": {
+      "label": "LIVRAISON_INFO",
+      "pole": "REASSURANCE",
+      "count": 30
+    },
+    "7": {
+      "label": "PAIEMENT_TRANSACTION",
+      "pole": "REASSURANCE",
+      "count": 25
+    },
+    "8": {
+      "label": "CONTACT_COORDONNEES",
+      "pole": "ACQUISITION",
+      "count": 21
+    },
+    "9": {
+      "label": "COMMANDE_EXISTANTE",
+      "pole": "SAV_SUIVI",
+      "count": 40
+    },
+    "10": {
+      "label": "PROBLEME_RECLAMATION",
+      "pole": "SAV_SUIVI",
+      "count": 18
+    }
+  }
+}

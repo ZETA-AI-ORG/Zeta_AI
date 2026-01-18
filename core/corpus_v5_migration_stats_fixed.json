@@ -1,0 +1,12 @@
+{
+  "total_exemples": 351,
+  "by_pole": {
+    "REASSURANCE": 154,
+    "SHOPPING": 88,
+    "ACQUISITION": 51,
+    "SAV_SUIVI": 58
+  },
+  "corrections_applied": 2,
+  "manual_additions": 4,
+  "semantic_issues": 9
+}

@@ -5,6 +5,7 @@ import random
 import httpx
 import logging
 from typing import Optional, Dict, Any
+import os
 
 # === PATCH DE RÉSILIENCE GROQ ===
 
@@ -153,6 +154,23 @@ def log3(label, content, level='info', max_lines=10, max_length=500, show_full_i
         show_full_in_console: Si True, affiche le contenu complet dans la console
     """
     logger = logging.getLogger('app')
+
+    rich_enabled = (os.getenv("RICH_LOGS_ENABLED", "false") or "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "y",
+        "on",
+    }
+
+    console = None
+    if rich_enabled:
+        try:
+            from rich.console import Console
+
+            console = Console()
+        except Exception:
+            console = None
     
     try:
         # Formater le contenu
@@ -180,9 +198,53 @@ def log3(label, content, level='info', max_lines=10, max_length=500, show_full_i
         log_msg = f"[TRACE][{label}] {content_str}"
         log_method(log_msg)
         
-        # Toujours afficher dans la console pour une visibilité immédiate
-        console_output = content_str if show_full_in_console else content_str
-        print(f"[TRACE][{time.strftime('%H:%M:%S')}][{level.upper()}] {label}: {console_output}")
+        # Sortie console
+        console_output = full_content if show_full_in_console else content_str
+
+        if console is not None:
+            lvl = (level or "info").lower()
+            style = "white"
+            if lvl in {"warning", "warn"}:
+                style = "bold yellow"
+            elif lvl in {"error", "err", "critical"}:
+                style = "bold red"
+
+            # Avoid printing huge prompt blocks twice: they are already printed by logging handlers.
+            # Enable wrappers explicitly with LOG3_PRINT_PROMPT_WRAPPERS=true.
+            show_wrappers = (os.getenv("LOG3_PRINT_PROMPT_WRAPPERS", "false") or "").strip().lower() in {
+                "1",
+                "true",
+                "yes",
+                "y",
+                "on",
+            }
+
+            label_str = str(label or "")
+            if "[LLM][TOKENS]" in label_str:
+                style = "bold red"
+            elif "[LLM][RAW]" in label_str or "[LLM][RESPONSE]" in label_str:
+                style = "bold blue"
+            elif "[USER][MESSAGE]" in label_str or "[USER][QUERY]" in label_str:
+                console.print("[[USER_MESSAGE_START]]", style="bold cyan")
+                console.print(str(console_output), style="bold white")
+                console.print("[[USER_MESSAGE_END]]", style="bold cyan")
+                return full_content
+            elif "[LLM][PROMPT_SEGMENT]" in label_str:
+                if show_wrappers:
+                    console.print("[[LLM_PROMPT_SEGMENT_START]]", style="bold green")
+                    console.print(str(console_output), style="white")
+                    console.print("[[LLM_PROMPT_SEGMENT_END]]", style="bold green")
+                return full_content
+            elif "[LLM][PROMPT]" in label_str:
+                if show_wrappers:
+                    console.print("[[LLM_PROMPT_START]]", style="bold green")
+                    console.print(str(console_output), style="white")
+                    console.print("[[LLM_PROMPT_END]]", style="bold green")
+                return full_content
+
+            console.print(f"[{time.strftime('%H:%M:%S')}] {label_str}: {console_output}", style=style)
+        else:
+            print(f"[TRACE][{time.strftime('%H:%M:%S')}][{level.upper()}] {label}: {console_output}")
         
         # Retourner le contenu complet pour un éventuel traitement ultérieur
         return full_content

@@ -151,7 +151,7 @@ ZONE_PATTERNS = {
         "delais": "Commande avant 13h → jour même | après 13h → lendemain"
     },
     
-    # Zones périphériques (2 000 - 2 500 FCFA)
+    # Zones périphériques (2 000 FCFA)
     "port_bouet": {
         "patterns": [r"port[\s-]?bou[eë]t", r"portbou[eë]t", r"porbouet", r"por[\s-]?bouet"],
         "cost": 2000,
@@ -168,43 +168,45 @@ ZONE_PATTERNS = {
     },
     "bingerville": {
         "patterns": [r"bingerville", r"bingereville", r"binger\b"],
-        "cost": 2500,
+        "cost": 2000,
         "category": "peripherique",
         "name": "Bingerville",
         "delais": "Commande avant 13h → jour même | après 13h → lendemain"
     },
+
+    # Zones éloignées (2 500 FCFA)
     "songon": {
         "patterns": [r"songon", r"songon[\s-]?agban"],
         "cost": 2500,
-        "category": "peripherique",
+        "category": "eloignee",
         "name": "Songon",
         "delais": "Commande avant 13h → jour même | après 13h → lendemain"
     },
     "anyama": {
         "patterns": [r"anyama", r"aniama", r"anyamma"],
         "cost": 2500,
-        "category": "peripherique",
+        "category": "eloignee",
         "name": "Anyama",
         "delais": "Commande avant 13h → jour même | après 13h → lendemain"
     },
     "brofodoume": {
         "patterns": [r"brofodoum[eé]", r"brofo\b"],
         "cost": 2500,
-        "category": "peripherique",
+        "category": "eloignee",
         "name": "Brofodoumé",
         "delais": "Commande avant 13h → jour même | après 13h → lendemain"
     },
     "grand_bassam": {
         "patterns": [r"grand[\s-]?bassam", r"bassam", r"grandbassam"],
         "cost": 2500,
-        "category": "peripherique",
+        "category": "eloignee",
         "name": "Grand-Bassam",
         "delais": "Commande avant 13h → jour même | après 13h → lendemain"
     },
     "dabou": {
         "patterns": [r"dabou", r"dabu\b", r"daboux"],
         "cost": 2500,
-        "category": "peripherique",
+        "category": "eloignee",
         "name": "Dabou",
         "delais": "Commande avant 13h → jour même | après 13h → lendemain"
     }

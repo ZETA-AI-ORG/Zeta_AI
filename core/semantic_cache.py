@@ -87,5 +87,37 @@ def semantic_cache_decorator(func: Callable) -> Callable:
         logger.error(f"[GPTCACHE] Erreur decorator: {e}")
         return func
 
+
+def check_semantic_cache(query: str, company_id: str) -> Optional[Any]:
+    try:
+        if not is_cache_enabled():
+            return None
+        c = _init_gptcache()
+        if c is None:
+            return None
+        key = f"{company_id}::{query}" if company_id else str(query)
+        try:
+            return c.get(key)
+        except Exception:
+            return None
+    except Exception:
+        return None
+
+
+def save_to_semantic_cache(query: str, company_id: str, response: Any, ttl: int = 3600) -> None:
+    try:
+        if not is_cache_enabled():
+            return
+        c = _init_gptcache()
+        if c is None:
+            return
+        key = f"{company_id}::{query}" if company_id else str(query)
+        try:
+            c.set(key, response)
+        except Exception:
+            return
+    except Exception:
+        return
+
 # Initialisation à l'import si activé
 gptcache_instance = _init_gptcache() if is_cache_enabled() else None

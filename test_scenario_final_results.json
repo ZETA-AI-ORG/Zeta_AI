@@ -1,0 +1,218 @@
+{
+  "turns": [
+    {
+      "turn": 1,
+      "question": "Bonjour, je veux commander",
+      "response": "J'aurais besoin d'une photo du produit (capture live ou photo claire), svp.",
+      "time_ms": 80511,
+      "order_percent": 0,
+      "llm_used": null,
+      "raw_result": {
+        "success": true,
+        "response": "J'aurais besoin d'une photo du produit (capture live ou photo claire), svp.",
+        "order_status": {
+          "produit": "",
+          "paiement": "",
+          "zone": "",
+          "numero": "",
+          "completion_rate": 0.0,
+          "is_complete": false
+        },
+        "next_step": "produit",
+        "duration_ms": 31698,
+        "request_id": "4cbe0313"
+      }
+    },
+    {
+      "turn": 2,
+      "question": "Où êtes-vous situés exactement ? Vous avez des locaux physiques ?",
+      "response": "Nous sommes une boutique 100% en ligne à Abidjan. Commande ou besoin d'infos sur la zone?",
+      "time_ms": 25357,
+      "order_percent": 0,
+      "llm_used": null,
+      "raw_result": {
+        "success": true,
+        "response": "Nous sommes une boutique 100% en ligne à Abidjan. Commande ou besoin d'infos sur la zone?",
+        "order_status": {
+          "produit": "",
+          "paiement": "",
+          "zone": "",
+          "numero": "",
+          "completion_rate": 0.0,
+          "is_complete": false
+        },
+        "next_step": "produit",
+        "duration_ms": 8517,
+        "request_id": "7af408fe"
+      }
+    },
+    {
+      "turn": 3,
+      "question": "Voici mon produit : https://scontent-atl3-1.xx.fbcdn.net/v/t1.15752-9/597710904_1147171930913919_423631986694765875_n.jpg?_nc_cat=106&ccb=1-7&_nc_sid=eb2e90&_nc_ohc=3eyOW7QNwAcQ7kNvwH3Zty1&_nc_oc=Adnh1EMEfdyE-OYR7-gxq6M6QqHzb9KAxWO_Z5DSgScDCrW9vX4qGtBDGpZF14lok9xw_zQ90HtzWNk9jS8cabCi&_nc_ad=z-m&_nc_cid=0&_nc_zt=23&_nc_ht=scontent-atl3-1.xx&oh=03_Q7cD4AGp3_aUPnEjxfTUMMzcgu_8DzAlUy0-TBbXej3XfasR2A&oe=696151EA",
+      "response": "Parfait ! Une avance de 2000F via Wave au +225 0787360757 comme dépôt de validation est requise 💳. Une fois envoyée, envoyez-moi la capture s'il vous plaît.",
+      "time_ms": 45713,
+      "order_percent": 25,
+      "llm_used": null,
+      "raw_result": {
+        "success": true,
+        "response": "Parfait ! Une avance de 2000F via Wave au +225 0787360757 comme dépôt de validation est requise 💳. Une fois envoyée, envoyez-moi la capture s'il vous plaît.",
+        "order_status": {
+          "produit": "a woman is holding a suit in a store",
+          "paiement": "",
+          "zone": "",
+          "numero": "",
+          "completion_rate": 0.25,
+          "is_complete": false
+        },
+        "next_step": "paiement",
+        "duration_ms": 28755,
+        "request_id": "24cdb4b9"
+      }
+    },
+    {
+      "turn": 4,
+      "question": "Voici mon paiement : https://scontent-atl3-3.xx.fbcdn.net/v/t1.15752-9/597360982_1522361755643073_1046808360937074239_n.jpg?_nc_cat=109&ccb=1-7&_nc_sid=eb2e90&_nc_ohc=hb7QgNIX-GUQ7kNvwGvvtuj&_nc_oc=AdkTUqx9yhjXuGQoB6MjjgODELCqDVx5xJcbFBDiIBwzhWq-datbBB2fNyvGMLyTD8muFGJIojldBlFi-dcNYN18&_nc_ad=z-m&_nc_cid=0&_nc_zt=23&_nc_ht=scontent-atl3-3.xx&oh=03_Q7cD4AGscacRxk_JHwC6eQflUC5FNq4YADPaVuKzZ33-sLCmng&oe=6961323F",
+      "response": "Super ! Paiement de 2020F bien reçu 🎉\nDans quelle zone d'Abidjan êtes-vous pour la livraison ? 📍",
+      "time_ms": 50610,
+      "order_percent": 50,
+      "llm_used": null,
+      "raw_result": {
+        "success": true,
+        "response": "Super ! Paiement de 2020F bien reçu 🎉\nDans quelle zone d'Abidjan êtes-vous pour la livraison ? 📍",
+        "order_status": {
+          "produit": "a woman is holding a suit in a store",
+          "paiement": "2020F",
+          "zone": "",
+          "numero": "",
+          "completion_rate": 0.5,
+          "is_complete": false
+        },
+        "next_step": "zone",
+        "duration_ms": 34443,
+        "request_id": "cc8c06cc"
+      }
+    },
+    {
+      "turn": 5,
+      "question": "Je suis à Abobo",
+      "response": "Noté 👍 Livraison à Abobo → 1500F 🚚\nLivraison prévue aujourd'hui.\nDernière info : votre numéro de téléphone ? 📞",
+      "time_ms": 21971,
+      "order_percent": 75,
+      "llm_used": null,
+      "raw_result": {
+        "success": true,
+        "response": "Noté 👍 Livraison à Abobo → 1500F 🚚\nLivraison prévue aujourd'hui.\nDernière info : votre numéro de téléphone ? 📞",
+        "order_status": {
+          "produit": "a woman is holding a suit in a store",
+          "paiement": "2020F",
+          "zone": "Abobo",
+          "numero": "",
+          "completion_rate": 0.75,
+          "is_complete": false
+        },
+        "next_step": "numero",
+        "duration_ms": 5640,
+        "request_id": "7805cb50"
+      }
+    },
+    {
+      "turn": 6,
+      "question": "Mon numéro : 0707070707",
+      "response": "Votre commande est en cours de livraison pour aujourd'hui à Abobo. Pouvez-vous me dire à quelle heure vous êtes disponible pour la réception?",
+      "time_ms": 33170,
+      "order_percent": 100,
+      "llm_used": null,
+      "raw_result": {
+        "success": true,
+        "response": "Votre commande est en cours de livraison pour aujourd'hui à Abobo. Pouvez-vous me dire à quelle heure vous êtes disponible pour la réception?",
+        "order_status": {
+          "produit": "a woman is holding a suit in a store",
+          "paiement": "2020F",
+          "zone": "Abobo",
+          "numero": "0707070707",
+          "completion_rate": 1.0,
+          "is_complete": true
+        },
+        "next_step": "completed",
+        "duration_ms": 11823,
+        "request_id": "2aa18267"
+      }
+    },
+    {
+      "turn": 7,
+      "question": "On paye à la livraison ou c'est avant ?",
+      "response": "Livraison Abobo sous 24-48h. On confirme avec vous.",
+      "time_ms": 25096,
+      "order_percent": 100,
+      "llm_used": null,
+      "raw_result": {
+        "success": true,
+        "response": "Livraison Abobo sous 24-48h. On confirme avec vous.",
+        "order_status": {
+          "produit": "a woman is holding a suit in a store",
+          "paiement": "2020F",
+          "zone": "Abobo",
+          "numero": "0707070707",
+          "completion_rate": 1.0,
+          "is_complete": true
+        },
+        "next_step": "completed",
+        "duration_ms": 5207,
+        "request_id": "ad1e2383"
+      }
+    },
+    {
+      "turn": 8,
+      "question": "Je serais livré quand ?",
+      "response": "Livraison Abobo sous 24-48h. On confirme avec vous.",
+      "time_ms": 23943,
+      "order_percent": 100,
+      "llm_used": null,
+      "raw_result": {
+        "success": true,
+        "response": "Livraison Abobo sous 24-48h. On confirme avec vous.",
+        "order_status": {
+          "produit": "a woman is holding a suit in a store",
+          "paiement": "2020F",
+          "zone": "Abobo",
+          "numero": "0707070707",
+          "completion_rate": 1.0,
+          "is_complete": true
+        },
+        "next_step": "completed",
+        "duration_ms": 4623,
+        "request_id": "35d7404b"
+      }
+    },
+    {
+      "turn": 9,
+      "question": "Oui c'est bon, confirmez ma commande",
+      "response": "✅PARFAIT Commande confirmée 😊\nLivraison prévue aujourd'hui, acompte de 2000 F déjà versé.\nNous vous rappellerons bientôt pour les détails et le coût total.\nVeuillez ne pas répondre à ce message.",
+      "time_ms": 25666,
+      "order_percent": 100,
+      "llm_used": null,
+      "raw_result": {
+        "success": true,
+        "response": "✅PARFAIT Commande confirmée 😊\nLivraison prévue aujourd'hui, acompte de 2000 F déjà versé.\nNous vous rappellerons bientôt pour les détails et le coût total.\nVeuillez ne pas répondre à ce message.",
+        "order_status": {
+          "produit": "a woman is holding a suit in a store",
+          "paiement": "2020F",
+          "zone": "Abobo",
+          "numero": "0707070707",
+          "completion_rate": 1.0,
+          "is_complete": true
+        },
+        "next_step": "completed",
+        "duration_ms": 4530,
+        "request_id": "8baf1382"
+      }
+    }
+  ],
+  "final_state": {
+    "produit": "a woman is holding a suit in a store",
+    "paiement": "2020F",
+    "zone": "Abobo",
+    "telephone": "0707070707",
+    "complete": true
+  }
+}

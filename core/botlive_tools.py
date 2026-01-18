@@ -191,8 +191,16 @@ def _sync_to_state_tracker(user_id: str, content: str):
         if "✅PAIEMENT:" in content:
             paiement = content.split("✅PAIEMENT:")[1].split("|")[0].strip()
             if paiement and "F" in paiement and len(paiement) > 2:
-                order_tracker.update_paiement(user_id, paiement)
-                logger.info(f"✅ [SYNC] PAIEMENT sauvegardé = {paiement}")
+                # Validation montant minimum (anti-pollution)
+                try:
+                    montant_val = int("".join(filter(str.isdigit, paiement)))
+                    if montant_val >= 2000:
+                        order_tracker.update_paiement(user_id, paiement)
+                        logger.info(f"✅ [SYNC] PAIEMENT SUFFISANT sauvegardé = {paiement}")
+                    else:
+                        logger.warning(f"⚠️ [SYNC] PAIEMENT INSUFFISANT ignoré = {paiement} (< 2000)")
+                except Exception:
+                    logger.warning(f"⚠️ [SYNC] Erreur parsing montant paiement = {paiement}")
             else:
                 logger.warning(f"⚠️ [SYNC] PAIEMENT invalide ignoré = {paiement}")
         
@@ -442,6 +450,12 @@ def blocnote_add_info(key: str, value: str, user_id: str, company_id: str = "4OS
 
             notepad.update_payment(user_id, company_id, method, number)
             return f"✅ Paiement ajouté: {method}"
+
+        elif key_lower in ["confirmation", "confirmed"]:
+            # État de confirmation (bool) - stocké de manière générique pour SmartContext
+            bool_value = str(value).strip().lower() in {"1", "true", "yes", "y", "ok", "oui"}
+            notepad.get_notepad(user_id, company_id)["confirmation"] = bool_value
+            return f"✅ Confirmation notée: {bool_value}"
 
         elif key_lower in ["prix", "price", "prix_produit", "prix_total"]:
             # Prix nécessite un contexte produit - pour l'instant juste confirmer

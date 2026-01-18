@@ -20,6 +20,7 @@ class ThinkingParser:
     def __init__(self):
         self.last_parsed_data = None
         self.parsing_errors = []
+        self._logged_minimal_detected = False
     
     def extract_thinking_block(self, llm_response: str) -> Optional[str]:
         """
@@ -67,6 +68,43 @@ class ThinkingParser:
         content = '\n'.join(line.rstrip() for line in content.split('\n'))
         
         return content
+
+    def extract_tag_text(self, content: str, tag: str) -> Optional[str]:
+        try:
+            if not content or not tag:
+                return None
+            t = str(tag).strip()
+            if not t:
+                return None
+            m = re.search(rf"<{re.escape(t)}>(.*?)</{re.escape(t)}>", content, re.DOTALL | re.IGNORECASE)
+            if not m:
+                return None
+            return (m.group(1) or "").strip()
+        except Exception:
+            return None
+
+    def _is_minimal_thinking(self, thinking_content: str) -> bool:
+        try:
+            return self._parse_minimal_thinking(thinking_content) is not None
+        except Exception:
+            return False
+
+    def extract_extracted_details(self, thinking_content: str, max_len: int = 140) -> str:
+        try:
+            raw = self.extract_tag_text(thinking_content or "", "extracted_details")
+            if not raw:
+                return ""
+
+            val = re.sub(r"\s+", " ", raw).strip()
+            if not val or val in {"∅", "Ø", "NONE", "none", "null", "NULL"}:
+                return ""
+
+            val = re.sub(r"[\r\n\t]+", " ", val).strip()
+            if len(val) > max_len:
+                val = val[:max_len].rstrip() + "…"
+            return val
+        except Exception:
+            return ""
     
     def parse_yaml_section(self, thinking_content: str, section_name: str) -> Optional[Dict[str, Any]]:
         """
@@ -80,6 +118,13 @@ Returns:
             Dict parsé ou None si erreur
         """
         try:
+            # Si le LLM renvoie un <thinking> minimal (intent/checklist/next/action)
+            # on évite de chercher des sections PHASE* et de polluer les logs.
+            if section_name and str(section_name).strip().upper().startswith("PHASE"):
+                minimal = self._parse_minimal_thinking(thinking_content)
+                if minimal is not None:
+                    return None
+
             # Regex pour extraire la section (jusqu'à la prochaine PHASE ou fin)
             # Accepte PHASE X ou PHASE X: comme délimiteur
             section_pattern = rf'{section_name}(.*?)(?=PHASE \d+\s|PHASE \d+:|$)'
@@ -170,6 +215,17 @@ Returns:
 Returns:
             Dict avec clés: type_produit, quantite, zone, telephone, paiement
         """
+        # Mode minimal: <intent>/<checklist>/<next>/<action>
+        minimal = self._parse_minimal_thinking(thinking_content)
+        if minimal is not None:
+            return {
+                "type_produit": None,
+                "quantite": None,
+                "zone": None,
+                "telephone": None,
+                "paiement": None,
+            }
+
         # Essayer plusieurs variantes de format
         phase2 = self.parse_yaml_section(thinking_content, "PHASE 2 COLLECTE")
         if not phase2:
@@ -191,6 +247,36 @@ Returns:
             "telephone": None,
             "paiement": None
         }
+
+    def _parse_minimal_thinking(self, thinking_content: str) -> Optional[Dict[str, str]]:
+        """Parse le <thinking> minimal (intent/checklist/next/action).
+
+        Si ce format est détecté, on évite de lancer le parsing PHASE* (bruyant) et on renvoie
+        un dict non vide.
+        """
+        try:
+            if not thinking_content:
+                return None
+
+            intent = self.extract_tag_text(thinking_content, "intent")
+            checklist = self.extract_tag_text(thinking_content, "checklist")
+            next_step = self.extract_tag_text(thinking_content, "next")
+            action = self.extract_tag_text(thinking_content, "action")
+
+            is_minimal = any([(intent or "").strip(), (checklist or "").strip(), (next_step or "").strip(), (action or "").strip()])
+            has_phase_markers = bool(re.search(r"\bPHASE\s*\d+", thinking_content, re.IGNORECASE))
+
+            if is_minimal and not has_phase_markers:
+                return {
+                    "intent": (intent or "").strip(),
+                    "checklist": (checklist or "").strip(),
+                    "next": (next_step or "").strip(),
+                    "action": (action or "").strip(),
+                }
+
+            return None
+        except Exception:
+            return None
     
     def extract_nouvelles_donnees(self, thinking_content: str) -> List[Dict[str, str]]:
         """
@@ -199,6 +285,9 @@ Returns:
         Returns:
             Liste de dicts avec clés: cle, valeur, source, confiance
         """
+        if self._is_minimal_thinking(thinking_content):
+            return []
+
         # Essayer plusieurs variantes de format
         phase2 = self.parse_yaml_section(thinking_content, "PHASE 2 COLLECTE")
         if not phase2:
@@ -225,6 +314,9 @@ Returns:
         Returns:
             Tuple (score: int, raison: str)
         """
+        if self._is_minimal_thinking(thinking_content):
+            return (50, "Confiance par défaut (format minimal)")
+
         # Essayer avec et sans deux-points
         phase3 = self.parse_yaml_section(thinking_content, "PHASE 3 VALIDATION")
         if not phase3:
@@ -263,6 +355,9 @@ Returns:
         Returns:
             String format "X/5" (ex: "3/5")
         """
+        if self._is_minimal_thinking(thinking_content):
+            return "0/5"
+
         # Essayer avec et sans deux-points
         phase5 = self.parse_yaml_section(thinking_content, "PHASE 5 DECISION")
         if not phase5:
@@ -286,6 +381,9 @@ Returns:
         Returns:
             Dict avec clés: type, action
         """
+        if self._is_minimal_thinking(thinking_content):
+            return {"type": "collecte", "action": "Continuer la collecte d'informations"}
+
         # Essayer avec et sans deux-points
         phase5 = self.parse_yaml_section(thinking_content, "PHASE 5 DECISION")
         if not phase5:
@@ -310,6 +408,13 @@ Returns:
         Returns:
             Dict avec clés: phase, objectif, technique
         """
+        if self._is_minimal_thinking(thinking_content):
+            return {
+                "phase": "decouverte",
+                "objectif": "Identifier le besoin",
+                "technique": "clarification",
+            }
+
         # Essayer avec et sans deux-points
         phase5 = self.parse_yaml_section(thinking_content, "PHASE 5 DECISION")
         if not phase5:
@@ -349,6 +454,40 @@ Returns:
         if not thinking_content:
             log3("[THINKING_PARSER]", "❌ Impossible de parser: pas de bloc <thinking>")
             return self._get_empty_result()
+
+        # Mode minimal: ne pas tenter les extractions PHASE* (évite warnings)
+        minimal = self._parse_minimal_thinking(thinking_content)
+        if minimal is not None:
+            if not self._logged_minimal_detected:
+                log3("[THINKING_PARSER]", "✅ Format <thinking> minimal détecté (intent/checklist/next/action)")
+                self._logged_minimal_detected = True
+            result = {
+                "success": True,
+                "deja_collecte": {
+                    "type_produit": None,
+                    "quantite": None,
+                    "zone": None,
+                    "telephone": None,
+                    "paiement": None,
+                },
+                "nouvelles_donnees": [],
+                "confiance": {
+                    "score": 50,
+                    "raison": "Format minimal",
+                },
+                "progression": {
+                    "completude": "0/5",
+                    "prochaine_etape": {"type": "collecte", "action": "Continuer"},
+                },
+                "strategie_qualification": {
+                    "phase": "decouverte",
+                    "objectif": "Identifier le besoin",
+                    "technique": "clarification",
+                },
+                "parsing_errors": self.parsing_errors,
+            }
+            self.last_parsed_data = result
+            return result
         
         # Extraire toutes les données
         try:

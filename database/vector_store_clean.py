@@ -29,9 +29,18 @@ logger = logging.getLogger(__name__)
 def get_meilisearch_client():
     """Obtenir le client MeiliSearch"""
     try:
-        meili_url = os.environ.get("MEILI_URL", "http://127.0.0.1:7700")
-        meili_key = os.environ.get("MEILI_API_KEY") or os.environ.get("MEILI_MASTER_KEY", "")
-        
+        meili_url = os.environ.get("MEILI_URL")
+        if not meili_url:
+            log3("[MEILI_CLEAN]", "❌ MEILI_URL manquant: configure MEILI_URL (ex: https://meili.zetaapp.xyz). Aucun fallback localhost n'est autorisé.")
+            return None
+
+        meili_key = (
+            os.environ.get("MEILI_MASTER_KEY")
+            or os.environ.get("MEILI_API_KEY")
+            or os.environ.get("MEILI_KEY")
+            or ""
+        )
+
         return meilisearch.Client(meili_url, meili_key)
     except Exception as e:
         log3("[MEILI_CLEAN]", f"❌ Erreur client: {e}")

@@ -34,12 +34,14 @@ class BotliveEngine:
             print(f"[EasyOCR] ❌ Erreur d'initialisation: {e}")
             self.payment_reader = None
 
-        # BLIP-2 pour captioning produits
+        # BLIP-2 pour captioning produits (optionnel)
+        self.blip_processor = None
+        self.blip_model = None
         try:
-            print("[BOTLIVE_ENGINE] Chargement BLIP-2...")
-            self.blip_processor = BlipProcessor.from_pretrained("Salesforce/blip-image-captioning-base")
-            self.blip_model = BlipForConditionalGeneration.from_pretrained("Salesforce/blip-image-captioning-base")
-            print("[BOTLIVE_ENGINE] ✅ BLIP-2 chargé")
+            if os.getenv("ENABLE_BLIP2", "false").lower() == "true":
+                self._load_blip2()
+            else:
+                print("[BOTLIVE_ENGINE] ℹ️ BLIP-2 désactivé (ENABLE_BLIP2=false)")
         except Exception as e:
             print(f"[BLIP-2] ❌ Erreur init: {e}")
             self.blip_processor = None
@@ -47,6 +49,14 @@ class BotliveEngine:
         
         print("[BOTLIVE_ENGINE] ✅ Initialisation terminée")
         self._initialized = True
+
+    def _load_blip2(self) -> None:
+        if self.blip_processor is not None and self.blip_model is not None:
+            return
+        print("[BOTLIVE_ENGINE] Chargement BLIP-2...")
+        self.blip_processor = BlipProcessor.from_pretrained("Salesforce/blip-image-captioning-base")
+        self.blip_model = BlipForConditionalGeneration.from_pretrained("Salesforce/blip-image-captioning-base")
+        print("[BOTLIVE_ENGINE] ✅ BLIP-2 chargé")
     
     @classmethod
     def get_instance(cls):
@@ -87,8 +97,15 @@ class BotliveEngine:
         
         # ✅ VALIDATION MODÈLE
         if self.blip_processor is None or self.blip_model is None:
-            print(f"[BLIP-2] ❌ Modèle non initialisé")
-            return {"name": "modèle BLIP-2 indisponible", "confidence": 0.0, "error": "model_not_loaded"}
+            if os.getenv("ENABLE_BLIP2", "false").lower() == "true":
+                try:
+                    self._load_blip2()
+                except Exception:
+                    print(f"[BLIP-2] ❌ Modèle non initialisé")
+                    return {"name": "modèle BLIP-2 indisponible", "confidence": 0.0, "error": "model_not_loaded"}
+            else:
+                print(f"[BLIP-2] ❌ Désactivé (ENABLE_BLIP2=false)")
+                return {"name": "modèle BLIP-2 désactivé", "confidence": 0.0, "error": "model_disabled"}
         
         try:
             # ✅ VALIDATION FORMAT IMAGE

@@ -26,6 +26,11 @@ from .hyde_smart_router import hyde_router
 from .botlive_prompts_supabase import get_prompts_manager  # ← NOUVEAU: Supabase au lieu de hardcodé
 from .botlive_tools import execute_tools_in_response, should_suggest_calculator, should_suggest_notepad
 from core.loop_botlive_engine import get_loop_engine
+from core.llm_response_validator import (
+    build_system_state_check,
+    extract_system_state_dict,
+    validate_llm_response_checklist,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -59,6 +64,9 @@ class BotliveRAGHybrid:
             'tools_used': 0,
             'fallbacks': 0
         }
+        
+        # (Désactivé) Ancien système "Cerveau Dual" (notification/modes) retiré pour stabilité.
+        self.notification_service = None
 
     def _record_python_verdict(self, context: Dict[str, Any], trigger: Dict[str, Any], suggestion: str) -> None:
         try:
@@ -116,6 +124,20 @@ class BotliveRAGHybrid:
             # Permet de persister l'état (produit déjà validé) à travers les tours.
             # Important: un screenshot de paiement ne doit pas rétrograder PHOTO.
             user_id = str(context.get("user_id") or "").strip() if isinstance(context, dict) else ""
+
+            # IMPORTANT: next_action dépend de l'état global (notamment produit_details).
+            # Sans order_state, ce bloc levait une exception silencieuse et forçait NEXT=COLLECT_PHOTO par défaut.
+            order_state = None
+            try:
+                if isinstance(context, dict):
+                    order_state = context.get("order_state")
+            except Exception:
+                order_state = None
+            try:
+                if order_state is None and user_id:
+                    order_state = order_tracker.get_state(user_id)
+            except Exception:
+                order_state = None
 
             photo_v = _last_by_type("photo_produit")
             zone_v = _last_by_type("zone_detectee")
@@ -204,7 +226,10 @@ class BotliveRAGHybrid:
             # Seul un paiement réellement validé (sufficient=True / amount>0) remonte.
             in_payment_phase = (photo_status == "VALIDATED") and (zone_status == "VALIDATED") and (tel_status == "VALIDATED")
             if not in_payment_phase and not pay_sufficient:
+                # Hors phase paiement: ignorer complètement les données OCR paiement
                 pay_refused = False
+                pay_sufficient = False
+                pay_amount = 0
                 try:
                     if isinstance(pay_data, dict):
                         pay_data = dict(pay_data)
@@ -214,7 +239,7 @@ class BotliveRAGHybrid:
                         pay_data["amount"] = 0
                 except Exception:
                     pass
-                pay_status = "PENDING"
+                pay_status = "MISSING"
             else:
                 pay_status = _status_from_flags(
                     present=pay_present,
@@ -225,6 +250,8 @@ class BotliveRAGHybrid:
             next_action = "COLLECT_UNKNOWN"
             if photo_status != "VALIDATED":
                 next_action = "COLLECT_PHOTO"
+            elif not getattr(order_state, "produit_details", None):
+                next_action = "COLLECT_SPECS"
             elif zone_status != "VALIDATED":
                 next_action = "COLLECT_ZONE"
             elif tel_status != "VALIDATED":
@@ -323,19 +350,22 @@ class BotliveRAGHybrid:
             else:
                 line_tel = "TEL:   ⏳"
 
-            # PAY: éviter pollution OCR avant phase paiement
-            photo_ok = str(photo.get("status") or "").upper() == "VALIDATED"
-            zone_ok = str(zone.get("status") or "").upper() == "VALIDATED"
-            tel_ok = tel_status == "VALIDATED"
-            info_ready = photo_ok and zone_ok and tel_ok
-
+            # PAY: Afficher ✅ si suffisant (même si autres champs manquants), sinon ∅ ou ❌
+            # Cela permet de ne pas ignorer un paiement valide envoyé dès le début.
             pay_status = str(pay.get("status") or "").upper()
             pay_sufficient = bool(pay.get("sufficient"))
-            if pay_sufficient or pay_status == "VALIDATED":
+            
+            if pay_sufficient:
+                # Paiement valide et suffisant -> Toujours ✅
+                line_pay = f"PAY:   ✅" + (f" ({pay_amt}F)" if pay_amt else "")
+            elif pay_status == "VALIDATED":
+                # Cas rare: validé manuellement sans flag sufficient
                 line_pay = f"PAY:   ✅" + (f" ({pay_amt}F)" if pay_amt else "")
             elif info_ready and pay_err:
+                # Erreur affichée seulement si on est en phase paiement
                 line_pay = f"PAY:   ❌" + (f" ({pay_err})" if pay_err else "")
             else:
+                # Sinon on attend
                 line_pay = "PAY:   ⏳"
 
             next_action = str(verdict.get("next_action") or "").strip()
@@ -704,6 +734,117 @@ class BotliveRAGHybrid:
             from core.loop_botlive_engine import get_loop_engine
             state = _ot.get_state(user_id)
 
+            # Normaliser les variables de prompt: certains templates utilisent {expected_deposit_str}
+            # alors que le backend stocke historiquement expected_deposit.
+            try:
+                if isinstance(context, dict) and context.get("expected_deposit_str") is None:
+                    context["expected_deposit_str"] = str(context.get("expected_deposit") or "2000 FCFA")
+            except Exception:
+                pass
+
+            # Capture détails produit (ex: taille/pointure/couleur) quand un produit est déjà identifié.
+            # Objectif: éviter que SetFit/segmenter classe cela comme SHOPPING→B et couper le flux NEXT.
+            try:
+                msg_lc_details = (message or "").strip().lower()
+                payment_kw = [
+                    "wave",
+                    "paiement",
+                    "payer",
+                    "avance",
+                    "acompte",
+                    "depot",
+                    "dépôt",
+                    "deposer",
+                    "déposer",
+                    "versement",
+                    "confirmation",
+                ]
+                has_detail_marker = any(k in msg_lc_details for k in [
+                    "taille",
+                    "pointure",
+                    "couleur",
+                    "42",
+                    "43",
+                    "44",
+                    "xl",
+                    "l ",
+                    "m ",
+                    "s ",
+                ])
+                looks_like_detail_statement = bool(
+                    has_detail_marker
+                    and not any(k in msg_lc_details for k in ["combien", "prix", "dispo", "disponible", "stock", "c'est combien"])
+                )
+
+                # Ne pas écraser des SPECS déjà collectées, et ne pas confondre une discussion paiement avec des specs.
+                if (
+                    getattr(state, "produit", None)
+                    and looks_like_detail_statement
+                    and not getattr(state, "produit_details", None)
+                    and not any(k in msg_lc_details for k in payment_kw)
+                ):
+                    _ot.update_produit_details(user_id, (message or "").strip()[:300])
+                    try:
+                        context["produit_details"] = (message or "").strip()[:300]
+                    except Exception:
+                        pass
+                    logger.info("[PYTHON_DIRECT][DETAILS] produit_details mémorisés")
+            except Exception:
+                pass
+
+            # Enrichir delai_message avec infos livraison (zone + coût + délai) pour alimenter PLACEORDER.
+            # IMPORTANT: on évite d'injecter des données minute-par-minute dans {question} (cache). Ici on enrichit {delai_message}.
+            try:
+                msg_lc = (message or "").strip().lower()
+                has_delivery_ask = any(k in msg_lc for k in ["livraison", "livrer", "livré", "frais", "tarif", "coût", "cout"]) 
+                if has_delivery_ask:
+                    zi = None
+                    zone_source = ""
+
+                    # 1) Priorité: extraire la zone depuis le message (plus robuste: "livraison yopougon ?")
+                    zi_msg = extract_delivery_zone_and_cost(str(message or ""))
+                    if isinstance(zi_msg, dict) and zi_msg.get("name"):
+                        zi = zi_msg
+                        zone_source = "message"
+
+                    # 2) Sinon fallback: zone déjà mémorisée dans l'état
+                    if zi is None and getattr(state, "zone", None):
+                        zi_state = extract_delivery_zone_and_cost(str(state.zone))
+                        if isinstance(zi_state, dict) and zi_state.get("name"):
+                            zi = zi_state
+                            zone_source = "state"
+
+                    if isinstance(zi, dict) and zi.get("name") and zi.get("cost"):
+                        zone_name = str(zi.get("name") or "").strip()
+                        cost_val = zi.get("cost")
+
+                        # Persister la zone si elle n'est pas déjà en mémoire
+                        try:
+                            if zone_name and (not getattr(state, "zone", None) or str(getattr(state, "zone", "")).strip().lower() != zone_name.lower()):
+                                _ot.update_zone(user_id, zone_name)
+                                state = _ot.get_state(user_id)
+                        except Exception:
+                            pass
+
+                        # Construire un delai_message complet (zone+coût+délai) pour PLACEORDER
+                        delai_calcule = str(zi.get("delai_calcule") or "").strip()
+                        if not delai_calcule:
+                            try:
+                                delai_calcule = "aujourd'hui" if is_same_day_delivery_possible() else "demain"
+                            except Exception:
+                                delai_calcule = ""
+
+                        enriched = f"Livraison {zone_name}: {cost_val}F."
+                        if delai_calcule:
+                            enriched = f"{enriched} Délai: {delai_calcule}."
+                        context["delai_message"] = enriched
+                        context["delivery_info"] = zi
+                        context["delivery_zone"] = zone_name
+                        context["delivery_cost"] = cost_val
+                        logger.info("[DELIVERY][PLACEORDER] delai_message enrichi source=%s zone=%s cost=%s", zone_source, zone_name, cost_val)
+            except Exception:
+                pass
+
             # 0. Intent embeddings "délai de livraison" → Python si score ≥ 0.80 (commande en cours)
             delay_similarity = 0.0
             if routing_mode != "direct":
@@ -788,35 +929,8 @@ class BotliveRAGHybrid:
                 ]
             )
 
-            if python_short_circuit_enabled and (not state.is_complete()) and is_delivery_price_question:
-                zone_info = extract_delivery_zone_and_cost(message)
-                if not zone_info:
-                    processed_response = (
-                        "Les frais de livraison dépendent de votre zone/commune. "
-                        "Pouvez-vous me dire votre commune (ex: Cocody, Yopougon, Abobo…) ?"
-                    )
-                    end_time = datetime.now()
-                    processing_time = (end_time - start_time).total_seconds()
-                    return {
-                        'response': processed_response,
-                        'thinking': "",
-                        'llm_used': 'python',
-                        'validation': None,
-                        'routing_reason': 'python_delivery_price_needs_zone',
-                        'processing_time': processing_time,
-                        'timings': timings,
-                        'router_metrics': {
-                            'delivery_delay_similarity': delay_similarity,
-                            'prompt_used_key': 'PYTHON_SHORT_CIRCUIT',
-                            'prompt_expected_key': 'PYTHON_SHORT_CIRCUIT',
-                            'prompt_ok': True,
-                        },
-                        'tools_executed': False,
-                        'prompt_tokens': 0,
-                        'completion_tokens': 0,
-                        'total_cost': 0,
-                        'success': True
-                    }
+            # Note: pas de réponse Python pour le prix livraison.
+            # Le LLM répond via PLACEORDER grâce au {delai_message} enrichi ci-dessus.
 
             if python_short_circuit_enabled and (not state.is_complete()) and has_delay_keywords and delay_similarity >= 0.80:
                 try:
@@ -1157,8 +1271,12 @@ class BotliveRAGHybrid:
                     except Exception:
                         montant_ctx = 0
                 if montant_ctx > 0:
-                    _ot.update_paiement(user_id, f"{montant_ctx}F")
-                    logger.info(f"[PYTHON_DIRECT][PAIEMENT] Montant détecté (ctx): {montant_ctx}F")
+                    req_amt = _required_amount_from_context(context)
+                    if montant_ctx >= req_amt:
+                        _ot.update_paiement(user_id, f"{montant_ctx}F")
+                        logger.info(f"[PYTHON_DIRECT][PAIEMENT] Montant SUFFISANT détecté (ctx): {montant_ctx}F >= {req_amt}F -> SAUVEGARDÉ")
+                    else:
+                        logger.info(f"[PYTHON_DIRECT][PAIEMENT] Montant INSUFFISANT détecté (ctx): {montant_ctx}F < {req_amt}F -> NON SAUVEGARDÉ")
                 engine = get_loop_engine()
                 req_amt = _required_amount_from_context(context)
                 sufficient_ctx = bool(montant_ctx >= req_amt)
@@ -1253,8 +1371,12 @@ class BotliveRAGHybrid:
                         except Exception:
                             montant = 0
                     if montant > 0:
-                        _ot.update_paiement(user_id, f"{montant}F")
-                        logger.info(f"[PYTHON_DIRECT][PAIEMENT] Montant détecté: {montant}F")
+                        req_amt = _required_amount_from_context(context)
+                        if montant >= req_amt:
+                            _ot.update_paiement(user_id, f"{montant}F")
+                            logger.info(f"[PYTHON_DIRECT][PAIEMENT] Montant SUFFISANT détecté: {montant}F >= {req_amt}F -> SAUVEGARDÉ")
+                        else:
+                            logger.info(f"[PYTHON_DIRECT][PAIEMENT] Montant INSUFFISANT détecté: {montant}F < {req_amt}F -> NON SAUVEGARDÉ")
                     engine = get_loop_engine()
                     req_amt = _required_amount_from_context(context)
                     sufficient = bool(montant >= req_amt)
@@ -1323,6 +1445,8 @@ class BotliveRAGHybrid:
             missing_list = []
             if not state.produit:
                 missing_list.append('photo')
+            if not getattr(state, 'produit_details', None):
+                missing_list.append('specs')
             if not state.paiement:
                 missing_list.append('paiement')
             if not state.zone:
@@ -1378,17 +1502,17 @@ class BotliveRAGHybrid:
                 # 1) Template brut Supabase pour Jessica (sans formatage global)
                 # llm_choice="groq-70b" → lit prompt_botlive_groq_70b dans company_rag_configs
                 base_prompt_template = self.prompts_manager.get_prompt(active_company_id, prompt_llm_choice)
-                base_prompt_template = base_prompt_template
-
                 # 2) Construire state_compact pour le router embeddings
                 state_compact = {
                     "photo_collected": bool(state.produit),
+                    "specs_collected": bool(getattr(state, "produit_details", None)),
                     "paiement_collected": bool(state.paiement),
                     "zone_collected": bool(state.zone),
                     "tel_collected": bool(state.numero),
                     "tel_valide": bool(state.numero),
                     "collected_count": int(
                         bool(state.produit)
+                        + bool(getattr(state, "produit_details", None))
                         + bool(state.paiement)
                         + bool(state.zone)
                         + bool(state.numero)
@@ -1396,34 +1520,28 @@ class BotliveRAGHybrid:
                     "is_complete": bool(state.is_complete()),
                 }
 
-                if routing_mode == "direct":
-                    routing = None
-                    missing_fields_direct = []
-                    if not state.produit:
-                        missing_fields_direct.append("photo")
-                    if not state.paiement:
-                        missing_fields_direct.append("paiement")
-                    if not state.zone:
-                        missing_fields_direct.append("zone")
-                    if not state.numero:
-                        missing_fields_direct.append("numero")
+                # IMPORTANT:
+                # Même en mode "direct", on ne doit PAS forcer un intent synthétique (ex: ACHAT_COMMANDE),
+                # sinon le segmenter va systématiquement router vers le prompt C.
+                # En mode direct, on désactive complètement le routage (SetFit/HYDE) pour réduire la latence.
+                # On fabrique un routing minimal pour que le reste de la pipeline reste compatible.
+                disable_routing = (routing_mode == "direct") or ((os.getenv("BOTLIVE_DISABLE_ROUTING", "false") or "").strip().lower() in {"1", "true", "yes", "y", "on"})
+                if disable_routing:
+                    from core.setfit_intent_router import BotliveRoutingResult
 
-                    hyde_result = {
-                        "success": True,
-                        "intent": "ACHAT_COMMANDE",
-                        "confidence": 0.95,
-                        "mode": "GUIDEUR",
-                        "missing_fields": missing_fields_direct,
-                        "state": state_compact,
-                        "raw": "direct_mode",
-                        "token_info": {
-                            "source": "direct_mode",
+                    routing = BotliveRoutingResult(
+                        intent="SHOPPING",
+                        confidence=1.0,
+                        intent_group="SHOPPING",
+                        mode="GUIDEUR",
+                        missing_fields=[],
+                        state=state_compact or {},
+                        debug={
+                            "router": "disabled",
+                            "router_source": "direct_env",
+                            "routing_mode": routing_mode,
                         },
-                    }
-                    if isinstance(router_metrics, dict):
-                        router_metrics["routing_mode"] = routing_mode
-                        router_metrics["intent"] = hyde_result.get("intent")
-                        router_metrics["confidence"] = hyde_result.get("confidence")
+                    )
                 else:
                     routing = await route_botlive_intent(
                         company_id=active_company_id,
@@ -1431,14 +1549,18 @@ class BotliveRAGHybrid:
                         message=message,
                         conversation_history=conversation_history or "",
                         state_compact=state_compact,
+                        hyde_pre_enabled=None,
                     )
 
-                if routing_mode != "direct":
+                if routing is not None:
                     try:
                         routing_debug = getattr(routing, "debug", None)
                         bypass_llm = bool(routing_debug.get("bypass_llm")) if isinstance(routing_debug, dict) else False
                         human_required = bool(routing_debug.get("human_required")) if isinstance(routing_debug, dict) else False
-                        if BOTLIVE_COOPERATIVE_HUMAN_MODE and (bypass_llm or human_required):
+                        # IMPORTANT: "human_required" peut servir à notifier l'humain (semi-auto)
+                        # sans pour autant court-circuiter le LLM. Le court-circuit doit être piloté
+                        # uniquement par bypass_llm.
+                        if BOTLIVE_COOPERATIVE_HUMAN_MODE and bypass_llm:
                             if isinstance(router_metrics, dict):
                                 router_metrics["cooperative_mode"] = True
                                 router_metrics["human_required"] = True
@@ -1446,6 +1568,7 @@ class BotliveRAGHybrid:
                                 router_metrics["handoff_reason"] = "setfit_human_required"
                                 router_metrics["intent"] = str(getattr(routing, "intent", "") or "")
                                 router_metrics["confidence"] = float(getattr(routing, "confidence", 0.0) or 0.0)
+                                router_metrics["routing_mode"] = routing_mode
                             end_time = datetime.now()
                             processing_time = (end_time - start_time).total_seconds()
                             return {
@@ -1473,7 +1596,7 @@ class BotliveRAGHybrid:
                     except Exception:
                         pass
 
-                if routing_mode != "direct":
+                if routing is not None:
                     logger.info(
                         " [EMB_ROUTER] intent=%s mode=%s conf=%.3f missing=%s",
                         routing.intent,
@@ -1481,6 +1604,19 @@ class BotliveRAGHybrid:
                         routing.confidence,
                         routing.missing_fields,
                     )
+                    try:
+                        if isinstance(router_metrics, dict):
+                            router_metrics.setdefault("intent", str(getattr(routing, "intent", "") or ""))
+                            router_metrics.setdefault("confidence", float(getattr(routing, "confidence", 0.0) or 0.0))
+                            router_metrics.setdefault("mode", str(getattr(routing, "mode", "") or ""))
+                            try:
+                                rdbg = getattr(routing, "debug", None)
+                                if isinstance(rdbg, dict):
+                                    router_metrics.setdefault("router_source", rdbg.get("router_source") or rdbg.get("router"))
+                            except Exception:
+                                pass
+                    except Exception:
+                        pass
                     try:
                         log3(
                             "EMB_ROUTER",
@@ -1498,7 +1634,7 @@ class BotliveRAGHybrid:
                         pass
 
                 # hyde_result structure compatible avec build_jessica_prompt_segment
-                if routing_mode != "direct":
+                if routing is not None:
                     hyde_result = {
                         "success": True,
                         "intent": routing.intent,
@@ -1506,12 +1642,72 @@ class BotliveRAGHybrid:
                         "mode": routing.mode,
                         "missing_fields": routing.missing_fields,
                         "state": routing.state,
-                        "raw": routing.debug.get("raw_message", ""),
+                        "raw": (getattr(routing, "debug", None) or {}).get("raw_message", ""),
                         "token_info": {
-                            "source": "router_embeddings",
-                            "intent_score": routing.debug.get("intent_score"),
+                            "source": "router_setfit",
+                            "intent_score": (getattr(routing, "debug", None) or {}).get("intent_score"),
                         },
                     }
+
+                # ------------------------------------------------------------------
+                # V5 SEMI-AUTO (SHOPPING): notifier l'équipe SANS appeler le LLM.
+                # Prompt B devient un fallback (si on désactive ce bypass ou si besoin).
+                # ------------------------------------------------------------------
+                try:
+                    bypass_shopping_llm = (os.getenv("BOTLIVE_SEMI_AUTO_SHOPPING_BYPASS_LLM", "false") or "").strip().lower() in {
+                        "1",
+                        "true",
+                        "yes",
+                        "y",
+                        "on",
+                    }
+                    if (
+                        bypass_shopping_llm
+                        and BOTLIVE_COOPERATIVE_HUMAN_MODE
+                        and routing_mode != "direct"
+                        and str(getattr(routing, "intent", "") or "").upper() == "SHOPPING"
+                    ):
+                        fallback_msg = (
+                            os.getenv(
+                                "BOTLIVE_SEMI_AUTO_SHOPPING_FALLBACK_MESSAGE",
+                                "Les infos (prix/stock/catalogue) sont sur le Live TikTok 📱. Je transmets à l'équipe, elle revient vers toi.",
+                            )
+                            or ""
+                        ).strip()
+                        if isinstance(router_metrics, dict):
+                            router_metrics["cooperative_mode"] = True
+                            router_metrics["human_required"] = True
+                            router_metrics["bypass_llm"] = False
+                            router_metrics["handoff_reason"] = "semi_auto_shopping_bypass_llm"
+                            router_metrics["intent"] = str(getattr(routing, "intent", "") or "")
+                            router_metrics["confidence"] = float(getattr(routing, "confidence", 0.0) or 0.0)
+                            router_metrics["prompt_used_key"] = "SHOPPING_BYPASS_LLM"
+                            router_metrics["prompt_expected_key"] = "JESSICA_PROMPT_B"
+                            router_metrics["prompt_ok"] = True
+
+                        end_time = datetime.now()
+                        processing_time = (end_time - start_time).total_seconds()
+                        return {
+                            "response": fallback_msg,
+                            "status": "PENDING_HUMAN",
+                            "human_required": True,
+                            "bypass_llm": False,
+                            "routing_reason": "semi_auto_shopping_bypass_llm",
+                            "processing_time": processing_time,
+                            "timings": timings,
+                            "router_metrics": {
+                                **(router_metrics or {}),
+                                "gating_path": "human_notify_only",
+                                "segment_letter": "B",
+                            },
+                            "tools_executed": False,
+                            "prompt_tokens": 0,
+                            "completion_tokens": 0,
+                            "total_cost": 0,
+                            "success": True,
+                        }
+                except Exception:
+                    pass
 
                 # 3) Premier passage Jessica pour obtenir le gating_path
                 detected_objects_str = self._format_detected_objects(
@@ -1565,6 +1761,15 @@ class BotliveRAGHybrid:
                     truncated_history = (conversation_history or "")
                 if len(truncated_history) > 800:
                     truncated_history = "…" + truncated_history[-800:]
+
+                # Forcer le chemin ACQUISITION (segment C) si on vient de capter un détail produit.
+                try:
+                    if isinstance(context, dict) and context.get("produit_details") and getattr(state, "produit", None) and (not getattr(state, "is_complete", lambda: False)()):
+                        hyde_result["intent"] = "ACQUISITION"
+                        hyde_result["mode"] = "ACQUISITION"
+                        hyde_result["confidence"] = float(max(float(hyde_result.get("confidence") or 0.0), 0.90))
+                except Exception:
+                    pass
 
                 segment = build_jessica_prompt_segment(
                     base_prompt_template=base_prompt_template,
@@ -1701,8 +1906,16 @@ class BotliveRAGHybrid:
                     float(segment.get("confidence") or 0.0),
                 )
 
-                # 4) HYDE SECOUR X si gating_path == "hyde"
-                if routing_mode != "direct" and gating_path == "hyde":
+                # 4) HYDE SECOUR X si gating_path == "hyde" OU requête très courte (clarification via historique)
+                force_hyde_short = False
+                try:
+                    _msg = (message or "").strip()
+                    _tokens = [t for t in _msg.lower().split() if t]
+                    force_hyde_short = (len(_tokens) <= 2 and len(_msg) <= 6) or (_msg.lower() in {"ok", "okay", "oui", "d'accord", "daccord"})
+                except Exception:
+                    force_hyde_short = False
+
+                if gating_path == "hyde" or force_hyde_short:
                     try:
                         required_amount = required_amount if "required_amount" in locals() else 2000
                     except Exception:
@@ -1808,6 +2021,20 @@ class BotliveRAGHybrid:
                                             accept = False
                                         if new_conf < base_conf - 0.02:
                                             accept = False
+
+                                        # Exception: sur requêtes très courtes (OK) on accepte la reformulation HYDE
+                                        # si elle clarifie vers le champ manquant TEL/CONTACT.
+                                        try:
+                                            missing = [str(x or "").lower() for x in (routing.missing_fields or [])]
+                                            wants_contact = any(k in hq_lower for k in ["numéro", "numero", "whatsapp", "contact", "téléphone", "telephone"])
+                                            if force_hyde_short and wants_contact and ("tel" in missing):
+                                                accept = True
+                                                reroute.intent = "ACQUISITION"  # type: ignore[attr-defined]
+                                                reroute.mode = "ACQUISITION"  # type: ignore[attr-defined]
+                                                new_intent = "ACQUISITION"
+                                                new_conf = max(new_conf, 0.95)
+                                        except Exception:
+                                            pass
 
                                         if accept:
                                             hyde_result["intent"] = reroute.intent
@@ -1932,7 +2159,12 @@ class BotliveRAGHybrid:
             step_start = datetime.now()
             if llm_choice == "openrouter":
                 # Mode prompt UNIQUE: on utilise le modèle OpenRouter par défaut (env OPENROUTER_BOTLIVE_MODEL / LLM_MODEL)
-                response_data = await self._call_openrouter(prompt, user_id, model_name=None)
+                response_data = await self._call_openrouter(
+                    prompt,
+                    user_id,
+                    model_name=None,
+                    segment_letter=prompt_segment_letter,
+                )
             else:
                 logger.info(
                     "🧭 [BOTLIVE][LLM_CALL] selected_llm=groq-70b reason="
@@ -2005,7 +2237,12 @@ class BotliveRAGHybrid:
                         retry_prompt = f"{prompt}\n\n{retry_suffix}"
 
                         step_retry = datetime.now()
-                        response_data_retry = await self._call_openrouter(retry_prompt, user_id, model_name=None)
+                        response_data_retry = await self._call_openrouter(
+                            retry_prompt,
+                            user_id,
+                            model_name=None,
+                            segment_letter=prompt_segment_letter,
+                        )
                         timings["llm_call_retry"] = (datetime.now() - step_retry).total_seconds()
 
                         raw1 = str(response_data_retry.get("response") or "")
@@ -2044,6 +2281,18 @@ class BotliveRAGHybrid:
                 if meta_tag == "thinking":
                     execute_tools_in_response(thinking, user_id)
                     logger.debug(f"🧠 [THINKING] Outils exécutés pour {user_id}")
+
+            # Extraction silencieuse de détails produit (sans valider PHOTO/produit)
+            try:
+                from core.thinking_parser import get_thinking_parser
+                from core.order_state_tracker import order_tracker
+
+                tp = get_thinking_parser()
+                extracted_details = tp.extract_extracted_details(thinking or "")
+                if extracted_details:
+                    order_tracker.update_produit_details(user_id, extracted_details)
+            except Exception:
+                pass
 
             extracted_response = None
             if response_match:
@@ -2246,6 +2495,8 @@ class BotliveRAGHybrid:
                         
                 # 2. PAIEMENT détecté dans TRANSACTIONS (prioritaire) ou vision
                 filtered_transactions = context.get('filtered_transactions', [])
+                req_amt = _required_amount_from_context(context)
+                
                 if filtered_transactions:
                     # Transactions OCR détectées
                     first_transaction = filtered_transactions[0]
@@ -2256,10 +2507,14 @@ class BotliveRAGHybrid:
                             amt_val = int(str(first_transaction.get('amount', '0')).strip())
                         except Exception:
                             amt_val = 0
+                            
                     if amt_val > 0:
-                        montant = f"{amt_val}F[TRANSACTIONS]"
-                        order_tracker.update_paiement(user_id, montant)
-                        logger.info(f"💰 [AUTO-DETECT] Paiement (OCR): {montant}")
+                        if amt_val >= req_amt:
+                            montant = f"{amt_val}F[TRANSACTIONS]"
+                            order_tracker.update_paiement(user_id, montant)
+                            logger.info(f"💰 [AUTO-DETECT] Paiement SUFFISANT (OCR): {montant} >= {req_amt}F -> SAUVEGARDÉ")
+                        else:
+                            logger.info(f"💰 [AUTO-DETECT] Paiement INSUFFISANT (OCR): {amt_val}F < {req_amt}F -> NON SAUVEGARDÉ")
                 else:
                     # Sinon chercher dans vision
                     for obj in vision_objects + detected_objects:
@@ -2272,11 +2527,15 @@ class BotliveRAGHybrid:
                                     amt_val = int(montant_match.group(1) or 0)
                                 except Exception:
                                     amt_val = 0
+                                
                                 if amt_val > 0:
-                                    montant = f"{amt_val}F[VISION]"
-                                    order_tracker.update_paiement(user_id, montant)
-                                    logger.info(f"💰 [AUTO-DETECT] Paiement (vision): {montant}")
-                                    break
+                                    if amt_val >= req_amt:
+                                        montant = f"{amt_val}F[VISION]"
+                                        order_tracker.update_paiement(user_id, montant)
+                                        logger.info(f"💰 [AUTO-DETECT] Paiement SUFFISANT (vision): {montant} >= {req_amt}F -> SAUVEGARDÉ")
+                                        break
+                                    else:
+                                        logger.info(f"💰 [AUTO-DETECT] Paiement INSUFFISANT (vision): {amt_val}F < {req_amt}F -> NON SAUVEGARDÉ")
                 
                 # 3. ZONE détectée dans message
                 zones = ["yopougon", "cocody", "plateau", "adjamé", "abobo", "marcory", 
@@ -2380,6 +2639,7 @@ class BotliveRAGHybrid:
                                 summarizer_prompt,
                                 user_id,
                                 model_name=model,
+                                segment_letter="",
                             )
                             new_summary = str(summary_data.get("response") or "").strip()
                     except Exception:
@@ -2448,6 +2708,45 @@ class BotliveRAGHybrid:
             
             # ═══ ÉTAPE 6.6: NETTOYAGE TRACES TECHNIQUES ═══
             processed_response = self._clean_response(processed_response)
+
+            # ═══ ÉTAPE 6.7: CHECKLIST SYSTEM STATE (ANTI-HALLUCINATION) ═══
+            try:
+                # IMPORTANT: Le validator checklist dépend de verdict_global + order_state.
+                # Si ces champs ne sont pas présents dans context, extract_system_state_dict() retombe sur
+                # NEXT=COLLECT_PHOTO par défaut et peut réécrire une réponse LLM pourtant correcte.
+                try:
+                    from core.order_state_tracker import order_tracker
+                    if isinstance(context, dict):
+                        context["order_state"] = order_tracker.get_state(user_id)
+                        # Construire/rafraîchir verdict_global en cohérence avec l'état et le message courant
+                        self._build_canonical_verdict(context)
+                except Exception:
+                    pass
+
+                if isinstance(context, dict):
+                    context["checklist_system_state"] = build_system_state_check(context)
+
+                system_state_dict = extract_system_state_dict(context if isinstance(context, dict) else {})
+                validated = validate_llm_response_checklist(
+                    processed_response,
+                    system_state_dict,
+                    context if isinstance(context, dict) else None,
+                )
+                if validated != processed_response:
+                    logger.warning(
+                        "🛡️ [CHECKLIST_VALIDATION] Réponse réécrite (user_id=%s next=%s)",
+                        user_id,
+                        system_state_dict.get("next_step"),
+                    )
+                    try:
+                        if isinstance(router_metrics, dict) and isinstance(context, dict):
+                            router_metrics["checklist_rewrite"] = True
+                            router_metrics["checklist_rewrite_reason"] = str(context.get("checklist_rewrite_reason") or "")
+                    except Exception:
+                        pass
+                    processed_response = validated
+            except Exception as e:
+                logger.debug("⚠️ [CHECKLIST_VALIDATION] Ignoré (erreur non bloquante): %s", e)
             
             # ═══ ÉTAPE 7: ENREGISTREMENT SUCCÈS ═══
             self.router.record_success(user_id, llm_choice)
@@ -2509,9 +2808,9 @@ class BotliveRAGHybrid:
             import random
 
             error_messages = [
-                "Désolé, erreur technique. Réessayez s'il vous plaît.",
+                "D\u00e9sol\u00e9, erreur technique. R\u00e9essayez s'il vous pla\u00eet.",
                 "Un souci technique est survenu. Pouvez-vous reformuler ?",
-                "Oups, petit problème de connexion. Essayons à nouveau.",
+                "Oups, petit probl\u00e8me de connexion. Essayons \u00e0 nouveau.",
                 "Erreur temporaire. Retentons ensemble dans un instant.",
             ]
 
@@ -2658,7 +2957,13 @@ class BotliveRAGHybrid:
             logger.error(f"❌ Erreur DeepSeek API: {e}")
             raise
 
-    async def _call_openrouter(self, prompt: str, user_id: str, model_name: Optional[str] = None) -> Dict[str, Any]:
+    async def _call_openrouter(
+        self,
+        prompt: str,
+        user_id: str,
+        model_name: Optional[str] = None,
+        segment_letter: str = "",
+    ) -> Dict[str, Any]:
         try:
             from core.llm_client_openrouter import complete
 
@@ -2667,9 +2972,31 @@ class BotliveRAGHybrid:
                     "OPENROUTER_BOTLIVE_MODEL",
                     os.getenv("LLM_MODEL", "mistralai/mistral-small-3.2-24b-instruct"),
                 )
-            max_tokens = int(os.getenv("BOTLIVE_MAX_TOKENS", "600"))
-            temperature = float(os.getenv("BOTLIVE_TEMPERATURE", "0.3"))
-            top_p = float(os.getenv("BOTLIVE_TOP_P", "0.9"))
+
+            seg = (segment_letter or "").strip().upper()
+            if seg == "A":
+                max_tokens = 300
+                temperature = 0.55
+                top_p = 0.9
+                frequency_penalty = 0.2
+            elif seg == "B":
+                max_tokens = 500
+                temperature = 0.4
+                top_p = 0.9
+                frequency_penalty = 0.0
+            elif seg == "C":
+                max_tokens = 320
+                temperature = 0.07
+                top_p = 0.9
+                frequency_penalty = 0.15
+            else:
+                max_tokens = int(os.getenv("BOTLIVE_MAX_TOKENS", "600"))
+                temperature = float(os.getenv("BOTLIVE_TEMPERATURE", "0.3"))
+                top_p = float(os.getenv("BOTLIVE_TOP_P", "0.9"))
+                try:
+                    frequency_penalty = float(os.getenv("BOTLIVE_FREQUENCY_PENALTY", "0.0"))
+                except Exception:
+                    frequency_penalty = 0.0
 
             logger.debug(f"📡 Appel OpenRouter ({model_name}) pour {user_id}")
 
@@ -2705,6 +3032,7 @@ class BotliveRAGHybrid:
                 max_tokens=max_tokens,
                 temperature=temperature,
                 top_p=top_p,
+                frequency_penalty=frequency_penalty,
             )
 
             prompt_tokens = int(token_info.get("prompt_tokens", 0) or 0)

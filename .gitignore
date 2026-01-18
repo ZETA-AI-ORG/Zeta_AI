@@ -157,3 +157,14 @@ data/shadow/
 
 whatsapp-export/.wwebjs_auth/
 tmp_transcripts.txt
+
+# ===== ML ARTEFACTS / CHECKPOINTS (NE PAS VERSIONNER) =====
+models/
+checkpoints/
+*.pt
+*.safetensors
+*.tar.gz
+
+# ===== OUTPUTS GÉNÉRÉS (NE PAS VERSIONNER) =====
+results/
+tests/reports/

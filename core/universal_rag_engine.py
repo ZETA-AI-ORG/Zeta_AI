@@ -46,6 +46,12 @@ class UniversalRAGResult:
     # Champs pour debugging et validation
     thinking: str = ""
     validation: Optional[Dict[str, Any]] = None
+    usage: Optional[Dict[str, Any]] = None
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
+    total_tokens: int = 0
+    cost: float = 0.0
+    model: str = ""
 
 class UniversalRAGEngine:
     """
@@ -94,10 +100,16 @@ class UniversalRAGEngine:
         """Initialise les composants"""
         try:
             # Import dynamique pour éviter les erreurs
-            from .llm_client import GroqLLMClient
+            import os
+            from .llm_client import GroqLLMClient, OpenRouterLLMClient
             from embedding_models import get_embedding_model
-            
-            self.llm_client = GroqLLMClient()
+
+            # ✅ RAG: prioriser OpenRouter (même logique que Botlive/Jessica)
+            openrouter_key_present = bool((os.getenv("OPENROUTER_API_KEY") or "").strip())
+            if openrouter_key_present:
+                self.llm_client = OpenRouterLLMClient()
+            else:
+                self.llm_client = GroqLLMClient()
             self.embedding_model = get_embedding_model()
             
             # Initialisation des modules avancés
@@ -259,6 +271,243 @@ class UniversalRAGEngine:
             logger.error(f"❌ [FUZZY_FALLBACK] Erreur: {e}")
             return []
 
+    # ═══════════════════════════════════════════════════════════════════════════════
+    # 🚀 NOUVELLE ARCHITECTURE: RECHERCHE PARALLÈLE TRIPLE SOURCE
+    # ═══════════════════════════════════════════════════════════════════════════════
+    
+    async def search_parallel_sources(
+        self, 
+        query: str, 
+        company_id: str, 
+        user_id: str = None,
+        last_user_message: str = None
+    ) -> Dict[str, Any]:
+        """
+        🚀 RECHERCHE PARALLÈLE TRIPLE SOURCE (Gemini Cache + Meili + Supabase)
+        
+        Architecture optimisée:
+        1. Extraction regex INSTANTANÉE (zone/téléphone) - 0ms
+        2. Détection keywords (remplace SetFit) - 0ms
+        3. Triple recherche PARALLÈLE - max(40ms, 300ms, 2000ms)
+        4. Fusion intelligente des résultats
+        
+        Returns:
+            {
+                'catalog_context': str,      # Produits (Gemini Cache)
+                'delivery_context': str,     # Livraison (Regex + Meili)
+                'payment_sav_context': str,  # Paiement/SAV (Meili)
+                'company_context': str,      # Infos entreprise (Meili)
+                'semantic_context': str,     # Fallback (Supabase)
+                'meili_context': str,        # Compat avec ancien système
+                'supabase_context': str,     # Compat avec ancien système
+                'total_documents': int,
+                'search_methods_used': list,
+                'search_method': str,
+                'regex_extracted': dict,     # Zone/téléphone extraits
+                'keywords_detected': dict,   # Keywords détectés
+                'has_instant_answer': bool   # True si regex suffit
+            }
+        """
+        import time as time_module
+        start_time = time_module.time()
+        
+        # ========== TRACKING ==========
+        try:
+            from core.rag_performance_tracker import get_tracker
+            tracker = get_tracker(getattr(self, '_request_id', 'unknown'))
+            tracker.start_step("search_parallel_sources", query_length=len(query))
+        except:
+            tracker = None
+        
+        # Résultat initial
+        results = {
+            'catalog_context': '',
+            'delivery_context': '',
+            'payment_sav_context': '',
+            'company_context': '',
+            'semantic_context': '',
+            'meili_context': '',
+            'supabase_context': '',
+            'total_documents': 0,
+            'search_methods_used': [],
+            'search_method': 'parallel_triple',
+            'regex_extracted': {},
+            'keywords_detected': {},
+            'has_instant_answer': False
+        }
+        
+        # ═══════════════════════════════════════════════════════════════════════
+        # ÉTAPE 0: IMPORT CATALOG CACHE MANAGER
+        # ═══════════════════════════════════════════════════════════════════════
+        try:
+            from core.catalog_cache_manager import get_catalog_cache_manager
+            cache_manager = get_catalog_cache_manager()
+            print("✅ [PARALLEL] CatalogCacheManager chargé")
+        except ImportError as e:
+            print(f"⚠️ [PARALLEL] CatalogCacheManager non disponible: {e}")
+            # Fallback vers recherche séquentielle
+            return await self.search_sequential_sources(query, company_id, last_user_message, user_id)
+        
+        # ═══════════════════════════════════════════════════════════════════════
+        # ÉTAPE 1: EXTRACTION REGEX INSTANTANÉE (0ms)
+        # Zone de livraison + Numéro de téléphone
+        # ═══════════════════════════════════════════════════════════════════════
+        print(f"⚡ [ÉTAPE 1] Extraction regex instantanée...")
+        regex_results = cache_manager.extract_regex_fast(query)
+        results['regex_extracted'] = regex_results
+        
+        if regex_results.get('delivery_zone'):
+            zone = regex_results['delivery_zone']
+            print(f"   ✅ Zone extraite: {zone.get('name')} = {zone.get('cost')}F")
+            results['delivery_context'] = regex_results.get('instant_context', '')
+            results['has_instant_answer'] = regex_results.get('has_instant_answer', False)
+            results['search_methods_used'].append('regex_zone')
+        
+        if regex_results.get('phone_number'):
+            phone = regex_results['phone_number']
+            print(f"   ✅ Téléphone extrait: {phone.get('normalized')} ({phone.get('operator')})")
+            results['search_methods_used'].append('regex_phone')
+        
+        # ═══════════════════════════════════════════════════════════════════════
+        # ÉTAPE 2: DÉTECTION KEYWORDS (0ms - remplace SetFit)
+        # ═══════════════════════════════════════════════════════════════════════
+        print(f"⚡ [ÉTAPE 2] Détection keywords (sans SetFit)...")
+        keywords = cache_manager.detect_keywords(query)
+        results['keywords_detected'] = keywords
+        
+        print(f"   → Product: {keywords['has_product']}, Delivery: {keywords['has_delivery']}")
+        print(f"   → Payment: {keywords['has_payment']}, Contact: {keywords['has_contact']}")
+        print(f"   → Priority source: {keywords['priority_source']}")
+
+        # ═══════════════════════════════════════════════════════════════════════
+        # ✅ EARLY-EXIT: NUMÉRO SEUL = 100% REGEX (AUCUN MEILI/SUPABASE)
+        # Objectif: ultra-rapide pour extraction téléphone.
+        # ═══════════════════════════════════════════════════════════════════════
+        try:
+            has_zone_regex = bool(regex_results.get('delivery_zone'))
+            has_phone_regex = bool(regex_results.get('phone_number'))
+            is_delivery_question = bool(keywords.get('has_delivery'))
+            is_product_question = bool(keywords.get('has_product'))
+            is_payment_question = bool(keywords.get('has_payment'))
+            is_contact_question = bool(keywords.get('has_contact'))
+
+            # Multi-intent: ne pas annuler les autres intentions.
+            # On early-exit uniquement si l'intention est UNIQUE.
+            intent_flags = [
+                bool(is_product_question),
+                bool(is_delivery_question),
+                bool(is_payment_question),
+                bool(is_contact_question),
+            ]
+            intent_count = sum(1 for f in intent_flags if f)
+
+            # Téléphone: si numéro détecté par regex et pas d'autre intent.
+            # Exemple: "Mon numéro c'est 070..." → pas de recherche.
+            if has_phone_regex and is_contact_question and intent_count == 1:
+                results['search_method'] = 'regex_only_phone'
+                results['search_methods_used'] = list(dict.fromkeys(results['search_methods_used'] + ['regex_phone']))
+                results['meili_context'] = ''
+                results['supabase_context'] = ''
+                results['total_documents'] = 1
+                results['has_instant_answer'] = True
+
+                total_time = (time_module.time() - start_time) * 1000
+                print(f"⚡ [EARLY_EXIT] Téléphone via regex uniquement ({total_time:.0f}ms)")
+
+                if tracker:
+                    tracker.end_step(
+                        documents_found=results['total_documents'],
+                        search_method=results['search_method']
+                    )
+                return results
+        except Exception:
+            # Si un problème survient sur l'early-exit, on continue le pipeline normal.
+            pass
+        
+        # ═══════════════════════════════════════════════════════════════════════
+        # ÉTAPE 3: RECHERCHE PARALLÈLE TRIPLE SOURCE
+        # ═══════════════════════════════════════════════════════════════════════
+        print(f"🚀 [ÉTAPE 3] Lancement recherche parallèle triple...")
+        
+        search_results = await cache_manager.search_parallel(
+            query=query,
+            company_id=company_id,
+            keywords=keywords,
+            regex_results=regex_results
+        )
+        
+        print(f"   ⏱️ Temps recherche parallèle: {search_results.get('total_time_ms', 0):.0f}ms")
+        
+        # ═══════════════════════════════════════════════════════════════════════
+        # ÉTAPE 4: FUSION INTELLIGENTE DES RÉSULTATS
+        # ═══════════════════════════════════════════════════════════════════════
+        print(f"🔀 [ÉTAPE 4] Fusion des résultats...")
+        
+        fused = cache_manager.fuse_results(search_results, keywords)
+        
+        # Mettre à jour les résultats
+        results['catalog_context'] = fused.get('catalog_context', '')
+        results['payment_sav_context'] = fused.get('payment_sav_context', '')
+        results['company_context'] = fused.get('company_context', '')
+        results['semantic_context'] = fused.get('semantic_context', '')
+        
+        # Enrichir delivery_context si pas déjà rempli par regex
+        if not results['delivery_context'] and fused.get('delivery_context'):
+            results['delivery_context'] = fused['delivery_context']
+        
+        # Sources utilisées
+        for src in fused.get('sources_used', []):
+            if src not in results['search_methods_used']:
+                results['search_methods_used'].append(src)
+        
+        # ═══════════════════════════════════════════════════════════════════════
+        # ÉTAPE 5: ASSEMBLAGE CONTEXTE UNIFIÉ (compatibilité ancien système)
+        # ═══════════════════════════════════════════════════════════════════════
+        print(f"📦 [ÉTAPE 5] Assemblage contexte unifié...")
+        
+        # Construire meili_context pour compatibilité
+        meili_parts = []
+        if results['delivery_context']:
+            meili_parts.append(f"🚚 LIVRAISON:\n{results['delivery_context']}")
+        if results['payment_sav_context']:
+            meili_parts.append(f"💳 PAIEMENT/SAV:\n{results['payment_sav_context']}")
+        if results['company_context']:
+            meili_parts.append(f"🏢 ENTREPRISE:\n{results['company_context']}")
+        if results['catalog_context']:
+            meili_parts.append(f"📦 CATALOGUE:\n{results['catalog_context']}")
+        
+        results['meili_context'] = "\n\n".join(meili_parts) if meili_parts else ''
+        
+        # Supabase context pour compatibilité
+        results['supabase_context'] = results['semantic_context']
+        
+        # Compter documents
+        meili_data = search_results.get('meilisearch', {})
+        supa_data = search_results.get('supabase', {})
+        results['total_documents'] = (
+            len(meili_data.get('results', [])) + 
+            len(supa_data.get('results', [])) +
+            (1 if results['delivery_context'] else 0)  # Regex compte comme 1 doc
+        )
+        
+        # ═══════════════════════════════════════════════════════════════════════
+        # FIN: LOGGING ET TRACKING
+        # ═══════════════════════════════════════════════════════════════════════
+        total_time = (time_module.time() - start_time) * 1000
+        
+        print(f"✅ [PARALLEL] Recherche terminée en {total_time:.0f}ms")
+        print(f"   → Documents: {results['total_documents']}")
+        print(f"   → Sources: {results['search_methods_used']}")
+        print(f"   → Instant answer: {results['has_instant_answer']}")
+        
+        if tracker:
+            tracker.end_step(
+                documents_found=results['total_documents'],
+                search_method=results['search_method']
+            )
+        
+        return results
+
     async def search_sequential_sources(self, query: str, company_id: str, last_user_message: str = None, user_id: str = None) -> Dict[str, Any]:
         """🎯 RECHERCHE SÉQUENTIELLE CLASSIQUE (Mode compatibilité)"""
         # ========== TRACKING ==========
@@ -343,8 +592,34 @@ class UniversalRAGEngine:
         except Exception as e:
             print(f"❌ MeiliSearch erreur: {str(e)[:50]} → Fallback")
         
-        # 🔄 ÉTAPE FALLBACK: RECHERCHE SUPABASE (si MeiliSearch échoue)
+        # 🔄 ÉTAPE FALLBACK INTELLIGENT: Supabase seulement si Meili insuffisant
+        # Utilise SmartFallbackManager pour décider
+        use_supabase_fallback = False
+        fallback_reason = "meili_empty"
+        
         if not meili_success:
+            use_supabase_fallback = True
+            fallback_reason = "meili_failed"
+        else:
+            # Meili a réussi, mais est-il suffisant?
+            try:
+                from core.context_optimizer import get_fallback_manager
+                fallback_mgr = get_fallback_manager()
+                use_supabase_fallback, fallback_reason = fallback_mgr.should_use_supabase_fallback(
+                    meili_context=results['meili_context'],
+                    query=query,
+                    scored_docs=None
+                )
+                if use_supabase_fallback:
+                    print(f"🔄 [SMART_FALLBACK] Meili insuffisant ({fallback_reason}) → Supabase complémentaire")
+                else:
+                    print(f"✅ [SMART_FALLBACK] Meili suffisant → Supabase skippé")
+            except Exception as e:
+                print(f"⚠️ [SMART_FALLBACK] Erreur évaluation: {e}")
+                # En cas d'erreur, ne pas utiliser Supabase si Meili a réussi
+                use_supabase_fallback = False
+        
+        if use_supabase_fallback:
             print(f"🔄 [ÉTAPE 2] Supabase fallback...")
             try:
                 # ✅ PHASE 1: Utiliser singleton pré-chargé (pas nouvelle instance!)
@@ -645,6 +920,39 @@ INSTRUCTION: Demande poliment au client de préciser ce qu'il souhaite savoir su
         # ========== EXTRACTION INTELLIGENTE ZONE LIVRAISON (REGEX + NORMALISATION) ==========
         delivery_context = ""
         delivery_zone_found = False  # ✅ Flag pour filtrage docs
+        is_delivery_related_query = False
+        try:
+            q_lower = (query or "").lower()
+            is_delivery_related_query = any(
+                kw in q_lower
+                for kw in [
+                    "livraison",
+                    "livrer",
+                    "livrez",
+                    "livre",
+                    "frais",
+                    "tarif",
+                    "prix livraison",
+                    "délai",
+                    "delai",
+                    "quartier",
+                    "commune",
+                    "zone",
+                    "angre",
+                    "rivier",
+                    "cocody",
+                    "yopougon",
+                    "abobo",
+                    "marcory",
+                    "koumassi",
+                    "plateau",
+                    "treichville",
+                    "adjame",
+                    "adjamé",
+                ]
+            )
+        except Exception:
+            is_delivery_related_query = False
         
         try:
             from core.delivery_zone_extractor import (
@@ -685,7 +993,7 @@ INSTRUCTION: Demande poliment au client de préciser ce qu'il souhaite savoir su
             if time_context:
                 # Si une zone est détectée, l'heure est déjà dans delivery_context via format_delivery_info()
                 # Sinon, créer un delivery_context avec juste l'heure
-                if not delivery_context:
+                if not delivery_context and is_delivery_related_query:
                     delivery_context = time_context
                     logger.info(f"⏰ Heure CI injectée (aucune zone détectée)")
                 else:
@@ -857,16 +1165,55 @@ INSTRUCTION: Demande poliment au client de préciser ce qu'il souhaite savoir su
             meili_context_filtered = '\n'.join(filtered_lines)
             logger.info(f"📦 [DOCS] Docs delivery filtrés: {len(lines)} → {len(filtered_lines)} lignes")
         
-        # Construction du contexte structuré
-        context_parts = []
-        if conversation_context:
-            context_parts.append(conversation_context)
-        if meili_context_filtered:  # ✅ Utiliser contexte filtré
-            context_parts.append(meili_context_filtered)
-        if search_results['supabase_context']:
-            context_parts.append(search_results['supabase_context'])
-
-        structured_context = "\n".join(context_parts) if context_parts else "Aucun document trouvé"
+        # ========== 🚀 OPTIMISATION CONTEXTE (Meili priority + Budget tokens) ==========
+        try:
+            from core.context_optimizer import optimize_rag_context, get_history_optimizer
+            
+            # Optimiser le contexte avec fallback intelligent + budgets
+            optimization_result = optimize_rag_context(
+                meili_context=meili_context_filtered,
+                supabase_context=search_results.get('supabase_context', ''),
+                query=query,
+                scored_docs=None,  # Pas de docs scorés ici
+                keywords=None
+            )
+            
+            optimized_context = optimization_result['optimized_context']
+            
+            # Log des économies
+            if optimization_result['total_chars_saved'] > 0:
+                print(f"💰 [OPTIMIZE] Économie: {optimization_result['total_chars_saved']} chars")
+                print(f"   → Supabase utilisé: {optimization_result['used_supabase']} ({optimization_result['fallback_reason']})")
+            
+            # Optimiser aussi l'historique de conversation
+            if conversation_context:
+                history_optimizer = get_history_optimizer()
+                # Si conversation_context est déjà formaté, on le garde tel quel mais on le tronque si nécessaire
+                if len(conversation_context) > 1200:
+                    conversation_context = conversation_context[:1200] + "\n..."
+                    print(f"🧠 [HISTORY] Tronqué à 1200 chars")
+            
+            # Construction du contexte structuré optimisé
+            context_parts = []
+            if conversation_context:
+                context_parts.append(conversation_context)
+            if optimized_context:
+                context_parts.append(optimized_context)
+            
+            structured_context = "\n".join(context_parts) if context_parts else "Aucun document trouvé"
+            
+        except Exception as e:
+            print(f"⚠️ [OPTIMIZE] Fallback assemblage classique: {e}")
+            # Fallback: assemblage classique sans optimisation
+            context_parts = []
+            if conversation_context:
+                context_parts.append(conversation_context)
+            if meili_context_filtered:
+                context_parts.append(meili_context_filtered)
+            if search_results.get('supabase_context'):
+                context_parts.append(search_results['supabase_context'])
+            structured_context = "\n".join(context_parts) if context_parts else "Aucun document trouvé"
+        
         print(f"📄 Contexte: {len(structured_context)} caractères")
         # Log contexte réduit
         context_preview = structured_context[:100] + ('...' if len(structured_context) > 100 else '')
@@ -948,7 +1295,7 @@ INSTRUCTION: Demande poliment au client de préciser ce qu'il souhaite savoir su
             print("✅ [PROMPT] Contexte image injecté")
         
         # ========== INJECTION CONTEXTE LIVRAISON (REGEX EXTRACTION) ==========
-        if delivery_context:
+        if delivery_context and (delivery_zone_found or is_delivery_related_query):
             # Injecter UNE SEULE FOIS avant <context> (remplacer seulement la 1ère occurrence)
             system_prompt = system_prompt.replace(
                 "<context>",
@@ -1065,17 +1412,38 @@ INSTRUCTION: Demande poliment au client de préciser ce qu'il souhaite savoir su
             )
             
             # Extraire réponse et usage
+            token_usage = {}
+            prompt_tokens = 0
+            completion_tokens = 0
+            total_tokens = 0
+            total_cost = 0.0
             if isinstance(llm_result, dict):
                 response = llm_result.get("response", llm_result)
-                usage = llm_result.get("usage", {})
+                token_usage = llm_result.get("usage", {}) or {}
                 model_used = llm_result.get("model", "unknown")
+
+                try:
+                    if isinstance(token_usage, dict):
+                        prompt_tokens = int(token_usage.get("prompt_tokens") or 0)
+                        completion_tokens = int(token_usage.get("completion_tokens") or 0)
+                        total_tokens = int(token_usage.get("total_tokens") or (prompt_tokens + completion_tokens) or 0)
+                        total_cost = float(
+                            token_usage.get("total_cost")
+                            if token_usage.get("total_cost") is not None
+                            else (token_usage.get("cost") or 0.0)
+                        )
+                except Exception:
+                    prompt_tokens = 0
+                    completion_tokens = 0
+                    total_tokens = 0
+                    total_cost = 0.0
                 
                 # Enregistrer usage tokens
-                if tracker and usage:
+                if tracker and token_usage:
                     tracker.record_llm_usage(
                         model=model_used,
-                        prompt_tokens=usage.get("prompt_tokens", 0),
-                        completion_tokens=usage.get("completion_tokens", 0)
+                        prompt_tokens=prompt_tokens,
+                        completion_tokens=completion_tokens
                     )
                     tracker.end_step(response_length=len(str(response)))
             else:
@@ -1206,6 +1574,15 @@ INSTRUCTION: Demande poliment au client de préciser ce qu'il souhaite savoir su
             print(f"\033[91m[LLM] Tokens totaux prompt+réponse : {total_tokens} {'(TROP ÉLEVÉ)' if total_tokens > 4000 else '(OK)'}\033[0m")
             print(f"\033[91m[LLM] Détail : prompt={prompt_tokens} | réponse={response_tokens} (estimation coût)\033[0m")
             # Mémoire déjà mise à jour AVANT génération - pas besoin de re-traitement
+            
+            # ========== RETOURNER RÉPONSE + MÉTRIQUES TOKENS ==========
+            # Stocker les métriques pour utilisation dans process_query
+            self._last_token_usage = token_usage
+            self._last_prompt_tokens = prompt_tokens
+            self._last_completion_tokens = completion_tokens
+            self._last_total_tokens = total_tokens
+            self._last_total_cost = total_cost
+            self._last_model_used = model_used
 
             # --- RÉCAPITULATIF AUTOMATIQUE DÉSACTIVÉ (génère prix fantômes) ---
             # Cause: Template bugué avec "500 FCFA" inexistants
@@ -1370,78 +1747,45 @@ INSTRUCTION: Demande poliment au client de préciser ce qu'il souhaite savoir su
     def _extract_config_from_prompt(self, prompt: str) -> dict:
         """Extrait WAVE_ENTREPRISE et ACOMPTE_REQUIS du prompt"""
         import re
-        
+
         config = {
             'wave_phone': None,
             'required_amount': None
         }
-        
+
+        if not prompt:
+            return config
+
         # Extraire WAVE_ENTREPRISE: +225 0787360757
-        wave_match = re.search(r'WAVE_ENTREPRISE:\s*\+?(\d+\s*\d+\s*\d+)', prompt)
+        wave_match = re.search(r'WAVE_ENTREPRISE:\s*\+?([\d\s]+)', prompt)
         if wave_match:
-            config['wave_phone'] = wave_match.group(1).replace(' ', '')
-        
+            config['wave_phone'] = re.sub(r'\s+', '', wave_match.group(1))
+
         # Extraire ACOMPTE_REQUIS: 2000 FCFA
         acompte_match = re.search(r'ACOMPTE_REQUIS:\s*(\d+)\s*FCFA', prompt)
         if acompte_match:
-            config['required_amount'] = int(acompte_match.group(1))
-        
-        return config
-    
-    async def _get_dynamic_prompt(self, company_id: str, company_name: str) -> str:
-        """📋 Récupère le prompt dynamique via company_booster (nouveau système universel)"""
-        try:
-            # ✅ NOUVEAU: Utiliser le générateur de prompt dynamique basé sur company_booster
-            from core.dynamic_prompt_generator import get_prompt_for_company
-            
             try:
-                # Récupérer le prompt depuis company_booster (avec cache automatique)
-                prompt = get_prompt_for_company(
-                    company_id=company_id,
-                    supabase_client=self.supabase
-                )
-                logger.info(f"✅ [DYNAMIC PROMPT] Prompt généré depuis company_booster pour {company_id[:8]}...")
-                return prompt
-            
-            except Exception as e_booster:
-                logger.warning(f"⚠️ [DYNAMIC PROMPT] Fallback ancien système: {e_booster}")
-                
-                # FALLBACK: Ancien système (get_company_system_prompt)
-                from database.supabase_client import get_company_system_prompt
-                
-                prompt = await get_company_system_prompt(company_id)
-                if prompt and len(prompt.strip()) > 0:
-                    # Rendre les variables du template robustement avec des valeurs par défaut
-                    try:
-                        personalized_prompt = prompt.format(
-                            company_name=company_name,
-                            ai_name="Assistant",
-                            secteur_activite="commerce",
-                            mission_principale="",
-                            objectif_final=""
-                        )
-                    except KeyError as e:
-                        # Si des variables inconnues sont présentes, utiliser le template tel quel
-                        print(f"⚠️ Variable manquante dans template (cache): {e}")
-                        personalized_prompt = prompt
-                    
-                    logger.info(f"📋 Prompt (ancien système) récupéré pour {company_id[:8]}...")
-                    return personalized_prompt
-                
-                # Fallback ultime si pas de prompt personnalisé
-                logger.info("📋 Utilisation prompt par défaut (aucun système disponible)")
-                return f"""Tu es un assistant client professionnel pour {company_name}.
+                config['required_amount'] = int(acompte_match.group(1))
+            except Exception:
+                config['required_amount'] = None
 
-RÈGLES STRICTES:
-- Utilise UNIQUEMENT les informations du contexte fourni
-- Si l'information n'est pas dans le contexte, dis "Je n'ai pas cette information"
-- Mentionne tes sources: "Selon nos informations..."
-- Sois professionnel et empathique
-- Ne jamais inventer de données"""
-        
+        return config
+
+    async def _get_dynamic_prompt(self, company_id: str, company_name: str) -> str:
+        """📋 Récupère le prompt dynamique depuis Supabase (prompt_botlive_deepseek_v3)."""
+        # Source de vérité: même champ que Botlive
+        try:
+            from core.botlive_prompts_supabase import BotlivePromptsManager
+
+            manager = BotlivePromptsManager()
+            prompt = manager.get_prompt(company_id=company_id, llm_choice="deepseek-v3")
+            if prompt and len(prompt) > 50:
+                return prompt
         except Exception as e:
-            logger.error(f"❌ Erreur récupération prompt dynamique: {e}")
-            return f"Tu es un assistant client professionnel pour {company_name}."
+            logger.warning(f"⚠️ Prompt prompt_botlive_deepseek_v3 indisponible ({company_id}): {e}")
+
+        # Fallback final
+        return f"Tu es un assistant client professionnel pour {company_name}."
     
     def _detect_pricing_context(self, query: str, context: str) -> str:
         """Détecte intelligemment les questions de prix et remises pour enrichir le prompt"""
@@ -1798,8 +2142,9 @@ INSTRUCTION SPÉCIALE PAIEMENT:
                 print("🔧 Initialisation LLM client...")
                 await self.initialize()
             
-            # 2. Recherche séquentielle MeiliSearch → Supabase
-            search_results = await self.search_sequential_sources(query, company_id, user_id=user_id)
+            # 2. 🚀 RECHERCHE PARALLÈLE TRIPLE SOURCE (Gemini Cache + Meili + Supabase)
+            # Utilise CatalogCacheManager avec extraction regex instantanée
+            search_results = await self.search_parallel_sources(query, company_id, user_id=user_id)
             
             # 3. Génération de réponse avec prompt dynamique
             company_display_name = company_name or f"l'entreprise {company_id[:8]}"
@@ -1828,8 +2173,18 @@ INSTRUCTION SPÉCIALE PAIEMENT:
                 try:
                     from core.faq_answer_cache import faq_answer_cache
                     cache_key_context = company_id
-                    faq_answer_cache.set(query, cache_key_context, response)
-                    print("[FAQ CACHE] Réponse stockée dans le cache FAQ")
+                    response_str = str(response or "")
+                    is_error_response = (
+                        "[Erreur LLM]" in response_str
+                        or "401 Unauthorized" in response_str
+                        or "403 Forbidden" in response_str
+                        or response_str.strip().startswith("[Erreur")
+                    )
+                    if not is_error_response:
+                        faq_answer_cache.set(query, cache_key_context, response)
+                        print("[FAQ CACHE] Réponse stockée dans le cache FAQ")
+                    else:
+                        print("[FAQ CACHE] Skip cache (réponse d'erreur)")
                 except Exception as e:
                     print(f"[FAQ CACHE] Erreur stockage: {e}")
             # 4. Calcul de la confiance
@@ -1846,6 +2201,14 @@ INSTRUCTION SPÉCIALE PAIEMENT:
             print(f"🔍 [THINKING_FINAL] Contenu: {thinking_text[:200] if thinking_text else 'VIDE'}")
             print(f"🔍 [THINKING_FINAL] Source: {'self._last_thinking' if hasattr(self, '_last_thinking') else 'variable locale'}")
             
+            # Récupérer les métriques de tokens depuis generate_response
+            token_usage = getattr(self, '_last_token_usage', {})
+            prompt_tokens = getattr(self, '_last_prompt_tokens', 0)
+            completion_tokens = getattr(self, '_last_completion_tokens', 0)
+            total_tokens = getattr(self, '_last_total_tokens', 0)
+            total_cost = getattr(self, '_last_total_cost', 0.0)
+            model_used = getattr(self, '_last_model_used', 'unknown')
+            
             result = UniversalRAGResult(
                 response=response,
                 confidence=confidence,
@@ -1854,7 +2217,13 @@ INSTRUCTION SPÉCIALE PAIEMENT:
                 search_method=search_results['search_method'],
                 context_used=search_results['supabase_context'] or search_results['meili_context'] or "Aucun",
                 thinking=thinking_text,
-                validation=None  # Sera ajouté par botlive si nécessaire
+                validation=None,  # Sera ajouté par botlive si nécessaire
+                usage=token_usage if isinstance(token_usage, dict) else None,
+                prompt_tokens=prompt_tokens,
+                completion_tokens=completion_tokens,
+                total_tokens=total_tokens,
+                cost=total_cost,
+                model=str(model_used or ""),
             )
             print(f"✅ [FIN] RAG terminé: {processing_time:.0f}ms | Méthode: {search_results['search_method']}")
             
@@ -1864,8 +2233,21 @@ INSTRUCTION SPÉCIALE PAIEMENT:
                 
                 # Extraire thinking_data depuis réponse
                 thinking_data = {}
-                if hasattr(thinking_result, 'thinking') and thinking_result.thinking:
-                    thinking_data = thinking_result.thinking
+                try:
+                    thinking_src = thinking_text or ""
+                    if thinking_src:
+                        intent_m = re.search(r"<intent>(.*?)</intent>", thinking_src, re.DOTALL | re.IGNORECASE)
+                        checklist_m = re.search(r"<checklist>(.*?)</checklist>", thinking_src, re.DOTALL | re.IGNORECASE)
+                        next_m = re.search(r"<next>(.*?)</next>", thinking_src, re.DOTALL | re.IGNORECASE)
+                        action_m = re.search(r"<action>(.*?)</action>", thinking_src, re.DOTALL | re.IGNORECASE)
+                        thinking_data = {
+                            "intent": (intent_m.group(1).strip() if intent_m else ""),
+                            "checklist": (checklist_m.group(1).strip() if checklist_m else ""),
+                            "next": (next_m.group(1).strip() if next_m else ""),
+                            "action": (action_m.group(1).strip() if action_m else ""),
+                        }
+                except Exception:
+                    thinking_data = {}
                 
                 # Préparer documents utilisés
                 documents_used = []
@@ -1894,8 +2276,8 @@ INSTRUCTION SPÉCIALE PAIEMENT:
                     thinking_data=thinking_data,
                     documents_used=documents_used,
                     response_time_ms=int(processing_time),
-                    llm_model=self.llm_model,
-                    conversation_id=request_id
+                    llm_model=getattr(self, "llm_model", "unknown"),
+                    conversation_id=getattr(self, "_request_id", None)
                 ))
                 
             except Exception as learning_error:
@@ -2154,6 +2536,12 @@ async def get_universal_rag_response(
         'context_used': result.context_used,
         'thinking': getattr(result, 'thinking', ''),  # ← AJOUT thinking
         'validation': getattr(result, 'validation', None),  # ← AJOUT validation
+        'usage': getattr(result, 'usage', None),
+        'prompt_tokens': int(getattr(result, 'prompt_tokens', 0) or 0),
+        'completion_tokens': int(getattr(result, 'completion_tokens', 0) or 0),
+        'total_tokens': int(getattr(result, 'total_tokens', 0) or 0),
+        'cost': float(getattr(result, 'cost', 0.0) or 0.0),
+        'model': getattr(result, 'model', ''),
         'success': True
     }
 

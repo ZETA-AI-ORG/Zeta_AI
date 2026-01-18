@@ -47,6 +47,10 @@ PROMPT_CACHE_TTL = 3600  # 1 heure
 HYDE_ENABLED = os.getenv("HYDE_ENABLED", "true").lower() == "true"
 HYDE_SKIP_SIMPLE_QUERIES = True  # Skip HYDE pour questions simples
 
+# Botlive direct mode: HYDE doit être considéré OFF (latence)
+BOTLIVE_ROUTING_MODE = (os.getenv("BOTLIVE_ROUTING_MODE", "") or "").strip().lower()
+HYDE_EFFECTIVE_ENABLED = bool(HYDE_ENABLED and BOTLIVE_ROUTING_MODE != "direct")
+
 # Patterns de questions simples (pas besoin de HYDE)
 SIMPLE_QUERY_PATTERNS = [
     r'prix\s+\d+',
@@ -94,6 +98,9 @@ LEARNING_FAQ_GENERATION = True  # Générer FAQ auto
 
 print(f"⚡ [CONFIG] Environnement: {ENVIRONMENT}")
 print(f"⚡ [CONFIG] Cache: {'✅ Activé' if CACHE_ENABLED else '❌ Désactivé'}")
-print(f"⚡ [CONFIG] HYDE: {'✅ Activé' if HYDE_ENABLED else '❌ Désactivé'}")
+print(
+    f"⚡ [CONFIG] HYDE: {'✅ Activé' if HYDE_EFFECTIVE_ENABLED else '❌ Désactivé'}"
+    + (" (BOTLIVE_ROUTING_MODE=direct)" if BOTLIVE_ROUTING_MODE == "direct" else "")
+)
 print(f"⚡ [CONFIG] HYDE skip simple: {'✅ Oui' if HYDE_SKIP_SIMPLE_QUERIES else '❌ Non'}")
 print(f"⚡ [CONFIG] Auto-Learning: {'✅ Activé' if ENABLE_AUTO_LEARNING else '❌ Désactivé'}")

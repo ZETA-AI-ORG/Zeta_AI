@@ -584,6 +584,22 @@ def _looks_like_social_only(message: str) -> bool:
     return len(tokens) <= 5
 
 
+def _looks_like_media_url(raw: str) -> bool:
+    try:
+        s = (raw or "").strip().lower()
+        if not s:
+            return False
+        if not (s.startswith("http://") or s.startswith("https://")):
+            return False
+        if any(x in s for x in ["fbcdn.net/", "scontent."]):
+            return True
+        if re.search(r"\.(jpg|jpeg|png|webp|gif)(\?|$)", s):
+            return True
+        return False
+    except Exception:
+        return False
+
+
 def _deterministic_prefilter(
     *,
     message: str,
@@ -591,6 +607,9 @@ def _deterministic_prefilter(
 ) -> Tuple[Optional[str], Optional[float], Dict[str, Any]]:
     raw = (message or "").strip()
     if not raw:
+        return None, None, {}
+
+    if _looks_like_media_url(raw):
         return None, None, {}
 
     if _truthy_env("BOTLIVE_HUMAN_HANDOFF_ENABLED", "false"):
@@ -684,9 +703,6 @@ def _deterministic_prefilter(
         if "temps" in t_norm or "duree" in t_norm or "durée" in t_norm or "délai" in t_norm or "delai" in t_norm:
             return "LIVRAISON", 0.85, {"prefilter": "lexical_livraison_delai"}
 
-    if any(k in t_norm for k in ["combien", "prix", "tarif", "coute", "coûte", "ça coûte", "ca coute"]):
-        return "PRIX_PROMO", 0.85, {"prefilter": "lexical_prix_over_quantity"}
-
     if re.search(r"\b\d+\b", t_norm) and ("paquet" in t_norm or "paquets" in t_norm):
         return "ACHAT_COMMANDE", 0.85, {"prefilter": "lexical_achat_quantity"}
 
@@ -751,7 +767,7 @@ def _deterministic_prefilter(
     if phone_pattern.search(raw):
         return "CONTACT_COORDONNEES", 0.98, {"prefilter": "phone_regex"}
 
-    if should_skip_preprocessing(raw) or _looks_like_social_only(raw):
+    if (should_skip_preprocessing(raw) or _looks_like_social_only(raw)) and (not _looks_like_media_url(raw)):
         return "SALUT", 0.98, {"prefilter": "salut_rule"}
 
     try:

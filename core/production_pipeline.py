@@ -154,6 +154,10 @@ def _truthy_env(name: str, default: str = "false") -> bool:
     return os.getenv(name, default).strip().lower() in {"1", "true", "yes", "y", "on"}
 
 
+def _routing_mode() -> str:
+    return (os.getenv("BOTLIVE_ROUTING_MODE", "direct") or "direct").strip().lower()
+
+
 def _normalize_text_basic(text: str) -> str:
     raw = (text or "").strip().lower()
     raw = re.sub(r"\s+", " ", raw)
@@ -165,6 +169,8 @@ def _missing_fields_from_state(state_compact: Optional[Dict[str, Any]]) -> list[
     missing: list[str] = []
     if not st.get("photo_collected", False):
         missing.append("photo")
+    if not st.get("specs_collected", False):
+        missing.append("specs")
     if not st.get("paiement_collected", False):
         missing.append("paiement")
     if not st.get("zone_collected", False):
@@ -190,11 +196,51 @@ def _intent_to_group(intent: str) -> str:
 
 
 def _determine_mode(intent: str, state_compact: Optional[Dict[str, Any]]) -> str:
+    """
+    Action #4: En V5, JAMAIS retourner GUIDEUR - utiliser le pôle V5 directement.
+    """
     upper = (intent or "").upper()
     st = state_compact or {}
     is_complete = bool(st.get("is_complete", False))
     collected_count = int(st.get("collected_count", 0) or 0)
 
+    # V5: mode = pôle directement
+    if upper in {"REASSURANCE", "SHOPPING", "ACQUISITION", "SAV_SUIVI"}:
+        return upper
+
+    # Détection V5 via import (évite dépendance circulaire)
+    try:
+        from core.setfit_intent_router import _MODEL_VERSION
+        is_v5 = _MODEL_VERSION == "V5"
+    except Exception:
+        is_v5 = False
+
+    if is_v5:
+        # V5: Mapper intents legacy vers pôles V5 (jamais GUIDEUR)
+        v5_mode_mapping = {
+            "ACHAT_COMMANDE": "ACQUISITION",
+            "CONFIRMATION_PAIEMENT": "ACQUISITION",
+            "CONTACT_COORDONNEES": "ACQUISITION",
+            "PRODUIT_GLOBAL": "SHOPPING",
+            "INFO_GENERALE": "REASSURANCE",
+            "QUESTION_PAIEMENT": "REASSURANCE",
+            "PAIEMENT": "ACQUISITION",
+            "LIVRAISON": "SHOPPING",
+            "PRIX_PROMO": "SHOPPING",
+            "SALUT": "REASSURANCE",
+            "CLARIFICATION": "REASSURANCE",
+            "COMMANDE_EXISTANTE": "SAV_SUIVI",
+            "PROBLEME": "SAV_SUIVI",
+            "PROBLEME_LIVRAISON": "SAV_SUIVI",
+        }
+        if upper in v5_mode_mapping:
+            return v5_mode_mapping[upper]
+        # Fallback V5
+        if is_complete:
+            return "SAV_SUIVI"
+        return "REASSURANCE"
+
+    # V4: comportement legacy
     mode_mapping = {
         "ACHAT_COMMANDE": "COMMANDE",
         "CONFIRMATION_PAIEMENT": "COMMANDE",
@@ -675,6 +721,15 @@ class ProductionPipeline:
         result: Optional[BotliveRoutingResult] = None
 
         forced_intent = kwargs.pop("forced_intent", None)
+
+        # Mode DIRECT: désactive SetFit/HYDE/dual routers.
+        # Utile quand le prompt global suffit et qu'on veut minimiser la latence.
+        if forced_intent is None:
+            try:
+                if _routing_mode() == "direct" or _truthy_env("BOTLIVE_DISABLE_ROUTING", "false"):
+                    forced_intent = "SHOPPING"
+            except Exception:
+                pass
 
         # Normalize positional args to kwargs to avoid passing hyde_pre_enabled twice
         # Expected positional order: company_id, user_id, message, conversation_history, state_compact, hyde_pre_enabled

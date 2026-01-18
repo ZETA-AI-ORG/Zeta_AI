@@ -103,10 +103,19 @@ stop_words = {
 def get_meilisearch_client():
     """Obtient le client MeiliSearch"""
     try:
-        client = meilisearch.Client(
-            os.getenv("MEILI_URL", "http://127.0.0.1:7700"),
-            os.getenv("MEILI_MASTER_KEY", "Bac2018mado@2066")
+        meili_url = os.getenv("MEILI_URL")
+        if not meili_url:
+            logger.error("❌ MEILI_URL manquant: configure MEILI_URL (ex: https://meili.zetaapp.xyz). Aucun fallback localhost n'est autorisé.")
+            return None
+        # IMPORTANT: ne jamais hardcoder de clé en fallback.
+        meili_key = (
+            os.getenv("MEILI_MASTER_KEY")
+            or os.getenv("MEILI_API_KEY")
+            or os.getenv("MEILI_KEY")
+            or ""
         )
+
+        client = meilisearch.Client(meili_url, meili_key)
         return client
     except Exception as e:
         logger.error(f"❌ Erreur client MeiliSearch: {e}")
@@ -332,6 +341,14 @@ async def search_all_indexes_parallel(query: str, company_id: str, limit: int = 
     main_indexes = [f"products_{company_id}", f"delivery_{company_id}", f"support_paiement_{company_id}", f"localisation_{company_id}"]
     fallback_index = f"company_docs_{company_id}"
     ngrams = _generate_ngrams(query, max_n=3, min_n=1)
+    # ⚡ Protection: limiter la combinatoire n-grams × index pour éviter de saturer Meili
+    # (surtout en environnement cloud / Render où les connexions peuvent être reset).
+    try:
+        max_ngrams = int(os.getenv("MEILI_MAX_NGRAMS", "12") or 12)
+        if max_ngrams > 0 and len(ngrams) > max_ngrams:
+            ngrams = ngrams[:max_ngrams]
+    except Exception:
+        pass
     # Affichage des n-grams en 2 colonnes verticales
     ngram_display = "\n".join([f"  {i+1:2d}. {ngram}" for i, ngram in enumerate(ngrams)])
     logger.info(f"🔤 [MEILI_DEBUG] N-grammes générés ({len(ngrams)}):")
@@ -341,21 +358,39 @@ async def search_all_indexes_parallel(query: str, company_id: str, limit: int = 
     for i, ngram in enumerate(ngrams, 1):
         print(f"  {i}. {ngram}")
     
-    def search_single(ngram: str, index_name: str):
-        try:
-            index = client.index(index_name)
-            result = index.search(ngram, {'limit': 5, 'attributesToRetrieve': ['content', 'id', 'type', 'searchable_text']})
-            return {'ngram': ngram, 'index': index_name, 'hits': result.get('hits', []), 'success': True}
-        except Exception as e:
-            logger.error(f"❌ Erreur recherche MeiliSearch: ngram='{ngram}' index='{index_name}' error={e}")
-            return {'ngram': ngram, 'index': index_name, 'hits': [], 'success': False}
+    def search_ngram_index(ngram: str, index_name: str) -> Dict[str, Any]:
+        # Retry léger: Meili cloud peut reset des connexions sous charge.
+        for attempt in range(3):
+            try:
+                index = client.index(index_name)
+                result = index.search(
+                    ngram,
+                    {
+                        'limit': 5,
+                        'attributesToRetrieve': ['content', 'id', 'type', 'searchable_text'],
+                    },
+                )
+                return {'ngram': ngram, 'index': index_name, 'hits': result.get('hits', []), 'success': True}
+            except Exception as e:
+                if attempt < 2:
+                    time.sleep(0.15 * (attempt + 1))
+                    continue
+                logger.error(f"❌ Erreur recherche MeiliSearch: ngram='{ngram}' index='{index_name}' error={e}")
+                return {'ngram': ngram, 'index': index_name, 'hits': [], 'success': False}
     
     all_tasks = [(ng, idx) for ng in ngrams for idx in main_indexes]
     logger.info(f"🔄 [MEILI_DEBUG] Recherche parallèle: {len(all_tasks)} tâches sur {len(main_indexes)} index")
     
     all_results = []
-    with ThreadPoolExecutor(max_workers=15) as executor:
-        futures = {executor.submit(search_single, ng, idx): (ng, idx) for ng, idx in all_tasks}
+    try:
+        max_workers = int(os.getenv("MEILI_MAX_WORKERS", "6") or 6)
+        if max_workers < 1:
+            max_workers = 1
+    except Exception:
+        max_workers = 6
+
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = [executor.submit(search_ngram_index, ng, idx) for ng, idx in all_tasks]
         for future in as_completed(futures):
             all_results.append(future.result())
     
@@ -388,7 +423,7 @@ async def search_all_indexes_parallel(query: str, company_id: str, limit: int = 
     
     if not all_documents:
         for ngram in ngrams:
-            res = search_single(ngram, fallback_index)
+            res = search_ngram_index(ngram, fallback_index)
             if res['success'] and res['hits']:
                 for hit in res['hits']:
                     # Choisir le champ le plus rempli (plus d'informations) - Fallback aussi

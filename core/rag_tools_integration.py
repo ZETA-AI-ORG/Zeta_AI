@@ -33,12 +33,15 @@ def extract_thinking_and_response(llm_output: str, user_id: str = None, company_
     """
     thinking = ""
     response_clean = llm_output
+    has_thinking_tag = False
+    has_response_tag = False
     
     try:
         # ═══ EXTRACTION <thinking> ═══
         thinking_match = re.search(r'<thinking>(.*?)</thinking>', llm_output, re.DOTALL | re.IGNORECASE)
         if thinking_match:
             thinking = thinking_match.group(1).strip()
+            has_thinking_tag = True
             logger.debug(f"🧠 [THINKING EXTRACTED] {len(thinking)} chars")
             
             # ✅ CRITIQUE: Exécuter outils dans thinking (notepad, calculator)
@@ -53,6 +56,7 @@ def extract_thinking_and_response(llm_output: str, user_id: str = None, company_
         response_match = re.search(r'<response>\s*(.*?)\s*</response>', llm_output, re.DOTALL | re.IGNORECASE)
         if response_match:
             response_clean = response_match.group(1).strip()
+            has_response_tag = True
             logger.info(f"✅ [RESPONSE EXTRACTED] {len(response_clean)} chars (avant: {len(llm_output)} chars)")
         else:
             # Fallback: Supprimer <thinking> si pas de <response>
@@ -61,10 +65,13 @@ def extract_thinking_and_response(llm_output: str, user_id: str = None, company_
             if '<response>' in llm_output.lower():
                 logger.warning(f"⚠️ [RESPONSE] Balise <response> détectée mais extraction échouée (format invalide)")
             else:
-                logger.warning(f"⚠️ [RESPONSE] Pas de balise <response>, fallback nettoyage <thinking>")
+                # Sortie "plain text" (pas de balises) : ne pas polluer les logs.
+                if has_thinking_tag:
+                    logger.warning(f"⚠️ [RESPONSE] Pas de balise <response>, fallback nettoyage <thinking>")
         
         # 🧠 SMART CONTEXT MANAGER - Architecture Hybride (4 Cerveaux)
-        if user_id and company_id:
+        # Évite double processing si on reçoit déjà une réponse nettoyée (sans <thinking>).
+        if user_id and company_id and has_thinking_tag:
             try:
                 from core.smart_context_manager import SmartContextManager
                 
@@ -305,6 +312,11 @@ def process_llm_response(llm_output: str, user_id: str = None, company_id: str =
         result["response"] = response_with_tools
         result["thinking"] = thinking
         print(f"🔍 [PROCESS_LLM] Thinking extrait (mode complet): {len(thinking)} chars")
+
+        # Si pas de <thinking> dans la sortie, on évite ThinkingParser/Tracker.
+        # (Typiquement quand process_llm_response est rappelé sur une réponse déjà nettoyée.)
+        if not (thinking or "").strip():
+            return result
         
         # 🧠 PUZZLE 5: Parser le thinking YAML
         try:

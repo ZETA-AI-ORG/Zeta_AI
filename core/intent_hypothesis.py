@@ -22,8 +22,8 @@ _GUIDANCE: Dict[int, str] = {
 }
 
 _DEFAULT_GUIDANCE = (
-    "Guidage: rester focalisé sur le processus commande. "
-    "Étapes: PRODUIT → PAIEMENT (2000F) → ZONE → NUMÉRO. "
+    "Guidage: répondre simplement à la question (sans pousser la commande si le client ne l'a pas demandé). "
+    "Si le client veut commander, alors demander les informations manquantes. "
     "Répondre en 2-3 phrases max."
 )
 
@@ -44,6 +44,11 @@ def build_intent_hypothesis(message: str) -> str:
     if not msg:
         return ""
     try:
+        msg_lc = msg.lower()
+        is_greeting = (
+            len(msg_lc) <= 40
+            and any(w in msg_lc for w in ["salut", "bonjour", "bonsoir", "coucou", "hello", "cc", "yo"]) 
+        )
         router = _get_router()
         res = router.route(msg, top_k=3)
         best_id = int(res.get("intent_id") or 0)
@@ -54,7 +59,10 @@ def build_intent_hypothesis(message: str) -> str:
         topk_str = ", ".join(
             f"{it.get('intent_name','?')}({it.get('confidence',0.0):.2f})" for it in topk[1:3]
         )
-        guidance = _GUIDANCE.get(best_id, _DEFAULT_GUIDANCE)
+        if is_greeting or any(w in best_name.lower() for w in ["salut", "politesse", "bonjour", "bonsoir"]):
+            guidance = "Guidage: saluer chaleureusement et demander comment aider. Ne pas parler de commande."
+        else:
+            guidance = _GUIDANCE.get(best_id, _DEFAULT_GUIDANCE)
 
         block = (
             "═══ INTENT HYPOTHÈSE\n"

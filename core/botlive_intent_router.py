@@ -51,16 +51,25 @@ async def route_botlive_intent(
             pass
         return res
     except Exception as e:
-        logger.error(f"[ROUTER] Fallback embeddings legacy: {e}")
-        res = await _route_embeddings(company_id, user_id, message, conversation_history, state_compact, hyde_pre_enabled)
+        logger.error(f"[ROUTER] Erreur SetFit (pas de fallback embeddings): {e}")
         try:
-            if isinstance(getattr(res, "debug", None), dict):
-                res.debug.setdefault("router", "embeddings")
-                res.debug["router_source"] = "embeddings_fallback_error"
-                res.debug["router_fallback_error"] = str(e)
+            return BotliveRoutingResult(
+                intent="REASSURANCE",
+                confidence=0.5,
+                intent_group="REASSURANCE",
+                mode="REASSURANCE",
+                missing_fields=[],
+                state=state_compact or {},
+                debug={
+                    "router": "setfit",
+                    "router_source": "setfit_error_fallback",
+                    "router_error": str(e),
+                },
+            )
         except Exception:
-            pass
-        return res
+            # Dernier recours: re-raise si la dataclass n'est pas instanciable pour une raison quelconque.
+            raise
+
 
 # Pour compatibilité :
 # from core.botlive_intent_router import get_delivery_delay_similarity
@@ -87,7 +96,7 @@ from core.embedding_service import get_embedding_service
 logger = logging.getLogger(__name__)
 
 @dataclass
-class BotliveRoutingResult:
+class _DeprecatedBotliveRoutingResult:
     intent: str
     confidence: float
     mode: str
@@ -823,14 +832,14 @@ def _determine_mode_from_intent(intent: str, *, is_complete: bool, collected_cou
     return "GUIDEUR" if collected_count > 0 else "RECEPTION_SAV"
 
 
-async def route_botlive_intent(
+async def _route_botlive_intent_legacy(
     company_id: str,
     user_id: str,
     message: str,
     conversation_history: str,
     state_compact: Dict[str, Any],
     hyde_pre_enabled: bool | None = None,
-) -> BotliveRoutingResult:
+) -> _DeprecatedBotliveRoutingResult:
     """Router d'intention Botlive basé sur embeddings HuggingFace + HYDE pré-routage."""
 
     ctx: Dict[str, Any] = {
@@ -913,7 +922,7 @@ async def route_botlive_intent(
         "routed_message": routed_message,
     }
 
-    return BotliveRoutingResult(
+    return _DeprecatedBotliveRoutingResult(
         intent=upper_intent,
         confidence=confidence,
         mode=mode,

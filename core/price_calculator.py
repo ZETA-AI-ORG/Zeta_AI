@@ -5,7 +5,7 @@ Système de calcul automatique des prix pour les couches avec frais de livraison
 """
 
 import re
-from typing import Dict, List, Tuple, Optional
+from typing import Any, Dict, List, Tuple, Optional
 from dataclasses import dataclass
 
 @dataclass
@@ -153,6 +153,339 @@ class UniversalPriceCalculator:
             return quantity, "adultes"
         else:
             return quantity, "pression"
+
+    @staticmethod
+    def _parse_int(s: str) -> Optional[int]:
+        try:
+            return int(str(s).strip())
+        except Exception:
+            return None
+
+    @staticmethod
+    def _extract_size_t1_t7(text: str) -> str:
+        t = str(text or "").lower()
+        m = re.search(r"\b(?:taille\s*)?([1-7])\b", t)
+        if m:
+            return f"taille {m.group(1)}"
+        m = re.search(r"\b(?:t)([1-7])\b", t)
+        if m:
+            return f"taille {m.group(1)}"
+        return ""
+
+    @staticmethod
+    def build_price_calculation_block_from_detected_items(
+        *,
+        items: List[Dict[str, Any]],
+        zone: str,
+        delivery_fee_fcfa: Optional[int] = None,
+    ) -> str:
+        try:
+            zone_s = str(zone or "").strip()
+            delivery_fee = int(delivery_fee_fcfa) if delivery_fee_fcfa is not None else 0
+
+            def _canon_product(v: str) -> str:
+                s = str(v or "").strip().lower()
+                if s in {"pressions", "pression"}:
+                    return "pressions"
+                if s in {"culottes", "culotte"}:
+                    return "culottes"
+                return ""
+
+            def _canon_specs_t(v: str) -> str:
+                s = str(v or "").strip().upper()
+                m = re.fullmatch(r"T([1-7])", s)
+                if m:
+                    return f"T{m.group(1)}"
+                return ""
+
+            def _canon_unit(v: str) -> str:
+                s = str(v or "").strip().lower()
+                if s in {"lot", "lots"}:
+                    return "lot"
+                if s in {"paquet", "paquets", "pack", "packs"}:
+                    return "paquet"
+                return ""
+
+            def _get_int_or_none(v) -> Optional[int]:
+                if v is None:
+                    return None
+                if isinstance(v, bool):
+                    return None
+                if isinstance(v, int):
+                    return v
+                if isinstance(v, float) and v.is_integer():
+                    return int(v)
+                if isinstance(v, str):
+                    m = re.fullmatch(r"\s*(\d+)\s*", v)
+                    if m:
+                        return int(m.group(1))
+                return None
+
+            pressions_prices = {
+                "T1": 17900,
+                "T2": 18900,
+                "T3": 22900,
+                "T4": 25900,
+                "T5": 25900,
+                "T6": 27900,
+                "T7": 28900,
+            }
+
+            culottes_prices_by_packs = {
+                # Aligner avec build_price_calculation_block_for_rue_du_grossiste (mono-produit)
+                1: 5500,
+                2: 9800,
+                3: 13500,
+                6: 25000,
+                12: 48000,
+                48: 168000,
+            }
+
+            normalized: List[Dict[str, Any]] = []
+            for raw in (items or []):
+                if not isinstance(raw, dict):
+                    continue
+                p = _canon_product(raw.get("product"))
+                specs = _canon_specs_t(raw.get("specs"))
+                unit = _canon_unit(raw.get("unit"))
+                qty = _get_int_or_none(raw.get("qty"))
+                normalized.append({"product": p, "specs": specs, "unit": unit, "qty": qty})
+
+            if not normalized:
+                return ""
+
+            lines: List[str] = []
+            subtotal_products = 0
+
+            for idx, it in enumerate(normalized, start=1):
+                p = str(it.get("product") or "")
+                specs = str(it.get("specs") or "")
+                unit = str(it.get("unit") or "")
+                qty = it.get("qty")
+
+                if not p or not specs or unit not in {"lot", "paquet"} or not isinstance(qty, int) or qty <= 0:
+                    return ""
+
+                if p == "pressions":
+                    if unit != "lot":
+                        return ""
+                    unit_price = int(pressions_prices.get(specs) or 0)
+                    if unit_price <= 0:
+                        return ""
+                    item_subtotal = unit_price * qty
+                    subtotal_products += item_subtotal
+                    lines.append(
+                        "  <item>\n"
+                        f"    <index>{idx}</index>\n"
+                        "    <product>PRESSIONS</product>\n"
+                        f"    <size>{UniversalPriceCalculator._xml_escape(specs)}</size>\n"
+                        f"    <qty_lots>{qty}</qty_lots>\n"
+                        f"    <unit_price_fcfa>{unit_price}</unit_price_fcfa>\n"
+                        f"    <subtotal_fcfa>{item_subtotal}</subtotal_fcfa>\n"
+                        "  </item>"
+                    )
+                elif p == "culottes":
+                    if unit != "paquet":
+                        return ""
+                    if qty not in culottes_prices_by_packs:
+                        return ""
+                    item_subtotal = int(culottes_prices_by_packs.get(qty) or 0)
+                    if item_subtotal <= 0:
+                        return ""
+                    subtotal_products += item_subtotal
+                    lines.append(
+                        "  <item>\n"
+                        f"    <index>{idx}</index>\n"
+                        "    <product>CULOTTES</product>\n"
+                        f"    <size>{UniversalPriceCalculator._xml_escape(specs)}</size>\n"
+                        f"    <qty_packs>{qty}</qty_packs>\n"
+                        f"    <subtotal_fcfa>{item_subtotal}</subtotal_fcfa>\n"
+                        "  </item>"
+                    )
+                else:
+                    return ""
+
+            delivery_known = bool(zone_s) and (delivery_fee_fcfa is not None)
+            total = int(subtotal_products) + (int(delivery_fee) if delivery_known else 0)
+            if delivery_known:
+                ready = (
+                    f"Le total fait {UniversalPriceCalculator._fmt_fcfa(total)}F"
+                    + f" (produits {UniversalPriceCalculator._fmt_fcfa(subtotal_products)}F"
+                    + f" + livraison {UniversalPriceCalculator._fmt_fcfa(delivery_fee)}F)."
+                )
+            else:
+                ready = f"Le total produits fait {UniversalPriceCalculator._fmt_fcfa(subtotal_products)}F."
+
+            return (
+                "  <status>OK</status>\n"
+                "  <mode>MULTI_ITEMS</mode>\n"
+                + "\n".join(lines)
+                + "\n"
+                + f"  <product_subtotal_fcfa>{int(subtotal_products)}</product_subtotal_fcfa>\n"
+                + f"  <delivery_fee_fcfa>{int(delivery_fee) if delivery_known else 0}</delivery_fee_fcfa>\n"
+                + f"  <total_fcfa>{int(total)}</total_fcfa>\n"
+                + f"  <zone>{UniversalPriceCalculator._xml_escape(zone_s)}</zone>\n"
+                + f"  <ready_to_send>{UniversalPriceCalculator._xml_escape(ready)}</ready_to_send>"
+            )
+        except Exception:
+            return ""
+
+    @staticmethod
+    def _extract_quantity_int(text: str) -> Optional[int]:
+        t = str(text or "")
+        m = re.search(r"\b(\d+)\b", t)
+        if not m:
+            return None
+        return UniversalPriceCalculator._parse_int(m.group(1))
+
+    @staticmethod
+    def _xml_escape(s: str) -> str:
+        s = str(s or "")
+        return (
+            s.replace("&", "&amp;")
+            .replace("<", "&lt;")
+            .replace(">", "&gt;")
+            .replace('"', "&quot;")
+        )
+
+    @staticmethod
+    def _fmt_fcfa(n: int) -> str:
+        try:
+            return f"{int(n):,}".replace(",", ".")
+        except Exception:
+            return str(n)
+
+    @staticmethod
+    def build_price_calculation_block_for_rue_du_grossiste(
+        *,
+        produit: str,
+        specs: str,
+        quantite: str,
+        zone: str,
+        delivery_fee_fcfa: Optional[int],
+    ) -> str:
+        produit_l = str(produit or "").strip().lower()
+        specs_l = str(specs or "").strip().lower()
+        quant_l = str(quantite or "").strip().lower()
+        zone_s = str(zone or "").strip()
+
+        is_culottes = "culott" in produit_l
+        is_pression = ("pression" in produit_l) or ("press" in produit_l)
+
+        if not (is_culottes or is_pression):
+            return ""
+
+        q = UniversalPriceCalculator._extract_quantity_int(quant_l)
+        if q is None:
+            return ""
+
+        delivery_fee = 0
+        if isinstance(delivery_fee_fcfa, int) and delivery_fee_fcfa >= 0:
+            delivery_fee = int(delivery_fee_fcfa)
+
+        if is_culottes:
+            allowed = [1, 2, 3, 6, 12, 48]
+            prices = {1: 5500, 2: 9800, 3: 13500, 6: 25000, 12: 48000, 48: 168000}
+
+            if q not in prices:
+                below = [x for x in allowed if x < q]
+                above = [x for x in allowed if x > q]
+                s1 = below[-1] if below else (above[0] if above else allowed[0])
+                s2 = above[0] if above else (below[-1] if below else allowed[-1])
+                ready = (
+                    "Pour les culottes, les quantités dispo c’est 1, 2, 3, 6, 12 ou 48 paquets. "
+                    f"Tu préfères {s1} ou {s2} paquets ?"
+                )
+                return (
+                    "  <status>INVALID_QUANTITY</status>\n"
+                    "  <product>CULOTTES</product>\n"
+                    f"  <requested_quantity_packs>{q}</requested_quantity_packs>\n"
+                    f"  <allowed_quantities>{','.join(str(x) for x in allowed)}</allowed_quantities>\n"
+                    f"  <suggested_quantities>{s1},{s2}</suggested_quantities>\n"
+                    f"  <delivery_fee_fcfa>{delivery_fee}</delivery_fee_fcfa>\n"
+                    f"  <zone>{UniversalPriceCalculator._xml_escape(zone_s)}</zone>\n"
+                    f"  <ready_to_send>{UniversalPriceCalculator._xml_escape(ready)}</ready_to_send>"
+                )
+
+            subtotal = int(prices[q])
+            total = subtotal + delivery_fee
+            ready = (
+                f"Pour {q} paquet{'s' if q > 1 else ''} de culottes"
+                + (
+                    f" + livraison {zone_s} ({UniversalPriceCalculator._fmt_fcfa(delivery_fee)}F)"
+                    if zone_s and delivery_fee
+                    else ""
+                )
+                + f", le total fait {UniversalPriceCalculator._fmt_fcfa(total)}F ✅"
+            )
+
+            return (
+                "  <status>OK</status>\n"
+                "  <product>CULOTTES</product>\n"
+                f"  <quantity_packs>{q}</quantity_packs>\n"
+                f"  <product_subtotal_fcfa>{subtotal}</product_subtotal_fcfa>\n"
+                f"  <delivery_fee_fcfa>{delivery_fee}</delivery_fee_fcfa>\n"
+                f"  <total_fcfa>{total}</total_fcfa>\n"
+                f"  <zone>{UniversalPriceCalculator._xml_escape(zone_s)}</zone>\n"
+                f"  <ready_to_send>{UniversalPriceCalculator._xml_escape(ready)}</ready_to_send>"
+            )
+
+        if is_pression:
+            taille = UniversalPriceCalculator._extract_size_t1_t7(specs_l) or UniversalPriceCalculator._extract_size_t1_t7(produit_l)
+            if not taille:
+                return ""
+
+            prices = {
+                "taille 1": 17900,
+                "taille 2": 18900,
+                "taille 3": 22900,
+                "taille 4": 25900,
+                "taille 5": 25900,
+                "taille 6": 27900,
+                "taille 7": 28900,
+            }
+
+            if q != 6:
+                ready = "Les pressions sont vendues uniquement par lot de 6 paquets. Tu veux 6 paquets (1 lot) ?"
+                return (
+                    "  <status>INVALID_QUANTITY</status>\n"
+                    "  <product>PRESSIONS</product>\n"
+                    f"  <size>{UniversalPriceCalculator._xml_escape(taille)}</size>\n"
+                    f"  <requested_quantity_packs>{q}</requested_quantity_packs>\n"
+                    "  <allowed_quantities>6</allowed_quantities>\n"
+                    f"  <delivery_fee_fcfa>{delivery_fee}</delivery_fee_fcfa>\n"
+                    f"  <zone>{UniversalPriceCalculator._xml_escape(zone_s)}</zone>\n"
+                    f"  <ready_to_send>{UniversalPriceCalculator._xml_escape(ready)}</ready_to_send>"
+                )
+
+            subtotal = int(prices.get(taille) or 0)
+            if subtotal <= 0:
+                return ""
+
+            total = subtotal + delivery_fee
+            ready = (
+                f"Pour 1 lot (6 paquets) de pressions {taille}"
+                + (
+                    f" + livraison {zone_s} ({UniversalPriceCalculator._fmt_fcfa(delivery_fee)}F)"
+                    if zone_s and delivery_fee
+                    else ""
+                )
+                + f", le total fait {UniversalPriceCalculator._fmt_fcfa(total)}F ✅"
+            )
+
+            return (
+                "  <status>OK</status>\n"
+                "  <product>PRESSIONS</product>\n"
+                f"  <size>{UniversalPriceCalculator._xml_escape(taille)}</size>\n"
+                "  <quantity_packs>6</quantity_packs>\n"
+                f"  <product_subtotal_fcfa>{subtotal}</product_subtotal_fcfa>\n"
+                f"  <delivery_fee_fcfa>{delivery_fee}</delivery_fee_fcfa>\n"
+                f"  <total_fcfa>{total}</total_fcfa>\n"
+                f"  <zone>{UniversalPriceCalculator._xml_escape(zone_s)}</zone>\n"
+                f"  <ready_to_send>{UniversalPriceCalculator._xml_escape(ready)}</ready_to_send>"
+            )
+
+        return ""
     
     def extract_size_from_text(self, text: str, product_type: str) -> str:
         """Extrait la taille du produit du texte"""

@@ -1,1 +1,53 @@
-turn,message,conversation_history,intent,confidence,mode,missing_fields,state
+turn,question,llm_thinking,llm_response,duration_ms,prompt_tokens,completion_tokens,total_tokens,cached_tokens,cost
+1,Bonjour,,Bonjour ! 👋 Rue du Grossiste est là pour vous. Comment puis-je vous aider aujourd'hui ?,52566,0,0,0,0,0.0
+2,Salut ça va,,"Ça va bien, merci ! 👋 Pour vous servir au mieux, envoyez-moi une photo du produit qui vous intéresse.",18160,0,0,0,0,0.0
+3,Cc,,Salut ! 👋 Comment puis-je vous aider aujourd'hui ?,16025,0,0,0,0,0.0
+4,Merci beaucoup,,"De rien ! 😊 Pour vous aider au mieux, envoyez-moi une photo du produit qui vous intéresse.",14667,0,0,0,0,0.0
+5,D'accord merci,,"De rien ! 😊 Pour vous aider au mieux, envoyez-moi une photo du produit qui vous intéresse.",14996,0,0,0,0,0.0
+6,Vous êtes situé où exactement,,"Nous sommes une boutique 100% en ligne. 💻 Pour vous aider au mieux, envoyez-moi une photo du produit qui vous intéresse.",20955,0,0,0,0,0.0
+7,C'est où votre boutique,,"Nous sommes une boutique 100% en ligne. 💻 Pour vous aider au mieux, envoyez-moi une photo du produit qui vous intéresse.",17725,0,0,0,0,0.0
+8,Vous êtes à Abidjan,,"Super ! 🎉 Pour vous préparer la meilleure offre, envoyez-moi une photo du produit qui vous intéresse.",16433,0,0,0,0,0.0
+9,Je peux venir à la boutique (Point de vente),,"Nous sommes une boutique 100% en ligne. 💻 Pour vous aider au mieux, envoyez-moi une photo du produit qui vous intéresse.",15822,0,0,0,0,0.0
+10,Vous êtes en ligne seulement,,"C'est exact ! Nous sommes une boutique 100% en ligne. 💻 Pour vous aider au mieux, envoyez-moi une photo du produit qui vous intéresse.",17141,0,0,0,0,0.0
+11,Vous livrez dans quelle zone,,"Nous livrons à Abidjan uniquement. 📍 Pour commencer, envoyez-moi une photo du produit qui vous intéresse.",14610,0,0,0,0,0.0
+12,Vous livrez à Yopougon,,"Oui, nous livrons à Yopougon ! ✅ Pour continuer, quel est votre numéro de téléphone (Wave) pour la commande ? 📱",16236,0,0,0,0,0.0
+13,Comment se passe la livraison,,"La livraison se fait à Abidjan, le lendemain de votre commande. 📦 Pour commencer, envoyez-moi une photo du produit qui vous intéresse.",14578,0,0,0,0,0.0
+14,La livraison c'est combien,,"Les frais de livraison dépendent de votre zone/commune. Pouvez-vous me dire votre quartier (ex: Cocody, Yopougon, Abobo…) ?",11699,0,0,0,0,0.0
+15,Je veux être livré demain,,"Super ! 🎉 Pour vous préparer la meilleure offre, envoyez-moi une photo du produit qui vous intéresse.",14603,0,0,0,0,0.0
+16,La livraison prend combien de temps,,"Les frais de livraison dépendent de votre zone/commune. Pouvez-vous me dire votre quartier (ex: Cocody, Yopougon, Abobo…) ?",12035,0,0,0,0,0.0
+17,Je veux changer l'adresse de livraison,,"Pour toute modification, merci de me renvoyer une photo du produit souhaité. Ensuite, je pourrai vous aider.",17197,0,0,0,0,0.0
+18,Vous êtes ouvert jusqu'à quelle heure,,"Nous sommes ouverts 24h/7j ! 🎉 Pour commencer, envoyez-moi une photo du produit qui vous intéresse.",17722,0,0,0,0,0.0
+19,Vous travaillez le dimanche,,"Nous sommes ouverts 24h/7j ! 🎉 Pour commencer, envoyez-moi une photo du produit qui vous intéresse.",18020,0,0,0,0,0.0
+20,C'est combien le paquet,,"Pour connaître le prix, envoyez-moi une photo du paquet de couches qui vous intéresse. 📸",23552,0,0,0,0,0.0
+21,C'est combien dans le paquet (Quantité unité),,"Pour connaître la quantité, envoyez-moi une photo du paquet de couches qui vous intéresse. 📸",16975,0,0,0,0,0.0
+22,Prix en gros pour 10 paquets,,"Pour vous donner le prix en gros, j'ai besoin de voir le paquet de couches. Envoyez-moi une photo svp ! 📸",14449,0,0,0,0,0.0
+23,Vous avez des promotions,,"Nous avons toujours des offres intéressantes ! Pour vous montrer les promotions, envoyez-moi une photo du produit qui vous intéresse. 📸",20606,0,0,0,0,0.0
+24,Le prix a changé ou pas,,"Pour vous informer sur le prix, j'ai besoin de voir le paquet de couches. Envoyez-moi une photo svp ! 📸",20746,0,0,0,0,0.0
+25,Vous avez un catalogue,,"Nous n'avons pas de catalogue physique, mais envoyez-moi une photo du produit qui vous intéresse pour que je vous donne les prix en gros ! 📸",15598,0,0,0,0,0.0
+26,Vous avez quoi en stock actuellement,,"Pour connaître notre stock, envoyez-moi une photo du produit qui vous intéresse ! 📸",18565,0,0,0,0,0.0
+27,Vous avez des couches taille 4,,"Pour vous montrer nos couches taille 4, envoyez-moi une photo du paquet svp ! 📸",17083,0,0,0,0,0.0
+28,Les couches à pression sont disponibles,,"Super ! 🎉 Pour vous préparer la meilleure offre, envoyez-moi une photo du produit qui vous intéresse. 📸",16681,0,0,0,0,0.0
+29,Les couches nouveau-né vous avez,,"Pour vous montrer nos couches nouveau-né, envoyez-moi une photo du paquet svp ! 📸",23708,0,0,0,0,0.0
+30,Vous avez des couches adultes,,"Bonjour ! Oui, nous avons des couches adultes. Pour vous montrer les options disponibles, envoyez-moi une photo du paquet svp ! 📸",17265,0,0,0,0,0.0
+31,Y'a des couches culottes,,"Oui, nous avons des couches culottes ! Pour vous montrer les options, envoyez-moi une photo du paquet svp ! 📸",16540,0,0,0,0,0.0
+32,C'est pour quel âge ces couches,,"Nos couches sont disponibles pour tous les âges, du nouveau-né aux adultes ! Pour vous montrer les options, envoyez-moi une photo du paquet svp ! 📸",16531,0,0,0,0,0.0
+33,Quelle est la différence entre les modèles,,"Nos modèles s'adaptent à différents besoins. Pour vous montrer les options, envoyez-moi une photo du produit qui vous intéresse ! 📸",17120,0,0,0,0,0.0
+34,C'est disponible maintenant ou en rupture,,"Nous sommes ouverts 24h/7j, toujours disponibles ! Pour vous montrer les options, envoyez-moi une photo du produit qui vous intéresse ! 📸",17304,0,0,0,0,0.0
+35,Je veux commander,,"Super ! 🎉 Pour vous préparer la meilleure offre, envoyez-moi une photo du produit qui vous intéresse.",16305,0,0,0,0,0.0
+36,Comment faire pour acheter,,"Super ! 🎉 Pour vous préparer la meilleure offre, envoyez-moi une photo du produit qui vous intéresse.",15707,0,0,0,0,0.0
+37,Réserve-moi 2 cartons,,"Super ! 🎉 Pour vous préparer la meilleure offre, envoyez-moi une photo du produit qui vous intéresse. 📸",14934,0,0,0,0,0.0
+38,Je reviens pour commander plus tard,,Pas de souci ! Nous serons là quand vous serez prêt. N'hésitez pas si vous avez des questions entre-temps. 😊,16569,0,0,0,0,0.0
+39,Vous acceptez quoi comme paiement,,"Nous acceptons uniquement Wave pour le paiement. 🌊 Pour commencer votre commande, envoyez-moi une photo du produit qui vous intéresse ! 📸",16041,0,0,0,0,0.0
+40,Je peux payer avec Wave,,"Wave est notre seul moyen de paiement ! 🌊 Pour commencer votre commande, envoyez-moi une photo du produit qui vous intéresse. 📸",15953,0,0,0,0,0.0
+41,Vous prenez Orange Money,,"Nous acceptons uniquement Wave pour le paiement. 🌊 Pour commencer votre commande, envoyez-moi une photo du produit qui vous intéresse ! 📸",19548,0,0,0,0,0.0
+42,Paiement à la livraison possible,,"Nous acceptons uniquement Wave pour le paiement. 🌊 Pour commencer votre commande, envoyez-moi une photo du produit qui vous intéresse ! 📸",14304,0,0,0,0,0.0
+43,Vous acceptez les espèces,,"Nous acceptons uniquement Wave pour le paiement. 🌊 Pour commencer votre commande, envoyez-moi une photo du produit qui vous intéresse ! 📸",15304,0,0,0,0,0.0
+44,Quel est votre numéro / WhatsApp,,"Notre numéro WhatsApp est le 0787360757. 📲 Pour commencer votre commande, envoyez-moi une photo du produit qui vous intéresse ! 📸",18183,0,0,0,0,0.0
+45,Je peux vous appeler,,"Vous pouvez me joindre sur WhatsApp au 0787360757. 📲 Pour commencer votre commande, envoyez-moi une photo du produit qui vous intéresse ! 📸",14731,0,0,0,0,0.0
+46,Je vous appelle mais pas de réponse,,"Je suis désolée pour le désagrément. Vous pouvez me joindre directement sur WhatsApp au 0787360757. 📲 Pour commencer votre commande, envoyez-moi une photo du produit qui vous intéresse ! 📸",16160,0,0,0,0,0.0
+47,Le paquet est abîmé,,TRANSMISSIONXXX,19097,0,0,0,0,0.0
+48,Les couches ne sont pas bonnes (Qualité),,Je suis désolée d'apprendre que la qualité des couches ne vous convient pas. 😔 Pourriez-vous me donner plus de détails sur le problème rencontré ?,14215,0,0,0,0,0.0
+49,Je n'ai pas reçu ma commande,,Je suis désolée d'apprendre que vous n'avez pas reçu votre commande. 😔 Pourriez-vous me donner votre numéro de commande ou le numéro de téléphone utilisé lors de la commande pour que je puisse vérifier ?,14525,0,0,0,0,0.0
+50,Je veux retourner le produit,,TRANSMISSIONXXX,15341,0,0,0,0,0.0
+51,Où est ma commande / Suivi colis,,"Je comprends votre impatience ! Pour retrouver votre commande, pourriez-vous me donner le numéro de téléphone utilisé lors de votre achat ? 📱",15719,0,0,0,0,0.0
+52,Le livreur ne répond pas,,TRANSMISSIONXXX,16458,0,0,0,0,0.0

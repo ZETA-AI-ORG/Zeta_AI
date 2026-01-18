@@ -7,6 +7,33 @@ from typing import Optional, Dict, Any
 from .rate_limiter import rate_limited_llm_call
 from .circuit_breaker import protected_groq_call
 import os
+from embedding_models import get_embedding_model
+
+_global_llm_client: Optional[Any] = None
+
+class OpenRouterLLMClient:
+    """Adapter minimal pour utiliser OpenRouter via llm_client_openrouter avec une API .complete()."""
+
+    async def complete(
+        self,
+        prompt: str,
+        model_name: Optional[str] = None,
+        temperature: float = 0.2,
+        max_tokens: int = 600,
+        top_p: Optional[float] = None,
+        frequency_penalty: Optional[float] = None,
+    ) -> Dict[str, Any]:
+        from core.llm_client_openrouter import complete as openrouter_complete
+
+        content, token_info = await openrouter_complete(
+            prompt,
+            model_name=model_name,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            top_p=float(top_p) if top_p is not None else 1.0,
+            frequency_penalty=frequency_penalty,
+        )
+        return {"response": content, "usage": token_info, "model": token_info.get("model")}
 
 class GroqLLMClient:
     """
@@ -25,6 +52,7 @@ class GroqLLMClient:
         temperature: float = 0.2,
         max_tokens: int = 100,
         top_p: Optional[float] = None,
+        frequency_penalty: Optional[float] = None,
     ) -> str:
         import httpx
         from utils import log3
@@ -66,6 +94,11 @@ class GroqLLMClient:
             }
             if top_p is not None:
                 payload["top_p"] = float(top_p)
+            if frequency_penalty is not None:
+                try:
+                    payload["frequency_penalty"] = float(frequency_penalty)
+                except Exception:
+                    pass
             # Log réduit - seulement le modèle et la taille
             log3("[LLM]", f"Groq {payload['model']} | {len(str(payload))} chars")
 
@@ -191,15 +224,25 @@ class GroqLLMClient:
             return data["choices"][0]["message"]["content"].strip()
 
 
-_global_llm_client: Optional[GroqLLMClient] = None
+def get_llm_client() -> Any:
+    """Retourne un singleton LLM client pour les modules utilitaires (ex: InterventionGuardian).
 
-
-def get_llm_client() -> GroqLLMClient:
-    """Retourne un singleton GroqLLMClient pour les modules utilitaires (ex: InterventionGuardian)."""
+    Si Groq n'est pas configuré (pas de GROQ_API_KEY), on bascule sur OpenRouter.
+    """
     global _global_llm_client
     if _global_llm_client is None:
-        _global_llm_client = GroqLLMClient()
+        forced_provider = (os.getenv("LLM_PROVIDER") or "").strip().lower()
+        groq_key_present = bool((os.getenv("GROQ_API_KEY") or os.getenv("GROK_API_KEY") or "").strip())
+        openrouter_key_present = bool((os.getenv("OPENROUTER_API_KEY") or "").strip())
+
+        if forced_provider in {"openrouter", "router"} and openrouter_key_present:
+            _global_llm_client = OpenRouterLLMClient()
+        elif (not groq_key_present) and openrouter_key_present:
+            _global_llm_client = OpenRouterLLMClient()
+        else:
+            _global_llm_client = GroqLLMClient()
     return _global_llm_client
+
 
 async def complete(
     prompt: str,
@@ -212,17 +255,38 @@ async def complete(
     Appel asynchrone à Groq avec rate limiting intégré
     """
     from utils import log3
-    
+
+    forced_provider = (os.getenv("LLM_PROVIDER") or "").strip().lower()
+    openrouter_key_present = bool((os.getenv("OPENROUTER_API_KEY") or "").strip())
+    groq_key_present = bool((os.getenv("GROQ_API_KEY") or os.getenv("GROK_API_KEY") or "").strip())
+    prefer_openrouter = (forced_provider in {"openrouter", "router"} and openrouter_key_present) or (
+        (not groq_key_present) and openrouter_key_present
+    )
+
+    if prefer_openrouter:
+        try:
+            client = get_llm_client()
+            out = await client.complete(
+                prompt=prompt,
+                model_name=model_name,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                top_p=top_p,
+            )
+            if isinstance(out, dict):
+                return str(out.get("response") or "").strip()
+            return str(out or "").strip()
+        except Exception as e:
+            log3("[LLM][ERROR]", str(e))
+            return f"[Erreur LLM] {str(e)}"
+
     # Fonction complete avec rate limiting
     async def _rate_limited_complete():
-        prompt_lines = prompt.splitlines()
-        to_show = '\n'.join(prompt_lines[:3]) + ('\n ...' if len(prompt_lines) > 3 else '')
         log3("Prompt", prompt)
         headers = {
             "Authorization": f"Bearer {GROQ_API_KEY or GROK_API_KEY}",
-            "Content-Type": "application/json"
+            "Content-Type": "application/json",
         }
-        # Normalize/alias model names
         model_aliases = {
             "llama3-8b-8192": "llama-3.1-8b-instant",
             "llama3-70b-8192": "llama-3.3-70b-versatile",
@@ -235,97 +299,36 @@ async def complete(
             "model": canonical_model,
             "messages": [
                 {"role": "system", "content": "Tu es un assistant expert."},
-                {"role": "user", "content": prompt}
+                {"role": "user", "content": prompt},
             ],
             "max_tokens": max_tokens,
-            "temperature": temperature
+            "temperature": temperature,
         }
         if top_p is not None:
             payload["top_p"] = float(top_p)
         print(f" [LLM] Envoi requête vers {GROQ_API_URL or GROK_API_URL}")
-        
+
         async with httpx.AsyncClient() as client:
             resp = await client.post(GROQ_API_URL or GROK_API_URL, json=payload, headers=headers, timeout=30)
             resp.raise_for_status()
             data = resp.json()
             response_text = data["choices"][0]["message"]["content"].strip()
-            print(f" [LLM] Réponse reçue")
-            log3("Réponse LLM", response_text)
-            return response_text
-    
-    # Fonction helper pour fallback avec modèle spécifique
-    async def _rate_limited_complete_with_model(fallback_model: str, top_p: Optional[float] = None):
-        prompt_lines = prompt.splitlines()
-        to_show = '\n'.join(prompt_lines[:3]) + ('\n ...' if len(prompt_lines) > 3 else '')
-        log3("Prompt", prompt)
-        headers = {
-            "Authorization": f"Bearer {GROQ_API_KEY or GROK_API_KEY}",
-            "Content-Type": "application/json"
-        }
-        # Normalize/alias model names
-        model_aliases = {
-            "llama3-8b-8192": "llama-3.1-8b-instant",
-            "llama3-70b-8192": "llama-3.3-70b-versatile",
-            "llama-3-8b": "llama-3.1-8b-instant",
-            "llama-3-70b": "llama-3.3-70b-versatile",
-            "gemma-7b-it": "llama-3.1-8b-instant",
-        }
-        canonical_model = model_aliases.get(fallback_model, fallback_model)
-        payload = {
-            "model": canonical_model,
-            "messages": [
-                {"role": "system", "content": "Tu es un assistant expert."},
-                {"role": "user", "content": prompt}
-            ],
-            "max_tokens": max_tokens,
-            "temperature": temperature
-        }
-        if top_p is not None:
-            payload["top_p"] = float(top_p)
-        print(f" [LLM] Envoi requête vers {GROQ_API_URL or GROK_API_URL}")
-        
-        async with httpx.AsyncClient() as client:
-            resp = await client.post(GROQ_API_URL or GROK_API_URL, json=payload, headers=headers, timeout=30)
-            resp.raise_for_status()
-            data = resp.json()
-            response_text = data["choices"][0]["message"]["content"].strip()
-            print(f" [LLM] Réponse reçue")
+            print(" [LLM] Réponse reçue")
             log3("Réponse LLM", response_text)
             return response_text
 
-    # Appel avec rate limiting et circuit breaker + fallback intelligent
     try:
-        return await protected_groq_call(
-            lambda: rate_limited_llm_call(_rate_limited_complete, user_id="global_complete")
-        )
+        return await protected_groq_call(lambda: rate_limited_llm_call(_rate_limited_complete, user_id="global_complete"))
     except Exception as e:
         error_str = str(e)
-        
-        # Détection erreur 429 (quotas épuisés) - FALLBACK IMMÉDIAT
         if "429" in error_str or "rate_limit" in error_str.lower() or "quota" in error_str.lower():
             log3("[LLM][FALLBACK]", "70B épuisé, fallback direct GPT-OSS-120B")
-            try:
-                # FALLBACK DIRECT sans rate limiter pour éviter blocage
-                llm_client = LLMClient()
-                return await llm_client._direct_llm_call(prompt, "openai/gpt-oss-120b", temperature, max_tokens)
-            except Exception as e2:
-                log3("[LLM][FALLBACK]", f"GPT-OSS-120B échoué: {e2}")
-                try:
-                    # Dernier recours: 8B DIRECT
-                    return await llm_client._direct_llm_call(prompt, "llama-3.1-8b-instant", temperature, max_tokens)
-                except Exception as e3:
-                    log3("[LLM][FALLBACK]", f"Tous les modèles échoués: {e3}")
-                    # Retour message d'erreur au lieu d'exception - OPTIMISÉ
-                    return "Système temporairement surchargé. Réponse partielle disponible."
-        else:
-            # Autres erreurs, pas de fallback
-            print(f"[LLM] Erreur: {type(e).__name__}")
-            log3("[LLM][ERROR]", str(e))
-            return f"[Erreur LLM] {str(e)}"
+            return "Système temporairement surchargé. Réessaie dans un instant."
+        print(f"[LLM] Erreur: {type(e).__name__}")
+        log3("[LLM][ERROR]", str(e))
+        return f"[Erreur LLM] {str(e)}"
 
-from utils import timing_metric
 
-@timing_metric("embedding_generation")
 async def embed_text_hf(text: str, model_name: str = "mpnet-base-v2") -> list:
     """
     Encode un texte en embedding via Hugging Face (sentence-transformers).

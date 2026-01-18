@@ -9,6 +9,8 @@ from fastapi import APIRouter, HTTPException, Query
 from typing import Dict, Any, Optional, List
 import asyncio
 from datetime import datetime
+import os
+import time
 from utils import log3
 
 # Import du système de cache unifié
@@ -146,6 +148,14 @@ async def preload_company_resources(
             company_id, 
             queries_list
         )
+
+        if (os.getenv("BOTLIVE_CATALOG_PREWARM_ON_PRELOAD", "false") or "").strip().lower() == "true":
+            try:
+                from core.dynamic_catalog_loader import prewarm_company_catalog
+                asyncio.create_task(prewarm_company_catalog(company_id))
+                preload_results["catalog_prewarm_started"] = True
+            except Exception:
+                preload_results["catalog_prewarm_started"] = False
         
         return {
             "status": "success",
@@ -211,12 +221,23 @@ async def invalidate_company_cache(company_id: str):
     """
     try:
         cache_system = get_unified_cache_system()
-        cache_system.invalidate_company_cache(company_id)
+        invalidation = cache_system.invalidate_company_cache(company_id)
+
+        prewarm_started = False
+        if (os.getenv("BOTLIVE_CATALOG_PREWARM_ON_INVALIDATE", "true") or "").strip().lower() == "true":
+            try:
+                from core.dynamic_catalog_loader import prewarm_company_catalog
+                asyncio.create_task(prewarm_company_catalog(company_id))
+                prewarm_started = True
+            except Exception:
+                prewarm_started = False
         
         return {
             "status": "success",
             "message": f"Cache invalidé pour l'entreprise {company_id}",
-            "timestamp": time.time()
+            "timestamp": time.time(),
+            "invalidation": invalidation,
+            "catalog_prewarm_started": prewarm_started,
         }
         
     except Exception as e:

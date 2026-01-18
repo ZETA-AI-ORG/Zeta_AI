@@ -12,6 +12,8 @@ Philosophie : Abandon de la recherche complexe Meili/Supabase
 import time
 import os
 import json
+import uuid
+from datetime import datetime
 from typing import Dict, Any, Optional, List
 from dataclasses import dataclass
 import re
@@ -128,20 +130,35 @@ class SimplifiedRAGEngine:
             # Fallback persistance livraison (zone/frais) :
             # si le message courant ne contient pas la zone, on réutilise la dernière zone connue.
             try:
-                if not dynamic_context.get("detected_location"):
-                    st_prev = order_tracker.get_state(user_id)
-                    prev_zone = str(getattr(st_prev, "zone", "") or "").strip()
-                    if prev_zone:
-                        z_name, z_info = self.context_injector.resolve_zone_info(prev_zone)
-                        if z_name:
-                            dynamic_context["detected_location"] = z_name
-                        if z_info:
-                            fee = z_info.get("fee")
-                            if isinstance(fee, int):
-                                dynamic_context["shipping_fee"] = f"{fee} FCFA"
-                            else:
-                                dynamic_context["shipping_fee"] = str(fee)
-                            dynamic_context["delivery_time"] = z_info.get("delay")
+                if (not dynamic_context.get("detected_location")) and int(current_turn or 0) > 1:
+                    slot_meta = order_tracker.get_slot_meta(user_id)
+                    zone_meta = None
+                    try:
+                        zone_meta = (slot_meta.get("slot_meta") or {}).get("ZONE")
+                    except Exception:
+                        zone_meta = None
+
+                    zone_source = str((zone_meta or {}).get("source") or "").strip().upper()
+                    zone_conf = (zone_meta or {}).get("confidence")
+                    try:
+                        zone_conf_f = float(zone_conf) if zone_conf is not None else 0.0
+                    except Exception:
+                        zone_conf_f = 0.0
+
+                    if zone_source and (zone_source not in {"CONTEXT_INFERRED", "UNKNOWN"}) and zone_conf_f >= 0.8:
+                        st_prev = order_tracker.get_state(user_id)
+                        prev_zone = str(getattr(st_prev, "zone", "") or "").strip()
+                        if prev_zone:
+                            z_name, z_info = self.context_injector.resolve_zone_info(prev_zone)
+                            if z_name:
+                                dynamic_context["detected_location"] = z_name
+                            if z_info:
+                                fee = z_info.get("fee")
+                                if isinstance(fee, int):
+                                    dynamic_context["shipping_fee"] = f"{fee} FCFA"
+                                else:
+                                    dynamic_context["shipping_fee"] = str(fee)
+                                dynamic_context["delivery_time"] = z_info.get("delay")
             except Exception as e:
                 print(f"⚠️ [CONTEXT] Fallback zone/frais: {type(e).__name__}: {e}")
 
@@ -991,6 +1008,13 @@ class SimplifiedRAGEngine:
                 quantite_val = str(getattr(st_for_price, "quantite", "") or "").strip()
                 zone_val = str(dynamic_context.get("detected_location") or getattr(st_for_price, "zone", "") or "").strip()
 
+                # Option A (cart-first): si on a déjà un panier (detected_items) confirmé, on calcule le prix
+                # sur ce panier plutôt que sur les slots mono-produit (qui peuvent être obsolètes).
+                try:
+                    detected_items_pre = order_tracker.get_custom_meta(user_id, "detected_items", default=[])
+                except Exception:
+                    detected_items_pre = []
+
                 def _extract_quantity_value(text: str) -> str:
                     try:
                         m = re.search(
@@ -1005,6 +1029,58 @@ class SimplifiedRAGEngine:
                         return f"{n} {u}".strip()
                     except Exception:
                         return ""
+
+                def _parse_fee(v) -> Optional[int]:
+                    if v is None:
+                        return None
+                    if isinstance(v, (int, float)):
+                        return int(v)
+                    s = str(v)
+                    m = re.search(r"(\d+)", s)
+                    return int(m.group(1)) if m else None
+
+                delivery_fee_fcfa = _parse_fee(dynamic_context.get("shipping_fee"))
+
+                def _validate_cart_items(items) -> bool:
+                    if not isinstance(items, list) or not items:
+                        return False
+                    allowed_products = {"pressions", "culottes"}
+                    allowed_units = {"lot", "paquet"}
+                    allowed_specs = {f"T{i}" for i in range(1, 8)}
+                    for it in items:
+                        if not isinstance(it, dict):
+                            return False
+                        product = str(it.get("product") or "").strip().lower()
+                        specs = str(it.get("specs") or "").strip().upper()
+                        unit = str(it.get("unit") or "").strip().lower()
+                        qty = it.get("qty")
+                        conf = it.get("confidence")
+                        try:
+                            conf_f = float(conf) if conf is not None else 0.0
+                        except Exception:
+                            conf_f = 0.0
+                        if product not in allowed_products:
+                            return False
+                        if unit not in allowed_units:
+                            return False
+                        if specs not in allowed_specs:
+                            return False
+                        if qty is None or (not isinstance(qty, int)) or qty <= 0:
+                            return False
+                        if conf_f < float(CONFIDENCE_THRESHOLD):
+                            return False
+                    return True
+
+                if _validate_cart_items(detected_items_pre) and zone_val:
+                    pc_inner_cart = UniversalPriceCalculator.build_price_calculation_block_from_detected_items(
+                        items=detected_items_pre,
+                        zone=zone_val,
+                        delivery_fee_fcfa=delivery_fee_fcfa,
+                    )
+                    if str(pc_inner_cart or "").strip():
+                        price_calculation_block = str(pc_inner_cart)
+                        print(f"✅ [PRICE_CART_FIRST] pre_llm injected | items={len(detected_items_pre)} | zone='{zone_val}'")
+                        raise StopIteration("skip_mono_price_calc_due_to_cart")
 
                 # Fallback quantité/specs AVANT le LLM:
                 # OrderStateTracker est alimenté principalement APRÈS parsing du <thinking>,
@@ -1089,17 +1165,6 @@ class SimplifiedRAGEngine:
                 except Exception:
                     pass
 
-                def _parse_fee(v) -> Optional[int]:
-                    if v is None:
-                        return None
-                    if isinstance(v, (int, float)):
-                        return int(v)
-                    s = str(v)
-                    m = re.search(r"(\d+)", s)
-                    return int(m.group(1)) if m else None
-
-                delivery_fee_fcfa = _parse_fee(dynamic_context.get("shipping_fee"))
-
                 # Injection prix: ne dépend pas d'un company_id hardcodé.
                 # Si produit+quantité sont détectés, on calcule avec les règles du catalogue/tiers actif.
                 if pre_llm_price_calc_allowed:
@@ -1138,6 +1203,30 @@ class SimplifiedRAGEngine:
                     pass
             except Exception as _pc_e:
                 print(f"⚠️ [PRICE_CALC] error: {type(_pc_e).__name__}: {_pc_e}")
+
+            try:
+                pc_meta_now = str(order_tracker.get_custom_meta(user_id, "price_calculation_block", default="") or "").strip()
+                snap_now = _snapshot_from_price_block(pc_meta_now)
+                if snap_now:
+                    order_tracker.set_custom_meta(user_id, "last_total_snapshot", snap_now)
+            except Exception:
+                pass
+
+            try:
+                snap = order_tracker.get_custom_meta(user_id, "last_total_snapshot", default=None)
+            except Exception:
+                snap = None
+            if isinstance(snap, dict) and (snap.get("total") is not None):
+                try:
+                    prev_pr = str(dynamic_context.get('pricing_context', '') or '')
+                except Exception:
+                    prev_pr = ""
+                try:
+                    snap_txt = json.dumps(snap, ensure_ascii=False)
+                except Exception:
+                    snap_txt = "{}"
+                inject = f"LAST_TOTAL_SNAPSHOT_JSON: {snap_txt}"
+                dynamic_context['pricing_context'] = (prev_pr + "\n" + inject).strip() if prev_pr else inject
 
             final_prompt = await self.prompt_system.build_prompt(
                 query=query,
@@ -1372,7 +1461,8 @@ class SimplifiedRAGEngine:
                     detected_items_json_text = _extract_tag(thinking, "detected_items_json")
                     if detected_items_json_text:
                         try:
-                            parsed_items = json.loads(detected_items_json_text)
+                            txt = str(detected_items_json_text or "").strip()
+                            parsed_items = json.loads(txt)
                             if isinstance(parsed_items, list):
                                 order_tracker.set_custom_meta(user_id, "detected_items", parsed_items)
                                 order_tracker.set_custom_meta(user_id, "detected_items_raw", detected_items_json_text)
@@ -1434,10 +1524,32 @@ class SimplifiedRAGEngine:
                                 order_tracker.set_custom_meta(user_id, "detected_items_parse_error", "not_a_list")
                                 print(f"⚠️ [ITEMS_JSON] not a list")
                         except Exception as e:
-                            order_tracker.set_custom_meta(user_id, "detected_items", [])
-                            order_tracker.set_custom_meta(user_id, "detected_items_raw", detected_items_json_text)
-                            order_tracker.set_custom_meta(user_id, "detected_items_parse_error", f"{type(e).__name__}: {e}")
-                            print(f"⚠️ [ITEMS_JSON] parse error: {type(e).__name__}: {e}")
+                            # Tolérance: certains modèles mettent des commentaires/texte dans le tag.
+                            # On tente d'extraire le premier tableau JSON [...] avant de fallback.
+                            try:
+                                txt2 = str(detected_items_json_text or "")
+                                start = txt2.find("[")
+                                end = txt2.rfind("]")
+                                if start != -1 and end != -1 and end > start:
+                                    cand = txt2[start : end + 1]
+                                    parsed_items = json.loads(cand)
+                                    if isinstance(parsed_items, list):
+                                        order_tracker.set_custom_meta(user_id, "detected_items", parsed_items)
+                                        order_tracker.set_custom_meta(user_id, "detected_items_raw", cand)
+                                        order_tracker.set_custom_meta(user_id, "detected_items_parse_error", "")
+                                        print(f"✅ [ITEMS_JSON] parsed_items={len(parsed_items)}")
+                                    else:
+                                        order_tracker.set_custom_meta(user_id, "detected_items", [])
+                                        order_tracker.set_custom_meta(user_id, "detected_items_raw", "")
+                                        order_tracker.set_custom_meta(user_id, "detected_items_parse_error", "not_a_list")
+                                else:
+                                    order_tracker.set_custom_meta(user_id, "detected_items", [])
+                                    order_tracker.set_custom_meta(user_id, "detected_items_raw", "")
+                                    order_tracker.set_custom_meta(user_id, "detected_items_parse_error", "")
+                            except Exception:
+                                order_tracker.set_custom_meta(user_id, "detected_items", [])
+                                order_tracker.set_custom_meta(user_id, "detected_items_raw", "")
+                                order_tracker.set_custom_meta(user_id, "detected_items_parse_error", "")
                     else:
                         order_tracker.set_custom_meta(user_id, "detected_items_raw", "")
                 except Exception as e:
@@ -1636,6 +1748,20 @@ class SimplifiedRAGEngine:
                     print(f"🧪 [RESPONSE_PREVIEW] {_prev}")
                 except Exception:
                     pass
+
+                try:
+                    detected_items_chk = order_tracker.get_custom_meta(user_id, "detected_items", default=[])
+                    qty_nullish = False
+                    if isinstance(detected_items_chk, list) and detected_items_chk:
+                        try:
+                            qty_nullish = any(isinstance(it, dict) and (it.get("qty") is None) for it in detected_items_chk)
+                        except Exception:
+                            qty_nullish = False
+                    if _is_packsize_question(str(query or "")) and qty_nullish:
+                        if re.search(r"\b\d+\b", str(response or "")):
+                            response = "Le catalogue ne précise pas le nombre de pièces dans 1 lot. Tu parles d’un lot de combien de pièces exactement stp ?"
+                except Exception:
+                    pass
             else:
                 validated_price_single = False
                 try:
@@ -1718,7 +1844,19 @@ class SimplifiedRAGEngine:
 
                 def _is_price_request(msg: str) -> bool:
                     m = str(msg or "").lower()
-                    return any(k in m for k in ["prix", "total", "ça fait combien", "ca fait combien", "combien", "montant"])
+                    if _is_packsize_question(m):
+                        return False
+                    return any(k in m for k in ["prix", "total", "ça fait combien", "ca fait combien", "montant"])
+
+                def _is_packsize_question(m: str) -> bool:
+                    t = str(m or "").lower()
+                    if any(k in t for k in ["dans un lot", "dans le lot", "dans 1 lot", "dans un paquet", "dans le paquet", "dans 1 paquet"]):
+                        return True
+                    if any(k in t for k in ["combien de pieces", "combien de pièces", "nombre de pieces", "nombre de pièces", "ça contient combien", "ca contient combien"]):
+                        return True
+                    if re.search(r"\b(quantité|qte)\s*(par|dans)\s*(lot|paquet)\b", t):
+                        return True
+                    return False
 
                 def _validate_items(items) -> Dict[str, Any]:
                     out = {
@@ -1789,6 +1927,9 @@ class SimplifiedRAGEngine:
                     st_for_zone = order_tracker.get_state(user_id)
                     zone_for_price = str(getattr(st_for_zone, "zone", "") or "").strip() or str(dynamic_context.get("detected_location") or "").strip()
 
+                    def _norm_amt(s: str) -> str:
+                        return re.sub(r"\D+", "", str(s or ""))
+
                     def _parse_fee(v) -> Optional[int]:
                         if v is None:
                             return None
@@ -1813,6 +1954,27 @@ class SimplifiedRAGEngine:
                             llm_resp = str(response or "").strip()
                             ready_txt = str(ready).strip()
 
+                            # Anti-répétition: ne pas ré-afficher le total à chaque tour.
+                            # - On affiche le ready_to_send si: (a) le client demande le prix/total, ou (b) le panier/prix vient de changer.
+                            # - Sinon, on laisse le LLM guider sur le prochain slot (numéro/paiement/etc.) sans répéter le montant.
+                            try:
+                                current_sig = "|".join(
+                                    [
+                                        _norm_amt(_extract_tag(price_block, "total_fcfa") or ""),
+                                        _norm_amt(_extract_tag(price_block, "product_subtotal_fcfa") or ""),
+                                        _norm_amt(_extract_tag(price_block, "delivery_fee_fcfa") or ""),
+                                        str(zone_for_price or "").strip().lower(),
+                                    ]
+                                )
+                                last_sig = str(
+                                    order_tracker.get_custom_meta(user_id, "last_price_signature_shown", default="") or ""
+                                ).strip()
+                                price_requested_now = bool(_is_price_request(query or ""))
+                                allow_show_price = price_requested_now or (not last_sig) or (last_sig != current_sig)
+                            except Exception:
+                                current_sig = ""
+                                allow_show_price = True
+
                             orientation_marker = "§§"
                             llm_calc_part = llm_resp
                             llm_orientation_part = ""
@@ -1824,9 +1986,6 @@ class SimplifiedRAGEngine:
                             total_fcfa = str(_extract_tag(price_block, "total_fcfa") or "").strip()
                             subtotal_fcfa = str(_extract_tag(price_block, "product_subtotal_fcfa") or "").strip()
                             delivery_fcfa = str(_extract_tag(price_block, "delivery_fee_fcfa") or "").strip()
-
-                            def _norm_amt(s: str) -> str:
-                                return re.sub(r"\D+", "", str(s or ""))
 
                             expected_amounts = {
                                 a
@@ -1845,10 +2004,19 @@ class SimplifiedRAGEngine:
                             if not llm_amounts:
                                 tail = llm_orientation_part or llm_resp
                                 tail = tail.replace(orientation_marker, "").strip()
-                                if tail and tail.lower() != ready_txt.lower():
-                                    response = (ready_txt + "\n" + tail).strip()
+                                if allow_show_price:
+                                    if tail and tail.lower() != ready_txt.lower():
+                                        response = (ready_txt + "\n" + tail).strip()
+                                    else:
+                                        response = ready_txt
+                                    try:
+                                        if current_sig:
+                                            order_tracker.set_custom_meta(user_id, "last_price_signature_shown", current_sig)
+                                    except Exception:
+                                        pass
                                 else:
-                                    response = ready_txt
+                                    # Prix déjà affiché sur ce panier: ne pas le répéter.
+                                    response = tail or llm_resp
                             else:
                                 mismatch = False
                                 if expected_amounts:
@@ -1860,12 +2028,32 @@ class SimplifiedRAGEngine:
                                     mismatch = True
 
                                 if not mismatch:
-                                    response = llm_resp.replace(orientation_marker, "").strip()
-                                else:
-                                    if llm_orientation_part:
-                                        response = (ready_txt + "\n" + llm_orientation_part).strip()
+                                    # Le LLM a cité des montants cohérents: on accepte uniquement si on veut ré-afficher le prix.
+                                    if allow_show_price:
+                                        response = llm_resp.replace(orientation_marker, "").strip()
+                                        try:
+                                            if current_sig:
+                                                order_tracker.set_custom_meta(user_id, "last_price_signature_shown", current_sig)
+                                        except Exception:
+                                            pass
                                     else:
-                                        response = ready_txt
+                                        # On garde seulement la partie orientation (question) pour éviter la répétition du total.
+                                        response = (llm_orientation_part or "").strip() or llm_resp
+                                        response = response.replace(orientation_marker, "").strip()
+                                else:
+                                    if allow_show_price:
+                                        if llm_orientation_part:
+                                            response = (ready_txt + "\n" + llm_orientation_part).strip()
+                                        else:
+                                            response = ready_txt
+                                        try:
+                                            if current_sig:
+                                                order_tracker.set_custom_meta(user_id, "last_price_signature_shown", current_sig)
+                                        except Exception:
+                                            pass
+                                    else:
+                                        response = (llm_orientation_part or "").strip() or llm_resp
+                                        response = response.replace(orientation_marker, "").strip()
                         print(f"✅ [PRICE_MULTI] injected | items={len(detected_items)} | zone='{zone_for_price}'")
                     else:
                         print(f"⚠️ [PRICE_MULTI] calc returned empty | raw_items_len={len(str(detected_items_raw or ''))}")
@@ -1930,7 +2118,7 @@ class SimplifiedRAGEngine:
                             st_now = order_tracker.get_state(user_id)
                             missing_now = sorted(list(st_now.get_missing_fields()))
 
-                            if (not already_clarified) and ("unconfirmed_items" in (validation.get("reasons") or []) or "invalid_items" in (validation.get("reasons") or [])):
+                            if (not already_clarified) and (not _is_packsize_question(str(query or ""))) and ("unconfirmed_items" in (validation.get("reasons") or []) or "invalid_items" in (validation.get("reasons") or [])):
                                 recap_gate = (missing_now == ["PAIEMENT"]) or (missing_now == ["PAIEMENT"])
 
                                 msg = _build_closed_clarification(validation)
@@ -2033,6 +2221,109 @@ class SimplifiedRAGEngine:
                 print(f"🛡️ [FAILSAFE] SKIP: {_skip_fs}")
             except Exception as _fs_e:
                 print(f"⚠️ [FAILSAFE] error: {type(_fs_e).__name__}: {_fs_e}")
+
+            try:
+                response = str(response or "").replace("§§", "").strip()
+            except Exception:
+                pass
+
+            # Replace ##RECAP## marker by a structured recap built from price_calculation/last_total_snapshot.
+            try:
+                if "##RECAP##" in str(response or ""):
+                    price_block = ""
+                    try:
+                        price_block = str(order_tracker.get_custom_meta(user_id, "price_calculation_block", default="") or "")
+                    except Exception:
+                        price_block = ""
+
+                    def _extract_local(tag: str) -> str:
+                        try:
+                            m = re.search(rf"<{re.escape(tag)}>(.*?)</{re.escape(tag)}>", price_block, flags=re.IGNORECASE | re.DOTALL)
+                            return (m.group(1) if m else "").strip()
+                        except Exception:
+                            return ""
+
+                    def _int_or_none(v: str) -> Optional[int]:
+                        try:
+                            if not v:
+                                return None
+                            m = re.search(r"(\d+)", str(v))
+                            return int(m.group(1)) if m else None
+                        except Exception:
+                            return None
+
+                    recap_lines = []
+                    try:
+                        items = []
+                        try:
+                            items = order_tracker.get_custom_meta(user_id, "detected_items", default=[])
+                        except Exception:
+                            items = []
+                        if isinstance(items, list) and items:
+                            for it in items:
+                                if not isinstance(it, dict):
+                                    continue
+                                p = str(it.get("product") or "").strip().lower()
+                                specs = str(it.get("specs") or "").strip().upper()
+                                unit = str(it.get("unit") or "").strip().lower()
+                                qty = it.get("qty")
+                                if p == "pressions" and specs and unit == "lot" and isinstance(qty, int) and qty > 0:
+                                    # Try read unit price from price_block, else show only subtotal if present.
+                                    unit_price = _int_or_none(_extract_local("unit_price_fcfa"))
+                                    subtotal = _int_or_none(_extract_local("product_subtotal_fcfa"))
+                                    if unit_price:
+                                        line = f"- Produit: pressions {specs} × {qty} lot ({UniversalPriceCalculator._fmt_fcfa(unit_price * qty)}F)"
+                                    elif subtotal:
+                                        line = f"- Produit: pressions {specs} × {qty} lot ({UniversalPriceCalculator._fmt_fcfa(subtotal)}F)"
+                                    else:
+                                        line = f"- Produit: pressions {specs} × {qty} lot"
+                                    recap_lines.append(line)
+                                elif p == "culottes" and specs and unit == "paquet" and isinstance(qty, int) and qty > 0:
+                                    subtotal = _int_or_none(_extract_local("product_subtotal_fcfa"))
+                                    if subtotal:
+                                        line = f"- Produit: culottes {specs} × {qty} paquet ({UniversalPriceCalculator._fmt_fcfa(subtotal)}F)"
+                                    else:
+                                        line = f"- Produit: culottes {specs} × {qty} paquet"
+                                    recap_lines.append(line)
+                    except Exception:
+                        recap_lines = []
+
+                    if not recap_lines:
+                        # fallback to totals only
+                        snap = None
+                        try:
+                            snap = order_tracker.get_custom_meta(user_id, "last_total_snapshot", default=None)
+                        except Exception:
+                            snap = None
+                        if isinstance(snap, dict):
+                            subtotal = snap.get("product_subtotal")
+                            zone = str(snap.get("zone") or "").strip()
+                            fee = snap.get("delivery_fee")
+                            total = snap.get("total")
+                            if subtotal is not None:
+                                recap_lines.append(f"- Produits: {UniversalPriceCalculator._fmt_fcfa(int(subtotal))}F")
+                            if zone and fee is not None:
+                                recap_lines.append(f"- Livraison: {zone} ({UniversalPriceCalculator._fmt_fcfa(int(fee))}F)")
+                            if total is not None:
+                                recap_lines.append(f"- Total: {UniversalPriceCalculator._fmt_fcfa(int(total))}F")
+
+                    recap_block = "\n".join(recap_lines).strip()
+                    response = str(response or "").replace("##RECAP##", recap_block).strip()
+            except Exception:
+                pass
+
+            try:
+                st_tel = order_tracker.get_state(user_id)
+                tel_val = str(getattr(st_tel, "numero", "") or "").strip() or str(getattr(st_tel, "telephone", "") or "").strip()
+                tel_digits = re.sub(r"[^\d]", "", tel_val)
+                if len(tel_digits) == 10 and tel_digits.startswith("0"):
+                    resp_low = str(response or "").lower()
+                    if "pas au bon format" in resp_low or "n'est pas au bon format" in resp_low or "n’est pas au bon format" in resp_low:
+                        parts = re.split(r"(?<=[.!?])\s+", str(response or "").strip())
+                        kept = [p for p in parts if not re.search(r"(pas au bon format|n['’]est pas au bon format)", p, re.IGNORECASE)]
+                        response = " ".join(kept).strip() or response
+            except Exception:
+                pass
             
             # 7. Récupérer état checklist
             checklist = self.prompt_system.get_checklist_state(user_id, company_id)
@@ -2114,6 +2405,297 @@ async def get_simplified_rag_response(
     Returns:
         Dict avec response + métriques (compatible avec ancien format)
     """
+    msg = str(query or "").strip()
+
+    def _is_affirmation(s: str) -> bool:
+        t = str(s or "").strip().lower()
+        return t in {"oui", "ok", "okay", "d'accord", "dac", "c'est bon", "valide", "validé", "validee", "validé", "go"}
+
+    def _is_negation(s: str) -> bool:
+        t = str(s or "").strip().lower()
+        return t in {"non", "nop", "pas", "annule", "annuler", "stop"}
+
+    def _is_simple_ack(s: str) -> bool:
+        t = str(s or "").strip().lower()
+        return t in {"ok", "okay", "merci", "thanks", "d'accord", "dac", "reçu", "recu", "cool"}
+
+    def _looks_like_new_request(s: str) -> bool:
+        t = str(s or "").strip().lower()
+        if len(t) >= 8 and any(k in t for k in ["ajoute", "changer", "finalement", "annule", "annuler", "modifier", "je veux", "je prend", "je prends", "rajoute", "plus", "encore"]):
+            return True
+        if any(k in t for k in ["pressions", "culottes", "taille", "t1", "t2", "t3", "t4", "t5", "t6", "t7", "lot", "paquet", "livraison"]):
+            return True
+        return False
+
+    def _is_price_request_local(msg: str) -> bool:
+        m = str(msg or "").lower()
+        return any(k in m for k in ["prix", "total", "ça fait combien", "ca fait combien", "combien", "montant"])
+
+    def _is_total_request_local(msg: str) -> bool:
+        m = str(msg or "").lower()
+        if not m.strip():
+            return False
+        # If the user explicitly asks about a product, do NOT short-circuit to last_total_snapshot.
+        if any(k in m for k in ["pressions", "culotte", "culottes", "couche", "couches", "taille", "t1", "t2", "t3", "t4", "t5", "t6", "t7", "lot", "paquet", "paquets", "carton", "cartons"]):
+            return False
+        # Otherwise, only accept explicit cart/total wording.
+        return any(
+            k in m
+            for k in [
+                "total",
+                "montant",
+                "à payer",
+                "a payer",
+                "prix total",
+                "au total",
+                "ça fait combien",
+                "ca fait combien",
+            ]
+        )
+
+    def _extract_tag_local(xml: str, tag: str) -> str:
+        try:
+            m = re.search(rf"<{re.escape(tag)}>(.*?)</{re.escape(tag)}>", str(xml or ""), flags=re.IGNORECASE | re.DOTALL)
+            return (m.group(1) if m else "")
+        except Exception:
+            return ""
+
+    def _parse_int_amount(s: str) -> Optional[int]:
+        try:
+            if s is None:
+                return None
+            txt = str(s)
+            m = re.search(r"(\d+)", txt.replace(" ", ""))
+            return int(m.group(1)) if m else None
+        except Exception:
+            return None
+
+    def _snapshot_from_price_block(pc_meta: str) -> Optional[Dict[str, Any]]:
+        pc = str(pc_meta or "").strip()
+        if not pc:
+            return None
+        status = str(_extract_tag_local(pc, "status") or "").strip().upper()
+        if status and status != "OK":
+            return None
+        total_fcfa = _parse_int_amount(_extract_tag_local(pc, "total_fcfa"))
+        subtotal_fcfa = _parse_int_amount(_extract_tag_local(pc, "product_subtotal_fcfa"))
+        delivery_fcfa = _parse_int_amount(_extract_tag_local(pc, "delivery_fee_fcfa"))
+        zone = str(_extract_tag_local(pc, "zone") or "").strip() or None
+        if total_fcfa is None and subtotal_fcfa is None and delivery_fcfa is None:
+            return None
+        try:
+            items = order_tracker.get_custom_meta(user_id, "detected_items", default=[])
+        except Exception:
+            items = []
+        return {
+            "items": items if isinstance(items, list) else [],
+            "zone": zone,
+            "delivery_fee": delivery_fcfa,
+            "product_subtotal": subtotal_fcfa,
+            "total": total_fcfa,
+            "timestamp": datetime.utcnow().isoformat(),
+        }
+
+    async def _mini_route_confirmation(message: str) -> str:
+        from core.llm_client import complete as mini_complete
+
+        msg_txt = str(message or "").strip()
+        prompt = (
+            "Tu es un classificateur. Retourne uniquement du JSON valide.\n"
+            "But: classifier la réponse client après une question de validation de commande.\n"
+            "Sortie JSON: {\"action\": \"CONFIRM|CANCEL|EDIT_REQUEST|NEW_REQUEST|ACK|UNKNOWN\", \"confidence\": 0-1, \"reason\": \"...\"}.\n"
+            "Règles: \n"
+            "- CONFIRM si le client confirme/valide la commande.\n"
+            "- CANCEL si le client refuse/annule.\n"
+            "- ACK si simple acquittement (ok/merci/d'accord) sans demande.\n"
+            "- EDIT_REQUEST si il veut changer quelque chose mais sans préciser un nouveau panier complet.\n"
+            "- NEW_REQUEST si il formule une nouvelle demande (nouveau produit/qté/zone, etc.).\n"
+            "- UNKNOWN sinon.\n"
+            f"MESSAGE_CLIENT: {json.dumps(msg_txt, ensure_ascii=False)}\n"
+        )
+
+        try:
+            raw = await mini_complete(
+                prompt=prompt,
+                model_name=os.getenv("CONFIRM_ROUTER_MODEL", "google/gemini-2.5-flash-lite"),
+                temperature=0.0,
+                max_tokens=int(os.getenv("CONFIRM_ROUTER_MAX_TOKENS", "120")),
+            )
+        except Exception:
+            return "UNKNOWN"
+
+        raw_s = str(raw or "").strip()
+        try:
+            data = json.loads(raw_s)
+        except Exception:
+            if "{" in raw_s and "}" in raw_s:
+                try:
+                    cand = raw_s[raw_s.find("{") : raw_s.rfind("}") + 1]
+                    data = json.loads(cand)
+                except Exception:
+                    return "UNKNOWN"
+            else:
+                return "UNKNOWN"
+
+        act = str((data or {}).get("action") or "").strip().upper()
+        if act in {"CONFIRM", "CANCEL", "EDIT_REQUEST", "NEW_REQUEST", "ACK", "UNKNOWN"}:
+            return act
+        return "UNKNOWN"
+
+    awaiting_code = str(order_tracker.get_custom_meta(user_id, "awaiting_confirmation_code", default="") or "").strip()
+    confirmed_code = str(order_tracker.get_custom_meta(user_id, "order_confirmed_code", default="") or "").strip()
+
+    async def _mini_smalltalk_reply(message: str) -> str:
+        from core.llm_client import complete as mini_complete
+
+        msg_txt = str(message or "").strip()
+        prompt = (
+            "Tu es un assistant WhatsApp très bref.\n"
+            "But: répondre aux messages de politesse/ack (merci, ok, super, d'accord) après une commande.\n"
+            "Règles: 0-6 mots, max 1 emoji, pas de question, pas de prix, pas de nouveaux sujets.\n"
+            "Si une réponse n'est pas nécessaire, réponds exactement: SILENCE\n"
+            f"MESSAGE_CLIENT: {json.dumps(msg_txt, ensure_ascii=False)}\n"
+        )
+        try:
+            raw = await mini_complete(
+                prompt=prompt,
+                model_name=os.getenv("POST_CONFIRM_MINI_MODEL", "google/gemini-2.5-flash-lite"),
+                temperature=0.2,
+                max_tokens=int(os.getenv("POST_CONFIRM_MINI_MAX_TOKENS", "40")),
+            )
+        except Exception:
+            return ""
+        out = str(raw or "").strip()
+        if out.upper() == "SILENCE":
+            return ""
+        return out
+
+    if awaiting_code and not confirmed_code:
+        # We are waiting for the client's explicit YES/NO.
+        if _is_affirmation(msg):
+            order_tracker.set_custom_meta(user_id, "order_confirmed_code", awaiting_code)
+            order_tracker.set_custom_meta(user_id, "awaiting_confirmation_code", "")
+            return {
+                "response": f"Commande validée ✅ (code: {awaiting_code}).\n\nVeuillez ne pas répondre à ce message (sauf problème). Merci 🙏",
+                "confidence": 1.0,
+                "documents_found": True,
+                "processing_time_ms": 0,
+                "search_method": "short_circuit",
+                "context_used": "order_confirmation",
+                "thinking": "",
+                "validation": None,
+                "usage": {},
+                "prompt_tokens": 0,
+                "completion_tokens": 0,
+                "total_tokens": 0,
+                "cost": 0.0,
+                "model": "none",
+                "checklist_state": "CONFIRMED",
+                "next_step": "STOP",
+                "detected_location": None,
+                "shipping_fee": None,
+            }
+        if _is_negation(msg):
+            order_tracker.set_custom_meta(user_id, "awaiting_confirmation_code", "")
+            return {
+                "response": "D'accord 👍 Dis-moi juste ce que tu veux changer (produit, taille, quantité ou livraison).",
+                "confidence": 1.0,
+                "documents_found": True,
+                "processing_time_ms": 0,
+                "search_method": "short_circuit",
+                "context_used": "order_confirmation",
+                "thinking": "",
+                "validation": None,
+                "usage": {},
+                "prompt_tokens": 0,
+                "completion_tokens": 0,
+                "total_tokens": 0,
+                "cost": 0.0,
+                "model": "none",
+                "checklist_state": "EDIT",
+                "next_step": "CONTINUE",
+                "detected_location": None,
+                "shipping_fee": None,
+            }
+
+        if _is_simple_ack(msg) and (not _looks_like_new_request(msg)):
+            return {
+                "response": "OK ✅",
+                "confidence": 1.0,
+                "documents_found": True,
+                "processing_time_ms": 0,
+                "search_method": "short_circuit",
+                "context_used": "order_confirmation",
+                "thinking": "",
+                "validation": None,
+                "usage": {},
+                "prompt_tokens": 0,
+                "completion_tokens": 0,
+                "total_tokens": 0,
+                "cost": 0.0,
+                "model": "none",
+                "checklist_state": "AWAITING_CONFIRMATION",
+                "next_step": "WAIT_CONFIRMATION",
+                "detected_location": None,
+                "shipping_fee": None,
+            }
+
+    # Post-confirmation trivial messages -> mini model (cheap) to save tokens.
+    if confirmed_code:
+        if _is_simple_ack(msg) and (not _looks_like_new_request(msg)):
+            mini_ans = await _mini_smalltalk_reply(msg)
+            if mini_ans:
+                return {
+                    "response": str(mini_ans).strip(),
+                    "confidence": 1.0,
+                    "documents_found": True,
+                    "processing_time_ms": 0,
+                    "search_method": "mini_llm",
+                    "context_used": "post_confirmation_smalltalk",
+                    "thinking": "",
+                    "validation": None,
+                    "usage": {},
+                    "prompt_tokens": 0,
+                    "completion_tokens": 0,
+                    "total_tokens": 0,
+                    "cost": 0.0,
+                    "model": "none",
+                    "checklist_state": "CONFIRMED",
+                    "next_step": "STOP",
+                    "detected_location": None,
+                    "shipping_fee": None,
+                }
+
+    if confirmed_code and (not _looks_like_new_request(msg)) and _is_simple_ack(msg):
+        # After confirmation, ignore pure acknowledgements without hitting the LLM.
+        return {
+            "response": "Merci ✅",
+            "confidence": 1.0,
+            "documents_found": True,
+            "processing_time_ms": 0,
+            "search_method": "short_circuit",
+            "context_used": "post_confirmation_ack",
+            "thinking": "",
+            "validation": None,
+            "usage": {},
+            "prompt_tokens": 0,
+            "completion_tokens": 0,
+            "total_tokens": 0,
+            "cost": 0.0,
+            "model": "none",
+            "checklist_state": "CONFIRMED",
+            "next_step": "STOP",
+            "detected_location": None,
+            "shipping_fee": None,
+        }
+
+    # Re-open flow on real new request after confirmation.
+    if confirmed_code and _looks_like_new_request(msg):
+        try:
+            order_tracker.set_custom_meta(user_id, "order_confirmed_code", "")
+        except Exception:
+            pass
+
     engine = get_simplified_rag_engine()
     
     result = await engine.process_query(
@@ -2124,6 +2706,117 @@ async def get_simplified_rag_response(
         images=images,
         request_id=request_id
     )
+
+    try:
+        result.response = str(result.response or "").replace("§§", "").strip()
+    except Exception:
+        pass
+
+    try:
+        pc_meta = str(order_tracker.get_custom_meta(user_id, "price_calculation_block", default="") or "").strip()
+        snap = _snapshot_from_price_block(pc_meta)
+        if snap:
+            order_tracker.set_custom_meta(user_id, "last_total_snapshot", snap)
+    except Exception:
+        pass
+    try:
+        st_after = order_tracker.get_state(user_id)
+        is_complete = bool(getattr(st_after, "is_complete", lambda: False)())
+    except Exception:
+        is_complete = False
+
+    try:
+        resp_l = str(result.response or "").lower()
+        asks_validation = bool(re.search(r"\b(on\s+valide|on\s+confirme|c['’]?est\s+bien\s+ça)\b", resp_l)) and ("?" in str(result.response or ""))
+        already_waiting = bool(str(order_tracker.get_custom_meta(user_id, "awaiting_confirmation_code", default="") or "").strip())
+        already_confirmed = bool(str(order_tracker.get_custom_meta(user_id, "order_confirmed_code", default="") or "").strip())
+        if is_complete and asks_validation and (not already_waiting) and (not already_confirmed):
+            code = uuid.uuid4().hex[:8]
+            order_tracker.set_custom_meta(user_id, "awaiting_confirmation_code", code)
+
+            pc_meta = str(order_tracker.get_custom_meta(user_id, "price_calculation_block", default="") or "").strip()
+            snap = _snapshot_from_price_block(pc_meta) or (order_tracker.get_custom_meta(user_id, "last_total_snapshot", default=None) or None)
+            zone = None
+            delivery_fee = None
+            product_subtotal = None
+            total = None
+            if isinstance(snap, dict):
+                zone = snap.get("zone")
+                delivery_fee = snap.get("delivery_fee")
+                product_subtotal = snap.get("product_subtotal")
+                total = snap.get("total")
+
+            try:
+                st_now = order_tracker.get_state(user_id)
+                phone = str(getattr(st_now, "numero", "") or getattr(st_now, "telephone", "") or "").strip()
+            except Exception:
+                phone = ""
+
+            try:
+                pay = str(order_tracker.get_custom_meta(user_id, "paiement", default="") or "").strip()
+            except Exception:
+                pay = ""
+
+            lines = []
+            lines.append("📋 Résumé commande:")
+
+            try:
+                items = order_tracker.get_custom_meta(user_id, "detected_items", default=[])
+            except Exception:
+                items = []
+            if isinstance(items, list) and items:
+                for it in items:
+                    if not isinstance(it, dict):
+                        continue
+                    p = str(it.get("product") or "").strip().lower()
+                    specs = str(it.get("specs") or "").strip().upper()
+                    unit = str(it.get("unit") or "").strip().lower()
+                    qty = it.get("qty")
+                    if p and isinstance(qty, int) and qty > 0:
+                        sfx = f" {specs}" if specs else ""
+                        ufx = f" {unit}" if unit else ""
+                        lines.append(f"- Produit: {p}{sfx} × {qty}{ufx}")
+
+            if zone:
+                if delivery_fee is not None:
+                    lines.append(f"- Livraison: {zone} ({UniversalPriceCalculator._fmt_fcfa(int(delivery_fee))}F)")
+                else:
+                    lines.append(f"- Livraison: {zone}")
+            if total is not None:
+                if product_subtotal is not None and delivery_fee is not None:
+                    lines.append(
+                        f"- Total: {UniversalPriceCalculator._fmt_fcfa(int(total))}F (produits {UniversalPriceCalculator._fmt_fcfa(int(product_subtotal))}F + livraison {UniversalPriceCalculator._fmt_fcfa(int(delivery_fee))}F)"
+                    )
+                else:
+                    lines.append(f"- Total: {UniversalPriceCalculator._fmt_fcfa(int(total))}F")
+            if phone:
+                lines.append(f"- Numéro: {phone}")
+            if pay:
+                lines.append(f"- Paiement: {pay}")
+
+            recap = "\n".join([str(x).strip() for x in lines if str(x).strip()])
+            return {
+                "response": f"{recap}\n\nC'est bon pour toi ? Réponds juste OUI pour confirmer.",
+                "confidence": 1.0,
+                "documents_found": True,
+                "processing_time_ms": result.processing_time_ms,
+                "search_method": "python_recap",
+                "context_used": f"Checklist: {result.checklist_state}",
+                "thinking": result.thinking,
+                "validation": None,
+                "usage": result.usage,
+                "prompt_tokens": result.prompt_tokens,
+                "completion_tokens": result.completion_tokens,
+                "total_tokens": result.total_tokens,
+                "cost": result.cost,
+                "model": result.model,
+                "checklist_state": result.checklist_state,
+                "next_step": "WAIT_CONFIRMATION",
+                "detected_location": result.detected_location,
+                "shipping_fee": result.shipping_fee,
+            }
+    except Exception:
+        pass
     
     # Format compatible avec l'ancien système
     return {

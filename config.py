@@ -1,5 +1,6 @@
 import os
 from dotenv import load_dotenv
+import logging
 
 # Charge explicitement le fichier .env du projet (racine de CHATBOT2.0)
 # Cela évite les erreurs lorsque le CWD ne pointe pas sur la racine du projet
@@ -15,6 +16,9 @@ MEILI_API_KEY = os.getenv('MEILI_API_KEY')  # Utilise MEILI_API_KEY du .env (sta
 GROQ_API_KEY = os.getenv('GROQ_API_KEY')  # GROQ (pas GROK) dans le .env
 GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"  # URL fixe Groq
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
+
+# Logger par défaut (fallback)
+logger = logging.getLogger("chatbot_default")
 
 # Log concis pour confirmer le chargement des clés Supabase
 try:
@@ -39,10 +43,6 @@ FIREBASE_SERVICE_ACCOUNT_KEY_PATH = os.getenv('FIREBASE_SERVICE_ACCOUNT_KEY_PATH
 
 # Chaîne de connexion PostgreSQL
 PG_CONNECTION_STRING = os.getenv('PG_CONNECTION_STRING')
-
-# Logger par défaut (fallback)
-import logging
-logger = logging.getLogger("chatbot_default")
 
 # Log concis pour confirmer le chargement de l'environnement Meilisearch
 try:
@@ -86,3 +86,20 @@ WHATSAPP_TOKEN = os.getenv('WHATSAPP_TOKEN')
 WHATSAPP_VERIFY_TOKEN = os.getenv('WHATSAPP_VERIFY_TOKEN')
 WHATSAPP_AUTO_REPLY_ENABLED = os.getenv('WHATSAPP_AUTO_REPLY_ENABLED', 'false').lower() == 'true'
 WHATSAPP_DEFAULT_COMPANY_ID = os.getenv('WHATSAPP_DEFAULT_COMPANY_ID', 'default')
+
+# Cooperative mode env flags and constants
+BOTLIVE_COOPERATIVE_HUMAN_MODE = (os.getenv("BOTLIVE_COOPERATIVE_HUMAN_MODE", "false") or "").strip().lower() in {
+    "1",
+    "true",
+    "yes",
+    "y",
+    "on",
+}
+
+HUMAN_REQUIRED_INTENTS = [
+    x.strip().upper()
+    for x in (os.getenv("HUMAN_REQUIRED_INTENTS", "COMMANDE_EXISTANTE,PRIX_PROMO") or "").split(",")
+    if x.strip()
+]
+
+LLM_TRANSMISSION_TOKEN = (os.getenv("LLM_TRANSMISSION_TOKEN", "TRANSMISSIONXXX") or "TRANSMISSIONXXX").strip()

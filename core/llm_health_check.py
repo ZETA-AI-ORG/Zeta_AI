@@ -8,6 +8,7 @@ import asyncio
 import time
 from datetime import datetime, timedelta
 from typing import Optional, Tuple, Dict
+import os
 
 class GroqHealthChecker:
     def __init__(self):
@@ -28,6 +29,12 @@ class GroqHealthChecker:
             (now - self.last_check_time).total_seconds() < self.check_cache_duration):
             return self.last_check_result
         
+        # Si pas de clé Groq, considérer Groq indisponible et ne jamais appeler l'API
+        if not (os.getenv("GROQ_API_KEY") or "").strip():
+            self.last_check_time = now
+            self.last_check_result = False
+            return False
+
         # Effectuer le health check
         try:
             print(f"🔍 [HEALTH] Test Groq...")
@@ -100,8 +107,27 @@ async def complete_with_health_check(prompt: str,
     Groq si healthy, sinon DeepSeek directement
     """
     
-    # 1. HEALTH CHECK GROQ
-    groq_healthy = await health_checker.is_groq_healthy()
+    # 0) Si Groq est désactivé (pas de clé), basculer OpenRouter directement si possible
+    if not (os.getenv("GROQ_API_KEY") or "").strip():
+        try:
+            from core.llm_client_openrouter import complete as openrouter_complete
+
+            content, token_info = await openrouter_complete(
+                prompt,
+                model_name=model_name,
+                max_tokens=max_tokens,
+                temperature=temperature,
+            )
+            token_info["provider"] = "openrouter"
+            token_info["health_check"] = False
+            token_info["fallback_used"] = True
+            return content, token_info
+        except Exception:
+            # Si OpenRouter indisponible, on continue vers le fallback existant
+            groq_healthy = False
+    else:
+        # 1. HEALTH CHECK GROQ
+        groq_healthy = await health_checker.is_groq_healthy()
     
     if groq_healthy:
         # 2. ESSAYER GROQ (après validation health check)

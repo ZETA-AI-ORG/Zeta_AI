@@ -42,7 +42,7 @@ def build_hyde_secour_x_prompt(
 
     hyde_block = _extract_block(base_prompt_template, "HYDE_SECOUR_X")
     if not hyde_block:
-        raise ValueError("Aucun bloc HYDE_SECOUR_X trouvé dans le template Supabase (balises [[HYDE_SECOUR_X_START]] / [[HYDE_SECOUR_X_END]]).")
+        return ""
 
     # Normalisation des valeurs complexes
     if not isinstance(checklist, str):
@@ -69,6 +69,20 @@ def build_hyde_secour_x_prompt(
     except Exception:
         missing_fields_str = str(missing_fields)
 
+    zone_val = ""
+    tel_val = ""
+    produit_val = ""
+    paiement_val = ""
+    try:
+        # Compat: si state est un dict enrichi (ou checklist sérialisée), extraire quelques champs.
+        if isinstance(state, dict):
+            zone_val = str(state.get("zone") or state.get("delivery_zone") or "").strip()
+            tel_val = str(state.get("tel") or state.get("numero") or "").strip()
+            produit_val = str(state.get("produit") or state.get("product") or "").strip()
+            paiement_val = str(state.get("paiement") or state.get("payment") or "").strip()
+    except Exception:
+        pass
+
     format_vars: Dict[str, Any] = {
         "question": question or "",
         "conversation_history": conversation_history or "",
@@ -82,6 +96,13 @@ def build_hyde_secour_x_prompt(
         "filtered_transactions": filtered_transactions or "",
         "expected_deposit": expected_deposit or "",
         "hyde_question": question or "",
+
+        # Champs optionnels pour compat templates Supabase existants
+        "zone": zone_val,
+        "tel": tel_val,
+        "numero": tel_val,
+        "produit": produit_val,
+        "paiement": paiement_val,
     }
 
     # Sanitize des placeholders de type {var:...} vers {var} pour éviter les ValueError
@@ -131,7 +152,7 @@ async def run_hyde_secour_x(
       - max_tokens = 100
     """
 
-    from core.llm_client import complete as llm_complete
+    from core.llm_client_openrouter import complete as openrouter_complete
     import os
 
     prompt = build_hyde_secour_x_prompt(
@@ -149,18 +170,22 @@ async def run_hyde_secour_x(
         expected_deposit=expected_deposit,
     )
 
-    model_name = os.getenv("BOTLIVE_HYDE_X_MODEL", "llama-3.3-70b-versatile")
+    if not (prompt or "").strip():
+        return ""
+
+    model_name = os.getenv("OPENROUTER_HYDE_X_MODEL", "meta-llama/llama-3.3-70b-instruct")
     temperature = float(os.getenv("BOTLIVE_HYDE_X_TEMPERATURE", "0.1"))
     max_tokens = int(os.getenv("BOTLIVE_HYDE_X_MAX_TOKENS", "30"))
     top_p = float(os.getenv("BOTLIVE_HYDE_X_TOP_P", "0.9"))
 
     # Appel LLM HYDE_X (par défaut 70B)
-    response_text = await llm_complete(
+    response_text, _token_info = await openrouter_complete(
         prompt,
         model_name=model_name,
-        temperature=temperature,
         max_tokens=max_tokens,
+        temperature=temperature,
         top_p=top_p,
+        response_format={"type": "json_object"},
     )
 
     logger.info("[BOTLIVE][HYDE_X] Réponse HYDE SECOUR X reçue | len=%s chars", len(response_text or ""))

@@ -16,6 +16,7 @@ from utils import log3
 from core.global_prompt_cache import get_global_prompt_cache
 from core.global_embedding_cache_optimized import get_global_embedding_cache
 from core.global_model_cache import get_global_model_cache
+from core.global_catalog_cache import get_global_catalog_cache
 
 class UnifiedCacheSystem:
     """
@@ -30,6 +31,7 @@ class UnifiedCacheSystem:
         self.prompt_cache = get_global_prompt_cache()
         self.embedding_cache = get_global_embedding_cache()
         self.model_cache = get_global_model_cache()
+        self.catalog_cache = get_global_catalog_cache()
         
         self.global_stats = {
             "total_requests": 0,
@@ -205,8 +207,48 @@ class UnifiedCacheSystem:
                 },
                 "prompt_cache": self.prompt_cache.get_stats(),
                 "embedding_cache": self.embedding_cache.get_stats(),
-                "model_cache": self.model_cache.get_stats()
+                "model_cache": self.model_cache.get_stats(),
+                "catalog_cache": self.catalog_cache.get_stats(),
             }
+
+    def invalidate_company_cache(self, company_id: str) -> Dict[str, Any]:
+        """❌ Invalide tous les caches d'une entreprise (prompts + catalogue)."""
+        results: Dict[str, Any] = {
+            "company_id": company_id,
+            "prompt_invalidated": False,
+            "catalog_invalidated": False,
+        }
+        try:
+            try:
+                results["prompt_invalidated"] = bool(asyncio.run(self.prompt_cache.invalidate_prompt(company_id)))
+            except RuntimeError:
+                # Si déjà dans une boucle async, exécuter sans bloquer
+                try:
+                    loop = asyncio.get_running_loop()
+                    loop.create_task(self.prompt_cache.invalidate_prompt(company_id))
+                    results["prompt_invalidated"] = True
+                except Exception:
+                    results["prompt_invalidated"] = False
+            except Exception:
+                results["prompt_invalidated"] = False
+
+            try:
+                try:
+                    results["catalog_invalidated"] = bool(asyncio.run(self.catalog_cache.invalidate_catalog(company_id)))
+                except RuntimeError:
+                    try:
+                        loop = asyncio.get_running_loop()
+                        loop.create_task(self.catalog_cache.invalidate_catalog(company_id))
+                        results["catalog_invalidated"] = True
+                    except Exception:
+                        results["catalog_invalidated"] = False
+            except Exception:
+                results["catalog_invalidated"] = False
+
+            log3("[UNIFIED_CACHE]", {"action": "invalidate_company_cache", **results})
+        except Exception:
+            return results
+        return results
     
     async def cleanup_all_caches(self) -> Dict[str, int]:
         """🧹 Nettoyage global de tous les caches"""

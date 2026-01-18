@@ -156,14 +156,25 @@ Réponds de manière professionnelle et utile.""",
         
         prompt = f"{config['system_prompt']}\n\n{config['user_template'].format(query=query)}"
         
-        # Utilise GROQ_HYDE_MODEL du .env pour les hypothèses
-        hyde_model = os.getenv("GROQ_HYDE_MODEL", "llama-3.1-8b-instant")
-        hypothesis = await self.client.complete(
-            prompt=prompt,
-            model_name=hyde_model,  # Mini LLM 8B pour HyDE
-            temperature=config["temperature"],
-            max_tokens=config["max_tokens"]
-        )
+        # Utilise Groq si configuré, sinon OpenRouter
+        if (os.getenv("GROQ_API_KEY") or "").strip():
+            hyde_model = os.getenv("GROQ_HYDE_MODEL", "llama-3.1-8b-instant")
+            hypothesis = await self.client.complete(
+                prompt=prompt,
+                model_name=hyde_model,
+                temperature=config["temperature"],
+                max_tokens=config["max_tokens"],
+            )
+        else:
+            from core.llm_client_openrouter import complete as openrouter_complete
+
+            openrouter_model = os.getenv("OPENROUTER_HYDE_MODEL", os.getenv("LLM_MODEL", "mistralai/mistral-small-3.2-24b-instruct"))
+            hypothesis, _token_info = await openrouter_complete(
+                prompt,
+                model_name=openrouter_model,
+                max_tokens=int(config["max_tokens"]),
+                temperature=float(config["temperature"]),
+            )
         
         if os.getenv("DEBUG_HYDE") == "1":
             print(f"[SPECIALIZED_HYDE] Intention: {intention}")
@@ -192,14 +203,24 @@ Réponds de manière structurée et complète."""
         
         prompt = f"{combined_system}\n\n{combined_user}"
         
-        # Utilise GROQ_HYDE_MODEL pour multi-intentions
-        hyde_model = os.getenv("GROQ_HYDE_MODEL", "llama-3.1-8b-instant")
-        response = await self.client.complete(
-            prompt=prompt,
-            model_name=hyde_model,  # Mini LLM 8B pour HyDE
-            temperature=0.3,
-            max_tokens=250
-        )
+        if (os.getenv("GROQ_API_KEY") or "").strip():
+            hyde_model = os.getenv("GROQ_HYDE_MODEL", "llama-3.1-8b-instant")
+            response = await self.client.complete(
+                prompt=prompt,
+                model_name=hyde_model,
+                temperature=0.3,
+                max_tokens=250,
+            )
+        else:
+            from core.llm_client_openrouter import complete as openrouter_complete
+
+            openrouter_model = os.getenv("OPENROUTER_HYDE_MODEL", os.getenv("LLM_MODEL", "mistralai/mistral-small-3.2-24b-instruct"))
+            response, _token_info = await openrouter_complete(
+                prompt,
+                model_name=openrouter_model,
+                max_tokens=250,
+                temperature=0.3,
+            )
         
         return response
     
@@ -208,15 +229,25 @@ Réponds de manière structurée et complète."""
         
         prompt = f"{self.generic_prompt['system_prompt']}\n\n{self.generic_prompt['user_template'].format(query=query)}"
         
-        # Utilise GROQ_HYDE_MODEL pour fallback générique
-        hyde_model = os.getenv("GROQ_HYDE_MODEL", "llama-3.1-8b-instant")
-        response = await self.client.complete(
-            prompt=prompt,
-            model_name=hyde_model,  # Mini LLM 8B pour HyDE
-            temperature=self.generic_prompt["temperature"],
-            max_tokens=self.generic_prompt["max_tokens"]
-        )
-        
+        if (os.getenv("GROQ_API_KEY") or "").strip():
+            hyde_model = os.getenv("GROQ_HYDE_MODEL", "llama-3.1-8b-instant")
+            response = await self.client.complete(
+                prompt=prompt,
+                model_name=hyde_model,
+                temperature=self.generic_prompt["temperature"],
+                max_tokens=self.generic_prompt["max_tokens"],
+            )
+        else:
+            from core.llm_client_openrouter import complete as openrouter_complete
+
+            openrouter_model = os.getenv("OPENROUTER_HYDE_MODEL", os.getenv("LLM_MODEL", "mistralai/mistral-small-3.2-24b-instruct"))
+            response, _token_info = await openrouter_complete(
+                prompt,
+                model_name=openrouter_model,
+                max_tokens=int(self.generic_prompt["max_tokens"]),
+                temperature=float(self.generic_prompt["temperature"]),
+            )
+
         return response
 
 # Instance globale pour import facile (lazy loading)
