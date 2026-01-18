@@ -331,7 +331,10 @@ class RAGSimulator:
                 # In-process: appeler directement l'endpoint FastAPI (logs ici)
                 from core.models import ChatRequest
                 from starlette.requests import Request as StarletteRequest
-                from Zeta_AI.app import chat_endpoint
+                try:
+                    from Zeta_AI.app import chat_endpoint
+                except Exception:
+                    from app import chat_endpoint
 
                 req = ChatRequest(**payload)
                 scope = {
