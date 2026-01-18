@@ -349,7 +349,17 @@ class RAGSimulator:
                 }
                 fake_request = StarletteRequest(scope)
 
-                result = await chat_endpoint(req, fake_request)
+                try:
+                    import inspect
+
+                    nb_params = len(inspect.signature(chat_endpoint).parameters)
+                except Exception:
+                    nb_params = 2
+
+                if nb_params <= 1:
+                    result = await chat_endpoint(req)
+                else:
+                    result = await chat_endpoint(req, fake_request)
 
                 # JSONResponse ou dict
                 if hasattr(result, "body"):
