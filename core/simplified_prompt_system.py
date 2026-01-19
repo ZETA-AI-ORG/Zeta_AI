@@ -625,6 +625,7 @@ Fais confiance à ton jugement. Tu es Jessica, pas un robot."""
         """Initialise le système de prompt simplifié"""
         self.checklist_states: Dict[str, OrderChecklistState] = {}
         self._prompt_cache: Dict[str, str] = {}  # Cache des prompts par company_id
+        self._prompt_cache_meta: Dict[str, Dict[str, Any]] = {}
     
     async def get_static_prompt(self, company_id: str) -> str:
         """
@@ -638,7 +639,14 @@ Fais confiance à ton jugement. Tu es Jessica, pas un robot."""
         """
         # Vérifier cache
         if company_id in self._prompt_cache:
-            print(f"📦 [PROMPT CACHE] Hit pour {company_id}")
+            meta = self._prompt_cache_meta.get(company_id) or {}
+            src = str(meta.get("source") or "unknown").strip() or "unknown"
+            chars = meta.get("chars")
+            try:
+                chars_i = int(chars) if chars is not None else len(self._prompt_cache[company_id])
+            except Exception:
+                chars_i = len(self._prompt_cache[company_id])
+            print(f"📦 [PROMPT CACHE] Hit pour {company_id} | source={src} | chars={chars_i}")
             return self._prompt_cache[company_id]
         
         # Charger depuis Supabase
@@ -661,21 +669,41 @@ Fais confiance à ton jugement. Tu es Jessica, pas un robot."""
                         if real_prompt and len(real_prompt) > 200:
                             print(f"✅ [PROMPT] Placeholder Supabase détecté → prompt hardcodé chargé: {len(real_prompt)} chars")
                             self._prompt_cache[company_id] = real_prompt
+                            self._prompt_cache_meta[company_id] = {
+                                "source": "placeholder_hardcoded",
+                                "chars": int(len(real_prompt)),
+                            }
                             return real_prompt
                     except Exception as _hp_e:
                         print(f"⚠️ [PROMPT] Fallback hardcoded failed: {type(_hp_e).__name__}: {_hp_e}")
 
                 print(f"✅ [SUPABASE] Prompt chargé: {len(p_str)} chars")
                 self._prompt_cache[company_id] = p_str
+                self._prompt_cache_meta[company_id] = {
+                    "source": "supabase",
+                    "chars": int(len(p_str)),
+                }
                 return p_str
             else:
                 print(f"⚠️ [SUPABASE] Prompt vide ou trop court, fallback hardcodé")
-                return self.FALLBACK_STATIC_PROMPT
+                fb = self.FALLBACK_STATIC_PROMPT
+                self._prompt_cache[company_id] = fb
+                self._prompt_cache_meta[company_id] = {
+                    "source": "fallback_static_supabase_empty",
+                    "chars": int(len(fb)),
+                }
+                return fb
         
         except Exception as e:
             print(f"❌ [SUPABASE] Erreur chargement prompt: {e}")
             print(f"🔄 [FALLBACK] Utilisation prompt hardcodé")
-            return self.FALLBACK_STATIC_PROMPT
+            fb = self.FALLBACK_STATIC_PROMPT
+            self._prompt_cache[company_id] = fb
+            self._prompt_cache_meta[company_id] = {
+                "source": f"fallback_static_supabase_error:{type(e).__name__}",
+                "chars": int(len(fb)),
+            }
+            return fb
     
     def get_checklist_state(self, user_id: str, company_id: str) -> OrderChecklistState:
         """Récupère l'état de la checklist pour un utilisateur"""
