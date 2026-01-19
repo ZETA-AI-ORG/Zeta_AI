@@ -383,11 +383,11 @@ class RAGSimulator:
                         break
                     except httpx.ConnectError as e:
                         last_exc = e
-                        try:
-                            self.chat_url = await _resolve_chat_url()
-                            print(f"⚠️ [SIMULATOR] ConnectError → retry {attempt}/{max_attempts} avec CHAT_URL={self.chat_url}")
-                        except Exception:
-                            pass
+                        # IMPORTANT: ne pas modifier self.chat_url sur ConnectError.
+                        # Sur certains environnements, la résolution auto peut produire une URL incorrecte.
+                        print(
+                            f"⚠️ [SIMULATOR] ConnectError → retry {attempt}/{max_attempts} avec CHAT_URL={self.chat_url!r}"
+                        )
                         await asyncio.sleep(min(2.0, 0.4 * attempt))
                 if resp is None:
                     raise last_exc or httpx.ConnectError("All connection attempts failed")
@@ -592,7 +592,12 @@ class RAGSimulator:
                 break
 
     async def run_scenario(self) -> None:
-        arg = sys.argv[1] if len(sys.argv) > 1 else ""
+        # Supporte n'importe quel ordre d'arguments (ex: --http --scenario58)
+        arg = ""
+        for a in sys.argv[1:]:
+            if a.startswith("--scenario") or a in {"--whatsapp58", "--whatsapp120", "--scenario-validation", "--scenario_validation"}:
+                arg = a
+                break
         assert_state = any(a in {"--assert", "--assert-state"} for a in sys.argv[1:])
         if arg in {"--scenario120", "--scenario_120", "--whatsapp120"}:
             scenario_msgs = _load_whatsapp_120_questions()
