@@ -169,7 +169,22 @@ class SimplifiedRAGEngine:
             has_image = bool(images and len(images) > 0)
             if has_image:
                 try:
-                    from Zeta_AI.vision_gemini import analyze_product_with_gemini
+                    analyze_product_with_gemini = None
+                    try:
+                        from Zeta_AI.vision_gemini import analyze_product_with_gemini as _analyze_product_with_gemini
+
+                        analyze_product_with_gemini = _analyze_product_with_gemini
+                        print("🖼️ [VISION][GEMINI] import=Zeta_AI.vision_gemini")
+                    except Exception as _imp_e1:
+                        try:
+                            from vision_gemini import analyze_product_with_gemini as _analyze_product_with_gemini
+
+                            analyze_product_with_gemini = _analyze_product_with_gemini
+                            print("🖼️ [VISION][GEMINI] import=vision_gemini")
+                        except Exception as _imp_e2:
+                            raise ModuleNotFoundError(
+                                f"vision_gemini import failed: {type(_imp_e1).__name__}: {_imp_e1} | {type(_imp_e2).__name__}: {_imp_e2}"
+                            )
 
                     image_url = str((images or [""])[0] or "").strip()
                     if image_url:
