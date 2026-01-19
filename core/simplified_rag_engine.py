@@ -379,10 +379,24 @@ class SimplifiedRAGEngine:
                 msg_lower = str(query or "").lower()
 
                 # Téléphone CI (heuristique simple)
-                # On ne persiste que les numéros au format 0XXXXXXXXX (10 chiffres).
-                phone_match = re.search(r"\b(0\d{9})\b", str(query or ""))
-                if phone_match:
-                    order_tracker.update_numero(user_id, phone_match.group(1), source="USER_TEXT", confidence=1.0)
+                # On persiste les numéros au format 0XXXXXXXXX (10 chiffres), y compris si fournis en +225.
+                normalized_phone = ""
+                try:
+                    from FIX_CONTEXT_LOSS_COMPLETE import validate_phone_ci
+
+                    v = validate_phone_ci(str(query or ""))
+                    if isinstance(v, dict) and v.get("valid") and v.get("normalized"):
+                        normalized_phone = str(v.get("normalized") or "").strip()
+                except Exception:
+                    normalized_phone = ""
+
+                if normalized_phone and re.fullmatch(r"0\d{9}", normalized_phone):
+                    phone_match = True
+                    order_tracker.update_numero(user_id, normalized_phone, source="USER_TEXT", confidence=1.0)
+                else:
+                    phone_match = re.search(r"\b(0\d{9})\b", str(query or ""))
+                    if phone_match:
+                        order_tracker.update_numero(user_id, phone_match.group(1), source="USER_TEXT", confidence=1.0)
 
                 # Quantité (carton/paquets) - persistance (slot obligatoire)
                 qty_match = re.search(
