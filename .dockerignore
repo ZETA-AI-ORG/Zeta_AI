@@ -1,0 +1,15 @@
+.git
+.venv
+venv
+__pycache__
+*.pyc
+.env
+.env.*
+node_modules
+results
+tests/reports
+logs
+*.log
+*.zip
+models
+checkpoints

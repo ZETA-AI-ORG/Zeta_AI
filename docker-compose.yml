@@ -1,0 +1,19 @@
+services:
+  zeta-backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: zeta-backend
+    restart: unless-stopped
+    env_file:
+      - .env
+    ports:
+      - "0.0.0.0:8002:8002"
+    volumes:
+      - ${ZETA_MODELS_PATH:-./models}:/app/models
+      - ${ZETA_CHECKPOINTS_PATH:-./checkpoints}:/app/checkpoints
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8002/botlive/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
