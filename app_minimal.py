@@ -11,6 +11,7 @@ import os
 from fastapi import FastAPI
 from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
+from typing import List
 
 # Logger minimal
 logging.basicConfig(level=logging.INFO)
@@ -51,6 +52,7 @@ class ChatRequest(BaseModel):
     user_id: str
     message: str
     conversation_history: str = ""
+    images: List[str] = []
 
 
 @app.post("/chat")
@@ -62,6 +64,7 @@ async def chat(chat_request: ChatRequest):
             query=chat_request.message,
             company_id=chat_request.company_id,
             user_id=chat_request.user_id,
+            images=chat_request.images,
         )
         return {"status": "success", "response": response}
     except Exception as e:
