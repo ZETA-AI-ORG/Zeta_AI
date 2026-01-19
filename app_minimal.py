@@ -9,6 +9,7 @@ load_dotenv()
 import logging
 import os
 from fastapi import FastAPI
+from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
 
 # Logger minimal
@@ -43,6 +44,30 @@ async def health():
 @app.get("/test")
 async def test():
     return {"test": "success", "imports": "minimal"}
+
+
+class ChatRequest(BaseModel):
+    company_id: str
+    user_id: str
+    message: str
+    conversation_history: str = ""
+
+
+@app.post("/chat")
+async def chat(chat_request: ChatRequest):
+    try:
+        from core.simplified_rag_engine import get_simplified_rag_response
+
+        response = await get_simplified_rag_response(
+            message=chat_request.message,
+            user_id=chat_request.user_id,
+            company_id=chat_request.company_id,
+            conversation_history=chat_request.conversation_history,
+        )
+        return {"status": "success", "response": response}
+    except Exception as e:
+        logger.exception("/chat failed")
+        return {"status": "error", "error": str(e), "type": type(e).__name__}
 
 @app.get("/db-test")
 async def db_test():
@@ -92,13 +117,17 @@ async def auth_test():
     }
 
 # Étape 3 : Botlive (Vision AI - Pas de RAG nécessaire) - DÉSACTIVÉ TEMPORAIREMENT
-# try:
-#     from routes.botlive import router as botlive_router
-#     app.include_router(botlive_router, tags=["Botlive"])  # Pas de prefix, déjà dans le router
-#     logger.info("✅ Routes Botlive chargées")
-# except Exception as e:
-#     logger.warning(f"⚠️ Erreur chargement Botlive routes: {e}")
-logger.info("⚠️ Routes Botlive désactivées temporairement pour Render")
+BOTLIVE_ENABLED = os.getenv("BOTLIVE_ENABLED", "true").lower() == "true"
+if BOTLIVE_ENABLED:
+    try:
+        from routes.botlive import router as botlive_router
+
+        app.include_router(botlive_router, tags=["Botlive"])  # Pas de prefix, déjà dans le router
+        logger.info("✅ Routes Botlive chargées")
+    except Exception as e:
+        logger.warning(f"⚠️ Erreur chargement Botlive routes: {e}")
+else:
+    logger.info("⚠️ BOTLIVE_ENABLED=false: Routes Botlive désactivées")
 
 @app.get("/botlive-test")
 async def botlive_test():

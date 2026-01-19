@@ -13,7 +13,7 @@ services:
       - ${ZETA_MODELS_PATH:-./models}:/app/models
       - ${ZETA_CHECKPOINTS_PATH:-./checkpoints}:/app/checkpoints
     healthcheck:
-      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8002/botlive/health"]
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8002/health"]
       interval: 30s
       timeout: 5s
       retries: 3

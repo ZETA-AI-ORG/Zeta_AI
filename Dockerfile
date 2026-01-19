@@ -19,4 +19,4 @@ COPY . /app
 
 EXPOSE 8002
 
-CMD ["uvicorn", "Zeta_AI.app:app", "--host", "0.0.0.0", "--port", "8002", "--log-level", "info"]
+CMD ["uvicorn", "app_minimal:app", "--host", "0.0.0.0", "--port", "8002", "--log-level", "info"]
