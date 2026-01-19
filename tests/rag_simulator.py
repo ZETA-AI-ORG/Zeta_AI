@@ -398,6 +398,14 @@ class RAGSimulator:
                 except Exception:
                     result = {"raw": resp.text, "status_code": resp.status_code}
 
+                # Compat: certains backends renvoient {"status": "success", "response": {...}}
+                # On "déplie" automatiquement pour conserver un format plat.
+                try:
+                    if isinstance(result, dict) and isinstance(result.get("response"), dict) and ("status" in result):
+                        result = result.get("response") or {}
+                except Exception:
+                    pass
+
             bot_response = (result.get("response") or "").strip() if isinstance(result, dict) else ""
 
             prompt_tokens = int((result.get("prompt_tokens") or 0) if isinstance(result, dict) else 0)
@@ -693,7 +701,8 @@ async def main() -> None:
     print(f"🧪 COMPANY_ID: {TEST_COMPANY_ID}")
     print("=" * 80 + "\n")
 
-    if len(sys.argv) > 1 and sys.argv[1].startswith("--scenario"):
+    # Scénario: supporter n'importe quel ordre d'arguments (ex: --http --scenario)
+    if any(a.startswith("--scenario") or a in {"--whatsapp58", "--whatsapp120", "--scenario-validation", "--scenario_validation"} for a in sys.argv[1:]):
         await simulator.run_scenario()
     else:
         await simulator.run_interactive()
