@@ -59,10 +59,9 @@ async def chat(chat_request: ChatRequest):
         from core.simplified_rag_engine import get_simplified_rag_response
 
         response = await get_simplified_rag_response(
-            message=chat_request.message,
-            user_id=chat_request.user_id,
+            query=chat_request.message,
             company_id=chat_request.company_id,
-            conversation_history=chat_request.conversation_history,
+            user_id=chat_request.user_id,
         )
         return {"status": "success", "response": response}
     except Exception as e:

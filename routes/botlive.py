@@ -1867,6 +1867,7 @@ async def botlive_health():
         return JSONResponse(
             content={
                 "status": "unhealthy",
+                "error_type": type(e).__name__,
                 "error": str(e),
                 "timestamp": datetime.utcnow().isoformat()
             },
