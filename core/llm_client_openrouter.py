@@ -1,6 +1,7 @@
 import os
 import requests
 import json
+import re
 from typing import Any, Dict, Optional
 
 
@@ -119,41 +120,67 @@ async def complete(
 
     try:
         for model in models_to_try:
-            body = {
-                "model": model,
-                "messages": messages if isinstance(messages, list) and messages else [{"role": "user", "content": prompt}],
-                "temperature": temperature,
-                "max_tokens": max_tokens,
-                "top_p": top_p,
-                "stream": False,
-            }
+            # OpenRouter peut refuser une requête si les crédits restants ne permettent pas
+            # le max_tokens demandé. Dans ce cas, l'erreur inclut souvent "can only afford N".
+            # On retente une fois avec un max_tokens réduit pour éviter de faire échouer le flux.
+            requested_max_tokens = int(max_tokens or 0)
+            attempted_max_tokens: set[int] = set()
 
-            if frequency_penalty is not None:
+            while True:
+                if requested_max_tokens in attempted_max_tokens:
+                    break
+                attempted_max_tokens.add(requested_max_tokens)
+
+                body = {
+                    "model": model,
+                    "messages": messages if isinstance(messages, list) and messages else [{"role": "user", "content": prompt}],
+                    "temperature": temperature,
+                    "max_tokens": requested_max_tokens,
+                    "top_p": top_p,
+                    "stream": False,
+                }
+
+                if frequency_penalty is not None:
+                    try:
+                        body["frequency_penalty"] = float(frequency_penalty)
+                    except Exception:
+                        pass
+
+                if seed is not None:
+                    body["seed"] = int(seed)
+                if response_format is not None:
+                    body["response_format"] = response_format
+
+                resp = requests.post(OPENROUTER_API_URL, json=body, headers=headers, timeout=60)
+                # Force UTF-8 to avoid mojibake in error bodies and JSON parsing.
+                # (Some providers may omit/alter charset headers, and requests can guess latin-1.)
                 try:
-                    body["frequency_penalty"] = float(frequency_penalty)
+                    resp.encoding = "utf-8"
                 except Exception:
                     pass
+                if resp.status_code != 200:
+                    err_txt_full = (resp.text or "")
+                    err_txt = err_txt_full[:300]
+                    last_error = f"OpenRouter API HTTP {resp.status_code}: {err_txt}"
 
-            if seed is not None:
-                body["seed"] = int(seed)
-            if response_format is not None:
-                body["response_format"] = response_format
+                    # Retry next candidate if OpenRouter rejects model id
+                    if resp.status_code == 400 and "not a valid model" in err_txt_full.lower():
+                        break
 
-            resp = requests.post(OPENROUTER_API_URL, json=body, headers=headers, timeout=60)
-            # Force UTF-8 to avoid mojibake in error bodies and JSON parsing.
-            # (Some providers may omit/alter charset headers, and requests can guess latin-1.)
-            try:
-                resp.encoding = "utf-8"
-            except Exception:
-                pass
-            if resp.status_code != 200:
-                err_txt = (resp.text or "")[:300]
-                last_error = f"OpenRouter API HTTP {resp.status_code}: {err_txt}"
+                    # Retry once with reduced max_tokens if OpenRouter signals credits limit
+                    if resp.status_code == 402:
+                        m = re.search(r"can only afford\s+(\d+)", err_txt_full, flags=re.IGNORECASE)
+                        if m:
+                            try:
+                                affordable = int(m.group(1))
+                            except Exception:
+                                affordable = 0
+                            # Avoid retrying with too small values that would likely fail / be useless.
+                            if affordable > 0 and affordable < requested_max_tokens and affordable >= 120:
+                                requested_max_tokens = affordable
+                                continue
 
-                # Retry next candidate if OpenRouter rejects model id
-                if resp.status_code == 400 and "not a valid model" in (resp.text or "").lower():
-                    continue
-                raise OpenRouterLLMError(last_error)
+                    raise OpenRouterLLMError(last_error)
 
             try:
                 data = resp.json()
