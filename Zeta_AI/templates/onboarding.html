@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Onboarding Entreprise IA</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+    <style>
+        body {
+            background: #18181b;
+            color: #fff;
+            font-family: 'Inter', sans-serif;
+            margin: 0;
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 700px;
+            margin: 40px auto;
+            background: #232336;
+            border-radius: 16px;
+            box-shadow: 0 4px 32px rgba(0,0,0,0.12);
+            padding: 32px 40px;
+        }
+        h1 {
+            text-align: center;
+            font-size: 2.3rem;
+            margin-bottom: 8px;
+        }
+        p.subtitle {
+            text-align: center;
+            color: #bdbdbd;
+            margin-bottom: 32px;
+        }
+        .section {
+            margin-bottom: 32px;
+        }
+        .section-title {
+            font-size: 1.15rem;
+            font-weight: 600;
+            color: #a5b4fc;
+            margin-bottom: 12px;
+        }
+        label {
+            display: block;
+            margin-bottom: 6px;
+            font-weight: 500;
+            color: #e0e7ff;
+        }
+        input, textarea, select {
+            width: 100%;
+            padding: 10px 12px;
+            margin-bottom: 18px;
+            border-radius: 8px;
+            border: none;
+            background: #18181b;
+            color: #fff;
+            font-size: 1rem;
+            box-sizing: border-box;
+        }
+        input[type="submit"] {
+            background: linear-gradient(90deg, #6366f1, #7c3aed);
+            color: #fff;
+            font-weight: 600;
+            border: none;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        input[type="submit"]:hover {
+            background: linear-gradient(90deg, #7c3aed, #6366f1);
+        }
+        .row {
+            display: flex;
+            gap: 16px;
+        }
+        .row > div {
+            flex: 1;
+        }
+        @media (max-width: 600px) {
+            .container {
+                padding: 16px 6px;
+            }
+            .row {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Configurez Votre IA</h1>
+        <p class="subtitle">Renseignez les informations de votre entreprise pour que l'IA vous représente au mieux.</p>
+        <form id="onboarding-form" autocomplete="off">
+            <!-- Identité de l'Entreprise -->
+            <div class="section">
+                <div class="section-title">Identité de l'Entreprise</div>
+                <label for="company_name">Nom de l'entreprise</label>
+                <input type="text" id="company_name" name="company_name" required>
+                <label for="ai_name">Nom de l'IA</label>
+                <input type="text" id="ai_name" name="ai_name" required>
+                <div class="row">
+                    <div>
+                        <label for="sector">Secteur d'activité</label>
+                        <input type="text" id="sector" name="sector" required>
+                    </div>
+                    <div>
+                        <label for="activity_zone">Zone d'activité</label>
+                        <input type="text" id="activity_zone" name="activity_zone" required>
+                    </div>
+                </div>
+                <label for="description">Description de l'activité</label>
+                <textarea id="description" name="description" rows="2"></textarea>
+                <label for="mission">Mission</label>
+                <textarea id="mission" name="mission" rows="2"></textarea>
+            </div>
+            <!-- Contact & Réseaux Sociaux -->
+            <div class="section">
+                <div class="section-title">Contact & Réseaux Sociaux</div>
+                <div class="row">
+                    <div>
+                        <label for="contact_phone">Téléphone de contact</label>
+                        <input type="text" id="contact_phone" name="contact_phone">
+                    </div>
+                    <div>
+                        <label for="contact_email">Email du contact</label>
+                        <input type="email" id="contact_email" name="contact_email">
+                    </div>
+                </div>
+                <label for="facebook">Lien de page Facebook</label>
+                <input type="url" id="facebook" name="facebook">
+                <label for="instagram">URL du profil Instagram</label>
+                <input type="url" id="instagram" name="instagram">
+                <label for="whatsapp">URL du profil WhatsApp</label>
+                <input type="url" id="whatsapp" name="whatsapp">
+            </div>
+            <!-- Catégorie principale -->
+            <div class="section">
+                <div class="section-title">Catégorie Principale</div>
+                <label for="main_category">Catégorie</label>
+                <select id="main_category" name="main_category" required>
+                    <option value="">Sélectionnez...</option>
+                    <option value="Bébé & Puériculture">Bébé & Puériculture</option>
+                    <option value="Auto & Moto">Auto & Moto</option>
+                    <option value="Électronique">Électronique</option>
+                    <option value="Maison & Cuisine">Maison & Cuisine</option>
+                    <option value="Beauté & Santé">Beauté & Santé</option>
+                    <option value="Mode">Mode</option>
+                </select>
+                <label for="sub_category">Sous-catégorie</label>
+                <input type="text" id="sub_category" name="sub_category" placeholder="Ex: Couches & lingettes" required>
+            </div>
+            <!-- Bouton submit -->
+            <input type="submit" value="Enregistrer & Continuer">
+        </form>
+    </div>
+    <script>
+        // Placeholder: Ajoute ici la logique JS pour pré-remplir depuis la base ou envoyer les données
+        document.getElementById('onboarding-form').onsubmit = function(e) {
+            e.preventDefault();
+            const data = Object.fromEntries(new FormData(this).entries());
+            // TODO: envoyer data vers l'API ou afficher un résumé avant envoi
+            alert('Données collectées :\n' + JSON.stringify(data, null, 2));
+        };
+    </script>
+</body>
+</html>

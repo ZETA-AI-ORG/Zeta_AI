@@ -1,0 +1,107 @@
+Copie ton code N8N actuel complet ici, puis ajoute ces sections à la fin :
+
+// ===== AJOUTER CES FONCTIONS APRÈS TES TEMPLATES EXISTANTS =====
+
+// TEMPLATE UNIVERSEL
+const UNIVERSAL_PROMPT_TEMPLATE = `# {{ASSISTANT_NAME}} - Assistant {{COMPANY_NAME}}
+Tu es **{{ASSISTANT_NAME}}**, assistant(e) de **{{COMPANY_NAME}}** ({{COMPANY_SECTOR}}).
+Contact: WhatsApp {{WHATSAPP_PHONE}} | Wave {{WAVE_PHONE}} | Acompte: {{DEPOSIT_AMOUNT}} Fcfa
+
+FORMAT OBLIGATOIRE:
+<thinking>
+question: "[texte]"
+intentions: [int1, int2]
+patterns_positifs: [mot1, mot2]
+</thinking>
+<response>[Réponse 2 phrases max]</response>
+
+PRODUITS:
+{{PRODUCTS_LIST}}
+Prix: {{PRICE_MIN}} - {{PRICE_MAX}} FCFA
+
+LIVRAISON:
+{{DELIVERY_ZONES_LIST}}
+
+PAIEMENT:
+{{PAYMENT_METHODS_LIST}}
+Acompte: {{DEPOSIT_AMOUNT}} FCFA
+`;
+
+// FONCTIONS PROMPT UNIVERSEL
+function extractProductsList(catalog) {
+  if (!catalog || !Array.isArray(catalog) || catalog.length === 0) return '- Aucun produit';
+  const products = [];
+  for (const p of catalog) {
+    if (p.variants && p.variants.length > 0) {
+      const prices = p.variants.map(v => v.price);
+      const min = Math.min(...prices).toLocaleString('fr-FR').replace(/,/g, ' ');
+      const max = Math.max(...prices).toLocaleString('fr-FR').replace(/,/g, ' ');
+      products.push('- ' + p.name + ' (' + min + ' - ' + max + ' FCFA)');
+    }
+  }
+  return products.join('\n');
+}
+
+function extractPriceRange(catalog) {
+  if (!catalog || !Array.isArray(catalog) || catalog.length === 0) return {min: 0, max: 0};
+  const prices = catalog.flatMap(p => p.variants ? p.variants.map(v => v.price) : []);
+  return {min: Math.min(...prices), max: Math.max(...prices)};
+}
+
+function extractDeliveryZonesList(text) {
+  if (!text) return '- Aucune zone';
+  const lines = text.split('\n').filter(l => l.includes('FCFA') && !l.includes('Délais'));
+  return lines.map(l => '- ' + l.trim().replace(/^-\s*/, '')).join('\n');
+}
+
+function extractPaymentMethodsList(payment) {
+  if (!payment || !payment.payment_methods) return '- Aucun moyen';
+  const methods = Array.isArray(payment.payment_methods) ? payment.payment_methods : [payment.payment_methods];
+  const deposit = (payment.deposit_amount || 2000).toLocaleString('fr-FR').replace(/,/g, ' ');
+  return methods.map(m => '- ' + m + ' (Acompte: ' + deposit + ' FCFA)').join('\n');
+}
+
+function fillUniversalPrompt(data) {
+  const priceRange = extractPriceRange(data.catalog);
+  const whatsapp = (data.contact && data.contact.phone && data.contact.phone.match(/\+?\d[\d\s]+/)) ? data.contact.phone.match(/\+?\d[\d\s]+/)[0].trim() : '+225 0160924560';
+  const wave = (data.payment && data.payment.payment_numbers && data.payment.payment_numbers.Wave) ? data.payment.payment_numbers.Wave : '+225 0787360757';
+  
+  const vars = {
+    '{{ASSISTANT_NAME}}': (data.companyInfo && data.companyInfo.ai_name) || 'Jessica',
+    '{{COMPANY_NAME}}': (data.companyInfo && data.companyInfo.company_name) || 'ENTREPRISE',
+    '{{COMPANY_SECTOR}}': (data.companyInfo && data.companyInfo.secteur_activite) || 'Commerce',
+    '{{WHATSAPP_PHONE}}': whatsapp,
+    '{{WAVE_PHONE}}': wave,
+    '{{DEPOSIT_AMOUNT}}': ((data.payment && data.payment.deposit_amount) || 2000).toLocaleString('fr-FR').replace(/,/g, ' '),
+    '{{PRODUCTS_LIST}}': extractProductsList(data.catalog),
+    '{{PRICE_MIN}}': priceRange.min.toLocaleString('fr-FR').replace(/,/g, ' '),
+    '{{PRICE_MAX}}': priceRange.max.toLocaleString('fr-FR').replace(/,/g, ' '),
+    '{{DELIVERY_ZONES_LIST}}': extractDeliveryZonesList(data.delivery ? data.delivery.delivery_zones : null),
+    '{{PAYMENT_METHODS_LIST}}': extractPaymentMethodsList(data.payment)
+  };
+  
+  let filled = UNIVERSAL_PROMPT_TEMPLATE;
+  for (const k in vars) {
+    const regex = new RegExp(k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g');
+    filled = filled.replace(regex, vars[k]);
+  }
+  return filled;
+}
+
+// ===== MODIFIER LA SECTION RESULTS =====
+// Dans ton code existant, trouve la section où tu crées supabasePayload
+// et ajoute cette ligne :
+
+system_prompt_template: fillUniversalPrompt(data),
+
+// Exemple complet :
+/*
+const supabasePayload = {
+  company_id: data.companyId,
+  prompt_botlive_groq_70b: promptGroq70B,
+  prompt_botlive_deepseek_v3: promptDeepSeekV3,
+  system_prompt_template: fillUniversalPrompt(data),  // <-- AJOUTER CETTE LIGNE
+  botlive_prompts_version: '2.0',
+  botlive_prompts_updated_at: new Date().toISOString()
+};
+*/

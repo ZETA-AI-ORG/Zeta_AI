@@ -1,0 +1,133 @@
+# ========================================
+# 🔥 GITIGNORE OPTIMISÉ - CHATBOT2.0
+# ========================================
+
+# ===== ENVIRONNEMENTS VIRTUELS =====
+.venv/
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# ===== PYTHON =====
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# ===== JUPYTER NOTEBOOK =====
+.ipynb_checkpoints
+*.ipynb
+
+# ===== ENVIRONNEMENT & SECRETS =====
+.env
+.env.local
+.env.*.local
+*.key
+*.pem
+service_account*.json
+!service_account_temp.json
+
+# ===== LOGS =====
+*.log
+# logs/  # Temporairement désactivé pour analyse
+*.log.*
+rag_detailed_logs_*.json
+# Temporairement débloqué pour analyse
+# tests/logs/
+
+# ===== CACHES =====
+.cache/
+*.cache
+.pytest_cache/
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.ruff_cache/
+
+# ===== BASES DE DONNÉES =====
+*.db
+*.sqlite
+*.sqlite3
+
+# ===== IDE & ÉDITEURS =====
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# ===== NODE.JS (si applicable) =====
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ===== SAUVEGARDES (NE PAS VERSIONNER) =====
+backup/
+*.bak
+*.backup
+
+# ===== VERSIONS STABLES (NE PAS VERSIONNER) =====
+# Les versions stables sont gérées localement uniquement
+stable/
+
+# ===== FICHIERS TEMPORAIRES =====
+tmp/
+temp/
+*.tmp
+*.temp
+
+# ===== DOSSIER AVANT MODIFICATIONS =====
+CHATBOT2.0 BEFORE LAST/
+
+# ===== FICHIERS DE TEST =====
+# test_*.py  # Temporairement désactivé pour tests PUZZLE
+# *_test.py  # Temporairement désactivé pour tests PUZZLE
+tests/__pycache__/
+
+# ===== DOCUMENTATION TEMPORAIRE =====
+*.md.backup
+RESUME_SESSION.md
+
+# ===== SYSTÈME D'EXPLOITATION =====
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# ===== COVERAGE & PROFILING =====
+.coverage
+.coverage.*
+htmlcov/
+*.cover
+*.py,cover
+.hypothesis/
+.prof
+
+# ===== AUTRES =====
+*.pid
+*.seed
+*.pid.lock
+.pnp.*
+
+.env.render

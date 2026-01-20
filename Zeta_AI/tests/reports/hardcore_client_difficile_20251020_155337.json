@@ -1,0 +1,11 @@
+{
+  "scenario": "hardcore_client_difficile",
+  "start_time": 1760968310.7422569,
+  "end_time": 1760968416.5927355,
+  "total_duration_ms": 105850.4786491394,
+  "total_rag_time_ms": 0,
+  "total_turns": 0,
+  "total_tokens": 0,
+  "total_cost_usd": 0.0,
+  "turns": []
+}

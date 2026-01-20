@@ -1,0 +1,112 @@
+{
+  "scenario": "light_client_informe",
+  "start_time": 1760943996.3154192,
+  "end_time": 1760944156.539086,
+  "total_duration_ms": 160223.6669063568,
+  "total_rag_time_ms": 133644,
+  "total_turns": 5,
+  "total_tokens": 1097,
+  "total_cost_usd": 0.00086663,
+  "turns": [
+    {
+      "turn": 1,
+      "timestamp": "2025-10-20T09:08:45.736759",
+      "user_message": "Bonjour, combien coûte un lot de 300 couches taille 3?",
+      "llm_response": "📦 Vous souhaitez des couches culottes ou des couches à pression en taille 3 ?",
+      "thinking": {},
+      "contexts": [
+        {
+          "type": "context",
+          "content": "\n⚠️ AMBIGUÏTÉ DÉTECTÉE pour la requête utilisateur:\nType de produit non précisé. Options disponibles:\n  - couches culottes\n  - couches à pression\n\nACTION REQUISE: Demander au client de préciser le typ"
+        }
+      ],
+      "execution_time_ms": 108319,
+      "tokens": {
+        "prompt": 217,
+        "completion": 19,
+        "total": 236
+      },
+      "cost_usd": 0.00018644
+    },
+    {
+      "turn": 2,
+      "timestamp": "2025-10-20T09:08:52.696558",
+      "user_message": "Ok parfait. Je suis à Yopougon, c'est combien la livraison?",
+      "llm_response": "<response>\n🚚 Frais de livraison à Yopougon : 1 500 FCFA\n💰 Comment souhaitez-vous payer ?",
+      "thinking": {},
+      "contexts": [
+        {
+          "type": "context",
+          "content": "LIVRAISON - ZONES CENTRALES ABIDJAN\n- Yopougon : 1 500 FCFA\nDélais de livraison Abidjan :\n• Commande avant 13 h → Livraison le jour même\n\nLIVRAISON - ZONES PÉRIPHÉRIQUES ABIDJAN\nDélais de livraison Ab"
+        }
+      ],
+      "execution_time_ms": 5843,
+      "tokens": {
+        "prompt": 111,
+        "completion": 20,
+        "total": 132
+      },
+      "cost_usd": 0.00010428000000000001
+    },
+    {
+      "turn": 3,
+      "timestamp": "2025-10-20T09:08:59.864977",
+      "user_message": "Super! Je veux commander alors. Comment faire?",
+      "llm_response": "💳 Pour valider votre commande, veuillez effectuer un acompte de 2000 FCFA via Wave au numéro +225 0787360757.\n📦 Votre commande de 300 couches taille 3 sera livrée à Yopougon avec des frais de livraison de 1500 FCFA.",
+      "thinking": {},
+      "contexts": [
+        {
+          "type": "context",
+          "content": "MODES DE PAIEMENT ACCEPTÉS:\nWave\n\nNUMÉROS DE PAIEMENT:\nWAVE: +225 0787360757\n\n⚠️ ACOMPTE OBLIGATOIRE: 2000 FCFA pour valider la commande\n\nLIVRAISON - ZONES CENTRALES ABIDJAN\n\n- Yopougon : 1 500 FCFA\n-"
+        }
+      ],
+      "execution_time_ms": 6071,
+      "tokens": {
+        "prompt": 275,
+        "completion": 49,
+        "total": 325
+      },
+      "cost_usd": 0.00025675
+    },
+    {
+      "turn": 4,
+      "timestamp": "2025-10-20T09:09:06.542965",
+      "user_message": "Mon numéro c'est le 0708123456. Je paie par Wave",
+      "llm_response": "📦 Vous souhaitez des couches culottes ou des couches à pression en taille 3 ?",
+      "thinking": {},
+      "contexts": [
+        {
+          "type": "context",
+          "content": "MODES DE PAIEMENT ACCEPTÉS:\nWave\n\nNUMÉROS DE PAIEMENT:\nWAVE: +225 0787360757\n\n⚠️ ACOMPTE OBLIGATOIRE: 2000 FCFA pour valider la commande\n\n"
+        }
+      ],
+      "execution_time_ms": 5565,
+      "tokens": {
+        "prompt": 37,
+        "completion": 19,
+        "total": 57
+      },
+      "cost_usd": 4.503000000000001e-05
+    },
+    {
+      "turn": 5,
+      "timestamp": "2025-10-20T09:09:15.463310",
+      "user_message": "Oui je confirme ma commande. Livraison demain ok",
+      "llm_response": "<response>\n📦 Votre commande est confirmée pour une livraison demain à Yopougon.\n💬 Quel type de couches souhaitez-vous (couches culottes ou couches à pression) en taille 3 ?",
+      "thinking": {},
+      "contexts": [
+        {
+          "type": "context",
+          "content": "LIVRAISON - HORS ABIDJAN (TOUTE CÔTE D'IVOIRE)\n\nTarif : 3 500 à 5 000 FCFA (confirmé par téléphone)\n\nDélais de livraison :\n- Localités proches : 24 heures\n- Autres villes de Côte d'Ivoire : 48 à 72 he"
+        }
+      ],
+      "execution_time_ms": 7846,
+      "tokens": {
+        "prompt": 310,
+        "completion": 36,
+        "total": 347
+      },
+      "cost_usd": 0.00027413
+    }
+  ]
+}

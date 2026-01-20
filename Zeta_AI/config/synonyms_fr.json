@@ -1,0 +1,10 @@
+{
+  "synonyms": {
+    "livraison": ["envoi", "expédition", "transport", "délivrance"],
+    "prix": ["coût", "tarif", "montant"],
+    "paiement": ["règlement", "payement", "transaction"],
+    "bébé": ["bebe", "enfant", "nourrisson"],
+    "disponible": ["dispo", "en stock"],
+    "commander": ["acheter", "réserver", "prendre"]
+  }
+}

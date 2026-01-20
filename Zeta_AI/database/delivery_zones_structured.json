@@ -1,0 +1,96 @@
+[
+  {
+    "id": "livraison_zones_centrales_structured",
+    "company_id": "4OS4yFcf2LZwxhKojbAVbKuVuSdb",
+    "type": "delivery",
+    "category": "zones_centrales",
+    "file_name": "livraison-zones-centrales-structured.json",
+    "content": "LIVRAISON - ZONES CENTRALES ABIDJAN (1 500 FCFA)",
+    "searchable_text": "livraison zones centrales abidjan yopougon cocody plateau adjame abobo marcory koumassi treichville angre riviera zone4 220logement 1500 fcfa",
+    "zones": {
+      "yopougon": 1500,
+      "cocody": 1500,
+      "plateau": 1500,
+      "adjame": 1500,
+      "abobo": 1500,
+      "marcory": 1500,
+      "koumassi": 1500,
+      "treichville": 1500,
+      "angre": 1500,
+      "riviera": 1500,
+      "zone_4": 1500,
+      "220_logement": 1500
+    },
+    "zone_patterns": {
+      "yopougon": ["yopougon", "yop", "yopp", "youpougon"],
+      "cocody": ["cocody", "coco", "kokody", "kocody"],
+      "plateau": ["plateau", "plato", "platau"],
+      "adjame": ["adjame", "adjamé", "adja", "adjamè"],
+      "abobo": ["abobo", "abobbo", "abo"],
+      "marcory": ["marcory", "markory", "marco"],
+      "koumassi": ["koumassi", "koumasi", "koumassis"],
+      "treichville": ["treichville", "treischville", "treich"],
+      "angre": ["angre", "angré", "angrè"],
+      "riviera": ["riviera", "riviéra", "rivièra"],
+      "zone_4": ["zone 4", "zone4", "zone-4"],
+      "220_logement": ["220 logement", "220logement", "220-logement"]
+    },
+    "delais": {
+      "avant_11h": "Livraison le jour même",
+      "apres_11h": "Livraison le lendemain (jour ouvré)"
+    },
+    "delais_text": "Commande avant 11h → jour même | après 11h → lendemain"
+  },
+  {
+    "id": "livraison_zones_peripheriques_structured",
+    "company_id": "4OS4yFcf2LZwxhKojbAVbKuVuSdb",
+    "type": "delivery",
+    "category": "zones_peripheriques",
+    "file_name": "livraison-zones-peripheriques-structured.json",
+    "content": "LIVRAISON - ZONES PÉRIPHÉRIQUES ABIDJAN (2 000 - 2 500 FCFA)",
+    "searchable_text": "livraison zones peripheriques abidjan port-bouet attecoube bingerville songon anyama brofodoume grand-bassam dabou 2000 2500 fcfa",
+    "zones": {
+      "port_bouet": 2000,
+      "attecoube": 2000,
+      "bingerville": 2500,
+      "songon": 2500,
+      "anyama": 2500,
+      "brofodoume": 2500,
+      "grand_bassam": 2500,
+      "dabou": 2500
+    },
+    "zone_patterns": {
+      "port_bouet": ["port-bouet", "port bouet", "portbouet", "port-bouët", "portbouët"],
+      "attecoube": ["attecoube", "attécoubé", "attecoubé", "atecoube"],
+      "bingerville": ["bingerville", "bingereville", "binger"],
+      "songon": ["songon", "songon-agban", "songon agban"],
+      "anyama": ["anyama", "aniama", "anyamma"],
+      "brofodoume": ["brofodoume", "brofodoumé", "brofo"],
+      "grand_bassam": ["grand-bassam", "grand bassam", "bassam", "grandbassam"],
+      "dabou": ["dabou", "dabu", "daboux"]
+    },
+    "delais": {
+      "avant_11h": "Livraison le jour même",
+      "apres_11h": "Livraison le lendemain (jour ouvré)"
+    },
+    "delais_text": "Commande avant 11h → jour même | après 11h → lendemain"
+  },
+  {
+    "id": "livraison_hors_abidjan_structured",
+    "company_id": "4OS4yFcf2LZwxhKojbAVbKuVuSdb",
+    "type": "delivery",
+    "category": "hors_abidjan",
+    "file_name": "livraison-hors-abidjan-structured.json",
+    "content": "LIVRAISON - HORS ABIDJAN (TOUTE CÔTE D'IVOIRE)",
+    "searchable_text": "livraison hors abidjan cote ivoire interieur pays 3500 5000 fcfa telephone confirmation",
+    "tarif_min": 3500,
+    "tarif_max": 5000,
+    "tarif_text": "3 500 à 5 000 FCFA (confirmé par téléphone)",
+    "delais": {
+      "localites_proches": "24 heures",
+      "autres_villes": "48 à 72 heures"
+    },
+    "delais_text": "Localités proches: 24h | Autres villes: 48-72h",
+    "note": "⚠️ Confirmation des délais par agent téléphonique"
+  }
+]

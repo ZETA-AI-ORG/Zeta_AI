@@ -1,0 +1,112 @@
+{
+  "scenario": "light_client_informe",
+  "start_time": 1760960598.6612885,
+  "end_time": 1760960693.5298834,
+  "total_duration_ms": 94868.59488487244,
+  "total_rag_time_ms": 64644,
+  "total_turns": 5,
+  "total_tokens": 1254,
+  "total_cost_usd": 0.00099066,
+  "turns": [
+    {
+      "turn": 1,
+      "timestamp": "2025-10-20T13:44:20.024270",
+      "user_message": "Bonjour, combien coûte un lot de 300 couches taille 3?",
+      "llm_response": "Noté ! On a plusieurs types de couches en lot de 300. \nPour les couches à pression taille 3, le prix est de 22 900 F CFA.\nPour les couches culottes, le prix est de 24 000 F CFA.\nQuel type de couches veux-tu ?",
+      "thinking": {},
+      "contexts": [
+        {
+          "type": "context",
+          "content": "\n⚠️ AMBIGUÏTÉ DÉTECTÉE pour la requête utilisateur:\nType de produit non précisé. Options disponibles:\n  - couches culottes\n  - couches à pression\n\nACTION REQUISE: Demander au client de préciser le typ"
+        }
+      ],
+      "execution_time_ms": 36249,
+      "tokens": {
+        "prompt": 217,
+        "completion": 58,
+        "total": 275
+      },
+      "cost_usd": 0.00021725000000000002
+    },
+    {
+      "turn": 2,
+      "timestamp": "2025-10-20T13:44:27.840229",
+      "user_message": "Ok parfait. Je suis à Yopougon, c'est combien la livraison?",
+      "llm_response": "Noté ! 📦 Tu es à Yopougon, frais de livraison sont 1500 FCFA. \nPour valider ta commande de 300 couches taille 3, \nil nous manque juste le paiement. \nTu as envoyé les 2000 F d'acompte par Wave ?",
+      "thinking": {},
+      "contexts": [
+        {
+          "type": "context",
+          "content": "LIVRAISON - ZONES CENTRALES ABIDJAN\n- Yopougon : 1 500 FCFA\nDélais de livraison Abidjan :\n• Commande avant 13 h → Livraison le jour même\n\nLIVRAISON - ZONES PÉRIPHÉRIQUES ABIDJAN\nDélais de livraison Ab"
+        }
+      ],
+      "execution_time_ms": 6794,
+      "tokens": {
+        "prompt": 111,
+        "completion": 49,
+        "total": 161
+      },
+      "cost_usd": 0.00012719
+    },
+    {
+      "turn": 3,
+      "timestamp": "2025-10-20T13:44:35.953161",
+      "user_message": "Super! Je veux commander alors. Comment faire?",
+      "llm_response": "Noté ! 📦 On a plusieurs types de couches en lot de 300. \nPour les couches à pression, le prix est de 22 900 F et pour les couches culottes, le prix est de 24 000 F.\nQuel type de couches veux-tu commander ? Et quel est ton numéro de téléphone pour la livraison ?",
+      "thinking": {},
+      "contexts": [
+        {
+          "type": "context",
+          "content": "MODES DE PAIEMENT ACCEPTÉS:\nWave\n\nNUMÉROS DE PAIEMENT:\nWAVE: +225 0787360757\n\n⚠️ ACOMPTE OBLIGATOIRE: 2000 FCFA pour valider la commande\n\nLIVRAISON - ZONES CENTRALES ABIDJAN\n\n- Yopougon : 1 500 FCFA\n-"
+        }
+      ],
+      "execution_time_ms": 7085,
+      "tokens": {
+        "prompt": 275,
+        "completion": 71,
+        "total": 347
+      },
+      "cost_usd": 0.00027413
+    },
+    {
+      "turn": 4,
+      "timestamp": "2025-10-20T13:44:44.502812",
+      "user_message": "Mon numéro c'est le 0708123456. Je paie par Wave",
+      "llm_response": "Noté ! 📦 Tu as choisi de payer par Wave, mais on n'a pas encore le type de couches. \nOn a deux types en lot de 300: \n- Couches à pression (22 900 F)\n- Couches culottes (24 000 F)\nLequel te convient ? N'oublie pas de nous faire un dépôt de 2000 F sur notre numéro Wave +225 0787360757 pour valider ta commande.",
+      "thinking": {},
+      "contexts": [
+        {
+          "type": "context",
+          "content": "MODES DE PAIEMENT ACCEPTÉS:\nWave\n\nNUMÉROS DE PAIEMENT:\nWAVE: +225 0787360757\n\n⚠️ ACOMPTE OBLIGATOIRE: 2000 FCFA pour valider la commande\n\n"
+        }
+      ],
+      "execution_time_ms": 7521,
+      "tokens": {
+        "prompt": 37,
+        "completion": 83,
+        "total": 120
+      },
+      "cost_usd": 9.48e-05
+    },
+    {
+      "turn": 5,
+      "timestamp": "2025-10-20T13:44:52.517519",
+      "user_message": "Oui je confirme ma commande. Livraison demain ok",
+      "llm_response": "Noté ! 📦 Tu as confirmé ta commande pour demain. \nIl nous manque juste le type de couches que tu veux (couches à pression ou couches culottes) pour valider ta commande.",
+      "thinking": {},
+      "contexts": [
+        {
+          "type": "context",
+          "content": "LIVRAISON - HORS ABIDJAN (TOUTE CÔTE D'IVOIRE)\n\nTarif : 3 500 à 5 000 FCFA (confirmé par téléphone)\n\nDélais de livraison :\n- Localités proches : 24 heures\n- Autres villes de Côte d'Ivoire : 48 à 72 he"
+        }
+      ],
+      "execution_time_ms": 6995,
+      "tokens": {
+        "prompt": 310,
+        "completion": 40,
+        "total": 351
+      },
+      "cost_usd": 0.00027729
+    }
+  ]
+}

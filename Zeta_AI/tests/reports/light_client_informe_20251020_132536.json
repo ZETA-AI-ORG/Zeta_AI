@@ -1,0 +1,112 @@
+{
+  "scenario": "light_client_informe",
+  "start_time": 1760959391.2132158,
+  "end_time": 1760959536.6809804,
+  "total_duration_ms": 145467.76461601257,
+  "total_rag_time_ms": 99037,
+  "total_turns": 5,
+  "total_tokens": 1173,
+  "total_cost_usd": 0.0009266699999999999,
+  "turns": [
+    {
+      "turn": 1,
+      "timestamp": "2025-10-20T13:24:39.753866",
+      "user_message": "Bonjour, combien coûte un lot de 300 couches taille 3?",
+      "llm_response": "Noté ! 📦 On a 2 types en lot 300 pour la taille 3:\n- Couches à pression (22 900 F)\n- Couches culottes (24 000 F)\n\nLequel tu veux ?",
+      "thinking": {},
+      "contexts": [
+        {
+          "type": "context",
+          "content": "\n⚠️ AMBIGUÏTÉ DÉTECTÉE pour la requête utilisateur:\nType de produit non précisé. Options disponibles:\n  - couches culottes\n  - couches à pression\n\nACTION REQUISE: Demander au client de préciser le typ"
+        }
+      ],
+      "execution_time_ms": 47807,
+      "tokens": {
+        "prompt": 217,
+        "completion": 40,
+        "total": 257
+      },
+      "cost_usd": 0.00020303
+    },
+    {
+      "turn": 2,
+      "timestamp": "2025-10-20T13:24:55.706122",
+      "user_message": "Ok parfait. Je suis à Yopougon, c'est combien la livraison?",
+      "llm_response": "Noté ! 📦 Vous avez déjà confirmé votre zone à Yopougon avec des frais de livraison de 1500 FCFA. Pour finaliser ta commande, il me manque quelques informations. Quel type de couches taille 3 veux-tu ?",
+      "thinking": {},
+      "contexts": [
+        {
+          "type": "context",
+          "content": "LIVRAISON - ZONES CENTRALES ABIDJAN\n- Yopougon : 1 500 FCFA\nDélais de livraison Abidjan :\n• Commande avant 13 h → Livraison le jour même\n\nLIVRAISON - ZONES PÉRIPHÉRIQUES ABIDJAN\nDélais de livraison Ab"
+        }
+      ],
+      "execution_time_ms": 14859,
+      "tokens": {
+        "prompt": 111,
+        "completion": 46,
+        "total": 158
+      },
+      "cost_usd": 0.00012482
+    },
+    {
+      "turn": 3,
+      "timestamp": "2025-10-20T13:25:10.425001",
+      "user_message": "Super! Je veux commander alors. Comment faire?",
+      "llm_response": "Noté ! 📦 Pour finaliser ta commande, il me manque quelques informations. \nTu veux commander quel type de couches (couches à pression ou couches culottes) et quel est ton numéro de téléphone pour que l'on puisse te joindre ?",
+      "thinking": {},
+      "contexts": [
+        {
+          "type": "context",
+          "content": "MODES DE PAIEMENT ACCEPTÉS:\nWave\n\nNUMÉROS DE PAIEMENT:\nWAVE: +225 0787360757\n\n⚠️ ACOMPTE OBLIGATOIRE: 2000 FCFA pour valider la commande\n\nLIVRAISON - ZONES CENTRALES ABIDJAN\n\n- Yopougon : 1 500 FCFA\n-"
+        }
+      ],
+      "execution_time_ms": 13611,
+      "tokens": {
+        "prompt": 275,
+        "completion": 50,
+        "total": 326
+      },
+      "cost_usd": 0.00025754
+    },
+    {
+      "turn": 4,
+      "timestamp": "2025-10-20T13:25:23.351922",
+      "user_message": "Mon numéro c'est le 0708123456. Je paie par Wave",
+      "llm_response": "Noté ! 📦 Pour finaliser ta commande, il me manque le type de couches que tu veux. \nTu veux des \"Couches à pression\" ou des \"Couches culottes\" ? 🤔",
+      "thinking": {},
+      "contexts": [
+        {
+          "type": "context",
+          "content": "MODES DE PAIEMENT ACCEPTÉS:\nWave\n\nNUMÉROS DE PAIEMENT:\nWAVE: +225 0787360757\n\n⚠️ ACOMPTE OBLIGATOIRE: 2000 FCFA pour valider la commande\n\n"
+        }
+      ],
+      "execution_time_ms": 11511,
+      "tokens": {
+        "prompt": 37,
+        "completion": 37,
+        "total": 75
+      },
+      "cost_usd": 5.925e-05
+    },
+    {
+      "turn": 5,
+      "timestamp": "2025-10-20T13:25:35.642844",
+      "user_message": "Oui je confirme ma commande. Livraison demain ok",
+      "llm_response": "Noté ! 📦 Pour finaliser ta commande, il me manque le type de couches que tu veux (couches à pression ou couches culottes) et la quantité (lot de 300). Quel type et quelle quantité veux-tu ?",
+      "thinking": {},
+      "contexts": [
+        {
+          "type": "context",
+          "content": "LIVRAISON - HORS ABIDJAN (TOUTE CÔTE D'IVOIRE)\n\nTarif : 3 500 à 5 000 FCFA (confirmé par téléphone)\n\nDélais de livraison :\n- Localités proches : 24 heures\n- Autres villes de Côte d'Ivoire : 48 à 72 he"
+        }
+      ],
+      "execution_time_ms": 11249,
+      "tokens": {
+        "prompt": 310,
+        "completion": 46,
+        "total": 357
+      },
+      "cost_usd": 0.00028203
+    }
+  ]
+}

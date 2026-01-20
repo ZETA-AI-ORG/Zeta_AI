@@ -1,0 +1,252 @@
+{
+  "scenario": "medium_client_hesitant",
+  "start_time": 1760961507.039708,
+  "end_time": 1760961691.8876917,
+  "total_duration_ms": 184847.9838371277,
+  "total_rag_time_ms": 152117,
+  "total_turns": 12,
+  "total_tokens": 4506,
+  "total_cost_usd": 0.003559740000000001,
+  "turns": [
+    {
+      "turn": 1,
+      "timestamp": "2025-10-20T13:59:15.341098",
+      "user_message": "Salut, vous vendez des couches?",
+      "llm_response": "Salut ! 😊 Oui, nous vendons des couches. Nous avons différents types et tailles de couches à pression : \n- Taille 1 (0-4 kg) à 17 900 F CFA par lot de 300,\n- Taille 2 (3-8 kg) à 18 900 F CFA par lot de 300,\n- Taille 3 (6-11 kg) à 22 900 F CFA par lot de 300.\nQuel type et quelle taille t'intéressent ?",
+      "thinking": {},
+      "contexts": [
+        {
+          "type": "context",
+          "content": "PRODUIT: Couches à pression\nVARIANTE: Taille 1 - 0 à 4 kg - 300 couches | 17.900 F CFA\n\nCatégorie: Bébé & Puériculture\nSous-catégorie: Soins Bébé - Couches\n\nDÉTAILS VARIANTE:\n- Prix: 17 900 FCFA\n- Qua"
+        }
+      ],
+      "execution_time_ms": 29635,
+      "tokens": {
+        "prompt": 478,
+        "completion": 88,
+        "total": 566
+      },
+      "cost_usd": 0.00044714
+    },
+    {
+      "turn": 2,
+      "timestamp": "2025-10-20T13:59:26.125967",
+      "user_message": "C'est quoi vos tailles disponibles? Mon bébé fait 8kg",
+      "llm_response": "Salut ! 😊 Nous vendons des couches. Nous avons différents types et tailles disponibles. Pour un bébé de 8kg, je te recommande les couches culottes taille 4 ou 5. Nous avons des lots de 150 ou 300 couches culottes. Le lot de 150 coûte 13 500 F CFA et le lot de 300 coûte 24 000 F CFA. Quel type de couches te conviendrait ?",
+      "thinking": {},
+      "contexts": [
+        {
+          "type": "context",
+          "content": "PRODUIT: Couches culottes\nVARIANTE: Lot de 150 couches culottes  | 13.500 F CFA\nDÉTAILS VARIANTE:\n- Quantité: 150 pcs\n- Description: Lot de 150 couches culottes disponibles à  13.500 F CFA en toute ta"
+        }
+      ],
+      "execution_time_ms": 9673,
+      "tokens": {
+        "prompt": 174,
+        "completion": 84,
+        "total": 258
+      },
+      "cost_usd": 0.00020381999999999998
+    },
+    {
+      "turn": 3,
+      "timestamp": "2025-10-20T13:59:36.743216",
+      "user_message": "22.900 FCFA c'est cher! J'ai vu moins cher ailleurs...",
+      "llm_response": "Noté ! 📦 On a plusieurs tailles pour les couches à pression. Quelle taille tu veux pour ton bébé qui pèse 8kg ?\n- Taille 1 (0-4 kg) : 17 900 F\n- Taille 3 (6-11 kg) : 22 900 F\n- Taille 6 (15-22 kg) : 24 900 F",
+      "thinking": {},
+      "contexts": [
+        {
+          "type": "context",
+          "content": "PRODUIT: Couches à pression\nVARIANTE: Taille 3 - 6 à 11 kg - 300 couches | 22.900 F CFA\nDÉTAILS VARIANTE:\n- Quantité: 300 pcs\n- Description: Lot de 300 couches a pression en taille 3 idéal pour un enf"
+        }
+      ],
+      "execution_time_ms": 9575,
+      "tokens": {
+        "prompt": 513,
+        "completion": 65,
+        "total": 578
+      },
+      "cost_usd": 0.00045662
+    },
+    {
+      "turn": 4,
+      "timestamp": "2025-10-20T13:59:46.953673",
+      "user_message": "Oui mais comment je sais que vos couches sont de bonne qualité?",
+      "llm_response": "Noté ! Nous comprenons votre inquiétude. Nos couches sont de haute qualité et répondent aux normes internationales. Nous avons différentes tailles : \n- Taille 1 (0-4 kg) pour 17 900 F CFA,\n- Taille 2 (3-8 kg) pour 18 900 F CFA,\n- Taille 3 (6-11 kg) pour 22 900 F CFA.\nCombien de couches vous faudrait-il ?",
+      "thinking": {},
+      "contexts": [
+        {
+          "type": "context",
+          "content": "PRODUIT: Couches à pression\nVARIANTE: Taille 1 - 0 à 4 kg - 300 couches | 17.900 F CFA\n\nCatégorie: Bébé & Puériculture\nSous-catégorie: Soins Bébé - Couches\n\nDÉTAILS VARIANTE:\n- Prix: 17 900 FCFA\n- Qua"
+        }
+      ],
+      "execution_time_ms": 9144,
+      "tokens": {
+        "prompt": 487,
+        "completion": 75,
+        "total": 562
+      },
+      "cost_usd": 0.00044398
+    },
+    {
+      "turn": 5,
+      "timestamp": "2025-10-20T13:59:55.166807",
+      "user_message": "D'accord... Et vous livrez à Cocody?",
+      "llm_response": "Réception confirmée ! 📦 Nous livrons à Cocody avec des frais de 1 500 FCFA.\n📦 Quel type de couches veux-tu ? (Couches à pression T3 ou Couches culottes) ?",
+      "thinking": {},
+      "contexts": [
+        {
+          "type": "context",
+          "content": "LIVRAISON - ZONES CENTRALES ABIDJAN\n\n- Yopougon : 1 500 FCFA\n- Cocody : 1 500 FCFA\n- Plateau : 1 500 FCFA\n- Adjamé : 1 500 FCFA\n- Abobo : 1 500 FCFA\n- Marcory : 1 500 FCFA\n- Koumassi : 1 500 FCFA\n- Tr"
+        }
+      ],
+      "execution_time_ms": 7193,
+      "tokens": {
+        "prompt": 144,
+        "completion": 39,
+        "total": 183
+      },
+      "cost_usd": 0.00014457
+    },
+    {
+      "turn": 6,
+      "timestamp": "2025-10-20T14:00:06.792341",
+      "user_message": "1500 FCFA de livraison? Et ça prend combien de temps?",
+      "llm_response": "Réception confirmée ! 📦 Nous livrons à Cocody avec des frais de 1 500 FCFA. \nDélais de livraison Abidjan : \n• Commande avant 13 h → Livraison le jour même\n• Commande après 13 h → Livraison le lendemain (jour ouvré)\nQuel type de couches à pression tu veux ? (Taille 1, 2 ou 3) ?",
+      "thinking": {},
+      "contexts": [
+        {
+          "type": "context",
+          "content": "LIVRAISON - ZONES CENTRALES ABIDJAN\n\n- Yopougon : 1 500 FCFA\n- Cocody : 1 500 FCFA\n- Plateau : 1 500 FCFA\n- Adjamé : 1 500 FCFA\n- Abobo : 1 500 FCFA\n- Marcory : 1 500 FCFA\n- Koumassi : 1 500 FCFA\n- Tr"
+        }
+      ],
+      "execution_time_ms": 10611,
+      "tokens": {
+        "prompt": 514,
+        "completion": 72,
+        "total": 587
+      },
+      "cost_usd": 0.00046373
+    },
+    {
+      "turn": 7,
+      "timestamp": "2025-10-20T14:00:24.892410",
+      "user_message": "Hmm... En fait je vais prendre des culottes plutôt. C'est combien?",
+      "llm_response": "Réception confirmée ! Nous avons des lots de 150 et 300 couches culottes. Le lot de 150 coûte 13 500 F CFA et le lot de 300 coûte 24 000 F CFA. Quel lot te convient ?",
+      "thinking": {},
+      "contexts": [
+        {
+          "type": "context",
+          "content": "\n⚠️ AMBIGUÏTÉ DÉTECTÉE pour la requête utilisateur:\nQuantité non précisée. Lots disponibles:\n  - Lot de 150\n  - Lot de 300\n\nACTION REQUISE: Demander au client de préciser la quantité souhaitée (lot 15"
+        }
+      ],
+      "execution_time_ms": 17075,
+      "tokens": {
+        "prompt": 163,
+        "completion": 48,
+        "total": 211
+      },
+      "cost_usd": 0.00016669000000000002
+    },
+    {
+      "turn": 8,
+      "timestamp": "2025-10-20T14:00:36.219869",
+      "user_message": "Ok je réfléchis... Vous acceptez quel mode de paiement?",
+      "llm_response": "Réception confirmée ! 💳 Nous acceptons le paiement via Wave (+225 0787360757) avec un acompte de 2000 FCFA pour valider la commande. Quel produit te convient ? 📦 Nous avons des couches et des culottes pour bébé.",
+      "thinking": {},
+      "contexts": [
+        {
+          "type": "context",
+          "content": "MODES DE PAIEMENT ACCEPTÉS:\nWave\n\nNUMÉROS DE PAIEMENT:\nWAVE: +225 0787360757\n\n⚠️ ACOMPTE OBLIGATOIRE: 2000 FCFA pour valider la commande\n\n"
+        }
+      ],
+      "execution_time_ms": 10274,
+      "tokens": {
+        "prompt": 37,
+        "completion": 48,
+        "total": 85
+      },
+      "cost_usd": 6.715e-05
+    },
+    {
+      "turn": 9,
+      "timestamp": "2025-10-20T14:00:49.083705",
+      "user_message": "Il faut payer 2000 FCFA d'avance?? Pourquoi?",
+      "llm_response": "Réception ! 💳 L'acompte de 2000 FCFA est obligatoire pour valider la commande, cela nous permet de réserver le stock. Vous pouvez payer via Wave au +225 0787360757. Quel type de couches vous intéresse ? (Couches à pression ou culottes) ?",
+      "thinking": {},
+      "contexts": [
+        {
+          "type": "context",
+          "content": "MODES DE PAIEMENT ACCEPTÉS:\nWave\n\nNUMÉROS DE PAIEMENT:\nWAVE: +225 0787360757\n\n⚠️ ACOMPTE OBLIGATOIRE: 2000 FCFA pour valider la commande\n\nLIVRAISON - ZONES PÉRIPHÉRIQUES ABIDJAN\n\n- Port-Bouët : 2 000 "
+        }
+      ],
+      "execution_time_ms": 11804,
+      "tokens": {
+        "prompt": 510,
+        "completion": 53,
+        "total": 564
+      },
+      "cost_usd": 0.00044556000000000006
+    },
+    {
+      "turn": 10,
+      "timestamp": "2025-10-20T14:01:04.339086",
+      "user_message": "Et si je commande 2 lots, vous faites un geste sur le prix?",
+      "llm_response": "Réception ! Pour les couches culottes, nous avons des tailles de 1 à 3 avec des lots de 300 couches chacun. Les prix varient de 17 900 F à 22 900 F selon la taille. Pour une commande de 2 lots, nous pouvons discuter d'un geste commercial, mais cela dépendra du type et de la quantité exacte que vous souhaitez commander. Quel type de couches culottes vous intéresse et combien de lots souhaitez-vous commander ?",
+      "thinking": {},
+      "contexts": [
+        {
+          "type": "context",
+          "content": "PRODUIT: Couches à pression\nVARIANTE: Taille 2 - 3 à 8 kg - 300 couches | 18.900 F CFA\n- Quantité: 300 pcs\n- Description: Lot de 300 couches a pression en taille 2 idéal pour un enfant entre  3 à 8 kg"
+        }
+      ],
+      "execution_time_ms": 14214,
+      "tokens": {
+        "prompt": 291,
+        "completion": 97,
+        "total": 388
+      },
+      "cost_usd": 0.00030652
+    },
+    {
+      "turn": 11,
+      "timestamp": "2025-10-20T14:01:19.588205",
+      "user_message": "Bon... Laissez-moi voir. Comment je passe commande si je me décide?",
+      "llm_response": "Réception ! Pour passer commande, il faut d’abord faire un acompte de 2000 FCFA via Wave au +225 0787360757. Vous pouvez envoyer le montant et me confirmer le paiement pour valider votre commande de lot 300 de couches culottes à livrer à Cocody. Les frais de livraison sont de 1500 FCFA. Quand vous êtes prêt, n'hésitez pas à me le faire savoir !",
+      "thinking": {},
+      "contexts": [
+        {
+          "type": "context",
+          "content": "╔═══════════════════════════════════════════════════════════════════════╗\n║  📊 INFORMATIONS TROUVÉES DANS SUPABASE (SÉMANTIQUE)                ║\n║  Recherche par similarité vectorielle                "
+        }
+      ],
+      "execution_time_ms": 12673,
+      "tokens": {
+        "prompt": 377,
+        "completion": 81,
+        "total": 458
+      },
+      "cost_usd": 0.00036182000000000006
+    },
+    {
+      "turn": 12,
+      "timestamp": "2025-10-20T14:01:30.878440",
+      "user_message": "Ok je prends. Mon numéro: 0701234567",
+      "llm_response": "Réception ! Pour valider ta commande, il faut faire un acompte de 2000 FCFA via Wave au +225 0787360757. As-tu déjà fait ce dépôt ?",
+      "thinking": {},
+      "contexts": [
+        {
+          "type": "context",
+          "content": "MODES DE PAIEMENT ACCEPTÉS:\nWave\n\nNUMÉROS DE PAIEMENT:\nWAVE: +225 0787360757\n\n⚠️ ACOMPTE OBLIGATOIRE: 2000 FCFA pour valider la commande\n\n"
+        }
+      ],
+      "execution_time_ms": 10246,
+      "tokens": {
+        "prompt": 33,
+        "completion": 32,
+        "total": 66
+      },
+      "cost_usd": 5.2140000000000006e-05
+    }
+  ]
+}

@@ -1,0 +1,121 @@
+{
+  "scenario": "light",
+  "user_id": "test_simulator_b48503fe",
+  "timestamp": "2025-10-21T17:27:28.070622",
+  "total_time_s": 221.3636770248413,
+  "total_turns": 8,
+  "turns": [
+    {
+      "message": "Bonjour",
+      "response": "Bienvenue ! 😊 On vend des couches en gros. Quel type de couches t'intéresse ?",
+      "thinking": "",
+      "full_result": {
+        "response": "Bienvenue ! 😊 On vend des couches en gros. Quel type de couches t'intéresse ?",
+        "cached": false,
+        "security_score": "LOW",
+        "hallucination_score": 1.0,
+        "thinking": "",
+        "validation": null
+      },
+      "exec_time_ms": 35826.789140701294
+    },
+    {
+      "message": "Je cherche des couches pour bébé",
+      "response": "Noté ! 📦 On a trois tailles de couches à pression:\n- Taille 1 (0-4 kg) - 300 couches | 17.900 F CFA\n- Taille 2 (3-8 kg) - 300 couches | 18.900 F CFA\n- Taille 3 (6-11 kg) - 300 couches | 22.900 F CFA\n\nLequel te convient ?",
+      "thinking": "",
+      "full_result": {
+        "response": "Noté ! 📦 On a trois tailles de couches à pression:\n- Taille 1 (0-4 kg) - 300 couches | 17.900 F CFA\n- Taille 2 (3-8 kg) - 300 couches | 18.900 F CFA\n- Taille 3 (6-11 kg) - 300 couches | 22.900 F CFA\n\nLequel te convient ?",
+        "cached": false,
+        "security_score": "LOW",
+        "hallucination_score": 1.0,
+        "thinking": "",
+        "validation": null
+      },
+      "exec_time_ms": 21517.79079437256
+    },
+    {
+      "message": "Mon bébé a 6 mois et pèse 8kg",
+      "response": "Noté ! 📦 Pour un bébé de 6 mois et 8kg, nous avons deux tailles de couches à pression qui pourraient convenir : \n- Taille 3 (6-11 kg) - 300 couches à 22 900 F CFA\n- Taille 6 (15-22 kg) - 300 couches à 24 900 F CFA\nNous avons également des couches culottes en lot de 150 à 13 500 F CFA.\nQuel type de couches t'intéresse ?",
+      "thinking": "",
+      "full_result": {
+        "response": "Noté ! 📦 Pour un bébé de 6 mois et 8kg, nous avons deux tailles de couches à pression qui pourraient convenir : \n- Taille 3 (6-11 kg) - 300 couches à 22 900 F CFA\n- Taille 6 (15-22 kg) - 300 couches à 24 900 F CFA\nNous avons également des couches culottes en lot de 150 à 13 500 F CFA.\nQuel type de couches t'intéresse ?",
+        "cached": false,
+        "security_score": "LOW",
+        "hallucination_score": 1.0,
+        "thinking": "",
+        "validation": null
+      },
+      "exec_time_ms": 19964.643001556396
+    },
+    {
+      "message": "Je veux 300 couches",
+      "response": "Noté ! 📦 On a deux types de couches en lot de 300:\n- Couches culottes (24 000 F)\n- Couches à pression (taille 1: 17 900 F, taille 2: 18 900 F)\n\nLequel te convient ?",
+      "thinking": "",
+      "full_result": {
+        "response": "Noté ! 📦 On a deux types de couches en lot de 300:\n- Couches culottes (24 000 F)\n- Couches à pression (taille 1: 17 900 F, taille 2: 18 900 F)\n\nLequel te convient ?",
+        "cached": false,
+        "security_score": "LOW",
+        "hallucination_score": 1.0,
+        "thinking": "",
+        "validation": null
+      },
+      "exec_time_ms": 28347.338438034058
+    },
+    {
+      "message": "Je suis à Yopougon",
+      "response": "Noté ! 📦 Pour confirmer ta commande de 300 couches à Yopougon, il me faut ton numéro de téléphone et le dépôt de 2000 FCFA via Wave au +225 0787360757. Envoie la capture de ton dépôt Wave, s'il te plaît.",
+      "thinking": "",
+      "full_result": {
+        "response": "Noté ! 📦 Pour confirmer ta commande de 300 couches à Yopougon, il me faut ton numéro de téléphone et le dépôt de 2000 FCFA via Wave au +225 0787360757. Envoie la capture de ton dépôt Wave, s'il te plaît.",
+        "cached": false,
+        "security_score": "LOW",
+        "hallucination_score": 1.0,
+        "thinking": "",
+        "validation": null
+      },
+      "exec_time_ms": 28430.673837661743
+    },
+    {
+      "message": "Mon numéro: 0708123456",
+      "response": "Noté ! 📦 Tu as partagé ton numéro. Pour valider ta commande, envoie 2000 FCFA sur Wave au +225 0787360757 et envoie-moi la capture de ton dépôt, s'il te plaît.",
+      "thinking": "",
+      "full_result": {
+        "response": "Noté ! 📦 Tu as partagé ton numéro. Pour valider ta commande, envoie 2000 FCFA sur Wave au +225 0787360757 et envoie-moi la capture de ton dépôt, s'il te plaît.",
+        "cached": false,
+        "security_score": "LOW",
+        "hallucination_score": 1.0,
+        "thinking": "",
+        "validation": null
+      },
+      "exec_time_ms": 26817.641735076904
+    },
+    {
+      "message": "Voilà mon paiement",
+      "response": "Noté ! 📸 Mais désolé, l'analyse de ton paiement a échoué. Pourriez-vous me renvoyer une capture claire de votre dépôt Wave au +225 0787360757, s'il vous plaît ?",
+      "thinking": "",
+      "full_result": {
+        "response": "Noté ! 📸 Mais désolé, l'analyse de ton paiement a échoué. Pourriez-vous me renvoyer une capture claire de votre dépôt Wave au +225 0787360757, s'il vous plaît ?",
+        "cached": false,
+        "security_score": "LOW",
+        "hallucination_score": 1.0,
+        "thinking": "",
+        "validation": null
+      },
+      "exec_time_ms": 26736.64355278015
+    },
+    {
+      "message": "Oui je confirme",
+      "response": "Merci ! 💳 Pour valider ta commande, il faut que je vérifie ton paiement. Envoie-moi la capture de ton dépôt Wave au +225 0787360757 s'il te plaît.",
+      "thinking": "",
+      "full_result": {
+        "response": "Merci ! 💳 Pour valider ta commande, il faut que je vérifie ton paiement. Envoie-moi la capture de ton dépôt Wave au +225 0787360757 s'il te plaît.",
+        "cached": false,
+        "security_score": "LOW",
+        "hallucination_score": 1.0,
+        "thinking": "",
+        "validation": null
+      },
+      "exec_time_ms": 25580.801725387573
+    }
+  ]
+}
