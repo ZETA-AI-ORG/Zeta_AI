@@ -22,6 +22,7 @@ from core.intervention_guardian import get_intervention_guardian
 from core.production_pipeline import ProductionPipeline
 from core.rule_overrides import RuleOverrides
 from config import BOTLIVE_COOPERATIVE_HUMAN_MODE
+from core.order_state_tracker import order_tracker
 
 logger = logging.getLogger(__name__)
 
@@ -239,6 +240,12 @@ class DepositRequest(BaseModel):
 class UpdateOrderStatusRequest(BaseModel):
     """Requête pour mettre à jour le statut d'une commande (orders.status)."""
     status: str
+
+
+class BotPauseRequest(BaseModel):
+    company_id: str
+    user_id: str
+    enabled: bool
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # 🔥 ENDPOINTS PRINCIPAUX
@@ -1268,6 +1275,26 @@ async def get_pending_response(company_id: str, user_id: str):
     if not payload:
         return JSONResponse(content={"success": True, "status": "NONE", "response": None})
     return JSONResponse(content={"success": True, **payload, "response": None})
+
+
+@router.post("/bot/enabled")
+async def set_bot_enabled(req: BotPauseRequest):
+    """Active/désactive le bot pour un user_id.
+
+    Mapping unique (pas de nouveau flag):
+    - enabled=True  => bot_paused=False
+    - enabled=False => bot_paused=True
+    """
+    try:
+        order_tracker.set_flag(req.user_id, "bot_paused", (not bool(req.enabled)))
+        return {
+            "success": True,
+            "company_id": req.company_id,
+            "user_id": req.user_id,
+            "enabled": bool(req.enabled),
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/message/stream")
 async def process_botlive_message_stream(req: BotliveMessageRequest):

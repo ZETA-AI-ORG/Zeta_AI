@@ -3388,6 +3388,12 @@ from pydantic import BaseModel
 class ToggleLiveRequest(BaseModel):
     enable: bool
 
+
+class RagBotEnabledRequest(BaseModel):
+    company_id: str
+    user_id: str
+    enabled: bool
+
 class ProcessOrderRequest(BaseModel):
     product_url: str
     payment_url: str
@@ -3428,6 +3434,28 @@ async def toggle_live_mode(req: ToggleLiveRequest):
             }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"toggle-live-mode error: {e}")
+
+
+@app.post("/rag/bot/enabled")
+async def set_rag_bot_enabled(req: RagBotEnabledRequest):
+    """Active/désactive le bot RAG (/chat) pour un user_id.
+
+    Mapping unique (pas de nouveau flag):
+    - enabled=True  => bot_paused=False
+    - enabled=False => bot_paused=True
+    """
+    try:
+        from core.order_state_tracker import order_tracker
+
+        order_tracker.set_flag(req.user_id, "bot_paused", (not bool(req.enabled)))
+        return {
+            "status": "success",
+            "company_id": req.company_id,
+            "user_id": req.user_id,
+            "enabled": bool(req.enabled),
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/live/process-order")
 async def live_process_order(req: ProcessOrderRequest):
