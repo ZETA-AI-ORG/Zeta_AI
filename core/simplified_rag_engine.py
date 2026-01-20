@@ -18,6 +18,8 @@ from typing import Dict, Any, Optional, List
 from dataclasses import dataclass
 import re
 
+from config import LLM_TRANSMISSION_TOKEN
+
 
 CONFIDENCE_THRESHOLD = 0.8
 
@@ -98,6 +100,33 @@ class SimplifiedRAGEngine:
             SimplifiedRAGResult avec réponse + métriques
         """
         start_time = time.time()
+
+        # Si un handoff a été déclenché, on met le bot en pause pour éviter qu'il réponde pendant l'intervention humaine.
+        # (Le frontend/humain peut reprendre la conversation via un autre canal.)
+        try:
+            if order_tracker.get_flag(user_id, "bot_paused"):
+                paused_msg = (os.getenv("SIMPLIFIED_RAG_PAUSED_MESSAGE") or "Je t'ai passé le responsable, il revient vers toi.").strip()
+                processing_time = (time.time() - start_time) * 1000
+                checklist = self.prompt_system.get_checklist_state(user_id, company_id)
+                print("⏸️ [SIMPLIFIED RAG] bot_paused=True -> short-circuit")
+                return SimplifiedRAGResult(
+                    response=paused_msg,
+                    confidence=1.0,
+                    processing_time_ms=processing_time,
+                    checklist_state=checklist.to_string(),
+                    next_step=checklist.get_next_step(),
+                    detected_location=None,
+                    shipping_fee=None,
+                    usage=None,
+                    prompt_tokens=0,
+                    completion_tokens=0,
+                    total_tokens=0,
+                    cost=0.0,
+                    model="paused",
+                    thinking="",
+                )
+        except Exception:
+            pass
 
         # ANSI colors (console)
         C_RESET = "\033[0m"
@@ -1853,6 +1882,65 @@ class SimplifiedRAGEngine:
 
                     response = _fallback_question(nf)
                     print(f"🛡️ [RESPONSE_FALLBACK] xml_leak_detected | next={nf}")
+
+            # 6.0 SAV/HUMAN HANDOFF (RAG): si le LLM sort le token de transmission, on notifie et on stoppe.
+            # IMPORTANT: déclenché AVANT toute post-transformation (pricing, guards) pour éviter de polluer le message.
+            try:
+                token = (LLM_TRANSMISSION_TOKEN or "TRANSMISSIONXXX").strip()
+                resp_text = str(response or "")
+                raw_text = str(raw_llm_output or "")
+                has_token = bool(token) and (token.lower() in resp_text.lower() or token.lower() in raw_text.lower())
+                if has_token:
+                    from core.human_notification_service import HumanNotificationService
+
+                    # Permettre un message client optionnel avant le token (séparateur §§).
+                    # Exemple LLM: "Un instant je te passe le responsable. §§ TRANSMISSIONXXX"
+                    cleaned = resp_text
+                    if token.lower() in cleaned.lower():
+                        parts = re.split(re.escape(token), cleaned, flags=re.IGNORECASE)
+                        cleaned = (parts[0] or "").strip()
+                    cleaned = cleaned.replace("§§", "").strip()
+
+                    if not cleaned:
+                        cleaned = os.getenv(
+                            "SIMPLIFIED_RAG_HANDOFF_CUSTOMER_MESSAGE",
+                            "Un instant, je te passe le responsable pour régler ça."
+                        ).strip()
+
+                    try:
+                        order_tracker.set_flag(user_id, "bot_paused", True)
+                        order_tracker.set_custom_meta(user_id, "handoff_reason", "SAV")
+                        order_tracker.set_custom_meta(user_id, "handoff_trigger", token)
+                    except Exception:
+                        pass
+
+                    try:
+                        st = order_tracker.get_state(user_id)
+                        ctx = {
+                            "company_name": company_name,
+                            "zone": str(getattr(st, "zone", "") or ""),
+                            "phone": str(getattr(st, "numero", "") or ""),
+                        }
+                    except Exception:
+                        ctx = {"company_name": company_name}
+
+                    try:
+                        notifier = HumanNotificationService()
+                        await notifier.notify_vendor(
+                            company_id=company_id,
+                            user_id=user_id,
+                            user_name=user_id,
+                            question=query,
+                            reason="SAV_TRANSMISSION",
+                            context=ctx,
+                        )
+                        print("🔔 [SAV_HANDOFF] notification sent")
+                    except Exception as _hn_e:
+                        print(f"⚠️ [SAV_HANDOFF] notify failed: {type(_hn_e).__name__}: {_hn_e}")
+
+                    response = cleaned
+            except Exception as _handoff_e:
+                print(f"⚠️ [SAV_HANDOFF] error: {type(_handoff_e).__name__}: {_handoff_e}")
 
             # 6.a Pricing multi-items (post LLM): validation + injection du ready_to_send
             validated_price = False

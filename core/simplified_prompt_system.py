@@ -15,6 +15,7 @@ from typing import Dict, Any, Optional, List
 from dataclasses import dataclass
 import json
 import os
+from pathlib import Path
 
 from core.order_state_tracker import order_tracker
 
@@ -648,6 +649,27 @@ Fais confiance à ton jugement. Tu es Jessica, pas un robot."""
                 chars_i = len(self._prompt_cache[company_id])
             print(f"📦 [PROMPT CACHE] Hit pour {company_id} | source={src} | chars={chars_i}")
             return self._prompt_cache[company_id]
+
+        # Charger depuis fichier local (RAG) si activé.
+        # IMPORTANT: c'est le prompt attendu pour /chat (pas Botlive).
+        try:
+            use_local_raw = (os.getenv("SIMPLIFIED_RAG_USE_LOCAL_PROMPT", "true") or "true").strip().lower()
+            use_local = use_local_raw in {"1", "true", "yes", "y", "on"}
+            if use_local:
+                rel_path = (os.getenv("SIMPLIFIED_RAG_LOCAL_PROMPT_PATH") or "prompts/JESSICA_SIMPLIFIED_COMPASS.md").strip()
+                p = Path(__file__).resolve().parent.parent / rel_path
+                if p.exists() and p.is_file():
+                    local_prompt = p.read_text(encoding="utf-8")
+                    if local_prompt and len(local_prompt) > 50:
+                        self._prompt_cache[company_id] = local_prompt
+                        self._prompt_cache_meta[company_id] = {
+                            "source": f"local_file:{rel_path}",
+                            "chars": int(len(local_prompt)),
+                        }
+                        print(f"✅ [PROMPT] Chargé depuis fichier local: {rel_path} ({len(local_prompt)} chars)")
+                        return local_prompt
+        except Exception as _local_e:
+            print(f"⚠️ [PROMPT] Échec chargement prompt local: {type(_local_e).__name__}: {_local_e}")
         
         # Charger depuis Supabase
         try:
