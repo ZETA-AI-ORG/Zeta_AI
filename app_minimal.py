@@ -55,6 +55,12 @@ class ChatRequest(BaseModel):
     images: List[str] = []
 
 
+class RagBotEnabledRequest(BaseModel):
+    company_id: str
+    user_id: str
+    enabled: bool
+
+
 @app.post("/chat")
 async def chat(chat_request: ChatRequest):
     try:
@@ -69,6 +75,29 @@ async def chat(chat_request: ChatRequest):
         return {"status": "success", "response": response}
     except Exception as e:
         logger.exception("/chat failed")
+        return {"status": "error", "error": str(e), "type": type(e).__name__}
+
+
+@app.post("/rag/bot/enabled")
+async def set_rag_bot_enabled(req: RagBotEnabledRequest):
+    """Active/désactive le bot RAG (/chat) pour un user_id.
+
+    Mapping unique (pas de nouveau flag):
+    - enabled=True  => bot_paused=False
+    - enabled=False => bot_paused=True
+    """
+    try:
+        from core.order_state_tracker import order_tracker
+
+        order_tracker.set_flag(req.user_id, "bot_paused", (not bool(req.enabled)))
+        return {
+            "status": "success",
+            "company_id": req.company_id,
+            "user_id": req.user_id,
+            "enabled": bool(req.enabled),
+        }
+    except Exception as e:
+        logger.exception("/rag/bot/enabled failed")
         return {"status": "error", "error": str(e), "type": type(e).__name__}
 
 @app.get("/db-test")
