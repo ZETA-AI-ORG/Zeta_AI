@@ -10,13 +10,27 @@ class RedisCache:
         self.client = redis.Redis.from_url(url)
         self.default_ttl = default_ttl
 
+    def _normalize_question(self, question: str) -> str:
+        q = str(question or "").strip()
+        normalize_lower = (os.getenv("RAG_EXACT_CACHE_NORMALIZE_LOWER", "false") or "false").lower() in {
+            "1",
+            "true",
+            "yes",
+            "on",
+        }
+        if normalize_lower:
+            q = q.lower()
+        return q
+
     def make_key(self, question, company_id, prompt_version, user_id=None):
         user_part = str(user_id or "").strip()
-        base = f"{company_id}::{prompt_version}::{user_part}::{question}"
+        q = self._normalize_question(question)
+        base = f"{company_id}::{prompt_version}::{user_part}::{q}"
         return f"rag_response::{hashlib.sha256(base.encode('utf-8')).hexdigest()}"
 
     def make_key_for_context(self, question, company_id):
-        base = f"{company_id}::{question}"
+        q = self._normalize_question(question)
+        base = f"{company_id}::{q}"
         return f"rag_context::{hashlib.sha256(base.encode('utf-8')).hexdigest()}"
 
     def generic_get(self, key: str):
