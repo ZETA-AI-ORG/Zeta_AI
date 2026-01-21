@@ -8,6 +8,7 @@ from dotenv import load_dotenv
 load_dotenv()
 import logging
 import os
+import time
 from fastapi import FastAPI
 from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
@@ -19,6 +20,26 @@ logger = logging.getLogger("app")
 
 # FastAPI app
 app = FastAPI(title="ZETA AI Backend - Minimal")
+
+
+_redis_cache_instance = None
+
+
+def _get_redis_cache():
+    global _redis_cache_instance
+    if _redis_cache_instance is not None:
+        return _redis_cache_instance
+
+    try:
+        from redis_cache import RedisCache
+
+        ttl = int(os.getenv("CACHE_EXACT_TTL", "1800") or 1800)
+        redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+        _redis_cache_instance = RedisCache(url=redis_url, default_ttl=ttl)
+        return _redis_cache_instance
+    except Exception:
+        _redis_cache_instance = None
+        return None
 
 # CORS
 app.add_middleware(
@@ -66,12 +87,50 @@ async def chat(chat_request: ChatRequest):
     try:
         from core.simplified_rag_engine import get_simplified_rag_response
 
+        disable_rag_cache = (os.getenv("DISABLE_RAG_CACHE", "false") or "false").lower() in {"1", "true", "yes", "on"}
+        disable_rag_exact_cache = (os.getenv("DISABLE_RAG_EXACT_CACHE", "false") or "false").lower() in {"1", "true", "yes", "on"}
+        cache = None if (disable_rag_cache or disable_rag_exact_cache) else _get_redis_cache()
+
+        prompt_version = os.getenv("PROMPT_VERSION", "minimal")
+
+        if cache is not None:
+            try:
+                cached_response = cache.get(
+                    chat_request.message,
+                    chat_request.company_id,
+                    prompt_version,
+                    user_id=chat_request.user_id,
+                )
+                if cached_response is not None:
+                    return {"status": "success", "response": cached_response}
+            except Exception:
+                pass
+
+        start_ts = time.time()
         response = await get_simplified_rag_response(
             query=chat_request.message,
             company_id=chat_request.company_id,
             user_id=chat_request.user_id,
             images=chat_request.images,
         )
+
+        if cache is not None:
+            try:
+                ttl = int(os.getenv("CACHE_EXACT_TTL", "1800") or 1800)
+                if ttl < 0:
+                    ttl = 0
+                cache.set(
+                    chat_request.message,
+                    chat_request.company_id,
+                    prompt_version,
+                    response,
+                    ttl=ttl,
+                    user_id=chat_request.user_id,
+                )
+            except Exception:
+                pass
+
+        _ = time.time() - start_ts
         return {"status": "success", "response": response}
     except Exception as e:
         logger.exception("/chat failed")
