@@ -84,9 +84,9 @@ class RagBotEnabledRequest(BaseModel):
 
 @app.post("/chat")
 async def chat(chat_request: ChatRequest):
+    """Endpoint principal pour le chat"""
     try:
         from core.simplified_rag_engine import get_simplified_rag_response
-
         disable_rag_cache = (os.getenv("DISABLE_RAG_CACHE", "false") or "false").lower() in {"1", "true", "yes", "on"}
         disable_rag_exact_cache = (os.getenv("DISABLE_RAG_EXACT_CACHE", "false") or "false").lower() in {"1", "true", "yes", "on"}
         cache = None if (disable_rag_cache or disable_rag_exact_cache) else _get_redis_cache()
@@ -102,7 +102,19 @@ async def chat(chat_request: ChatRequest):
                     user_id=chat_request.user_id,
                 )
                 if cached_response is not None:
+                    logger.info(
+                        "[RAG_EXACT_CACHE] HIT company_id=%s user_id=%s prompt_version=%s",
+                        chat_request.company_id,
+                        chat_request.user_id,
+                        prompt_version,
+                    )
                     return {"status": "success", "response": cached_response}
+                logger.debug(
+                    "[RAG_EXACT_CACHE] MISS company_id=%s user_id=%s prompt_version=%s",
+                    chat_request.company_id,
+                    chat_request.user_id,
+                    prompt_version,
+                )
             except Exception:
                 pass
 
@@ -126,6 +138,13 @@ async def chat(chat_request: ChatRequest):
                     response,
                     ttl=ttl,
                     user_id=chat_request.user_id,
+                )
+                logger.info(
+                    "[RAG_EXACT_CACHE] SET company_id=%s user_id=%s prompt_version=%s ttl=%s",
+                    chat_request.company_id,
+                    chat_request.user_id,
+                    prompt_version,
+                    ttl,
                 )
             except Exception:
                 pass
