@@ -25,6 +25,7 @@ logger = logging.getLogger(__name__)
 from embedding_models import embed_text
 from database.supabase_client import delete_all_chunks_for_company, insert_text_chunk_in_supabase
 from database.meili_client import MeiliHelper
+from database.supabase_client import get_supabase_client
 
 # Router FastAPI
 router = APIRouter(prefix="/ingestion", tags=["ingestion"])
@@ -32,6 +33,13 @@ router = APIRouter(prefix="/ingestion", tags=["ingestion"])
 class IngestionRequest(BaseModel):
     company_id: str
     documents: List[Dict[str, Any]]
+
+
+class BotlivePromptUpsertRequest(BaseModel):
+    company_id: str
+    prompt: str
+    ai_name: Optional[str] = None
+    company_name: Optional[str] = None
 
 # Configuration optimisée et COMPLÈTE des settings MeiliSearch par index
 # 🔥 AUTO-CONFIGURATION À L'INGESTION - Plus besoin de scripts externes
@@ -839,6 +847,61 @@ async def push_to_meili_endpoint(request: IngestionRequest):
     except Exception as e:
         logger.error(f"[ENDPOINT] Erreur ingestion pour company_id={request.company_id}: {e}")
         raise HTTPException(status_code=500, detail=f"Erreur d'ingestion: {str(e)}")
+
+
+@router.post("/upsert-botlive-prompt-deepseek")
+async def upsert_botlive_prompt_deepseek(payload: BotlivePromptUpsertRequest):
+    try:
+        company_id = (payload.company_id or "").strip()
+        prompt = payload.prompt or ""
+        if not company_id:
+            raise HTTPException(status_code=400, detail="company_id manquant")
+        if not prompt or not str(prompt).strip():
+            raise HTTPException(status_code=400, detail="prompt manquant")
+
+        supabase = get_supabase_client()
+        now_iso = datetime.now().isoformat()
+
+        row: Dict[str, Any] = {
+            "company_id": company_id,
+            "prompt_botlive_deepseek_v3": str(prompt),
+            "botlive_prompts_updated_at": now_iso,
+        }
+        if payload.ai_name is not None and str(payload.ai_name).strip():
+            row["ai_name"] = str(payload.ai_name).strip()
+        if payload.company_name is not None and str(payload.company_name).strip():
+            row["company_name"] = str(payload.company_name).strip()
+
+        result = supabase.table("company_rag_configs").upsert(
+            row,
+            on_conflict="company_id",
+        ).execute()
+
+        updated = 0
+        try:
+            updated = len(result.data) if result and getattr(result, "data", None) else 0
+        except Exception:
+            updated = 0
+
+        logger.info(
+            "[BOTLIVE_PROMPT][UPSERT] ✅ upsert deepseek prompt for company_id=%s | chars=%s | updated_rows=%s",
+            company_id,
+            len(str(prompt)),
+            updated,
+        )
+
+        return {
+            "status": "ok",
+            "company_id": company_id,
+            "updated_at": now_iso,
+            "prompt_chars": len(str(prompt)),
+            "updated_rows": updated,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("[BOTLIVE_PROMPT][UPSERT] ❌")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 # === ENDPOINT DÉDIÉ MEILISEARCH ===

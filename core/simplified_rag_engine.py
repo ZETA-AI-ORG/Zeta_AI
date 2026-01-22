@@ -1514,6 +1514,44 @@ class SimplifiedRAGEngine:
                 print(f"{C_YELLOW}{thinking}{C_RESET}")
                 print(f"{C_YELLOW}{'='*80}{C_RESET}")
 
+                def _normalize_packaging_items(items: List[Dict[str, Any]], message: str) -> List[Dict[str, Any]]:
+                    """Normalise des formulations type "lot/pack/carton/colis de N".
+
+                    Objectif: éviter les erreurs qty/unit quand le client exprime un conditionnement.
+                    Ex: "LOT de 6 paquets" => qty=1, unit="lot" (si le LLM a renvoyé qty=6, unit="paquet").
+
+                    Règle générique (scalable): uniquement basée sur le texte utilisateur.
+                    """
+                    try:
+                        msg = str(message or "")
+                        msg_l = msg.lower()
+
+                        m = re.search(r"\b(lot|pack|carton|colis)\s*(?:de\s*)?(\d+)\b", msg_l)
+                        if not m:
+                            return items
+
+                        pack_unit = str(m.group(1) or "").strip().lower()
+                        pack_n = int(m.group(2))
+
+                        normalized: List[Dict[str, Any]] = []
+                        for it in items:
+                            if not isinstance(it, dict):
+                                continue
+                            qty = it.get("qty")
+                            unit = str(it.get("unit") or "").strip().lower()
+
+                            if isinstance(qty, int) and qty == pack_n and unit in {"paquet", "paquets", "pack", "packs"}:
+                                it2 = dict(it)
+                                it2["qty"] = 1
+                                it2["unit"] = pack_unit
+                                normalized.append(it2)
+                            else:
+                                normalized.append(it)
+
+                        return normalized
+                    except Exception:
+                        return items
+
                 # Extraire <detected_items_json> (JSON strict) et persister pour validation/pricing
                 try:
                     detected_items_json_text = _extract_tag(thinking, "detected_items_json")
@@ -1522,6 +1560,7 @@ class SimplifiedRAGEngine:
                             txt = str(detected_items_json_text or "").strip()
                             parsed_items = json.loads(txt)
                             if isinstance(parsed_items, list):
+                                parsed_items = _normalize_packaging_items(parsed_items, query)
                                 order_tracker.set_custom_meta(user_id, "detected_items", parsed_items)
                                 order_tracker.set_custom_meta(user_id, "detected_items_raw", detected_items_json_text)
                                 order_tracker.set_custom_meta(user_id, "detected_items_parse_error", "")
@@ -1592,6 +1631,7 @@ class SimplifiedRAGEngine:
                                     cand = txt2[start : end + 1]
                                     parsed_items = json.loads(cand)
                                     if isinstance(parsed_items, list):
+                                        parsed_items = _normalize_packaging_items(parsed_items, query)
                                         order_tracker.set_custom_meta(user_id, "detected_items", parsed_items)
                                         order_tracker.set_custom_meta(user_id, "detected_items_raw", cand)
                                         order_tracker.set_custom_meta(user_id, "detected_items_parse_error", "")
