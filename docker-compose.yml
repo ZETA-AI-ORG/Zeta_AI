@@ -7,6 +7,8 @@ services:
     restart: unless-stopped
     env_file:
       - .env
+    environment:
+      - ZETA_BOTLIVE_ONLY=false
     ports:
       - "0.0.0.0:8002:8002"
     volumes:
