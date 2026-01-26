@@ -395,6 +395,14 @@ try:
 except Exception as e:
     logger.warning(f"⚠️ Erreur intégration Catalog Cache router: {e}")
 
+# 📦 NOUVEAU: Catalogue V2 (UNIT_AS_ATOMIC) - Stocké dans Supabase company_catalogs_v2
+try:
+    from routes.catalog_v2 import router as catalog_v2_router
+    app.include_router(catalog_v2_router, tags=["Catalog V2"])
+    logger.info("📦 Catalog V2 router intégré avec succès")
+except Exception as e:
+    logger.warning(f"⚠️ Erreur intégration Catalog V2 router: {e}")
+
 # NOUVEAU: Intégration du Mini-LLM Dispatcher
 if not ZETA_BOTLIVE_ONLY:
     try:

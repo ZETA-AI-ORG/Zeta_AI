@@ -8,6 +8,8 @@ import re
 from typing import Any, Dict, List, Tuple, Optional
 from dataclasses import dataclass
 
+from core.company_catalog_v2_loader import get_company_catalog_v2
+
 @dataclass
 class ProductPrice:
     """Structure pour stocker les informations de prix d'un produit"""
@@ -327,165 +329,363 @@ class UniversalPriceCalculator:
                 + f"  <zone>{UniversalPriceCalculator._xml_escape(zone_s)}</zone>\n"
                 + f"  <ready_to_send>{UniversalPriceCalculator._xml_escape(ready)}</ready_to_send>"
             )
+
         except Exception:
             return ""
 
     @staticmethod
-    def _extract_quantity_int(text: str) -> Optional[int]:
-        t = str(text or "")
-        m = re.search(r"\b(\d+)\b", t)
-        if not m:
-            return None
-        return UniversalPriceCalculator._parse_int(m.group(1))
-
-    @staticmethod
-    def _xml_escape(s: str) -> str:
-        s = str(s or "")
-        return (
-            s.replace("&", "&amp;")
-            .replace("<", "&lt;")
-            .replace(">", "&gt;")
-            .replace('"', "&quot;")
-        )
-
-    @staticmethod
-    def _fmt_fcfa(n: int) -> str:
-        try:
-            return f"{int(n):,}".replace(",", ".")
-        except Exception:
-            return str(n)
-
-    @staticmethod
-    def build_price_calculation_block_for_rue_du_grossiste(
+    def _build_price_block_from_catalog_v2(
         *,
+        catalog_v2: Dict[str, Any],
         produit: str,
         specs: str,
         quantite: str,
         zone: str,
-        delivery_fee_fcfa: Optional[int],
+        delivery_fee: int,
     ) -> str:
-        produit_l = str(produit or "").strip().lower()
-        specs_l = str(specs or "").strip().lower()
-        quant_l = str(quantite or "").strip().lower()
-        zone_s = str(zone or "").strip()
+        # Normalisation produit
+        p = str(produit or "").strip().lower()
+        if "pression" in p or "press" in p:
+            product_key = "pressions"
+        elif "culott" in p:
+            product_key = "culottes"
+        else:
+            product_key = ""
 
-        is_culottes = "culott" in produit_l
-        is_pression = ("pression" in produit_l) or ("press" in produit_l)
-
-        if not (is_culottes or is_pression):
+        if not product_key:
             return ""
 
-        q = UniversalPriceCalculator._extract_quantity_int(quant_l)
-        if q is None:
+        # Specs: accepter T3, taille 3
+        spec_raw = str(specs or "").strip().upper()
+        spec = spec_raw
+        m = re.search(r"\bT([1-9]\d*)\b", spec_raw)
+        if m:
+            spec = f"T{m.group(1)}"
+        else:
+            m2 = re.search(r"\bTAILLE\s*([1-9]\d*)\b", spec_raw)
+            if m2:
+                spec = f"T{m2.group(1)}"
+
+        if not spec:
             return ""
 
-        delivery_fee = 0
-        if isinstance(delivery_fee_fcfa, int) and delivery_fee_fcfa >= 0:
-            delivery_fee = int(delivery_fee_fcfa)
+        # Quantité: accepte "2 lots" / "6 paquets" / "1 colis" etc.
+        q_s = str(quantite or "").strip().lower()
+        m_q = re.search(r"(\d+)", q_s)
+        if not m_q:
+            return ""
+        qty = int(m_q.group(1))
+        if qty <= 0:
+            return ""
 
-        if is_culottes:
-            allowed = [1, 2, 3, 6, 12, 48]
-            prices = {1: 5500, 2: 9800, 3: 13500, 6: 25000, 12: 48000, 48: 168000}
+        # Déterminer l'unité atomique (unit) à partir du texte + du catalogue.
+        canonical_units = catalog_v2.get("canonical_units")
+        if not isinstance(canonical_units, list):
+            canonical_units = []
+        canonical_units = [str(u) for u in canonical_units if str(u).strip()]
 
-            if q not in prices:
-                below = [x for x in allowed if x < q]
-                above = [x for x in allowed if x > q]
-                s1 = below[-1] if below else (above[0] if above else allowed[0])
-                s2 = above[0] if above else (below[-1] if below else allowed[-1])
+        def _pick_single(prefix: str) -> Optional[str]:
+            matches = [u for u in canonical_units if u.startswith(prefix)]
+            if len(matches) == 1:
+                return matches[0]
+            return None
+
+        unit: Optional[str] = None
+
+        if "lot" in q_s:
+            if "12" in q_s and "lot_12" in canonical_units:
+                unit = "lot_12"
+            elif "6" in q_s and "lot_6" in canonical_units:
+                unit = "lot_6"
+            else:
+                unit = _pick_single("lot_")
+        elif "paquet" in q_s or "pack" in q_s:
+            unit = _pick_single("paquet_") or ("piece" if "piece" in canonical_units else None)
+        elif "colis" in q_s:
+            unit = _pick_single("colis_")
+        elif "balle" in q_s:
+            unit = _pick_single("balle_")
+        elif "piece" in q_s or "pièce" in q_s or "pcs" in q_s:
+            unit = "piece" if "piece" in canonical_units else None
+
+        if not unit:
+            return ""
+
+        # Le catalogue v2 peut exister sous 2 formats:
+        # - legacy: matrix (flat)
+        # - compact: v (tree) avec u[unit] = [price, stock]
+        price_lookup: Dict[tuple, int] = {}
+
+        matrix = catalog_v2.get("matrix")
+        if isinstance(matrix, list):
+            for row in matrix:
+                if not isinstance(row, dict):
+                    continue
+                r_spec = str(row.get("spec") or "").strip().upper()
+                r_unit = str(row.get("unit") or "").strip()
+                r_price = row.get("price")
+                try:
+                    r_price_i = int(float(r_price))
+                except Exception:
+                    continue
+                if r_spec and r_unit and r_price_i > 0:
+                    price_lookup[(r_spec, r_unit)] = r_price_i
+
+        vtree = catalog_v2.get("v")
+        if (not price_lookup) and isinstance(vtree, dict):
+            def _find_variant_key(target: str) -> Optional[str]:
+                t = target.lower()
+                for k in vtree.keys():
+                    kk = str(k or "").strip()
+                    if not kk:
+                        continue
+                    k_low = kk.lower()
+                    if t == "pressions" and "pression" in k_low:
+                        return kk
+                    if t == "culottes" and "culott" in k_low:
+                        return kk
+                return None
+
+            variant_key = _find_variant_key(product_key)
+            node = vtree.get(variant_key) if variant_key else None
+            if isinstance(node, dict):
+                # Culottes: u[unit] direct
+                u = node.get("u") if isinstance(node.get("u"), dict) else None
+                if isinstance(u, dict):
+                    for unit_raw, tup in u.items():
+                        uu = str(unit_raw or "").strip()
+                        if not uu:
+                            continue
+                        try:
+                            price_i = int(float(tup[0])) if isinstance(tup, list) and len(tup) >= 1 else int(float(tup))
+                        except Exception:
+                            continue
+                        if price_i > 0:
+                            price_lookup[((variant_key or "").upper(), uu)] = price_i
+
+                # Pressions: s[Tn].u[unit]
+                s = node.get("s") if isinstance(node.get("s"), dict) else None
+                if isinstance(s, dict):
+                    for sub_raw, sub_node in s.items():
+                        sub = str(sub_raw or "").strip().upper()
+                        if not sub:
+                            continue
+                        sub_u = sub_node.get("u") if isinstance(sub_node, dict) and isinstance(sub_node.get("u"), dict) else None
+                        if not isinstance(sub_u, dict):
+                            continue
+                        for unit_raw, tup in sub_u.items():
+                            uu = str(unit_raw or "").strip()
+                            if not uu:
+                                continue
+                            try:
+                                price_i = int(float(tup[0])) if isinstance(tup, list) and len(tup) >= 1 else int(float(tup))
+                            except Exception:
+                                continue
+                            if price_i > 0:
+                                price_lookup[(sub, uu)] = price_i
+
+        # Dans le format compact, on utilise:
+        # - pressions: spec=Tn
+        # - culottes: spec=variant_key
+        lookup_spec = spec
+        if product_key == "culottes":
+            lookup_spec = ((variant_key or "").upper() if 'variant_key' in locals() and variant_key else spec)
+
+        unit_price = price_lookup.get((lookup_spec, unit))
+        if not unit_price:
+            return ""
+
+        subtotal = int(unit_price * qty)
+        total = int(subtotal + int(delivery_fee or 0))
+
+        ready = (
+            f"Pour {qty} {unit.replace('_', ' ')} de {product_key} {spec}"
+            + (f" + livraison {zone} ({UniversalPriceCalculator._fmt_fcfa(int(delivery_fee or 0))}F)" if zone and delivery_fee else "")
+            + f", le total fait {UniversalPriceCalculator._fmt_fcfa(total)}F ✅"
+        )
+
+        return (
+            "  <status>OK</status>\n"
+            f"  <product>{product_key.upper()}</product>\n"
+            f"  <size>{UniversalPriceCalculator._xml_escape(spec)}</size>\n"
+            f"  <unit>{UniversalPriceCalculator._xml_escape(unit)}</unit>\n"
+            f"  <quantity>{qty}</quantity>\n"
+            f"  <product_subtotal_fcfa>{subtotal}</product_subtotal_fcfa>\n"
+            f"  <delivery_fee_fcfa>{int(delivery_fee or 0)}</delivery_fee_fcfa>\n"
+            f"  <total_fcfa>{total}</total_fcfa>\n"
+            f"  <zone>{UniversalPriceCalculator._xml_escape(zone)}</zone>\n"
+            f"  <ready_to_send>{UniversalPriceCalculator._xml_escape(ready)}</ready_to_send>"
+        )
+
+    @staticmethod
+    def build_price_calculation_block_for_rue_du_grossiste(
+        *,
+        company_id: Optional[str] = None,
+        produit: str,
+        specs: str,
+        quantite: str,
+        zone: str,
+        delivery_fee_fcfa: Optional[int] = None,
+    ) -> str:
+        try:
+            produit_l = str(produit or "").strip().lower()
+            specs_l = str(specs or "").strip().lower()
+            quant_l = str(quantite or "").strip().lower()
+            zone_s = str(zone or "").strip()
+            delivery_fee = int(delivery_fee_fcfa) if delivery_fee_fcfa is not None else 0
+
+            # --- Nouveau: calcul UNIT_AS_ATOMIC via Catalogue V2 (si dispo) ---
+            if company_id:
+                try:
+                    catalog_v2 = get_company_catalog_v2(company_id)
+                except Exception:
+                    catalog_v2 = None
+
+                if isinstance(catalog_v2, dict) and str(catalog_v2.get("pricing_strategy") or "").upper() == "UNIT_AS_ATOMIC":
+                    try:
+                        pc = UniversalPriceCalculator._build_price_block_from_catalog_v2(
+                            catalog_v2=catalog_v2,
+                            produit=produit_l,
+                            specs=specs_l,
+                            quantite=quant_l,
+                            zone=zone_s,
+                            delivery_fee=delivery_fee,
+                        )
+                        if str(pc or "").strip():
+                            return pc
+                    except Exception:
+                        pass
+
+            is_culottes = "culott" in produit_l
+            is_pression = ("pression" in produit_l) or ("press" in produit_l)
+
+            if not (is_culottes or is_pression):
+                return ""
+
+            q = UniversalPriceCalculator._extract_quantity_int(quant_l)
+            if q is None:
+                return ""
+
+            delivery_fee = 0
+            if isinstance(delivery_fee_fcfa, int) and delivery_fee_fcfa >= 0:
+                delivery_fee = int(delivery_fee_fcfa)
+
+            if is_culottes:
+                allowed = [1, 2, 3, 6, 12, 48]
+                prices = {1: 5500, 2: 9800, 3: 13500, 6: 25000, 12: 48000, 48: 168000}
+
+                if q not in prices:
+                    below = [x for x in allowed if x < q]
+                    above = [x for x in allowed if x > q]
+                    s1 = below[-1] if below else (above[0] if above else allowed[0])
+                    s2 = above[0] if above else (below[-1] if below else allowed[-1])
+                    ready = (
+                        "Pour les culottes, les quantités dispo c’est 1, 2, 3, 6, 12 ou 48 paquets. "
+                        f"Tu préfères {s1} ou {s2} paquets ?"
+                    )
+                    return (
+                        "  <status>INVALID_QUANTITY</status>\n"
+                        "  <product>CULOTTES</product>\n"
+                        f"  <requested_quantity_packs>{q}</requested_quantity_packs>\n"
+                        f"  <allowed_quantities>{','.join(str(x) for x in allowed)}</allowed_quantities>\n"
+                        f"  <suggested_quantities>{s1},{s2}</suggested_quantities>\n"
+                        f"  <delivery_fee_fcfa>{delivery_fee}</delivery_fee_fcfa>\n"
+                        f"  <zone>{UniversalPriceCalculator._xml_escape(zone_s)}</zone>\n"
+                        f"  <ready_to_send>{UniversalPriceCalculator._xml_escape(ready)}</ready_to_send>"
+                    )
+
+                subtotal = int(prices[q])
+                total = subtotal + delivery_fee
                 ready = (
-                    "Pour les culottes, les quantités dispo c’est 1, 2, 3, 6, 12 ou 48 paquets. "
-                    f"Tu préfères {s1} ou {s2} paquets ?"
+                    f"Pour {q} paquet{'s' if q > 1 else ''} de culottes"
+                    + (
+                        f" + livraison {zone_s} ({UniversalPriceCalculator._fmt_fcfa(delivery_fee)}F)"
+                        if zone_s and delivery_fee
+                        else ""
+                    )
+                    + f", le total fait {UniversalPriceCalculator._fmt_fcfa(total)}F ✅"
                 )
+
                 return (
-                    "  <status>INVALID_QUANTITY</status>\n"
+                    "  <status>OK</status>\n"
                     "  <product>CULOTTES</product>\n"
-                    f"  <requested_quantity_packs>{q}</requested_quantity_packs>\n"
-                    f"  <allowed_quantities>{','.join(str(x) for x in allowed)}</allowed_quantities>\n"
-                    f"  <suggested_quantities>{s1},{s2}</suggested_quantities>\n"
+                    f"  <quantity_packs>{q}</quantity_packs>\n"
+                    f"  <product_subtotal_fcfa>{subtotal}</product_subtotal_fcfa>\n"
                     f"  <delivery_fee_fcfa>{delivery_fee}</delivery_fee_fcfa>\n"
+                    f"  <total_fcfa>{total}</total_fcfa>\n"
                     f"  <zone>{UniversalPriceCalculator._xml_escape(zone_s)}</zone>\n"
                     f"  <ready_to_send>{UniversalPriceCalculator._xml_escape(ready)}</ready_to_send>"
                 )
 
-            subtotal = int(prices[q])
-            total = subtotal + delivery_fee
-            ready = (
-                f"Pour {q} paquet{'s' if q > 1 else ''} de culottes"
-                + (
-                    f" + livraison {zone_s} ({UniversalPriceCalculator._fmt_fcfa(delivery_fee)}F)"
-                    if zone_s and delivery_fee
-                    else ""
+            if is_pression:
+                taille = UniversalPriceCalculator._extract_size_t1_t7(specs_l) or UniversalPriceCalculator._extract_size_t1_t7(produit_l)
+                if not taille:
+                    return ""
+
+                prices = {
+                    "taille 1": 17900,
+                    "taille 2": 18900,
+                    "taille 3": 22900,
+                    "taille 4": 25900,
+                    "taille 5": 25900,
+                    "taille 6": 27900,
+                    "taille 7": 28900,
+                }
+
+                is_lot_wording = "lot" in quant_l
+                qty_lots: Optional[int] = None
+                qty_packs: Optional[int] = None
+                if is_lot_wording:
+                    qty_lots = int(q)
+                    qty_packs = int(q) * 6
+                else:
+                    qty_packs = int(q)
+                    qty_lots = 1 if int(q) == 6 else None
+
+                if qty_lots is None or qty_lots <= 0 or qty_packs is None or qty_packs <= 0:
+                    ready = "Les pressions sont vendues uniquement par lot de 6 paquets. Tu veux 1 lot (6 paquets) ?"
+                    return (
+                        "  <status>INVALID_QUANTITY</status>\n"
+                        "  <product>PRESSIONS</product>\n"
+                        f"  <size>{UniversalPriceCalculator._xml_escape(taille)}</size>\n"
+                        f"  <requested_quantity_packs>{int(q)}</requested_quantity_packs>\n"
+                        "  <allowed_quantities>6</allowed_quantities>\n"
+                        f"  <delivery_fee_fcfa>{delivery_fee}</delivery_fee_fcfa>\n"
+                        f"  <zone>{UniversalPriceCalculator._xml_escape(zone_s)}</zone>\n"
+                        f"  <ready_to_send>{UniversalPriceCalculator._xml_escape(ready)}</ready_to_send>"
+                    )
+
+                unit_price_lot = int(prices.get(taille) or 0)
+                subtotal = int(unit_price_lot * qty_lots)
+                if subtotal <= 0:
+                    return ""
+
+                total = subtotal + delivery_fee
+                ready = (
+                    f"Pour {qty_lots} lot{'s' if qty_lots > 1 else ''} ({qty_packs} paquets) de pressions {taille}"
+                    + (
+                        f" + livraison {zone_s} ({UniversalPriceCalculator._fmt_fcfa(delivery_fee)}F)"
+                        if zone_s and delivery_fee
+                        else ""
+                    )
+                    + f", le total fait {UniversalPriceCalculator._fmt_fcfa(total)}F ✅"
                 )
-                + f", le total fait {UniversalPriceCalculator._fmt_fcfa(total)}F ✅"
-            )
 
-            return (
-                "  <status>OK</status>\n"
-                "  <product>CULOTTES</product>\n"
-                f"  <quantity_packs>{q}</quantity_packs>\n"
-                f"  <product_subtotal_fcfa>{subtotal}</product_subtotal_fcfa>\n"
-                f"  <delivery_fee_fcfa>{delivery_fee}</delivery_fee_fcfa>\n"
-                f"  <total_fcfa>{total}</total_fcfa>\n"
-                f"  <zone>{UniversalPriceCalculator._xml_escape(zone_s)}</zone>\n"
-                f"  <ready_to_send>{UniversalPriceCalculator._xml_escape(ready)}</ready_to_send>"
-            )
-
-        if is_pression:
-            taille = UniversalPriceCalculator._extract_size_t1_t7(specs_l) or UniversalPriceCalculator._extract_size_t1_t7(produit_l)
-            if not taille:
-                return ""
-
-            prices = {
-                "taille 1": 17900,
-                "taille 2": 18900,
-                "taille 3": 22900,
-                "taille 4": 25900,
-                "taille 5": 25900,
-                "taille 6": 27900,
-                "taille 7": 28900,
-            }
-
-            if q != 6:
-                ready = "Les pressions sont vendues uniquement par lot de 6 paquets. Tu veux 6 paquets (1 lot) ?"
                 return (
-                    "  <status>INVALID_QUANTITY</status>\n"
+                    "  <status>OK</status>\n"
                     "  <product>PRESSIONS</product>\n"
                     f"  <size>{UniversalPriceCalculator._xml_escape(taille)}</size>\n"
-                    f"  <requested_quantity_packs>{q}</requested_quantity_packs>\n"
-                    "  <allowed_quantities>6</allowed_quantities>\n"
+                    f"  <quantity_packs>{int(qty_packs)}</quantity_packs>\n"
+                    f"  <product_subtotal_fcfa>{subtotal}</product_subtotal_fcfa>\n"
                     f"  <delivery_fee_fcfa>{delivery_fee}</delivery_fee_fcfa>\n"
+                    f"  <total_fcfa>{total}</total_fcfa>\n"
                     f"  <zone>{UniversalPriceCalculator._xml_escape(zone_s)}</zone>\n"
                     f"  <ready_to_send>{UniversalPriceCalculator._xml_escape(ready)}</ready_to_send>"
                 )
 
-            subtotal = int(prices.get(taille) or 0)
-            if subtotal <= 0:
-                return ""
-
-            total = subtotal + delivery_fee
-            ready = (
-                f"Pour 1 lot (6 paquets) de pressions {taille}"
-                + (
-                    f" + livraison {zone_s} ({UniversalPriceCalculator._fmt_fcfa(delivery_fee)}F)"
-                    if zone_s and delivery_fee
-                    else ""
-                )
-                + f", le total fait {UniversalPriceCalculator._fmt_fcfa(total)}F ✅"
-            )
-
-            return (
-                "  <status>OK</status>\n"
-                "  <product>PRESSIONS</product>\n"
-                f"  <size>{UniversalPriceCalculator._xml_escape(taille)}</size>\n"
-                "  <quantity_packs>6</quantity_packs>\n"
-                f"  <product_subtotal_fcfa>{subtotal}</product_subtotal_fcfa>\n"
-                f"  <delivery_fee_fcfa>{delivery_fee}</delivery_fee_fcfa>\n"
-                f"  <total_fcfa>{total}</total_fcfa>\n"
-                f"  <zone>{UniversalPriceCalculator._xml_escape(zone_s)}</zone>\n"
-                f"  <ready_to_send>{UniversalPriceCalculator._xml_escape(ready)}</ready_to_send>"
-            )
-
-        return ""
+            return ""
+        except Exception:
+            return ""
     
     def extract_size_from_text(self, text: str, product_type: str) -> str:
         """Extrait la taille du produit du texte"""
