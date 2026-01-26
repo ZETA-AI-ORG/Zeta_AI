@@ -4,7 +4,7 @@ Point d'entrée principal pour l'ingestion de documents d'entreprise
 Intégration MeiliSearch + Supabase avec routage intelligent
 """
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 from typing import Dict, List, Any, Optional
 import logging
@@ -38,6 +38,13 @@ class IngestionRequest(BaseModel):
 class BotlivePromptUpsertRequest(BaseModel):
     company_id: str
     prompt: str
+    ai_name: Optional[str] = None
+    company_name: Optional[str] = None
+
+
+class BotliveCatalogueBlockUpsertRequest(BaseModel):
+    company_id: str
+    catalogue_block: str
     ai_name: Optional[str] = None
     company_name: Optional[str] = None
 
@@ -901,6 +908,169 @@ async def upsert_botlive_prompt_deepseek(payload: BotlivePromptUpsertRequest):
         raise
     except Exception as e:
         logger.exception("[BOTLIVE_PROMPT][UPSERT] ❌")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+def _check_internal_key(request: Request) -> None:
+    expected = os.getenv("BOTLIVE_PROMPT_INTERNAL_KEY")
+    if not expected:
+        return
+    provided = request.headers.get("x-internal-key") or request.headers.get("X-Internal-Key")
+    if not provided or provided != expected:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+
+
+def _strip_catalogue_section(prompt: str) -> str:
+    try:
+        import re
+
+        p = str(prompt or "")
+        if not p.strip():
+            return ""
+
+        # Remove block starting with a catalogue header until the next top-level markdown header or end.
+        patterns = [
+            r"\n?###\s*📦[\s\S]*?(?=\n###\s|\Z)",
+            r"\n?##\s*📦[\s\S]*?(?=\n##\s|\Z)",
+            r"\n?CATALOGUE\s+R[ÉE]F[ÉE]RENTIEL[\s\S]*?(?=\n[A-Z][A-Z0-9 _-]{3,}\n|\Z)",
+        ]
+        for pat in patterns:
+            p2 = re.sub(pat, "\n", p, flags=re.IGNORECASE)
+            p = p2
+
+        # Cleanup excessive blank lines
+        p = re.sub(r"\n{4,}", "\n\n\n", p)
+        return p.strip() + "\n"
+    except Exception:
+        return str(prompt or "")
+
+
+def _inject_catalogue_block(prompt: str, catalogue_block: str) -> str:
+    base = _strip_catalogue_section(prompt)
+    cat = str(catalogue_block or "").strip()
+    if not cat:
+        return base
+
+    # Preferred method: replace content between explicit markers.
+    # This supports easy catalogue updates (overwrite the whole zone).
+    start_marker = "[CATALOGUE_START]"
+    end_marker = "[CATALOGUE_END]"
+
+    start_idx = base.find(start_marker)
+    end_idx = base.find(end_marker)
+    if start_idx != -1 and end_idx != -1 and end_idx > start_idx:
+        content_start = start_idx + len(start_marker)
+        content_end = end_idx
+        replacement = "\n" + cat + "\n"
+        return (base[:content_start] + replacement + base[content_end:]).strip() + "\n"
+
+    # Fallback: replace placeholder in prompt.
+    placeholder = "{{CATALOGUE_BLOCK}}"
+    if placeholder in base:
+        return base.replace(placeholder, cat).strip() + "\n"
+
+    # Backward-compatible fallback: anchor-based injection.
+    insertion = "\n\n" + cat + "\n\n"
+
+    anchors = [
+        "ZONES LIVRAISON:",
+        "ZONES LIVRAISON",
+        "ZONES:",
+    ]
+
+    for a in anchors:
+        idx = base.find(a)
+        if idx == -1:
+            continue
+        # Insert after the delivery zones block: place after the next double newline following the anchor.
+        after_anchor = base.find("\n\n", idx)
+        if after_anchor != -1:
+            return base[: after_anchor + 2] + insertion + base[after_anchor + 2 :]
+
+    # Fallback: inject before NOTEPAD section if present
+    idx2 = base.find("📋 NOTEPAD")
+    if idx2 != -1:
+        return base[:idx2] + insertion + base[idx2:]
+
+    # Final fallback: append
+    return (base.rstrip() + insertion).strip() + "\n"
+
+
+@router.post("/upsert-botlive-catalogue-block-deepseek")
+async def upsert_botlive_catalogue_block_deepseek(request: Request, payload: BotliveCatalogueBlockUpsertRequest):
+    _check_internal_key(request)
+
+    try:
+        company_id = (payload.company_id or "").strip()
+        catalogue_block = payload.catalogue_block or ""
+        if not company_id:
+            raise HTTPException(status_code=400, detail="company_id manquant")
+        if not catalogue_block or not str(catalogue_block).strip():
+            raise HTTPException(status_code=400, detail="catalogue_block manquant")
+
+        supabase = get_supabase_client()
+        now_iso = datetime.now().isoformat()
+
+        # Fetch current prompt (if any)
+        existing_prompt = ""
+        try:
+            resp = (
+                supabase.table("company_rag_configs")
+                .select("prompt_botlive_deepseek_v3")
+                .eq("company_id", company_id)
+                .single()
+                .execute()
+            )
+            if resp and getattr(resp, "data", None):
+                existing_prompt = str((resp.data or {}).get("prompt_botlive_deepseek_v3") or "")
+        except Exception:
+            existing_prompt = ""
+
+        updated_prompt = _inject_catalogue_block(existing_prompt, catalogue_block)
+        if not updated_prompt or len(updated_prompt.strip()) < 50:
+            raise HTTPException(status_code=400, detail="prompt_deepseek introuvable ou trop court: initialise d'abord le prompt")
+
+        row: Dict[str, Any] = {
+            "company_id": company_id,
+            "prompt_botlive_deepseek_v3": updated_prompt,
+            "botlive_prompts_updated_at": now_iso,
+        }
+        if payload.ai_name is not None and str(payload.ai_name).strip():
+            row["ai_name"] = str(payload.ai_name).strip()
+        if payload.company_name is not None and str(payload.company_name).strip():
+            row["company_name"] = str(payload.company_name).strip()
+
+        result = supabase.table("company_rag_configs").upsert(
+            row,
+            on_conflict="company_id",
+        ).execute()
+
+        updated = 0
+        try:
+            updated = len(result.data) if result and getattr(result, "data", None) else 0
+        except Exception:
+            updated = 0
+
+        logger.info(
+            "[BOTLIVE_CATALOGUE][UPSERT] ✅ company_id=%s | catalogue_chars=%s | prompt_chars=%s | updated_rows=%s",
+            company_id,
+            len(str(catalogue_block)),
+            len(str(updated_prompt)),
+            updated,
+        )
+
+        return {
+            "status": "ok",
+            "company_id": company_id,
+            "updated_at": now_iso,
+            "catalogue_chars": len(str(catalogue_block)),
+            "prompt_chars": len(str(updated_prompt)),
+            "updated_rows": updated,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("[BOTLIVE_CATALOGUE][UPSERT] ❌")
         raise HTTPException(status_code=500, detail=str(e))
 
 
