@@ -152,7 +152,7 @@ if not ZETA_BOTLIVE_ONLY:
     print("🔍 [DEBUG] Importing supabase_client...")
     from database.supabase_client import get_supabase_client
     print("🔍 [DEBUG] Importing ingestion_api...")
-    from ingestion.ingestion_api import router as ingestion_router
+    from Zeta_AI.ingestion.ingestion_api import router as ingestion_router
     print("🔍 [DEBUG] Importing global_embedding_cache...")
     from core.global_embedding_cache import initialize_global_cache, cleanup_global_cache
 else:
