@@ -28,8 +28,13 @@ class ChatRequest(BaseModel):
 
     @validator('user_id')
     def validate_user_id(cls, v):
+        # Accept:
+        # - existing IDs: alphanumeric + hyphens/underscores
+        # - WhatsApp E.164 numbers: + followed by digits (e.g. +2250719568895)
+        if re.match(r'^\+\d{6,15}$', v):
+            return v
         if not re.match(r'^[a-zA-Z0-9\-_]{4,64}$', v):
-            raise ValueError('user_id must be a valid alphanumeric string (letters, numbers, hyphens, underscores)')
+            raise ValueError('user_id must be a valid alphanumeric string (letters, numbers, hyphens, underscores) or an E.164 phone number (+XXXXXXXX...)')
         return v
 
     @validator('images', pre=True, always=True)
