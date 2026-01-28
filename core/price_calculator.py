@@ -4,6 +4,7 @@
 Système de calcul automatique des prix pour les couches avec frais de livraison
 """
 
+import os
 import re
 from typing import Any, Dict, List, Tuple, Optional
 from dataclasses import dataclass
@@ -185,6 +186,14 @@ class UniversalPriceCalculator:
         try:
             zone_s = str(zone or "").strip()
             delivery_fee = int(delivery_fee_fcfa) if delivery_fee_fcfa is not None else 0
+            _dbg = str(os.getenv("PRICE_CALC_DEBUG") or "").strip().lower() in {"1", "true", "yes", "on"}
+
+            def _dprint(*args):
+                if _dbg:
+                    try:
+                        print("[PRICE_CALC_DEBUG]", *args)
+                    except Exception:
+                        pass
 
             def _canon_product(v: str) -> str:
                 s = str(v or "").strip().lower()
@@ -246,10 +255,12 @@ class UniversalPriceCalculator:
             def _calc_from_catalog_v2(catalog_v2: Dict[str, Any]) -> Optional[str]:
                 try:
                     if str(catalog_v2.get("pricing_strategy") or "").upper() != "UNIT_AS_ATOMIC":
+                        _dprint("pricing_strategy_not_unit_as_atomic", catalog_v2.get("pricing_strategy"))
                         return None
 
                     vtree = catalog_v2.get("v")
                     if not isinstance(vtree, dict):
+                        _dprint("vtree_invalid", type(vtree))
                         return None
 
                     canonical_units = catalog_v2.get("canonical_units")
@@ -257,10 +268,12 @@ class UniversalPriceCalculator:
                         canonical_units = []
                     canonical_units = [str(u) for u in canonical_units if str(u).strip()]
                     if not canonical_units:
+                        _dprint("canonical_units_empty")
                         return None
 
                     normalized_items = raw_normalized
                     if not normalized_items:
+                        _dprint("no_items_after_raw_normalized")
                         return ""
 
                     def _match_key_case_insensitive(keys: List[str], target: str) -> Optional[str]:
@@ -341,11 +354,13 @@ class UniversalPriceCalculator:
 
                         # IMPORTANT: unit must be explicit (exactly one of canonical_units)
                         if unit_key not in canonical_units:
+                            _dprint("unit_not_in_canonical_units", unit_key, canonical_units)
                             return None
 
                         variant_key = _find_variant_key(product_raw)
                         node = vtree.get(variant_key) if variant_key else None
                         if not isinstance(node, dict):
+                            _dprint("variant_not_found", product_raw, "resolved", variant_key, "vtree_keys", list(vtree.keys()))
                             return None
 
                         unit_price = None
@@ -353,38 +368,47 @@ class UniversalPriceCalculator:
                         node_s = node.get("s")
                         if isinstance(node_s, dict):
                             if not specs_raw:
+                                _dprint("missing_specs_for_subvariant", product_raw, "unit", unit_key)
                                 return None
                             sub_key = _find_subvariant_key(node_s, specs_raw)
                             sub = node_s.get(sub_key) if sub_key else None
                             if not isinstance(sub, dict):
+                                _dprint("subvariant_not_found", product_raw, "specs", specs_raw, "resolved", sub_key, "available", list(node_s.keys()))
                                 return None
                             u_map = sub.get("u")
                             if not isinstance(u_map, dict):
+                                _dprint("u_map_invalid_sub", product_raw, sub_key, type(u_map))
                                 return None
                             tup = u_map.get(unit_key)
                             if tup is None:
+                                _dprint("unit_not_found_sub", product_raw, sub_key, unit_key, "available", list(u_map.keys()))
                                 return None
                             try:
                                 unit_price = int(float(tup[0])) if isinstance(tup, list) and len(tup) >= 1 else int(float(tup))
                             except Exception:
+                                _dprint("unit_price_parse_failed_sub", product_raw, sub_key, unit_key, "value", tup)
                                 unit_price = None
 
                             size_label = sub_key or specs_raw
                         else:
                             u_map = node.get("u")
                             if not isinstance(u_map, dict):
+                                _dprint("u_map_invalid_variant", product_raw, "resolved", variant_key, type(u_map), "node_keys", list(node.keys()) if isinstance(node, dict) else None)
                                 return None
                             tup = u_map.get(unit_key)
                             if tup is None:
+                                _dprint("unit_not_found_variant", product_raw, "resolved", variant_key, unit_key, "available", list(u_map.keys()))
                                 return None
                             try:
                                 unit_price = int(float(tup[0])) if isinstance(tup, list) and len(tup) >= 1 else int(float(tup))
                             except Exception:
+                                _dprint("unit_price_parse_failed_variant", product_raw, variant_key, unit_key, "value", tup)
                                 unit_price = None
 
                             size_label = specs_raw or (variant_key or product_raw)
 
                         if unit_price is None or unit_price <= 0:
+                            _dprint("unit_price_invalid", product_raw, "resolved", variant_key, "unit", unit_key, "unit_price", unit_price)
                             return None
 
                         item_subtotal = int(unit_price * qty)
@@ -437,6 +461,7 @@ class UniversalPriceCalculator:
                         + f"  <ready_to_send>{UniversalPriceCalculator._xml_escape(ready)}</ready_to_send>"
                     )
                 except Exception:
+                    _dprint("exception_in_calc_from_catalog_v2")
                     return None
 
             if isinstance(catalog_v2, dict):
