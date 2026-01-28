@@ -425,7 +425,7 @@ class UniversalPriceCalculator:
                                 _dprint("unit_price_parse_failed_variant", product_raw, variant_key, unit_key, "value", tup)
                                 unit_price = None
 
-                            size_label = specs_raw or (variant_key or product_raw)
+                            size_label = specs_raw
 
                         if unit_price is None or unit_price <= 0:
                             _dprint("unit_price_invalid", product_raw, "resolved", variant_key, "unit", unit_key, "unit_price", unit_price)
