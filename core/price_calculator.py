@@ -159,6 +159,25 @@ class UniversalPriceCalculator:
             return quantity, "pression"
 
     @staticmethod
+    def _xml_escape(v: Any) -> str:
+        s = str(v if v is not None else "")
+        return (
+            s.replace("&", "&amp;")
+            .replace("<", "&lt;")
+            .replace(">", "&gt;")
+            .replace('"', "&quot;")
+            .replace("'", "&apos;")
+        )
+
+    @staticmethod
+    def _fmt_fcfa(v: Any) -> str:
+        try:
+            n = int(float(v))
+        except Exception:
+            n = 0
+        return f"{n:,}".replace(",", " ")
+
+    @staticmethod
     def _parse_int(s: str) -> Optional[int]:
         try:
             return int(str(s).strip())
