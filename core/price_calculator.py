@@ -5,6 +5,7 @@ Système de calcul automatique des prix pour les couches avec frais de livraison
 """
 
 import os
+import traceback
 import re
 from typing import Any, Dict, List, Tuple, Optional
 from dataclasses import dataclass
@@ -460,8 +461,13 @@ class UniversalPriceCalculator:
                         + f"  <zone>{UniversalPriceCalculator._xml_escape(zone_s)}</zone>\n"
                         + f"  <ready_to_send>{UniversalPriceCalculator._xml_escape(ready)}</ready_to_send>"
                     )
-                except Exception:
-                    _dprint("exception_in_calc_from_catalog_v2")
+                except Exception as e:
+                    _dprint("exception_in_calc_from_catalog_v2", repr(e))
+                    if _dbg:
+                        try:
+                            traceback.print_exc()
+                        except Exception:
+                            pass
                     return None
 
             if isinstance(catalog_v2, dict):
