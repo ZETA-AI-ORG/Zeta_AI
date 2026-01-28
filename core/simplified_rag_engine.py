@@ -30,6 +30,7 @@ from core.simplified_prompt_system import get_simplified_prompt_system
 from core.price_calculator import UniversalPriceCalculator
 from core.dynamic_context_injector import get_dynamic_context_injector
 from core.llm_client import get_llm_client
+from core.company_catalog_v2_loader import get_company_catalog_v2
 
 
 @dataclass
@@ -1102,27 +1103,146 @@ class SimplifiedRAGEngine:
                 def _validate_cart_items(items) -> bool:
                     if not isinstance(items, list) or not items:
                         return False
-                    allowed_products = {"pressions", "culottes"}
-                    allowed_units = {"lot", "paquet"}
-                    allowed_specs = {f"T{i}" for i in range(1, 8)}
+
+                    try:
+                        catalog_v2 = get_company_catalog_v2(company_id)
+                    except Exception:
+                        catalog_v2 = None
+
+                    if not isinstance(catalog_v2, dict):
+                        return False
+                    if str(catalog_v2.get("pricing_strategy") or "").upper() != "UNIT_AS_ATOMIC":
+                        return False
+
+                    vtree = catalog_v2.get("v")
+                    if not isinstance(vtree, dict) or not vtree:
+                        return False
+
+                    canonical_units = catalog_v2.get("canonical_units")
+                    if not isinstance(canonical_units, list):
+                        canonical_units = []
+                    canonical_units = [str(u).strip() for u in canonical_units if str(u).strip()]
+                    if not canonical_units:
+                        return False
+
+                    def _match_key_case_insensitive(keys: List[str], target: str) -> Optional[str]:
+                        t = str(target or "").strip().lower()
+                        if not t:
+                            return None
+                        for k in keys:
+                            if str(k or "").strip().lower() == t:
+                                return str(k)
+                        return None
+
+                    def _find_variant_key(product_raw: str) -> Optional[str]:
+                        product_s = str(product_raw or "").strip()
+                        if not product_s:
+                            return None
+                        keys = [str(k) for k in vtree.keys()]
+                        exact = _match_key_case_insensitive(keys, product_s)
+                        if exact:
+                            return exact
+                        p_low = product_s.lower()
+                        for k in keys:
+                            k_low = str(k or "").lower()
+                            if p_low and (p_low in k_low or k_low in p_low):
+                                return str(k)
+                        return None
+
+                    def _extract_t_number(specs_raw: str) -> Optional[int]:
+                        s = str(specs_raw or "").strip().upper()
+                        m = re.search(r"\bT\s*([1-9]\d*)\b", s)
+                        if m:
+                            try:
+                                return int(m.group(1))
+                            except Exception:
+                                return None
+                        m2 = re.search(r"\bTAILLE\s*([1-9]\d*)\b", s)
+                        if m2:
+                            try:
+                                return int(m2.group(1))
+                            except Exception:
+                                return None
+                        return None
+
+                    def _spec_key_matches(sub_key: str, requested_specs: str) -> bool:
+                        if not sub_key:
+                            return False
+                        keys = [str(sub_key)]
+                        exact = _match_key_case_insensitive(keys, requested_specs)
+                        if exact:
+                            return True
+
+                        req_n = _extract_t_number(requested_specs)
+                        if req_n is None:
+                            return False
+
+                        # Range support: parse all T numbers in the key and see if req_n fits in min..max
+                        nums = [int(x) for x in re.findall(r"T\s*([1-9]\d*)", str(sub_key).upper()) if x.isdigit()]
+                        if not nums:
+                            return False
+                        lo, hi = min(nums), max(nums)
+                        return lo <= req_n <= hi
+
+                    def _find_subvariant_key(node_s: Dict[str, Any], specs_raw: str) -> Optional[str]:
+                        if not isinstance(node_s, dict):
+                            return None
+                        specs_s = str(specs_raw or "").strip()
+                        if not specs_s:
+                            return None
+                        sub_keys = [str(k) for k in node_s.keys()]
+                        exact = _match_key_case_insensitive(sub_keys, specs_s)
+                        if exact:
+                            return exact
+                        for k in sub_keys:
+                            if _spec_key_matches(k, specs_s):
+                                return str(k)
+                        # Soft match last
+                        s_low = specs_s.lower()
+                        for k in sub_keys:
+                            k_low = str(k or "").lower()
+                            if s_low and (s_low in k_low or k_low in s_low):
+                                return str(k)
+                        return None
+
                     for it in items:
                         if not isinstance(it, dict):
                             return False
-                        product = str(it.get("product") or "").strip().lower()
-                        specs = str(it.get("specs") or "").strip().upper()
-                        unit = str(it.get("unit") or "").strip().lower()
+                        product_raw = str(it.get("product") or "").strip()
+                        specs_raw = str(it.get("specs") or "").strip()
+                        unit = str(it.get("unit") or "").strip()
                         qty = it.get("qty")
                         conf = it.get("confidence")
                         try:
                             conf_f = float(conf) if conf is not None else 0.0
                         except Exception:
                             conf_f = 0.0
-                        if product not in allowed_products:
+
+                        if unit not in canonical_units:
                             return False
-                        if unit not in allowed_units:
+
+                        variant_key = _find_variant_key(product_raw)
+                        node = vtree.get(variant_key) if variant_key else None
+                        if not isinstance(node, dict):
                             return False
-                        if specs not in allowed_specs:
-                            return False
+
+                        # If the catalog defines sub-variants (node.s), specs must match one of its keys (including ranges)
+                        node_s = node.get("s")
+                        if isinstance(node_s, dict) and node_s:
+                            sub_key = _find_subvariant_key(node_s, specs_raw)
+                            if not sub_key:
+                                return False
+                            sub_node = node_s.get(sub_key)
+                            if not isinstance(sub_node, dict):
+                                return False
+                            u_map = sub_node.get("u")
+                            if not isinstance(u_map, dict) or unit not in u_map:
+                                return False
+                        else:
+                            u_map = node.get("u")
+                            if not isinstance(u_map, dict) or unit not in u_map:
+                                return False
+
                         if qty is None or (not isinstance(qty, int)) or qty <= 0:
                             return False
                         if conf_f < float(CONFIDENCE_THRESHOLD):
@@ -1131,6 +1251,7 @@ class SimplifiedRAGEngine:
 
                 if _validate_cart_items(detected_items_pre) and zone_val:
                     pc_inner_cart = UniversalPriceCalculator.build_price_calculation_block_from_detected_items(
+                        company_id=company_id,
                         items=detected_items_pre,
                         zone=zone_val,
                         delivery_fee_fcfa=delivery_fee_fcfa,
@@ -1227,6 +1348,7 @@ class SimplifiedRAGEngine:
                 # Si produit+quantité sont détectés, on calcule avec les règles du catalogue/tiers actif.
                 if pre_llm_price_calc_allowed:
                     price_calculation_block = UniversalPriceCalculator.build_price_calculation_block_for_rue_du_grossiste(
+                        company_id=company_id,
                         produit=produit_val,
                         specs=specs_val,
                         quantite=quantite_val,
@@ -2027,29 +2149,145 @@ class SimplifiedRAGEngine:
                         out["reasons"].append("no_items")
                         return out
 
-                    allowed_products = {"pressions", "culottes"}
-                    allowed_units = {"lot", "paquet"}
-                    allowed_specs = {f"T{i}" for i in range(1, 8)}
+                    try:
+                        catalog_v2 = get_company_catalog_v2(company_id)
+                    except Exception:
+                        catalog_v2 = None
+
+                    if not isinstance(catalog_v2, dict) or str(catalog_v2.get("pricing_strategy") or "").upper() != "UNIT_AS_ATOMIC":
+                        out["reasons"].append("catalog_unavailable")
+                        return out
+
+                    vtree = catalog_v2.get("v")
+                    if not isinstance(vtree, dict) or not vtree:
+                        out["reasons"].append("catalog_unavailable")
+                        return out
+
+                    canonical_units = catalog_v2.get("canonical_units")
+                    if not isinstance(canonical_units, list):
+                        canonical_units = []
+                    canonical_units = [str(u).strip() for u in canonical_units if str(u).strip()]
+                    if not canonical_units:
+                        out["reasons"].append("catalog_unavailable")
+                        return out
+
+                    def _match_key_case_insensitive(keys: List[str], target: str) -> Optional[str]:
+                        t = str(target or "").strip().lower()
+                        if not t:
+                            return None
+                        for k in keys:
+                            if str(k or "").strip().lower() == t:
+                                return str(k)
+                        return None
+
+                    def _find_variant_key(product_raw: str) -> Optional[str]:
+                        product_s = str(product_raw or "").strip()
+                        if not product_s:
+                            return None
+                        keys = [str(k) for k in vtree.keys()]
+                        exact = _match_key_case_insensitive(keys, product_s)
+                        if exact:
+                            return exact
+                        p_low = product_s.lower()
+                        for k in keys:
+                            k_low = str(k or "").lower()
+                            if p_low and (p_low in k_low or k_low in p_low):
+                                return str(k)
+                        return None
+
+                    def _extract_t_number(specs_raw: str) -> Optional[int]:
+                        s = str(specs_raw or "").strip().upper()
+                        m = re.search(r"\bT\s*([1-9]\d*)\b", s)
+                        if m:
+                            try:
+                                return int(m.group(1))
+                            except Exception:
+                                return None
+                        m2 = re.search(r"\bTAILLE\s*([1-9]\d*)\b", s)
+                        if m2:
+                            try:
+                                return int(m2.group(1))
+                            except Exception:
+                                return None
+                        return None
+
+                    def _spec_key_matches(sub_key: str, requested_specs: str) -> bool:
+                        if not sub_key:
+                            return False
+                        keys = [str(sub_key)]
+                        exact = _match_key_case_insensitive(keys, requested_specs)
+                        if exact:
+                            return True
+
+                        req_n = _extract_t_number(requested_specs)
+                        if req_n is None:
+                            return False
+
+                        nums = [int(x) for x in re.findall(r"T\s*([1-9]\d*)", str(sub_key).upper()) if x.isdigit()]
+                        if not nums:
+                            return False
+                        lo, hi = min(nums), max(nums)
+                        return lo <= req_n <= hi
+
+                    def _find_subvariant_key(node_s: Dict[str, Any], specs_raw: str) -> Optional[str]:
+                        if not isinstance(node_s, dict):
+                            return None
+                        specs_s = str(specs_raw or "").strip()
+                        if not specs_s:
+                            return None
+                        sub_keys = [str(k) for k in node_s.keys()]
+                        exact = _match_key_case_insensitive(sub_keys, specs_s)
+                        if exact:
+                            return exact
+                        for k in sub_keys:
+                            if _spec_key_matches(k, specs_s):
+                                return str(k)
+                        s_low = specs_s.lower()
+                        for k in sub_keys:
+                            k_low = str(k or "").lower()
+                            if s_low and (s_low in k_low or k_low in s_low):
+                                return str(k)
+                        return None
 
                     for it in items:
                         if not isinstance(it, dict):
                             out["invalid"].append({"item": it, "reason": "not_dict"})
                             continue
-                        product = str(it.get("product") or "").strip().lower()
-                        specs = str(it.get("specs") or "").strip().upper()
-                        unit = str(it.get("unit") or "").strip().lower()
+                        product_raw = str(it.get("product") or "").strip()
+                        specs_raw = str(it.get("specs") or "").strip()
+                        unit = str(it.get("unit") or "").strip()
                         confidence = it.get("confidence")
                         qty = it.get("qty")
 
-                        if product not in allowed_products:
-                            out["invalid"].append({"item": it, "reason": "bad_product"})
-                            continue
-                        if unit not in allowed_units:
+                        if unit not in canonical_units:
                             out["invalid"].append({"item": it, "reason": "bad_unit"})
                             continue
-                        if specs not in allowed_specs:
-                            out["invalid"].append({"item": it, "reason": "bad_specs"})
+
+                        variant_key = _find_variant_key(product_raw)
+                        node = vtree.get(variant_key) if variant_key else None
+                        if not isinstance(node, dict):
+                            out["invalid"].append({"item": it, "reason": "bad_product"})
                             continue
+
+                        node_s = node.get("s")
+                        if isinstance(node_s, dict) and node_s:
+                            sub_key = _find_subvariant_key(node_s, specs_raw)
+                            if not sub_key:
+                                out["invalid"].append({"item": it, "reason": "bad_specs"})
+                                continue
+                            sub_node = node_s.get(sub_key)
+                            if not isinstance(sub_node, dict):
+                                out["invalid"].append({"item": it, "reason": "bad_specs"})
+                                continue
+                            u_map = sub_node.get("u")
+                            if not isinstance(u_map, dict) or unit not in u_map:
+                                out["invalid"].append({"item": it, "reason": "bad_unit"})
+                                continue
+                        else:
+                            u_map = node.get("u")
+                            if not isinstance(u_map, dict) or unit not in u_map:
+                                out["invalid"].append({"item": it, "reason": "bad_unit"})
+                                continue
 
                         try:
                             conf_f = float(confidence) if confidence is not None else 0.0
@@ -2098,6 +2336,7 @@ class SimplifiedRAGEngine:
 
                     delivery_fee_fcfa = _parse_fee(dynamic_context.get("shipping_fee"))
                     pc_inner = UniversalPriceCalculator.build_price_calculation_block_from_detected_items(
+                        company_id=company_id,
                         items=detected_items,
                         zone=zone_for_price,
                         delivery_fee_fcfa=delivery_fee_fcfa,

@@ -4,8 +4,11 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import os
+import re
+import tempfile
 import time
 from typing import Any, Dict, Optional
 
@@ -28,6 +31,20 @@ class CatalogV2UpsertResponse(BaseModel):
     id: Optional[str] = None
     version: Optional[int] = None
     updated_at: Optional[str] = None
+    timestamp: float
+
+
+class CatalogV2SyncLocalRequest(BaseModel):
+    company_id: str
+    catalog: Dict[str, Any]
+    version: Optional[int] = None
+    updated_at: Optional[str] = None
+
+
+class CatalogV2SyncLocalResponse(BaseModel):
+    success: bool
+    company_id: str
+    path: Optional[str] = None
     timestamp: float
 
 
@@ -117,6 +134,13 @@ async def upsert_company_catalog_v2(request: Request, payload: CatalogV2UpsertRe
 
         catalog_id, version, updated_at = await asyncio.to_thread(_sync)
 
+        try:
+            from core.company_catalog_v2_loader import invalidate_company_catalog_v2_cache
+
+            invalidate_company_catalog_v2_cache(company_id)
+        except Exception:
+            pass
+
         return CatalogV2UpsertResponse(
             success=True,
             company_id=company_id,
@@ -131,6 +155,67 @@ async def upsert_company_catalog_v2(request: Request, payload: CatalogV2UpsertRe
     except Exception as e:
         logger.error(f"[CATALOG_V2] Upsert error: {type(e).__name__}: {e}")
         raise HTTPException(status_code=500, detail="Erreur sauvegarde catalogue")
+
+
+@router.post("/sync-local", response_model=CatalogV2SyncLocalResponse)
+async def sync_company_catalog_v2_local(request: Request, payload: CatalogV2SyncLocalRequest) -> CatalogV2SyncLocalResponse:
+    _check_internal_key(request)
+
+    if not payload.company_id or not str(payload.company_id).strip():
+        raise HTTPException(status_code=400, detail="company_id requis")
+
+    if not isinstance(payload.catalog, dict):
+        raise HTTPException(status_code=400, detail="catalog invalide")
+
+    company_id = str(payload.company_id).strip()
+    base_dir = os.getenv("CATALOG_V2_LOCAL_DIR") or "/data/catalogs"
+    try:
+        base_dir = str(base_dir).strip() or "/data/catalogs"
+    except Exception:
+        base_dir = "/data/catalogs"
+
+    try:
+        os.makedirs(base_dir, exist_ok=True)
+    except Exception as e:
+        logger.error(f"[CATALOG_V2] sync-local mkdir error: {type(e).__name__}: {e}")
+        raise HTTPException(status_code=500, detail="Erreur écriture cache catalogue")
+
+    safe_id = re.sub(r"[^a-zA-Z0-9\-_]", "_", company_id)
+    if not safe_id:
+        raise HTTPException(status_code=400, detail="company_id invalide")
+
+    final_path = os.path.join(base_dir, f"{safe_id}.json")
+    wrapper = {
+        "company_id": company_id,
+        "version": payload.version,
+        "updated_at": payload.updated_at,
+        "catalog": payload.catalog,
+        "synced_at": time.time(),
+    }
+
+    try:
+        tmp_path = None
+        with tempfile.NamedTemporaryFile("w", encoding="utf-8", delete=False, dir=base_dir, prefix=f"{safe_id}.", suffix=".tmp") as f:
+            tmp_path = f.name
+            json.dump(wrapper, f, ensure_ascii=False)
+        os.replace(tmp_path, final_path)
+    except Exception as e:
+        try:
+            if tmp_path and os.path.exists(tmp_path):
+                os.unlink(tmp_path)
+        except Exception:
+            pass
+        logger.error(f"[CATALOG_V2] sync-local write error: {type(e).__name__}: {e}")
+        raise HTTPException(status_code=500, detail="Erreur écriture cache catalogue")
+
+    try:
+        from core.company_catalog_v2_loader import invalidate_company_catalog_v2_cache
+
+        invalidate_company_catalog_v2_cache(company_id)
+    except Exception:
+        pass
+
+    return CatalogV2SyncLocalResponse(success=True, company_id=company_id, path=final_path, timestamp=time.time())
 
 
 @router.get("/{company_id}", response_model=CatalogV2GetResponse)

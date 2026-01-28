@@ -177,6 +177,7 @@ class UniversalPriceCalculator:
     @staticmethod
     def build_price_calculation_block_from_detected_items(
         *,
+        company_id: Optional[str] = None,
         items: List[Dict[str, Any]],
         zone: str,
         delivery_fee_fcfa: Optional[int] = None,
@@ -223,6 +224,220 @@ class UniversalPriceCalculator:
                         return int(m.group(1))
                 return None
 
+            normalized: List[Dict[str, Any]] = []
+            for raw in (items or []):
+                if not isinstance(raw, dict):
+                    continue
+                p = _canon_product(raw.get("product"))
+                specs = _canon_specs_t(raw.get("specs"))
+                unit = _canon_unit(raw.get("unit"))
+                qty = _get_int_or_none(raw.get("qty"))
+                normalized.append({"product": p, "specs": specs, "unit": unit, "qty": qty})
+
+            normalized = [x for x in normalized if x.get("product") and x.get("specs") and x.get("unit") and isinstance(x.get("qty"), int)]
+            if not normalized:
+                return ""
+
+            def _calc_from_catalog_v2(catalog_v2: Dict[str, Any]) -> Optional[str]:
+                try:
+                    if str(catalog_v2.get("pricing_strategy") or "").upper() != "UNIT_AS_ATOMIC":
+                        return None
+
+                    vtree = catalog_v2.get("v")
+                    if not isinstance(vtree, dict):
+                        return None
+
+                    canonical_units = catalog_v2.get("canonical_units")
+                    if not isinstance(canonical_units, list):
+                        canonical_units = []
+                    canonical_units = [str(u) for u in canonical_units if str(u).strip()]
+                    if not canonical_units:
+                        return None
+
+                    def _match_key_case_insensitive(keys: List[str], target: str) -> Optional[str]:
+                        t = str(target or "").strip().lower()
+                        if not t:
+                            return None
+                        for k in keys:
+                            if str(k or "").strip().lower() == t:
+                                return str(k)
+                        return None
+
+                    def _find_variant_key(product_raw: str) -> Optional[str]:
+                        product_s = str(product_raw or "").strip()
+                        if not product_s:
+                            return None
+                        keys = [str(k) for k in vtree.keys()]
+
+                        exact = _match_key_case_insensitive(keys, product_s)
+                        if exact:
+                            return exact
+
+                        # Soft matching (keeps legacy behavior for "pressions"/"culottes" while allowing arbitrary names)
+                        p_low = product_s.lower()
+                        for k in keys:
+                            k_low = str(k or "").lower()
+                            if p_low and (p_low in k_low or k_low in p_low):
+                                return str(k)
+                        return None
+
+                    def _find_subvariant_key(node_s: Dict[str, Any], specs_raw: str) -> Optional[str]:
+                        if not isinstance(node_s, dict):
+                            return None
+                        specs_s = str(specs_raw or "").strip()
+                        if not specs_s:
+                            return None
+                        sub_keys = [str(k) for k in node_s.keys()]
+                        exact = _match_key_case_insensitive(sub_keys, specs_s)
+                        if exact:
+                            return exact
+
+                        # Normalizer for common "taille 4" / "T4" patterns (keeps existing diaper behavior)
+                        specs_up = specs_s.upper()
+                        m = re.search(r"\bT([1-9]\d*)\b", specs_up)
+                        if m:
+                            t_norm = f"T{m.group(1)}"
+                            exact2 = _match_key_case_insensitive(sub_keys, t_norm)
+                            if exact2:
+                                return exact2
+                        m2 = re.search(r"\bTAILLE\s*([1-9]\d*)\b", specs_up)
+                        if m2:
+                            t_norm = f"T{m2.group(1)}"
+                            exact3 = _match_key_case_insensitive(sub_keys, t_norm)
+                            if exact3:
+                                return exact3
+
+                        for k in sub_keys:
+                            k_low = str(k or "").lower()
+                            s_low = specs_s.lower()
+                            if s_low and (s_low in k_low or k_low in s_low):
+                                return str(k)
+                        return None
+
+                    lines: List[str] = []
+                    subtotal_products = 0
+
+                    for idx, it in enumerate(normalized, start=1):
+                        product_raw = str(it.get("product") or "")
+                        specs_raw = str(it.get("specs") or "").strip()
+                        unit_key = str(it.get("unit") or "").strip()
+                        qty = it.get("qty")
+
+                        if not product_raw:
+                            return None
+                        if not unit_key:
+                            return None
+                        if not isinstance(qty, int) or qty <= 0:
+                            return None
+
+                        # IMPORTANT: unit must be explicit (exactly one of canonical_units)
+                        if unit_key not in canonical_units:
+                            return None
+
+                        variant_key = _find_variant_key(product_raw)
+                        node = vtree.get(variant_key) if variant_key else None
+                        if not isinstance(node, dict):
+                            return None
+
+                        unit_price = None
+
+                        node_s = node.get("s")
+                        if isinstance(node_s, dict):
+                            sub_key = _find_subvariant_key(node_s, specs_raw)
+                            sub = node_s.get(sub_key) if sub_key else None
+                            if not isinstance(sub, dict):
+                                return None
+                            u_map = sub.get("u")
+                            if not isinstance(u_map, dict):
+                                return None
+                            tup = u_map.get(unit_key)
+                            if tup is None:
+                                return None
+                            try:
+                                unit_price = int(float(tup[0])) if isinstance(tup, list) and len(tup) >= 1 else int(float(tup))
+                            except Exception:
+                                unit_price = None
+
+                            size_label = sub_key or specs_raw
+                        else:
+                            u_map = node.get("u")
+                            if not isinstance(u_map, dict):
+                                return None
+                            tup = u_map.get(unit_key)
+                            if tup is None:
+                                return None
+                            try:
+                                unit_price = int(float(tup[0])) if isinstance(tup, list) and len(tup) >= 1 else int(float(tup))
+                            except Exception:
+                                unit_price = None
+
+                            size_label = specs_raw or (variant_key or product_raw)
+
+                        if unit_price is None or unit_price <= 0:
+                            return None
+
+                        item_subtotal = int(unit_price * qty)
+                        subtotal_products += item_subtotal
+
+                        qty_tag = "qty_units"
+                        if unit_key.startswith("lot_"):
+                            qty_tag = "qty_lots"
+                        elif unit_key.startswith("paquet_"):
+                            qty_tag = "qty_packs"
+                        elif unit_key.startswith("colis_"):
+                            qty_tag = "qty_colis"
+                        elif unit_key.startswith("balle_"):
+                            qty_tag = "qty_balles"
+
+                        product_label = str(variant_key or product_raw).strip().upper() or "PRODUCT"
+
+                        lines.append(
+                            "  <item>\n"
+                            f"    <index>{idx}</index>\n"
+                            f"    <product>{UniversalPriceCalculator._xml_escape(product_label)}</product>\n"
+                            f"    <size>{UniversalPriceCalculator._xml_escape(size_label)}</size>\n"
+                            f"    <unit>{UniversalPriceCalculator._xml_escape(unit_key)}</unit>\n"
+                            f"    <{qty_tag}>{qty}</{qty_tag}>\n"
+                            f"    <unit_price_fcfa>{unit_price}</unit_price_fcfa>\n"
+                            f"    <subtotal_fcfa>{item_subtotal}</subtotal_fcfa>\n"
+                            "  </item>"
+                        )
+
+                    delivery_known = bool(zone_s) and (delivery_fee_fcfa is not None)
+                    total = int(subtotal_products) + (int(delivery_fee) if delivery_known else 0)
+                    if delivery_known:
+                        ready = (
+                            f"Le total fait {UniversalPriceCalculator._fmt_fcfa(total)}F"
+                            + f" (produits {UniversalPriceCalculator._fmt_fcfa(subtotal_products)}F"
+                            + f" + livraison {UniversalPriceCalculator._fmt_fcfa(delivery_fee)}F)."
+                        )
+                    else:
+                        ready = f"Le total produits fait {UniversalPriceCalculator._fmt_fcfa(subtotal_products)}F."
+
+                    return (
+                        "  <status>OK</status>\n"
+                        "  <mode>MULTI_ITEMS</mode>\n"
+                        + "\n".join(lines)
+                        + "\n"
+                        + f"  <product_subtotal_fcfa>{int(subtotal_products)}</product_subtotal_fcfa>\n"
+                        + f"  <delivery_fee_fcfa>{int(delivery_fee) if delivery_known else 0}</delivery_fee_fcfa>\n"
+                        + f"  <total_fcfa>{int(total)}</total_fcfa>\n"
+                        + f"  <zone>{UniversalPriceCalculator._xml_escape(zone_s)}</zone>\n"
+                        + f"  <ready_to_send>{UniversalPriceCalculator._xml_escape(ready)}</ready_to_send>"
+                    )
+                except Exception:
+                    return None
+
+            if company_id:
+                try:
+                    catalog_v2 = get_company_catalog_v2(company_id)
+                except Exception:
+                    catalog_v2 = None
+                if isinstance(catalog_v2, dict):
+                    out_dyn = _calc_from_catalog_v2(catalog_v2)
+                    if out_dyn:
+                        return out_dyn
+
             pressions_prices = {
                 "T1": 17900,
                 "T2": 18900,
@@ -234,7 +449,6 @@ class UniversalPriceCalculator:
             }
 
             culottes_prices_by_packs = {
-                # Aligner avec build_price_calculation_block_for_rue_du_grossiste (mono-produit)
                 1: 5500,
                 2: 9800,
                 3: 13500,
@@ -242,19 +456,6 @@ class UniversalPriceCalculator:
                 12: 48000,
                 48: 168000,
             }
-
-            normalized: List[Dict[str, Any]] = []
-            for raw in (items or []):
-                if not isinstance(raw, dict):
-                    continue
-                p = _canon_product(raw.get("product"))
-                specs = _canon_specs_t(raw.get("specs"))
-                unit = _canon_unit(raw.get("unit"))
-                qty = _get_int_or_none(raw.get("qty"))
-                normalized.append({"product": p, "specs": specs, "unit": unit, "qty": qty})
-
-            if not normalized:
-                return ""
 
             lines: List[str] = []
             subtotal_products = 0
