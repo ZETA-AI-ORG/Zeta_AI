@@ -224,19 +224,24 @@ class UniversalPriceCalculator:
                         return int(m.group(1))
                 return None
 
-            normalized: List[Dict[str, Any]] = []
+            catalog_v2: Optional[Dict[str, Any]] = None
+            if company_id and str(company_id).strip():
+                try:
+                    catalog_v2 = get_company_catalog_v2(str(company_id).strip())
+                except Exception:
+                    catalog_v2 = None
+
+            raw_normalized: List[Dict[str, Any]] = []
             for raw in (items or []):
                 if not isinstance(raw, dict):
                     continue
-                p = _canon_product(raw.get("product"))
-                specs = _canon_specs_t(raw.get("specs"))
-                unit = _canon_unit(raw.get("unit"))
+                p_raw = str(raw.get("product") or "").strip()
+                specs_raw = str(raw.get("specs") or "").strip()
+                unit_raw = str(raw.get("unit") or "").strip()
                 qty = _get_int_or_none(raw.get("qty"))
-                normalized.append({"product": p, "specs": specs, "unit": unit, "qty": qty})
-
-            normalized = [x for x in normalized if x.get("product") and x.get("specs") and x.get("unit") and isinstance(x.get("qty"), int)]
-            if not normalized:
-                return ""
+                if not p_raw or not unit_raw or not isinstance(qty, int) or qty <= 0:
+                    continue
+                raw_normalized.append({"product": p_raw, "specs": specs_raw, "unit": unit_raw, "qty": qty})
 
             def _calc_from_catalog_v2(catalog_v2: Dict[str, Any]) -> Optional[str]:
                 try:
@@ -253,6 +258,10 @@ class UniversalPriceCalculator:
                     canonical_units = [str(u) for u in canonical_units if str(u).strip()]
                     if not canonical_units:
                         return None
+
+                    normalized_items = raw_normalized
+                    if not normalized_items:
+                        return ""
 
                     def _match_key_case_insensitive(keys: List[str], target: str) -> Optional[str]:
                         t = str(target or "").strip().lower()
@@ -317,7 +326,7 @@ class UniversalPriceCalculator:
                     lines: List[str] = []
                     subtotal_products = 0
 
-                    for idx, it in enumerate(normalized, start=1):
+                    for idx, it in enumerate(normalized_items, start=1):
                         product_raw = str(it.get("product") or "")
                         specs_raw = str(it.get("specs") or "").strip()
                         unit_key = str(it.get("unit") or "").strip()
@@ -343,6 +352,8 @@ class UniversalPriceCalculator:
 
                         node_s = node.get("s")
                         if isinstance(node_s, dict):
+                            if not specs_raw:
+                                return None
                             sub_key = _find_subvariant_key(node_s, specs_raw)
                             sub = node_s.get(sub_key) if sub_key else None
                             if not isinstance(sub, dict):
@@ -428,15 +439,24 @@ class UniversalPriceCalculator:
                 except Exception:
                     return None
 
-            if company_id:
-                try:
-                    catalog_v2 = get_company_catalog_v2(company_id)
-                except Exception:
-                    catalog_v2 = None
-                if isinstance(catalog_v2, dict):
-                    out_dyn = _calc_from_catalog_v2(catalog_v2)
-                    if out_dyn:
-                        return out_dyn
+            if isinstance(catalog_v2, dict):
+                out = _calc_from_catalog_v2(catalog_v2)
+                if isinstance(out, str):
+                    return out
+
+            normalized: List[Dict[str, Any]] = []
+            for raw in (items or []):
+                if not isinstance(raw, dict):
+                    continue
+                p = _canon_product(raw.get("product"))
+                specs = _canon_specs_t(raw.get("specs"))
+                unit = _canon_unit(raw.get("unit"))
+                qty = _get_int_or_none(raw.get("qty"))
+                normalized.append({"product": p, "specs": specs, "unit": unit, "qty": qty})
+
+            normalized = [x for x in normalized if x.get("product") and x.get("specs") and x.get("unit") and isinstance(x.get("qty"), int)]
+            if not normalized:
+                return ""
 
             pressions_prices = {
                 "T1": 17900,
