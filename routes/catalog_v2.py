@@ -357,8 +357,10 @@ def _build_catalogue_block_from_catalog_v2(catalog: Dict[str, Any]) -> str:
                 allowed_units = sorted({u for row in matrix.values() for u in row.keys()})
                 if allowed_units:
                     lines.append(f"- allowed_units: {', '.join(allowed_units)}")
+                    lines.append(f"- sold_only_by: {', '.join(allowed_units)}")
                 else:
                     lines.append("- allowed_units: (none)")
+                    lines.append("- sold_only_by: (none)")
 
                 # Pricing varies by specs only if we can observe multiple spec rows with different prices.
                 pricing_varies_by_specs: Optional[bool] = None
