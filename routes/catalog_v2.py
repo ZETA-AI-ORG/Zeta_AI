@@ -661,10 +661,26 @@ async def sync_local_and_upsert_botlive_catalogue_block_deepseek(
         )
         return insertion + p
 
+    def _clear_catalogue_markers(existing_prompt: str) -> str:
+        p = str(existing_prompt or "")
+        if not p.strip():
+            return p
+        try:
+            import re as _re
+
+            pat = r"\[CATALOGUE_START\](.*?)\[CATALOGUE_END\]"
+            matches = list(_re.finditer(pat, p, flags=_re.IGNORECASE | _re.DOTALL))
+            if matches:
+                m = matches[-1]
+                replacement = "[CATALOGUE_START]\n\n[CATALOGUE_END]"
+                out = p[: m.start()] + replacement + p[m.end() :]
+                return str(out)
+        except Exception:
+            pass
+        return p
+
     try:
         from database.supabase_client import get_supabase_client
-        from Zeta_AI.ingestion.ingestion_api import _inject_catalogue_block
-
         import hashlib
 
         supabase = get_supabase_client()
@@ -684,7 +700,9 @@ async def sync_local_and_upsert_botlive_catalogue_block_deepseek(
         except Exception:
             existing_prompt = ""
 
-        updated_prompt = _inject_catalogue_block(existing_prompt, catalogue_block)
+        # IMPORTANT: we do NOT persist catalogue content inside the Supabase prompt.
+        # We keep the markers but force them empty.
+        updated_prompt = _clear_catalogue_markers(existing_prompt)
         try:
             updated_prompt = _upsert_product_index_block(updated_prompt, str(payload.catalog.get("product_name") or ""))
         except Exception:
@@ -722,6 +740,7 @@ async def sync_local_and_upsert_botlive_catalogue_block_deepseek(
                 "injected_catalogue_block_chars": len(injected_block),
                 "injected_catalogue_block_sha256": inj_hash,
                 "injected_equals_generated": bool(gen_block and injected_block and gen_hash == inj_hash),
+                "note": "Catalogue block is NOT persisted in Supabase prompt; markers are kept empty.",
             }
 
         row: Dict[str, Any] = {
