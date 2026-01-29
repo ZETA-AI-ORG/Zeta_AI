@@ -956,6 +956,21 @@ def _inject_catalogue_block(prompt: str, catalogue_block: str) -> str:
     start_marker = "[CATALOGUE_START]"
     end_marker = "[CATALOGUE_END]"
 
+    try:
+        import re
+
+        # Replace the LAST occurrence to avoid leaving an older block around.
+        pat = r"\[CATALOGUE_START\](.*?)\[CATALOGUE_END\]"
+        matches = list(re.finditer(pat, base, flags=re.IGNORECASE | re.DOTALL))
+        if matches:
+            m = matches[-1]
+            replacement = start_marker + "\n" + cat + "\n" + end_marker
+            out = base[: m.start()] + replacement + base[m.end() :]
+            return str(out).strip() + "\n"
+    except Exception:
+        pass
+
+    # Fallback: exact marker match (historical behavior)
     start_idx = base.find(start_marker)
     end_idx = base.find(end_marker)
     if start_idx != -1 and end_idx != -1 and end_idx > start_idx:
