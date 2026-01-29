@@ -123,6 +123,51 @@ def _build_catalogue_block_from_catalog_v2(catalog: Dict[str, Any]) -> str:
             except Exception:
                 return None
 
+        def _compress_labels(labels: list[str]) -> str:
+            items = [str(x).strip() for x in (labels or []) if str(x).strip()]
+            if not items:
+                return ""
+            items = sorted(set(items), key=lambda x: x)
+
+            def _compress_numeric(items2: list[str]) -> Optional[str]:
+                nums = []
+                for x in items2:
+                    if not re.fullmatch(r"\d+", x):
+                        return None
+                    nums.append(int(x))
+                nums = sorted(set(nums))
+                if len(nums) <= 2:
+                    return ", ".join(str(n) for n in nums)
+                if nums == list(range(min(nums), max(nums) + 1)):
+                    return f"{min(nums)}-{max(nums)}"
+                return None
+
+            def _compress_prefix_numeric(items2: list[str]) -> Optional[str]:
+                parsed = []
+                prefix = None
+                for x in items2:
+                    m = re.fullmatch(r"([A-Za-z]+)(\d+)", x)
+                    if not m:
+                        return None
+                    if prefix is None:
+                        prefix = m.group(1)
+                    if m.group(1) != prefix:
+                        return None
+                    parsed.append(int(m.group(2)))
+                parsed = sorted(set(parsed))
+                if len(parsed) <= 2:
+                    return ", ".join(f"{prefix}{n}" for n in parsed)
+                if parsed == list(range(min(parsed), max(parsed) + 1)):
+                    return f"{prefix}{min(parsed)}-{prefix}{max(parsed)}"
+                return None
+
+            compact = _compress_prefix_numeric(items) or _compress_numeric(items)
+            if compact:
+                return compact
+            if len(items) <= 8:
+                return ", ".join(items)
+            return f"{items[0]}, …, {items[-1]} ({len(items)})"
+
         canonical_units = catalog.get("canonical_units")
         if not isinstance(canonical_units, list):
             canonical_units = []
@@ -147,8 +192,7 @@ def _build_catalogue_block_from_catalog_v2(catalog: Dict[str, Any]) -> str:
 
         lines.append("## CANONICAL_UNITS")
         if canonical_units:
-            for u in canonical_units:
-                lines.append(f"- {u}")
+            lines.append(f"- {', '.join(sorted(set(canonical_units)))}")
         else:
             lines.append("- (none)")
         lines.append("")
@@ -160,7 +204,7 @@ def _build_catalogue_block_from_catalog_v2(catalog: Dict[str, Any]) -> str:
                     continue
                 f_type = str(f.get("type") or "").strip()
                 qty = f.get("quantity")
-                label = str(f.get("label") or "").strip()
+                label = str(f.get("label") or f.get("customLabel") or f.get("custom_label") or "").strip()
                 enabled = f.get("enabled")
 
                 try:
@@ -202,26 +246,64 @@ def _build_catalogue_block_from_catalog_v2(catalog: Dict[str, Any]) -> str:
                 if isinstance(u_map, dict) and u_map:
                     units = [str(k) for k in u_map.keys()]
                     units = [u for u in units if u]
-                    units = sorted(units)
-                    for u in units:
-                        lines.append(f"- unit: {u}")
+                    units = sorted(set(units))
+                    if units:
+                        lines.append(f"- formats: {', '.join(units)}")
+                    else:
+                        lines.append("- formats: (none)")
                     lines.append("")
                     continue
 
                 if isinstance(s_map, dict) and s_map:
+                    # format-first projection:
+                    # 1) gather units per spec
+                    spec_to_units: Dict[str, list[str]] = {}
+                    all_units: set[str] = set()
                     for sub_name, sub_node in s_map.items():
                         if not isinstance(sub_node, dict):
                             continue
                         sub_u = sub_node.get("u")
                         if not isinstance(sub_u, dict) or not sub_u:
                             continue
-                        sname = str(sub_name)
-                        lines.append(f"- specs: {sname}")
                         units = [str(k) for k in sub_u.keys()]
                         units = [u for u in units if u]
-                        units = sorted(units)
+                        units = sorted(set(units))
+                        if not units:
+                            continue
+                        spec_to_units[str(sub_name)] = units
                         for u in units:
-                            lines.append(f"  - unit: {u}")
+                            all_units.add(u)
+
+                    if all_units:
+                        lines.append(f"- formats: {', '.join(sorted(all_units))}")
+                    else:
+                        lines.append("- formats: (none)")
+                        lines.append("")
+                        continue
+
+                    # 2) If each spec maps to exactly one unit, group specs by unit.
+                    if spec_to_units and all(len(v) == 1 for v in spec_to_units.values()):
+                        unit_to_specs: Dict[str, list[str]] = {}
+                        for spec, units in spec_to_units.items():
+                            unit_to_specs.setdefault(units[0], []).append(spec)
+                        for unit in sorted(unit_to_specs.keys()):
+                            specs_s = _compress_labels(unit_to_specs.get(unit) or [])
+                            if specs_s:
+                                lines.append(f"- {unit}: {specs_s}")
+                    else:
+                        # 3) General case: group by unit-set.
+                        groups: Dict[str, Dict[str, Any]] = {}
+                        for spec, units in spec_to_units.items():
+                            key = "|".join(units)
+                            if key not in groups:
+                                groups[key] = {"units": units, "specs": []}
+                            groups[key]["specs"].append(spec)
+                        for g in sorted(groups.values(), key=lambda x: ",".join(x.get("units") or [])):
+                            specs = _compress_labels(g.get("specs") or [])
+                            units_s = "+".join(g.get("units") or [])
+                            if specs:
+                                lines.append(f"- {units_s}: {specs}")
+
                     lines.append("")
                     continue
 
@@ -280,15 +362,18 @@ def _build_catalogue_block_from_catalog_v2(catalog: Dict[str, Any]) -> str:
 
                 # Pricing varies by specs only if we can observe multiple spec rows with different prices.
                 pricing_varies_by_specs: Optional[bool] = None
-                if len(matrix.keys()) >= 2:
-                    seen_diff = False
-                    for u in allowed_units:
-                        prices = {row.get(u) for row in matrix.values() if row.get(u) is not None}
-                        prices = {p for p in prices if isinstance(p, int)}
-                        if len(prices) >= 2:
-                            seen_diff = True
-                            break
-                    pricing_varies_by_specs = True if seen_diff else False
+                if isinstance(node_s, dict) and node_s:
+                    if len(matrix.keys()) >= 2:
+                        seen_diff = False
+                        for u in allowed_units:
+                            prices = {row.get(u) for row in matrix.values() if row.get(u) is not None}
+                            prices = {p for p in prices if isinstance(p, int)}
+                            if len(prices) >= 2:
+                                seen_diff = True
+                                break
+                        pricing_varies_by_specs = True if seen_diff else False
+                elif isinstance(u_map_variant, dict) and u_map_variant:
+                    pricing_varies_by_specs = False
 
                 if pricing_varies_by_specs is True:
                     lines.append("- pricing_by_specs: VARIABLE")
@@ -299,11 +384,15 @@ def _build_catalogue_block_from_catalog_v2(catalog: Dict[str, Any]) -> str:
 
                 # Volume discount (safe): compute per spec/base row and aggregate conservatively.
                 # true only if all rows show a discount; false only if all rows show no discount; else unknown.
-                def _row_has_discount(row: Dict[str, int]) -> Optional[bool]:
-                    if not isinstance(row, dict) or not row:
-                        return None
+                # If there is only one unit overall, it's safely false.
+                if len(allowed_units) <= 1:
+                    lines.append("- volume_discount: false")
+                    lines.append("")
+                    continue
+
+                def _row_has_discount(row: Dict[str, int]) -> bool:
                     pairs = []
-                    for u, price in row.items():
+                    for u, price in (row or {}).items():
                         size = _parse_unit_size(u)
                         if size is None or size <= 0:
                             continue
@@ -312,7 +401,7 @@ def _build_catalogue_block_from_catalog_v2(catalog: Dict[str, Any]) -> str:
                         pairs.append((size, price / float(size)))
                     pairs = sorted(pairs, key=lambda x: x[0])
                     if len(pairs) < 2:
-                        return None
+                        return False
 
                     min_unit_price_so_far = pairs[0][1]
                     for _, unit_p in pairs[1:]:
@@ -321,21 +410,14 @@ def _build_catalogue_block_from_catalog_v2(catalog: Dict[str, Any]) -> str:
                         min_unit_price_so_far = min(min_unit_price_so_far, unit_p)
                     return False
 
-                row_flags = []
-                for row in matrix.values():
-                    flag = _row_has_discount(row)
-                    if flag is None:
-                        continue
-                    row_flags.append(flag)
-
-                vol_discount: Optional[bool] = None
-                if row_flags:
-                    if all(row_flags):
-                        vol_discount = True
-                    elif (not any(row_flags)):
-                        vol_discount = False
-                    else:
-                        vol_discount = None
+                row_flags = [_row_has_discount(row) for row in matrix.values()]
+                vol_discount: Optional[bool]
+                if row_flags and all(row_flags):
+                    vol_discount = True
+                elif row_flags and (not any(row_flags)):
+                    vol_discount = False
+                else:
+                    vol_discount = None
 
                 if vol_discount is True:
                     lines.append("- volume_discount: true")
