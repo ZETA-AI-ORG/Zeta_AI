@@ -595,7 +595,10 @@ async def sync_company_catalog_v2_local(request: Request, payload: CatalogV2Sync
 
 @router.post("/sync-local-and-upsert-botlive-catalogue-block-deepseek", response_model=CatalogV2SyncLocalAndUpsertPromptResponse)
 async def sync_local_and_upsert_botlive_catalogue_block_deepseek(
-    request: Request, payload: CatalogV2SyncLocalAndUpsertPromptRequest, debug: bool = False
+    request: Request,
+    payload: CatalogV2SyncLocalAndUpsertPromptRequest,
+    debug: bool = False,
+    upsert_prompt: bool = False,
 ) -> CatalogV2SyncLocalAndUpsertPromptResponse:
     _check_internal_key(request)
 
@@ -605,6 +608,30 @@ async def sync_local_and_upsert_botlive_catalogue_block_deepseek(
     catalogue_block = _build_catalogue_block_from_catalog_v2(payload.catalog)
     if not catalogue_block or not catalogue_block.strip():
         raise HTTPException(status_code=400, detail="catalogue_block vide")
+
+    # By default we ONLY sync the catalog locally.
+    # Prompt injection into Supabase is opt-in via ?upsert_prompt=1.
+    if not upsert_prompt:
+        debug_payload: Optional[Dict[str, Any]] = None
+        if debug:
+            debug_payload = {
+                "mode": "sync_only",
+                "supabase_table": "company_rag_configs",
+                "supabase_column": "prompt_botlive_deepseek_v3",
+                "note": "Prompt not upserted. Use ?upsert_prompt=1 to update Supabase prompt.",
+                "generated_catalogue_block_chars": len(str(catalogue_block or "")),
+            }
+
+        return CatalogV2SyncLocalAndUpsertPromptResponse(
+            success=True,
+            company_id=company_id,
+            path=final_path,
+            prompt_chars=None,
+            catalogue_chars=len(str(catalogue_block)),
+            debug=debug_payload,
+            updated_at=datetime.now().isoformat(),
+            timestamp=time.time(),
+        )
 
     try:
         from database.supabase_client import get_supabase_client
