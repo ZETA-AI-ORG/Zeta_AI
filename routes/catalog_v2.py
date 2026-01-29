@@ -65,6 +65,7 @@ class CatalogV2SyncLocalAndUpsertPromptResponse(BaseModel):
     path: Optional[str] = None
     prompt_chars: Optional[int] = None
     catalogue_chars: Optional[int] = None
+    debug: Optional[Dict[str, Any]] = None
     updated_at: Optional[str] = None
     timestamp: float
 
@@ -594,7 +595,7 @@ async def sync_company_catalog_v2_local(request: Request, payload: CatalogV2Sync
 
 @router.post("/sync-local-and-upsert-botlive-catalogue-block-deepseek", response_model=CatalogV2SyncLocalAndUpsertPromptResponse)
 async def sync_local_and_upsert_botlive_catalogue_block_deepseek(
-    request: Request, payload: CatalogV2SyncLocalAndUpsertPromptRequest
+    request: Request, payload: CatalogV2SyncLocalAndUpsertPromptRequest, debug: bool = False
 ) -> CatalogV2SyncLocalAndUpsertPromptResponse:
     _check_internal_key(request)
 
@@ -608,6 +609,8 @@ async def sync_local_and_upsert_botlive_catalogue_block_deepseek(
     try:
         from database.supabase_client import get_supabase_client
         from Zeta_AI.ingestion.ingestion_api import _inject_catalogue_block
+
+        import hashlib
 
         supabase = get_supabase_client()
         now_iso = datetime.now().isoformat()
@@ -629,6 +632,38 @@ async def sync_local_and_upsert_botlive_catalogue_block_deepseek(
         updated_prompt = _inject_catalogue_block(existing_prompt, catalogue_block)
         if not updated_prompt or len(updated_prompt.strip()) < 50:
             raise HTTPException(status_code=400, detail="prompt_deepseek introuvable ou trop court: initialise d'abord le prompt")
+
+        debug_payload: Optional[Dict[str, Any]] = None
+        if debug:
+            injected_block = ""
+            markers_found = 0
+            try:
+                import re as _re
+
+                pat = r"\[CATALOGUE_START\](.*?)\[CATALOGUE_END\]"
+                matches = list(_re.finditer(pat, str(updated_prompt or ""), flags=_re.IGNORECASE | _re.DOTALL))
+                markers_found = len(matches)
+                if matches:
+                    injected_block = str(matches[-1].group(1) or "").strip()
+            except Exception:
+                injected_block = ""
+
+            gen_block = str(catalogue_block or "").strip()
+            gen_hash = hashlib.sha256(gen_block.encode("utf-8", errors="replace")).hexdigest() if gen_block else ""
+            inj_hash = hashlib.sha256(injected_block.encode("utf-8", errors="replace")).hexdigest() if injected_block else ""
+
+            debug_payload = {
+                "supabase_table": "company_rag_configs",
+                "supabase_column": "prompt_botlive_deepseek_v3",
+                "markers_found": markers_found,
+                "generated_catalogue_block": gen_block,
+                "generated_catalogue_block_chars": len(gen_block),
+                "generated_catalogue_block_sha256": gen_hash,
+                "injected_catalogue_block": injected_block,
+                "injected_catalogue_block_chars": len(injected_block),
+                "injected_catalogue_block_sha256": inj_hash,
+                "injected_equals_generated": bool(gen_block and injected_block and gen_hash == inj_hash),
+            }
 
         row: Dict[str, Any] = {
             "company_id": company_id,
@@ -655,6 +690,7 @@ async def sync_local_and_upsert_botlive_catalogue_block_deepseek(
             path=final_path,
             prompt_chars=len(str(updated_prompt)),
             catalogue_chars=len(str(catalogue_block)),
+            debug=debug_payload,
             updated_at=now_iso,
             timestamp=time.time(),
         )
