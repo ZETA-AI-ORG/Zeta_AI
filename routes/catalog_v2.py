@@ -57,6 +57,7 @@ class CatalogV2SyncLocalAndUpsertPromptRequest(BaseModel):
     updated_at: Optional[str] = None
     ai_name: Optional[str] = None
     company_name: Optional[str] = None
+    product_name: Optional[str] = None
 
 
 class CatalogV2SyncLocalAndUpsertPromptResponse(BaseModel):
@@ -603,6 +604,18 @@ async def sync_local_and_upsert_botlive_catalogue_block_deepseek(
     _check_internal_key(request)
 
     company_id = str(payload.company_id).strip()
+
+    # Backward/forward compatibility:
+    # allow sending product_name at the payload top-level, but store it inside catalog.
+    try:
+        if isinstance(payload.catalog, dict):
+            pn_top = str(getattr(payload, "product_name", "") or "").strip()
+            pn_in = str(payload.catalog.get("product_name") or "").strip()
+            if pn_top and not pn_in:
+                payload.catalog["product_name"] = pn_top
+    except Exception:
+        pass
+
     final_path = _write_local_catalog(company_id, payload)  # type: ignore[arg-type]
 
     catalogue_block = _build_catalogue_block_from_catalog_v2(payload.catalog)
