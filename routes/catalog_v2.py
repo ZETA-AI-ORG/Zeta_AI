@@ -622,29 +622,44 @@ async def sync_local_and_upsert_botlive_catalogue_block_deepseek(
     if not catalogue_block or not catalogue_block.strip():
         raise HTTPException(status_code=400, detail="catalogue_block vide")
 
-    # By default we ONLY sync the catalog locally.
-    # Prompt injection into Supabase is opt-in via ?upsert_prompt=1.
-    if not upsert_prompt:
-        debug_payload: Optional[Dict[str, Any]] = None
-        if debug:
-            debug_payload = {
-                "mode": "sync_only",
-                "supabase_table": "company_rag_configs",
-                "supabase_column": "prompt_botlive_deepseek_v3",
-                "note": "Prompt not upserted. Use ?upsert_prompt=1 to update Supabase prompt.",
-                "generated_catalogue_block_chars": len(str(catalogue_block or "")),
-            }
+    def _upsert_product_index_block(existing_prompt: str, product_name: str) -> str:
+        p = str(existing_prompt or "")
+        pn = str(product_name or "").strip()
+        if not pn:
+            return p
+        start_tag = "[[PRODUCT_INDEX_START]]"
+        end_tag = "[[PRODUCT_INDEX_END]]"
+        si = p.find(start_tag)
+        ei = p.find(end_tag)
+        if si != -1 and ei != -1 and ei > si:
+            block_start = si + len(start_tag)
+            existing_block = p[block_start:ei]
+            raw_lines = [ln.strip() for ln in str(existing_block or "").splitlines()]
+            names: list[str] = []
+            for ln in raw_lines:
+                if not ln:
+                    continue
+                if ln.startswith("-"):
+                    n = ln[1:].strip()
+                else:
+                    n = ln
+                if n:
+                    names.append(n)
+            if pn not in names:
+                names.append(pn)
+            names = sorted(set(names), key=lambda x: x.lower())
+            new_block = "\n" + "\n".join([f"- {n}" for n in names]) + "\n"
+            return p[:block_start] + new_block + p[ei:]
 
-        return CatalogV2SyncLocalAndUpsertPromptResponse(
-            success=True,
-            company_id=company_id,
-            path=final_path,
-            prompt_chars=None,
-            catalogue_chars=len(str(catalogue_block)),
-            debug=debug_payload,
-            updated_at=datetime.now().isoformat(),
-            timestamp=time.time(),
+        insertion = "\n".join(
+            [
+                start_tag,
+                f"- {pn}",
+                end_tag,
+                "",
+            ]
         )
+        return insertion + p
 
     try:
         from database.supabase_client import get_supabase_client
@@ -670,6 +685,10 @@ async def sync_local_and_upsert_botlive_catalogue_block_deepseek(
             existing_prompt = ""
 
         updated_prompt = _inject_catalogue_block(existing_prompt, catalogue_block)
+        try:
+            updated_prompt = _upsert_product_index_block(updated_prompt, str(payload.catalog.get("product_name") or ""))
+        except Exception:
+            pass
         if not updated_prompt or len(updated_prompt.strip()) < 50:
             raise HTTPException(status_code=400, detail="prompt_deepseek introuvable ou trop court: initialise d'abord le prompt")
 
