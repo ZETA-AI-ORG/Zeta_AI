@@ -145,6 +145,13 @@ class SimplifiedRAGEngine:
             except Exception as _turn_e:
                 print(f"⚠️ [ORDER_STATE] bump_turn_error: {type(_turn_e).__name__}: {_turn_e}")
 
+            prev_product_before_llm = ""
+            try:
+                st_prev = order_tracker.get_state(user_id)
+                prev_product_before_llm = str(getattr(st_prev, "produit", "") or "").strip()
+            except Exception:
+                prev_product_before_llm = ""
+
             # 1. Initialisation LLM si nécessaire
             if self.llm_client is None:
                 await self.initialize()
@@ -1504,6 +1511,12 @@ class SimplifiedRAGEngine:
             except Exception:
                 catalogue_reference_block_override = ""
 
+            had_product_context_in_prompt = False
+            try:
+                had_product_context_in_prompt = bool(str(dynamic_context.get('product_context', '') or '').strip())
+            except Exception:
+                had_product_context_in_prompt = False
+
             final_prompt = await self.prompt_system.build_prompt(
                 query=query,
                 user_id=user_id,
@@ -2201,6 +2214,148 @@ class SimplifiedRAGEngine:
                     response = cleaned
             except Exception as _handoff_e:
                 print(f"⚠️ [SAV_HANDOFF] error: {type(_handoff_e).__name__}: {_handoff_e}")
+
+            try:
+                st_now = order_tracker.get_state(user_id)
+                curr_product = str(getattr(st_now, "produit", "") or "").strip()
+
+                if curr_product and (curr_product != prev_product_before_llm) and (not had_product_context_in_prompt):
+                    try:
+                        catalog_v2 = get_company_catalog_v2(company_id)
+                    except Exception:
+                        catalog_v2 = None
+
+                    vtree = (catalog_v2 or {}).get("v") if isinstance(catalog_v2, dict) else None
+                    if not isinstance(vtree, dict):
+                        vtree = {}
+
+                    def _match_variant_key(product_raw: str) -> str:
+                        p = str(product_raw or "").strip().lower()
+                        if not p:
+                            return ""
+                        keys = [str(k) for k in vtree.keys()]
+                        for k in keys:
+                            if str(k).strip().lower() == p:
+                                return str(k)
+                        for k in keys:
+                            kl = str(k).strip().lower()
+                            if p and (p in kl or kl in p):
+                                return str(k)
+                        return ""
+
+                    variant_key = _match_variant_key(curr_product)
+
+                    def _extract_allowed_units_for_variant(vnode: Dict[str, Any]) -> List[str]:
+                        out: set[str] = set()
+                        if not isinstance(vnode, dict):
+                            return []
+                        node_s = vnode.get("s")
+                        if isinstance(node_s, dict) and node_s:
+                            for _, sub_node in node_s.items():
+                                if not isinstance(sub_node, dict):
+                                    continue
+                                sub_u = sub_node.get("u")
+                                if not isinstance(sub_u, dict):
+                                    continue
+                                for uk, raw_price in sub_u.items():
+                                    p = _parse_price_value(raw_price)
+                                    if p is None or p <= 0:
+                                        continue
+                                    out.add(str(uk))
+                        else:
+                            u_map = vnode.get("u")
+                            if isinstance(u_map, dict) and u_map:
+                                for uk, raw_price in u_map.items():
+                                    p = _parse_price_value(raw_price)
+                                    if p is None or p <= 0:
+                                        continue
+                                    out.add(str(uk))
+                        return sorted({u for u in out if str(u).strip()})
+
+                    def _extract_specs_for_variant(vnode: Dict[str, Any]) -> List[str]:
+                        if not isinstance(vnode, dict):
+                            return []
+                        node_s = vnode.get("s")
+                        if not isinstance(node_s, dict) or not node_s:
+                            return []
+                        specs = [str(k).strip() for k in node_s.keys() if str(k).strip()]
+                        return sorted(set(specs))
+
+                    def _compress_seq(items: List[str]) -> str:
+                        xs = [str(x).strip() for x in (items or []) if str(x).strip()]
+                        if not xs:
+                            return ""
+                        xs = sorted(set(xs), key=lambda x: x)
+
+                        m_all = [re.fullmatch(r"([A-Za-z]+)(\d+)", x) for x in xs]
+                        if all(m_all):
+                            pref = m_all[0].group(1)
+                            if all(mm.group(1) == pref for mm in m_all):
+                                nums = sorted({int(mm.group(2)) for mm in m_all})
+                                if len(nums) >= 3 and nums == list(range(min(nums), max(nums) + 1)):
+                                    return f"{pref}{min(nums)}-{pref}{max(nums)}"
+                        if len(xs) <= 8:
+                            return ", ".join(xs)
+                        return f"{xs[0]}, …, {xs[-1]} ({len(xs)})"
+
+                    if not variant_key:
+                        keys = [str(k).strip() for k in vtree.keys() if str(k).strip()]
+                        keys = sorted(set(keys))
+                        if len(keys) >= 2:
+                            response = f"Tu parles de quel produit: {keys[0]} ou {keys[1]} ?"
+                        elif len(keys) == 1:
+                            response = f"Tu parles de {keys[0]} c'est ça ?"
+                        else:
+                            response = "Tu veux quel produit exactement stp ?"
+                    else:
+                        vnode = vtree.get(variant_key)
+                        allowed_units = _extract_allowed_units_for_variant(vnode)
+                        specs = _extract_specs_for_variant(vnode)
+
+                        msg_low = str(query or "").lower()
+                        has_spec_in_msg = any(_is_value_mentioned(query or "", s) for s in specs) if specs else False
+
+                        ctx_lines = []
+                        ctx_lines.append(f"product={variant_key}")
+                        if allowed_units:
+                            ctx_lines.append("sold_only_by=" + ",".join(allowed_units))
+                        if specs:
+                            ctx_lines.append("specs=" + _compress_seq(specs))
+                        product_ctx = "\n".join(ctx_lines)
+
+                        async def _mini_product_clarify(message: str, product_context: str) -> str:
+                            from core.llm_client import complete as mini_complete
+
+                            msg_txt = str(message or "").strip()
+                            prompt = (
+                                "Tu es un assistant WhatsApp.")
+                            prompt += "\nBut: répondre UNE SEULE FOIS pour clarifier la demande produit."
+                            prompt += "\nRègles: 1 phrase, 1 question max, style A/B si possible, pas de prix, pas de blabla."
+                            prompt += "\nTu n'inventes rien en dehors de PRODUCT_CONTEXT."
+                            prompt += f"\nPRODUCT_CONTEXT:\n{product_context}\n"
+                            prompt += f"\nMESSAGE_CLIENT: {json.dumps(msg_txt, ensure_ascii=False)}\n"
+                            raw = await mini_complete(
+                                prompt=prompt,
+                                model_name=os.getenv("PRODUCT_CLARIFIER_MODEL", "google/gemini-2.5-flash-lite"),
+                                temperature=0.2,
+                                max_tokens=int(os.getenv("PRODUCT_CLARIFIER_MAX_TOKENS", "70")),
+                            )
+                            return str(raw or "").strip()
+
+                        if specs and (not has_spec_in_msg):
+                            if len(specs) == 2:
+                                response = f"Pour {variant_key}, tu veux {specs[0]} ou {specs[1]} ?"
+                            else:
+                                response = await _mini_product_clarify(query, product_ctx)
+                        elif allowed_units and (not any(u.replace("_", " ") in msg_low or u in msg_low for u in allowed_units)):
+                            if len(allowed_units) == 2:
+                                response = f"Pour {variant_key}, tu prends {allowed_units[0]} ou {allowed_units[1]} ?"
+                            else:
+                                response = await _mini_product_clarify(query, product_ctx)
+                        else:
+                            response = await _mini_product_clarify(query, product_ctx)
+            except Exception as _mini_prod_e:
+                print(f"⚠️ [MINI_PRODUCT] error: {type(_mini_prod_e).__name__}: {_mini_prod_e}")
 
             # 6.a Pricing multi-items (post LLM): validation + injection du ready_to_send
             validated_price = False

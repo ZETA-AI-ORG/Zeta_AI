@@ -392,6 +392,7 @@ Fallback : si `<detected_items_json>` est vide ou contient des champs `null` (am
   <detected_items_json>
 [
   {
+    "product_id": null,
     "product": "pressions",
     "specs": "T1",
     "qty": 1,
@@ -399,6 +400,7 @@ Fallback : si `<detected_items_json>` est vide ou contient des champs `null` (am
     "confidence": 0.95
   },
   {
+    "product_id": null,
     "product": "pressions",
     "specs": "T2",
     "qty": 2,
