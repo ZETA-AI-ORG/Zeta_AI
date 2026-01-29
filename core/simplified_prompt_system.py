@@ -18,6 +18,7 @@ import os
 from pathlib import Path
 
 from core.order_state_tracker import order_tracker
+from core.company_catalog_v2_loader import get_company_catalog_v2
 
 @dataclass
 class OrderChecklistState:
@@ -581,6 +582,177 @@ Fais confiance à ton jugement. Tu es Jessica, pas un robot."""
 """
 
     @staticmethod
+    def _build_product_index_block(catalog_v2: Optional[Dict[str, Any]]) -> str:
+        try:
+            if not isinstance(catalog_v2, dict):
+                return ""
+
+            def _norm_pid(s: str) -> str:
+                try:
+                    import unicodedata
+
+                    t = str(s or "").strip()
+                    t = unicodedata.normalize("NFKD", t)
+                    t = "".join(ch for ch in t if not unicodedata.combining(ch))
+                    t = re.sub(r"\s+", " ", t).strip()
+                    return t.upper()
+                except Exception:
+                    return str(s or "").strip().upper()
+
+            products: List[str] = []
+
+            # Preferred: explicit products list
+            plist = catalog_v2.get("products")
+            if isinstance(plist, list):
+                for p in plist:
+                    if isinstance(p, str) and p.strip():
+                        products.append(p.strip())
+                    elif isinstance(p, dict):
+                        name = str(p.get("name") or p.get("product_name") or p.get("label") or "").strip()
+                        if name:
+                            products.append(name)
+
+            # Fallback: single product_name
+            if not products:
+                pn = str(catalog_v2.get("product_name") or catalog_v2.get("name") or "").strip()
+                if pn:
+                    products.append(pn)
+
+            products = [_norm_pid(x) for x in products if str(x).strip()]
+            products = sorted(set([x for x in products if x]))
+            if not products:
+                return ""
+
+            lines = ["PRODUCT_INDEX:"]
+            for pid in products:
+                lines.append(f"- product_id={pid}")
+            return "\n".join(lines).strip()
+        except Exception:
+            return ""
+
+    @staticmethod
+    def _inject_between_catalogue_markers(prompt: str, content: str) -> str:
+        """Inject content only inside [CATALOGUE_START]...[CATALOGUE_END] markers.
+
+        If markers are missing, returns prompt unchanged.
+        """
+        try:
+            import re
+
+            base = str(prompt or "")
+            if not base.strip():
+                return base
+            start_marker = "[CATALOGUE_START]"
+            end_marker = "[CATALOGUE_END]"
+
+            pat = r"\[CATALOGUE_START\](.*?)\[CATALOGUE_END\]"
+            matches = list(re.finditer(pat, base, flags=re.IGNORECASE | re.DOTALL))
+            if not matches:
+                return base
+
+            # Replace the last occurrence to keep deterministic behavior.
+            m = matches[-1]
+            c = str(content or "").strip()
+            replacement = start_marker + "\n" + c + "\n" + end_marker if c else (start_marker + "\n\n" + end_marker)
+            out = base[: m.start()] + replacement + base[m.end() :]
+            return str(out)
+        except Exception:
+            return str(prompt or "")
+
+    @staticmethod
+    def _build_product_context_block(catalog_v2: Optional[Dict[str, Any]], product_id: str) -> str:
+        try:
+            pid = str(product_id or "").strip()
+            if not pid or not isinstance(catalog_v2, dict):
+                return ""
+            vtree = catalog_v2.get("v")
+            if not isinstance(vtree, dict):
+                return ""
+
+            def _norm_pid(s: str) -> str:
+                try:
+                    import unicodedata
+
+                    t = str(s or "").strip()
+                    t = unicodedata.normalize("NFKD", t)
+                    t = "".join(ch for ch in t if not unicodedata.combining(ch))
+                    t = re.sub(r"\s+", " ", t).strip()
+                    return t.upper()
+                except Exception:
+                    return str(s or "").strip().upper()
+
+            pid_norm = _norm_pid(pid)
+            business_norm = _norm_pid(str(catalog_v2.get("product_name") or catalog_v2.get("name") or ""))
+
+            # Case A: active_product_id refers to a business product (single product_name).
+            # Build an aggregated context over variants (vtree keys).
+            if business_norm and pid_norm == business_norm:
+                lines: List[str] = [f"PRODUCT_CONTEXT: product_id={business_norm}"]
+                variant_keys = [str(k).strip() for k in vtree.keys() if str(k).strip()]
+                variant_keys = sorted(set(variant_keys))
+                if variant_keys:
+                    lines.append("VARIANTS:")
+                for vk in variant_keys:
+                    node = vtree.get(vk)
+                    if not isinstance(node, dict):
+                        continue
+                    # Collect units for this variant
+                    units_set: set[str] = set()
+                    s_map = node.get("s")
+                    u_map = node.get("u") if isinstance(node.get("u"), dict) else None
+                    if isinstance(u_map, dict) and u_map:
+                        for uk in u_map.keys():
+                            if str(uk).strip():
+                                units_set.add(str(uk).strip())
+                    if isinstance(s_map, dict) and s_map:
+                        for sub in s_map.values():
+                            if not isinstance(sub, dict):
+                                continue
+                            uu = sub.get("u")
+                            if not isinstance(uu, dict):
+                                continue
+                            for uk in uu.keys():
+                                if str(uk).strip():
+                                    units_set.add(str(uk).strip())
+                    units_sorted = sorted(units_set)
+                    if units_sorted:
+                        lines.append(f"- variant={vk} | units={', '.join(units_sorted)}")
+                    else:
+                        lines.append(f"- variant={vk} | units=(none)")
+                return "\n".join(lines).strip()
+
+            # Case B: active_product_id refers to a variant key in vtree (backward compatible).
+            node = vtree.get(pid) or vtree.get(pid_norm) or vtree.get(pid.strip())
+            if not isinstance(node, dict):
+                return ""
+
+            lines2: List[str] = [f"PRODUCT_CONTEXT: variant={pid}"]
+            s_map2 = node.get("s")
+            if isinstance(s_map2, dict) and s_map2:
+                for spec_k in sorted([str(k).strip() for k in s_map2.keys() if str(k).strip()]):
+                    sub = s_map2.get(spec_k)
+                    if not isinstance(sub, dict):
+                        continue
+                    u_map2 = sub.get("u")
+                    if not isinstance(u_map2, dict):
+                        continue
+                    units = [str(k).strip() for k in u_map2.keys() if str(k).strip()]
+                    units = sorted(set(units))
+                    if units:
+                        lines2.append(f"- specs={spec_k} | units={', '.join(units)}")
+            else:
+                u_map2 = node.get("u")
+                if isinstance(u_map2, dict) and u_map2:
+                    units = [str(k).strip() for k in u_map2.keys() if str(k).strip()]
+                    units = sorted(set(units))
+                    if units:
+                        lines2.append(f"- units={', '.join(units)}")
+
+            return "\n".join(lines2).strip()
+        except Exception:
+            return ""
+
+    @staticmethod
     def _safe_format(template: str, **kwargs) -> str:
         """Format un template sans casser si un placeholder manque."""
         class _SafeDict(dict):
@@ -824,6 +996,18 @@ Fais confiance à ton jugement. Tu es Jessica, pas un robot."""
         checklist = self.update_checklist_from_message(
             user_id, company_id, query, has_image
         )
+
+        # Load catalog_v2 from backend cache/local file (token-safe multi-product runtime).
+        try:
+            catalog_v2 = get_company_catalog_v2(company_id)
+        except Exception:
+            catalog_v2 = None
+
+        # Active product id (hot-swap) persisted by simplified_rag_engine from detected_items_json.
+        try:
+            active_product_id = str(order_tracker.get_custom_meta(user_id, "active_product_id", default="") or "").strip()
+        except Exception:
+            active_product_id = ""
 
         # Valeurs réelles déjà collectées (source: OrderStateTracker)
         st = None
@@ -1166,6 +1350,21 @@ Fais confiance à ton jugement. Tu es Jessica, pas un robot."""
         
         # Récupérer le prompt statique (Supabase ou fallback)
         static_prompt = await self.get_static_prompt(company_id)
+
+        # Inject PRODUCT_INDEX placeholder (prompt must contain [[PRODUCT_INDEX]] where you want it).
+        try:
+            idx_block = self._build_product_index_block(catalog_v2)
+            if idx_block and "[[PRODUCT_INDEX]]" in str(static_prompt or ""):
+                static_prompt = str(static_prompt).replace("[[PRODUCT_INDEX]]", idx_block)
+        except Exception:
+            pass
+
+        # Inject product-specific context ONLY inside CATALOGUE_START/END at runtime.
+        try:
+            pc_block = self._build_product_context_block(catalog_v2, active_product_id) if active_product_id else ""
+            static_prompt = self._inject_between_catalogue_markers(static_prompt, pc_block)
+        except Exception:
+            pass
 
         # Injecter les placeholders du prompt statique (Supabase) si présents
         mode = self._infer_mode(query=query, checklist=checklist)

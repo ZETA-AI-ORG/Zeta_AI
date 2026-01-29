@@ -1799,6 +1799,24 @@ class SimplifiedRAGEngine:
                                 order_tracker.set_custom_meta(user_id, "detected_items_parse_error", "")
                                 print(f"✅ [ITEMS_JSON] parsed_items={len(parsed_items)}")
 
+                                # Hot-swap product context: persist the current active product id/label.
+                                try:
+                                    active_pid = ""
+                                    for it in parsed_items:
+                                        if not isinstance(it, dict):
+                                            continue
+                                        pid = str(it.get("product_id") or "").strip()
+                                        prod = str(it.get("product") or "").strip()
+                                        if pid:
+                                            active_pid = pid
+                                            break
+                                        if prod and not active_pid:
+                                            active_pid = prod
+                                    if active_pid:
+                                        order_tracker.set_custom_meta(user_id, "active_product_id", active_pid)
+                                except Exception:
+                                    pass
+
                                 # Source de vérité: dériver un résumé de slots depuis items.
                                 # Mono item => remplir PRODUIT/SPECS/QUANTITÉ.
                                 # Multi items => remplir PRODUIT/SPECS (résumé) et vider QUANTITÉ globale.
