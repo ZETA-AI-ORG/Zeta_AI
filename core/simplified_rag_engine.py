@@ -1408,6 +1408,102 @@ class SimplifiedRAGEngine:
                 inject = f"LAST_TOTAL_SNAPSHOT_JSON: {snap_txt}"
                 dynamic_context['pricing_context'] = (prev_pr + "\n" + inject).strip() if prev_pr else inject
 
+            # Catalogue reference: injecter les formats de vente (customFormats) + unités canoniques
+            # et unités autorisées par produit/spec. Objectif: guider le LLM sans hardcode produit.
+            catalogue_reference_block_override = ""
+            try:
+                catalog_v2 = None
+                try:
+                    catalog_v2 = get_company_catalog_v2(company_id)
+                except Exception:
+                    catalog_v2 = None
+
+                if isinstance(catalog_v2, dict) and str(catalog_v2.get("pricing_strategy") or "").upper() == "UNIT_AS_ATOMIC":
+                    canonical_units = catalog_v2.get("canonical_units")
+                    if not isinstance(canonical_units, list):
+                        canonical_units = []
+                    canonical_units = [str(u).strip() for u in canonical_units if str(u).strip()]
+
+                    ui_state = catalog_v2.get("ui_state")
+                    if not isinstance(ui_state, dict):
+                        ui_state = {}
+                    custom_formats = ui_state.get("customFormats")
+                    if not isinstance(custom_formats, list):
+                        custom_formats = []
+
+                    vtree = catalog_v2.get("v")
+                    if not isinstance(vtree, dict):
+                        vtree = {}
+
+                    # Construire un bloc lisible (texte + mini-structure) qui reste stable/scalable.
+                    lines = []
+                    if canonical_units:
+                        lines.append("CANONICAL_UNITS: " + " | ".join(canonical_units))
+
+                    if custom_formats:
+                        lines.append("FORMATS_DE_VENTE:")
+                        for cf in custom_formats:
+                            if not isinstance(cf, dict):
+                                continue
+                            cf_type = str(cf.get("type") or "").strip()
+                            cf_qty = str(cf.get("quantity") or "").strip()
+                            cf_label = str(cf.get("unitLabel") or "").strip()
+                            cf_enabled = cf.get("enabled")
+                            enabled_s = "true" if bool(cf_enabled) else "false"
+                            # Exemple attendu: type=lot quantity=300 => canonical unit lot_300
+                            canon_guess = ""
+                            if cf_type and cf_qty and str(cf_qty).isdigit():
+                                canon_guess = f"{cf_type}_{cf_qty}"
+                            parts = [
+                                f"type={cf_type}" if cf_type else "type=∅",
+                                f"quantity={cf_qty}" if cf_qty else "quantity=∅",
+                                f"unitLabel={cf_label}" if cf_label else "unitLabel=∅",
+                                f"enabled={enabled_s}",
+                            ]
+                            if canon_guess:
+                                parts.append(f"canonical={canon_guess}")
+                            lines.append("- " + " | ".join(parts))
+
+                    # Unités autorisées par produit/spec (à partir du vtree)
+                    allowed_lines = []
+                    try:
+                        for variant_k, node in vtree.items():
+                            if not isinstance(node, dict):
+                                continue
+                            node_s = node.get("s")
+                            if isinstance(node_s, dict) and node_s:
+                                for sub_k, sub_node in node_s.items():
+                                    if not isinstance(sub_node, dict):
+                                        continue
+                                    u_map = sub_node.get("u")
+                                    if not isinstance(u_map, dict):
+                                        continue
+                                    units = [str(k) for k in u_map.keys() if str(k).strip()]
+                                    if units:
+                                        allowed_lines.append(
+                                            f"- product={str(variant_k).strip()} | specs={str(sub_k).strip()} | units={', '.join(units)}"
+                                        )
+                            else:
+                                u_map = node.get("u")
+                                if not isinstance(u_map, dict):
+                                    continue
+                                units = [str(k) for k in u_map.keys() if str(k).strip()]
+                                if units:
+                                    allowed_lines.append(
+                                        f"- product={str(variant_k).strip()} | units={', '.join(units)}"
+                                    )
+                    except Exception:
+                        allowed_lines = []
+
+                    if allowed_lines:
+                        lines.append("UNITS_PAR_PRODUIT:")
+                        lines.extend(allowed_lines)
+
+                    if lines:
+                        catalogue_reference_block_override = "\n".join(lines).strip()
+            except Exception:
+                catalogue_reference_block_override = ""
+
             final_prompt = await self.prompt_system.build_prompt(
                 query=query,
                 user_id=user_id,
@@ -1422,7 +1518,9 @@ class SimplifiedRAGEngine:
                 validation_errors_block=validation_errors_block,
                 price_calculation_block=price_calculation_block,
                 catalogue_reference_block=(
-                    "\n".join(
+                    catalogue_reference_block_override
+                    if str(catalogue_reference_block_override or "").strip()
+                    else "\n".join(
                         [
                             ln
                             for ln in str(dynamic_context.get('product_context', '') or '').splitlines()
@@ -2171,6 +2269,93 @@ class SimplifiedRAGEngine:
                         out["reasons"].append("catalog_unavailable")
                         return out
 
+                    def _parse_unit_key(u: str) -> Optional[Dict[str, Any]]:
+                        s = str(u or "").strip().lower()
+                        if not s or "_" not in s:
+                            return None
+                        t, n = s.split("_", 1)
+                        try:
+                            size_i = int(re.sub(r"\D+", "", n) or "0")
+                        except Exception:
+                            size_i = 0
+                        if not t or size_i <= 0:
+                            return None
+                        return {"type": t, "size": size_i}
+
+                    def _norm_unit_token(raw: str) -> str:
+                        s = str(raw or "").strip().lower()
+                        if not s:
+                            return ""
+                        s = s.replace("é", "e").replace("è", "e").replace("ê", "e").replace("à", "a").replace("ô", "o").replace("û", "u")
+                        s = re.sub(r"[^a-z0-9_\s-]+", "", s)
+                        s = s.replace("-", " ")
+                        s = re.sub(r"\s+", " ", s).strip()
+                        if s.endswith("s") and len(s) > 1:
+                            s = s[:-1]
+                        # alias très génériques (pas par produit)
+                        if s in {"pack"}:
+                            s = "paquet"
+                        if s in {"paquet", "paquet_", "paquet50"}:
+                            s = "paquet"
+                        return s
+
+                    parsed_units = []
+                    for cu in canonical_units:
+                        p = _parse_unit_key(cu)
+                        if p:
+                            p["key"] = str(cu)
+                            parsed_units.append(p)
+
+                    def _canonicalize_item_unit(it: Dict[str, Any], allowed_units: List[str]) -> Dict[str, Any]:
+                        """Canonise unit/qty à partir des canonical_units.
+
+                        Objectif: accepter une unité humaine (ex: "paquets") et convertir vers
+                        une unit canonique existante (ex: "lot_300") sans hardcode produit.
+                        """
+
+                        unit_raw = str(it.get("unit") or "").strip()
+                        if unit_raw in allowed_units:
+                            return it
+
+                        qty = it.get("qty")
+                        qty_i: Optional[int]
+                        try:
+                            qty_i = int(qty) if qty is not None else None
+                        except Exception:
+                            qty_i = None
+
+                        token = _norm_unit_token(unit_raw)
+                        if not token:
+                            return it
+
+                        # Trouver un "format de base" par type (ex: paquet -> paquet_50)
+                        base = [p for p in parsed_units if p.get("type") == token]
+                        base = sorted(base, key=lambda x: int(x.get("size") or 0))
+                        base_unit = base[0] if base else None
+                        if not base_unit:
+                            return it
+
+                        # Cas 1: si on a une qty, essayer de convertir en unité qui matche le total (ex: 6*50=300 -> lot_300)
+                        if qty_i is not None and qty_i > 0:
+                            total_size = qty_i * int(base_unit.get("size") or 0)
+                            if total_size > 0:
+                                # On privilégie une unité réellement vendue sur ce produit (allowed_units)
+                                candidates = [p for p in parsed_units if int(p.get("size") or 0) == total_size and str(p.get("key") or "") in allowed_units]
+                                if candidates:
+                                    best = candidates[0]
+                                    nxt = dict(it)
+                                    nxt["unit"] = str(best.get("key"))
+                                    nxt["qty"] = 1
+                                    return nxt
+
+                        # Cas 2: fallback simple -> convertir vers l'unité de base (ex: paquets -> paquet_50)
+                        if str(base_unit.get("key") or "") in allowed_units:
+                            nxt = dict(it)
+                            nxt["unit"] = str(base_unit.get("key"))
+                            return nxt
+
+                        return it
+
                     def _match_key_case_insensitive(keys: List[str], target: str) -> Optional[str]:
                         t = str(target or "").strip().lower()
                         if not t:
@@ -2259,10 +2444,6 @@ class SimplifiedRAGEngine:
                         confidence = it.get("confidence")
                         qty = it.get("qty")
 
-                        if unit not in canonical_units:
-                            out["invalid"].append({"item": it, "reason": "bad_unit"})
-                            continue
-
                         variant_key = _find_variant_key(product_raw)
                         node = vtree.get(variant_key) if variant_key else None
                         if not isinstance(node, dict):
@@ -2280,14 +2461,26 @@ class SimplifiedRAGEngine:
                                 out["invalid"].append({"item": it, "reason": "bad_specs"})
                                 continue
                             u_map = sub_node.get("u")
-                            if not isinstance(u_map, dict) or unit not in u_map:
+                            allowed_units = list(u_map.keys()) if isinstance(u_map, dict) else []
+                            it2 = _canonicalize_item_unit(it, allowed_units)
+                            unit2 = str(it2.get("unit") or "").strip()
+                            if not isinstance(u_map, dict) or unit2 not in u_map:
                                 out["invalid"].append({"item": it, "reason": "bad_unit"})
                                 continue
+                            it = it2
+                            unit = unit2
+                            qty = it.get("qty")
                         else:
                             u_map = node.get("u")
-                            if not isinstance(u_map, dict) or unit not in u_map:
+                            allowed_units = list(u_map.keys()) if isinstance(u_map, dict) else []
+                            it2 = _canonicalize_item_unit(it, allowed_units)
+                            unit2 = str(it2.get("unit") or "").strip()
+                            if not isinstance(u_map, dict) or unit2 not in u_map:
                                 out["invalid"].append({"item": it, "reason": "bad_unit"})
                                 continue
+                            it = it2
+                            unit = unit2
+                            qty = it.get("qty")
 
                         try:
                             conf_f = float(confidence) if confidence is not None else 0.0
