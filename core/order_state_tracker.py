@@ -8,6 +8,7 @@ Permet collecte dans n'importe quel ordre, finalise quand tout est complet
 import logging
 import sqlite3
 import json
+import os
 from typing import Dict, Optional, Set
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
@@ -118,8 +119,22 @@ class OrderStateTracker:
     """
     
     def __init__(self, db_path: str = "data/order_states.db"):
-        # Créer le dossier data si nécessaire
-        Path(db_path).parent.mkdir(parents=True, exist_ok=True)
+        env_db_path = str(os.getenv("ORDER_STATE_DB_PATH") or "").strip()
+        if env_db_path:
+            db_path = env_db_path
+        else:
+            # Default for Docker: writable, persistent mount
+            db_path = "/data/state/order_states.db"
+
+        try:
+            Path(db_path).parent.mkdir(parents=True, exist_ok=True)
+        except Exception:
+            db_path = "/tmp/order_states.db"
+            try:
+                Path(db_path).parent.mkdir(parents=True, exist_ok=True)
+            except Exception:
+                pass
+
         self.db_path = db_path
         self._init_database()
         self._cleanup_old_entries()
