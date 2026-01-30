@@ -4,6 +4,7 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: zeta-backend
+    user: "${ZETA_DOCKER_UID:-1000}:${ZETA_DOCKER_GID:-1000}"
     restart: unless-stopped
     env_file:
       - .env
