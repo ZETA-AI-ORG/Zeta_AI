@@ -5,6 +5,19 @@ import time
 from typing import Any, Dict, Optional, Tuple
 
 
+def _norm_product_id(v: str) -> str:
+    try:
+        import unicodedata
+
+        t = str(v or "").strip()
+        t = unicodedata.normalize("NFKD", t)
+        t = "".join(ch for ch in t if not unicodedata.combining(ch))
+        t = re.sub(r"\s+", " ", t).strip()
+        return t.upper()
+    except Exception:
+        return str(v or "").strip().upper()
+
+
 _CACHE: Dict[str, Tuple[float, Optional[Dict[str, Any]]]] = {}
 
 
@@ -47,6 +60,55 @@ def _load_catalog_from_local_file(company_id: str) -> Optional[Dict[str, Any]]:
         return obj if isinstance(obj, dict) else None
     except Exception:
         return None
+
+
+def get_company_catalog_v2_container(company_id: str) -> Optional[Dict[str, Any]]:
+    """Returns the stored catalog dict (container or mono-product).
+
+    Local file format:
+    - wrapper: { company_id, ..., catalog: <dict> }
+    - or direct dict
+    """
+
+    if not company_id or not str(company_id).strip():
+        return None
+    try:
+        return get_company_catalog_v2(str(company_id).strip())
+    except Exception:
+        return None
+
+
+def get_company_product_catalog_v2(company_id: str, product_id: str) -> Optional[Dict[str, Any]]:
+    """Select a mono-product catalog_v2 from a multi-product container.
+
+    - If storage is already mono-product, returns it as-is.
+    - If storage is container with products[], selects by product_id (normalized).
+    """
+
+    cid = str(company_id or "").strip()
+    if not cid:
+        return None
+
+    container = get_company_catalog_v2_container(cid)
+    if not isinstance(container, dict):
+        return None
+
+    plist = container.get("products")
+    if not isinstance(plist, list):
+        return container
+
+    pid = _norm_product_id(str(product_id or ""))
+    if not pid:
+        return None
+
+    for p in plist:
+        if not isinstance(p, dict):
+            continue
+        ppid = _norm_product_id(str(p.get("product_id") or p.get("product_name") or ""))
+        if ppid and ppid == pid:
+            cat = p.get("catalog_v2")
+            return cat if isinstance(cat, dict) else None
+    return None
 
 
 def get_company_catalog_v2(company_id: str) -> Optional[Dict[str, Any]]:

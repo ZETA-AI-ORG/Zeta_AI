@@ -471,11 +471,88 @@ def _write_local_catalog(company_id: str, payload: CatalogV2SyncLocalRequest) ->
         raise HTTPException(status_code=400, detail="company_id invalide")
 
     final_path = os.path.join(base_dir, f"{safe_id}.json")
+
+    def _norm_product_id(v: str) -> str:
+        try:
+            import unicodedata
+
+            t = str(v or "").strip()
+            t = unicodedata.normalize("NFKD", t)
+            t = "".join(ch for ch in t if not unicodedata.combining(ch))
+            t = re.sub(r"\s+", " ", t).strip()
+            return t.upper()
+        except Exception:
+            return str(v or "").strip().upper()
+
+    incoming_catalog = payload.catalog
+    incoming_name = str(incoming_catalog.get("product_name") or incoming_catalog.get("name") or "").strip()
+    if not incoming_name:
+        raise HTTPException(status_code=400, detail="product_name requis dans catalog")
+    incoming_pid = _norm_product_id(incoming_name)
+
+    existing_container: Dict[str, Any] = {}
+    try:
+        if os.path.exists(final_path):
+            with open(final_path, "r", encoding="utf-8") as f:
+                raw = json.load(f)
+            existing_container = raw.get("catalog") if isinstance(raw, dict) and isinstance(raw.get("catalog"), dict) else (raw if isinstance(raw, dict) else {})
+    except Exception:
+        existing_container = {}
+
+    # Ensure container shape: { products: [ {product_id, product_name, catalog_v2, updated_at, version} ] }
+    products_list: list[Dict[str, Any]] = []
+    if isinstance(existing_container.get("products"), list):
+        products_list = [x for x in existing_container.get("products") if isinstance(x, dict)]
+    else:
+        # Legacy mono-product file: convert to container if it looks like a catalog_v2
+        legacy = existing_container if isinstance(existing_container, dict) else {}
+        legacy_name = str(legacy.get("product_name") or legacy.get("name") or "").strip()
+        if legacy_name:
+            products_list = [
+                {
+                    "product_id": _norm_product_id(legacy_name),
+                    "product_name": legacy_name,
+                    "catalog_v2": legacy,
+                }
+            ]
+
+    # Upsert product entry
+    out_products: list[Dict[str, Any]] = []
+    found = False
+    for p in products_list:
+        pid = _norm_product_id(str(p.get("product_id") or p.get("product_name") or ""))
+        if pid and pid == incoming_pid:
+            out_products.append(
+                {
+                    "product_id": incoming_pid,
+                    "product_name": incoming_name,
+                    "catalog_v2": incoming_catalog,
+                    "updated_at": payload.updated_at,
+                    "version": payload.version,
+                }
+            )
+            found = True
+        else:
+            out_products.append(p)
+
+    if not found:
+        out_products.append(
+            {
+                "product_id": incoming_pid,
+                "product_name": incoming_name,
+                "catalog_v2": incoming_catalog,
+                "updated_at": payload.updated_at,
+                "version": payload.version,
+            }
+        )
+
     wrapper = {
         "company_id": cid,
         "version": payload.version,
         "updated_at": payload.updated_at,
-        "catalog": payload.catalog,
+        "catalog": {
+            "products": out_products,
+        },
         "synced_at": time.time(),
     }
 

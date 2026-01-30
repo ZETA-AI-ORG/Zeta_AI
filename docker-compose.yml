@@ -14,6 +14,7 @@ services:
     volumes:
       - ${ZETA_MODELS_PATH:-./models}:/app/models
       - ${ZETA_CHECKPOINTS_PATH:-./checkpoints}:/app/checkpoints
+      - ./data/catalogs:/data/catalogs
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8002/ingestion/health"]
       interval: 30s

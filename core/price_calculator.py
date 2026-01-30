@@ -10,7 +10,7 @@ import re
 from typing import Any, Dict, List, Tuple, Optional
 from dataclasses import dataclass
 
-from core.company_catalog_v2_loader import get_company_catalog_v2
+from core.company_catalog_v2_loader import get_company_catalog_v2, get_company_product_catalog_v2
 
 @dataclass
 class ProductPrice:
@@ -272,24 +272,26 @@ class UniversalPriceCalculator:
                     continue
                 raw_normalized.append({"product": p_raw, "specs": specs_raw, "unit": unit_raw, "qty": qty})
 
-            def _calc_from_catalog_v2(catalog_v2: Dict[str, Any]) -> Optional[str]:
+            def _calc_from_catalog_v2_container(catalog_container: Dict[str, Any]) -> Optional[str]:
                 try:
-                    if str(catalog_v2.get("pricing_strategy") or "").upper() != "UNIT_AS_ATOMIC":
-                        _dprint("pricing_strategy_not_unit_as_atomic", catalog_v2.get("pricing_strategy"))
-                        return None
+                    container = catalog_container
 
-                    vtree = catalog_v2.get("v")
-                    if not isinstance(vtree, dict):
-                        _dprint("vtree_invalid", type(vtree))
-                        return None
+                    # If this is a multi-product container, we require product_id per item unless there's only one product.
+                    plist = container.get("products") if isinstance(container, dict) else None
+                    mono_fallback: Optional[Dict[str, Any]] = None
+                    if isinstance(plist, list):
+                        only_one = [p for p in plist if isinstance(p, dict)]
+                        if len(only_one) == 1 and isinstance((only_one[0] or {}).get("catalog_v2"), dict):
+                            mono_fallback = (only_one[0] or {}).get("catalog_v2")
 
-                    canonical_units = catalog_v2.get("canonical_units")
-                    if not isinstance(canonical_units, list):
-                        canonical_units = []
-                    canonical_units = [str(u) for u in canonical_units if str(u).strip()]
-                    if not canonical_units:
-                        _dprint("canonical_units_empty")
-                        return None
+                    def _get_catalog_for_item(it: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+                        try:
+                            pid = str(it.get("product_id") or "").strip()
+                            if pid and company_id and str(company_id).strip():
+                                return get_company_product_catalog_v2(str(company_id).strip(), pid)
+                            return mono_fallback if isinstance(mono_fallback, dict) else (container if isinstance(container, dict) else None)
+                        except Exception:
+                            return mono_fallback if isinstance(mono_fallback, dict) else None
 
                     normalized_items = raw_normalized
                     if not normalized_items:
@@ -360,6 +362,28 @@ class UniversalPriceCalculator:
                     subtotal_products = 0
 
                     for idx, it in enumerate(normalized_items, start=1):
+                        selected = _get_catalog_for_item(it)
+                        if not isinstance(selected, dict):
+                            _dprint("missing_selected_catalog", it.get("product_id"), it.get("product"))
+                            return None
+
+                        if str(selected.get("pricing_strategy") or "").upper() != "UNIT_AS_ATOMIC":
+                            _dprint("pricing_strategy_not_unit_as_atomic", selected.get("pricing_strategy"))
+                            return None
+
+                        vtree = selected.get("v")
+                        if not isinstance(vtree, dict):
+                            _dprint("vtree_invalid", type(vtree))
+                            return None
+
+                        canonical_units = selected.get("canonical_units")
+                        if not isinstance(canonical_units, list):
+                            canonical_units = []
+                        canonical_units = [str(u) for u in canonical_units if str(u).strip()]
+                        if not canonical_units:
+                            _dprint("canonical_units_empty")
+                            return None
+
                         product_raw = str(it.get("product") or "")
                         specs_raw = str(it.get("specs") or "").strip()
                         unit_key = str(it.get("unit") or "").strip()
@@ -490,7 +514,7 @@ class UniversalPriceCalculator:
                     return None
 
             if isinstance(catalog_v2, dict):
-                out = _calc_from_catalog_v2(catalog_v2)
+                out = _calc_from_catalog_v2_container(catalog_v2)
                 if isinstance(out, str):
                     return out
 

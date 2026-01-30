@@ -30,7 +30,7 @@ from core.simplified_prompt_system import get_simplified_prompt_system
 from core.price_calculator import UniversalPriceCalculator
 from core.dynamic_context_injector import get_dynamic_context_injector
 from core.llm_client import get_llm_client
-from core.company_catalog_v2_loader import get_company_catalog_v2
+from core.company_catalog_v2_loader import get_company_catalog_v2, get_company_product_catalog_v2
 
 
 @dataclass
@@ -1118,19 +1118,6 @@ class SimplifiedRAGEngine:
 
                     if not isinstance(catalog_v2, dict):
                         return False
-                    if str(catalog_v2.get("pricing_strategy") or "").upper() != "UNIT_AS_ATOMIC":
-                        return False
-
-                    vtree = catalog_v2.get("v")
-                    if not isinstance(vtree, dict) or not vtree:
-                        return False
-
-                    canonical_units = catalog_v2.get("canonical_units")
-                    if not isinstance(canonical_units, list):
-                        canonical_units = []
-                    canonical_units = [str(u).strip() for u in canonical_units if str(u).strip()]
-                    if not canonical_units:
-                        return False
 
                     def _match_key_case_insensitive(keys: List[str], target: str) -> Optional[str]:
                         t = str(target or "").strip().lower()
@@ -1215,6 +1202,42 @@ class SimplifiedRAGEngine:
                     for it in items:
                         if not isinstance(it, dict):
                             return False
+
+                        # Multi-product support: select mono-product catalog by item.product_id
+                        selected_catalog = None
+                        try:
+                            plist = catalog_v2.get("products") if isinstance(catalog_v2, dict) else None
+                            if isinstance(plist, list):
+                                pid = str(it.get("product_id") or "").strip()
+                                if pid:
+                                    selected_catalog = get_company_product_catalog_v2(company_id, pid)
+                                else:
+                                    # Only allow missing product_id if there is exactly one product.
+                                    only_one = [p for p in plist if isinstance(p, dict) and isinstance(p.get("catalog_v2"), dict)]
+                                    if len(only_one) == 1:
+                                        selected_catalog = only_one[0].get("catalog_v2")
+                            else:
+                                selected_catalog = catalog_v2
+                        except Exception:
+                            selected_catalog = catalog_v2
+
+                        if not isinstance(selected_catalog, dict):
+                            return False
+
+                        if str(selected_catalog.get("pricing_strategy") or "").upper() != "UNIT_AS_ATOMIC":
+                            return False
+
+                        vtree = selected_catalog.get("v")
+                        if not isinstance(vtree, dict) or not vtree:
+                            return False
+
+                        canonical_units = selected_catalog.get("canonical_units")
+                        if not isinstance(canonical_units, list):
+                            canonical_units = []
+                        canonical_units = [str(u).strip() for u in canonical_units if str(u).strip()]
+                        if not canonical_units:
+                            return False
+
                         product_raw = str(it.get("product") or "").strip()
                         specs_raw = str(it.get("specs") or "").strip()
                         unit = str(it.get("unit") or "").strip()
@@ -1425,20 +1448,36 @@ class SimplifiedRAGEngine:
                 except Exception:
                     catalog_v2 = None
 
-                if isinstance(catalog_v2, dict) and str(catalog_v2.get("pricing_strategy") or "").upper() == "UNIT_AS_ATOMIC":
-                    canonical_units = catalog_v2.get("canonical_units")
+                # Multi-product: select active product catalog if known, else mono fallback if exactly one product.
+                selected_catalog = catalog_v2
+                try:
+                    if isinstance(catalog_v2, dict) and isinstance(catalog_v2.get("products"), list):
+                        active_pid = str(order_tracker.get_custom_meta(user_id, "active_product_id", default="") or "").strip()
+                        if active_pid:
+                            selected_catalog = get_company_product_catalog_v2(company_id, active_pid)
+                        else:
+                            only_one = [p for p in (catalog_v2.get("products") or []) if isinstance(p, dict) and isinstance(p.get("catalog_v2"), dict)]
+                            if len(only_one) == 1:
+                                selected_catalog = only_one[0].get("catalog_v2")
+                            else:
+                                selected_catalog = None
+                except Exception:
+                    selected_catalog = catalog_v2
+
+                if isinstance(selected_catalog, dict) and str(selected_catalog.get("pricing_strategy") or "").upper() == "UNIT_AS_ATOMIC":
+                    canonical_units = selected_catalog.get("canonical_units")
                     if not isinstance(canonical_units, list):
                         canonical_units = []
                     canonical_units = [str(u).strip() for u in canonical_units if str(u).strip()]
 
-                    ui_state = catalog_v2.get("ui_state")
+                    ui_state = selected_catalog.get("ui_state")
                     if not isinstance(ui_state, dict):
                         ui_state = {}
                     custom_formats = ui_state.get("customFormats")
                     if not isinstance(custom_formats, list):
                         custom_formats = []
 
-                    vtree = catalog_v2.get("v")
+                    vtree = selected_catalog.get("v")
                     if not isinstance(vtree, dict):
                         vtree = {}
 
@@ -2425,20 +2464,7 @@ class SimplifiedRAGEngine:
                     except Exception:
                         catalog_v2 = None
 
-                    if not isinstance(catalog_v2, dict) or str(catalog_v2.get("pricing_strategy") or "").upper() != "UNIT_AS_ATOMIC":
-                        out["reasons"].append("catalog_unavailable")
-                        return out
-
-                    vtree = catalog_v2.get("v")
-                    if not isinstance(vtree, dict) or not vtree:
-                        out["reasons"].append("catalog_unavailable")
-                        return out
-
-                    canonical_units = catalog_v2.get("canonical_units")
-                    if not isinstance(canonical_units, list):
-                        canonical_units = []
-                    canonical_units = [str(u).strip() for u in canonical_units if str(u).strip()]
-                    if not canonical_units:
+                    if not isinstance(catalog_v2, dict):
                         out["reasons"].append("catalog_unavailable")
                         return out
 
@@ -2472,14 +2498,12 @@ class SimplifiedRAGEngine:
                             s = "paquet"
                         return s
 
-                    parsed_units = []
-                    for cu in canonical_units:
-                        p = _parse_unit_key(cu)
-                        if p:
-                            p["key"] = str(cu)
-                            parsed_units.append(p)
-
-                    def _canonicalize_item_unit(it: Dict[str, Any], allowed_units: List[str]) -> Dict[str, Any]:
+                    def _canonicalize_item_unit(
+                        it: Dict[str, Any],
+                        *,
+                        allowed_units: List[str],
+                        parsed_units: List[Dict[str, Any]],
+                    ) -> Dict[str, Any]:
                         """Canonise unit/qty à partir des canonical_units.
 
                         Objectif: accepter une unité humaine (ex: "paquets") et convertir vers
@@ -2502,7 +2526,7 @@ class SimplifiedRAGEngine:
                             return it
 
                         # Trouver un "format de base" par type (ex: paquet -> paquet_50)
-                        base = [p for p in parsed_units if p.get("type") == token]
+                        base = [p for p in (parsed_units or []) if p.get("type") == token]
                         base = sorted(base, key=lambda x: int(x.get("size") or 0))
                         base_unit = base[0] if base else None
                         if not base_unit:
@@ -2513,7 +2537,11 @@ class SimplifiedRAGEngine:
                             total_size = qty_i * int(base_unit.get("size") or 0)
                             if total_size > 0:
                                 # On privilégie une unité réellement vendue sur ce produit (allowed_units)
-                                candidates = [p for p in parsed_units if int(p.get("size") or 0) == total_size and str(p.get("key") or "") in allowed_units]
+                                candidates = [
+                                    p
+                                    for p in (parsed_units or [])
+                                    if int(p.get("size") or 0) == total_size and str(p.get("key") or "") in allowed_units
+                                ]
                                 if candidates:
                                     best = candidates[0]
                                     nxt = dict(it)
@@ -2539,19 +2567,18 @@ class SimplifiedRAGEngine:
                         return None
 
                     def _find_variant_key(product_raw: str) -> Optional[str]:
-                        product_s = str(product_raw or "").strip()
-                        if not product_s:
-                            return None
+                        p = str(product_raw or "").strip().lower()
+                        if not p:
+                            return ""
                         keys = [str(k) for k in vtree.keys()]
-                        exact = _match_key_case_insensitive(keys, product_s)
-                        if exact:
-                            return exact
-                        p_low = product_s.lower()
                         for k in keys:
-                            k_low = str(k or "").lower()
-                            if p_low and (p_low in k_low or k_low in p_low):
+                            if str(k).strip().lower() == p:
                                 return str(k)
-                        return None
+                        for k in keys:
+                            kl = str(k).strip().lower()
+                            if p and (p in kl or kl in p):
+                                return str(k)
+                        return ""
 
                     def _extract_t_number(specs_raw: str) -> Optional[int]:
                         s = str(specs_raw or "").strip().upper()
@@ -2617,6 +2644,43 @@ class SimplifiedRAGEngine:
                         confidence = it.get("confidence")
                         qty = it.get("qty")
 
+                        selected_catalog = None
+                        try:
+                            plist = catalog_v2.get("products") if isinstance(catalog_v2, dict) else None
+                            if isinstance(plist, list):
+                                pid = str(it.get("product_id") or "").strip()
+                                if pid:
+                                    selected_catalog = get_company_product_catalog_v2(company_id, pid)
+                                else:
+                                    only_one = [p for p in plist if isinstance(p, dict) and isinstance(p.get("catalog_v2"), dict)]
+                                    if len(only_one) == 1:
+                                        selected_catalog = only_one[0].get("catalog_v2")
+                            else:
+                                selected_catalog = catalog_v2
+                        except Exception:
+                            selected_catalog = catalog_v2
+
+                        if not isinstance(selected_catalog, dict):
+                            out["invalid"].append({"item": it, "reason": "catalog_unavailable"})
+                            continue
+
+                        canonical_units = selected_catalog.get("canonical_units")
+                        if not isinstance(canonical_units, list):
+                            canonical_units = []
+                        canonical_units = [str(u).strip() for u in canonical_units if str(u).strip()]
+
+                        parsed_units: List[Dict[str, Any]] = []
+                        for cu in canonical_units:
+                            p = _parse_unit_key(cu)
+                            if p:
+                                p["key"] = str(cu)
+                                parsed_units.append(p)
+
+                        vtree = selected_catalog.get("v")
+                        if not isinstance(vtree, dict) or not vtree:
+                            out["invalid"].append({"item": it, "reason": "catalog_unavailable"})
+                            continue
+
                         variant_key = _find_variant_key(product_raw)
                         node = vtree.get(variant_key) if variant_key else None
                         if not isinstance(node, dict):
@@ -2635,7 +2699,7 @@ class SimplifiedRAGEngine:
                                 continue
                             u_map = sub_node.get("u")
                             allowed_units = list(u_map.keys()) if isinstance(u_map, dict) else []
-                            it2 = _canonicalize_item_unit(it, allowed_units)
+                            it2 = _canonicalize_item_unit(dict(it), allowed_units=allowed_units, parsed_units=parsed_units)
                             unit2 = str(it2.get("unit") or "").strip()
                             if not isinstance(u_map, dict) or unit2 not in u_map:
                                 out["invalid"].append({"item": it, "reason": "bad_unit"})
@@ -2646,7 +2710,7 @@ class SimplifiedRAGEngine:
                         else:
                             u_map = node.get("u")
                             allowed_units = list(u_map.keys()) if isinstance(u_map, dict) else []
-                            it2 = _canonicalize_item_unit(it, allowed_units)
+                            it2 = _canonicalize_item_unit(dict(it), allowed_units=allowed_units, parsed_units=parsed_units)
                             unit2 = str(it2.get("unit") or "").strip()
                             if not isinstance(u_map, dict) or unit2 not in u_map:
                                 out["invalid"].append({"item": it, "reason": "bad_unit"})

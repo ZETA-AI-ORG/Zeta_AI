@@ -18,7 +18,7 @@ import os
 from pathlib import Path
 
 from core.order_state_tracker import order_tracker
-from core.company_catalog_v2_loader import get_company_catalog_v2
+from core.company_catalog_v2_loader import get_company_catalog_v2, get_company_product_catalog_v2
 
 @dataclass
 class OrderChecklistState:
@@ -665,6 +665,45 @@ Fais confiance à ton jugement. Tu es Jessica, pas un robot."""
             pid = str(product_id or "").strip()
             if not pid or not isinstance(catalog_v2, dict):
                 return ""
+
+            # Multi-product container: select sub-catalog by product_id
+            try:
+                plist = catalog_v2.get("products")
+                if isinstance(plist, list):
+                    selected = None
+                    try:
+                        # Reuse loader selection (normalizes ids)
+                        selected = get_company_product_catalog_v2(str(catalog_v2.get("company_id") or "").strip(), pid)
+                    except Exception:
+                        selected = None
+                    if not isinstance(selected, dict):
+                        # Fallback selection by scanning container
+                        def _norm_pid2(s: str) -> str:
+                            try:
+                                import unicodedata
+
+                                t = str(s or "").strip()
+                                t = unicodedata.normalize("NFKD", t)
+                                t = "".join(ch for ch in t if not unicodedata.combining(ch))
+                                t = re.sub(r"\s+", " ", t).strip()
+                                return t.upper()
+                            except Exception:
+                                return str(s or "").strip().upper()
+
+                        pid_norm2 = _norm_pid2(pid)
+                        for p in plist:
+                            if not isinstance(p, dict):
+                                continue
+                            ppid = _norm_pid2(str(p.get("product_id") or p.get("product_name") or ""))
+                            if ppid and ppid == pid_norm2 and isinstance(p.get("catalog_v2"), dict):
+                                selected = p.get("catalog_v2")
+                                break
+                    if isinstance(selected, dict):
+                        # Recurse with mono-product catalog
+                        return SimplifiedPromptSystem._build_product_context_block(selected, pid)
+            except Exception:
+                pass
+
             vtree = catalog_v2.get("v")
             if not isinstance(vtree, dict):
                 return ""
