@@ -204,85 +204,101 @@ class SimplifiedRAGEngine:
 
             # Pre-LLM: si on détecte clairement un produit depuis le catalogue local, on pré-remplit l'état.
             try:
-                if not prev_product_before_llm:
-                    container = get_company_catalog_v2(company_id)
-                    msg_norm = _norm_name_for_id(query)
-                    detected_pid = ""
-                    detected_name = ""
+                container = get_company_catalog_v2(company_id)
+                msg_norm = _norm_name_for_id(query)
+                detected_pid = ""
+                detected_name = ""
 
-                    if isinstance(container, dict) and isinstance(container.get("products"), list):
-                        candidates = []
-                        for p in (container.get("products") or []):
-                            if not isinstance(p, dict):
-                                continue
-                            pname = str(p.get("product_name") or (p.get("catalog_v2") or {}).get("product_name") or "").strip()
-                            if not pname:
-                                continue
-                            pn_norm = _norm_name_for_id(pname)
-                            if pn_norm:
-                                candidates.append((pname, pn_norm))
-
-                        # Strategy A: strict substring (keeps old behavior)
-                        for pname, pn_norm in candidates:
-                            if pn_norm and pn_norm in msg_norm:
-                                detected_name = pname
-                                detected_pid = _product_id_hash(pname)
-                                break
-
-                        # Strategy B: token match with uniqueness (handles queries like "je veux des couches")
-                        if not detected_pid and msg_norm:
-                            msg_pad = f" {msg_norm} "
-                            stop_tokens = {
-                                "avec",
-                                "sans",
-                                "pour",
-                                "pack",
-                                "lot",
-                                "paquet",
-                                "carton",
-                                "colis",
-                                "bebe",
-                                "bb",
-                            }
-
-                            matched_products = []  # list of (pname, pn_norm, matched_tokens)
-                            token_to_products = {}
-                            for pname, pn_norm in candidates:
-                                toks = [t for t in pn_norm.split() if len(t) >= 4 and t not in stop_tokens]
-                                hits = [t for t in toks if f" {t} " in msg_pad]
-                                if hits:
-                                    matched_products.append((pname, pn_norm, hits))
-                                    for t in hits:
-                                        token_to_products.setdefault(t, set()).add(pname)
-
-                            # If exactly one product matches any significant token => pick it.
-                            if len(matched_products) == 1:
-                                detected_name = matched_products[0][0]
-                                detected_pid = _product_id_hash(detected_name)
-                            else:
-                                # If a token uniquely identifies a single product => pick it.
-                                uniq_tokens = []
-                                for t, pset in (token_to_products or {}).items():
-                                    if isinstance(pset, set) and len(pset) == 1:
-                                        uniq_tokens.append(t)
-                                # Prefer longer tokens for specificity.
-                                uniq_tokens = sorted(set(uniq_tokens), key=lambda x: (-len(x), x))
-                                if uniq_tokens:
-                                    only_name = list(token_to_products[uniq_tokens[0]])[0]
-                                    detected_name = str(only_name)
-                                    detected_pid = _product_id_hash(detected_name)
-                    elif isinstance(container, dict):
-                        pname = str(container.get("product_name") or container.get("name") or "").strip()
+                if isinstance(container, dict) and isinstance(container.get("products"), list):
+                    candidates = []
+                    for p in (container.get("products") or []):
+                        if not isinstance(p, dict):
+                            continue
+                        pname = str(p.get("product_name") or (p.get("catalog_v2") or {}).get("product_name") or "").strip()
+                        if not pname:
+                            continue
                         pn_norm = _norm_name_for_id(pname)
+                        if pn_norm:
+                            candidates.append((pname, pn_norm))
+
+                    # Strategy A: strict substring (keeps old behavior)
+                    for pname, pn_norm in candidates:
                         if pn_norm and pn_norm in msg_norm:
                             detected_name = pname
                             detected_pid = _product_id_hash(pname)
+                            break
 
-                    if detected_pid:
+                    # Strategy B: token match with uniqueness (handles queries like "je veux des couches")
+                    if not detected_pid and msg_norm:
+                        msg_pad = f" {msg_norm} "
+                        stop_tokens = {
+                            "avec",
+                            "sans",
+                            "pour",
+                            "pack",
+                            "lot",
+                            "paquet",
+                            "carton",
+                            "colis",
+                            "bebe",
+                            "bb",
+                        }
+
+                        matched_products = []  # list of (pname, pn_norm, matched_tokens)
+                        token_to_products = {}
+                        for pname, pn_norm in candidates:
+                            toks = [t for t in pn_norm.split() if len(t) >= 4 and t not in stop_tokens]
+                            hits = [t for t in toks if f" {t} " in msg_pad]
+                            if hits:
+                                matched_products.append((pname, pn_norm, hits))
+                                for t in hits:
+                                    token_to_products.setdefault(t, set()).add(pname)
+
+                        # If exactly one product matches any significant token => pick it.
+                        if len(matched_products) == 1:
+                            detected_name = matched_products[0][0]
+                            detected_pid = _product_id_hash(detected_name)
+                        else:
+                            # If a token uniquely identifies a single product => pick it.
+                            uniq_tokens = []
+                            for t, pset in (token_to_products or {}).items():
+                                if isinstance(pset, set) and len(pset) == 1:
+                                    uniq_tokens.append(t)
+                            # Prefer longer tokens for specificity.
+                            uniq_tokens = sorted(set(uniq_tokens), key=lambda x: (-len(x), x))
+                            if uniq_tokens:
+                                only_name = list(token_to_products[uniq_tokens[0]])[0]
+                                detected_name = str(only_name)
+                                detected_pid = _product_id_hash(detected_name)
+                elif isinstance(container, dict):
+                    pname = str(container.get("product_name") or container.get("name") or "").strip()
+                    pn_norm = _norm_name_for_id(pname)
+                    if pn_norm and pn_norm in msg_norm:
+                        detected_name = pname
+                        detected_pid = _product_id_hash(pname)
+
+                if detected_pid:
+                    if prev_product_before_llm and (str(prev_product_before_llm).strip() != detected_pid):
+                        try:
+                            order_tracker.update_produit_details(user_id, "", source="PYTHON_PREMATCH_RESET", confidence=0.9)
+                        except Exception:
+                            pass
+                        try:
+                            order_tracker.update_quantite(user_id, "", source="PYTHON_PREMATCH_RESET", confidence=0.9)
+                        except Exception:
+                            pass
+                        try:
+                            order_tracker.set_custom_meta(user_id, "detected_items", [])
+                            order_tracker.set_custom_meta(user_id, "detected_items_raw", "")
+                        except Exception:
+                            pass
+
+                    if (not prev_product_before_llm) or (str(prev_product_before_llm).strip() != detected_pid):
                         order_tracker.update_produit(user_id, detected_pid, source="PYTHON_PREMATCH", confidence=0.9)
-                        order_tracker.set_custom_meta(user_id, "active_product_id", detected_pid)
-                        order_tracker.set_custom_meta(user_id, "active_product_label", detected_name)
-                        print(f"✅ [PYTHON_PREMATCH] product_id={detected_pid} product='{detected_name}'")
+
+                    order_tracker.set_custom_meta(user_id, "active_product_id", detected_pid)
+                    order_tracker.set_custom_meta(user_id, "active_product_label", detected_name)
+                    print(f"✅ [PYTHON_PREMATCH] product_id={detected_pid} product='{detected_name}'")
             except Exception as _prem_e:
                 print(f"⚠️ [PYTHON_PREMATCH] error: {type(_prem_e).__name__}: {_prem_e}")
 
@@ -1969,7 +1985,7 @@ class SimplifiedRAGEngine:
                         msg = str(message or "")
                         msg_l = msg.lower()
 
-                        m = re.search(r"\b(lot|pack|carton|colis)\s*(?:de\s*)?(\d+)\b", msg_l)
+                        m = re.search(r"\b(lot|pack|carton|colis)[\s_-]*(?:de\s*)?(\d+)\b", msg_l)
                         if not m:
                             return items
 
@@ -1992,6 +2008,52 @@ class SimplifiedRAGEngine:
                                 normalized.append(it)
 
                         return normalized
+                    except Exception:
+                        return items
+
+                def _normalize_diaper_items(items: List[Dict[str, Any]], message: str) -> List[Dict[str, Any]]:
+                    try:
+                        msg_l = str(message or "").lower()
+                        out: List[Dict[str, Any]] = []
+
+                        def _extract_t(text: str) -> str:
+                            s = str(text or "").upper()
+                            m = re.search(r"\bT\s*([1-7])\b", s)
+                            if m:
+                                return f"T{m.group(1)}"
+                            m2 = re.search(r"\bTAILLE\s*([1-7])\b", s)
+                            if m2:
+                                return f"T{m2.group(1)}"
+                            return ""
+
+                        for it in (items or []):
+                            if not isinstance(it, dict):
+                                continue
+                            it2 = dict(it)
+                            spec_text = str(it2.get("spec") or it2.get("specs") or "").strip()
+                            spec_l = spec_text.lower()
+
+                            if not str(it2.get("product") or "").strip():
+                                if "pression" in spec_l:
+                                    it2["product"] = "Pression"
+                                elif "culott" in spec_l:
+                                    it2["product"] = "Culotte"
+
+                            t_val = _extract_t(spec_text) or _extract_t(msg_l)
+                            if t_val:
+                                it2["specs"] = t_val
+
+                            unit_l = str(it2.get("unit") or "").strip().lower()
+                            if unit_l == "piece":
+                                if ("lot_" in msg_l) or ("lot_" in spec_l) or ("lot de" in msg_l) or ("lot de" in spec_l):
+                                    mlot = re.search(r"\blot[\s_-]*(\d+)\b", msg_l) or re.search(r"\blot[\s_-]*(\d+)\b", spec_l)
+                                    if mlot:
+                                        it2["unit"] = f"lot_{mlot.group(1)}"
+                                        if it2.get("qty") is None:
+                                            it2["qty"] = 1
+                            out.append(it2)
+
+                        return out
                     except Exception:
                         return items
 
@@ -2019,6 +2081,11 @@ class SimplifiedRAGEngine:
                                                 it2["product_id"] = mapped
                                         patched_items.append(it2)
                                     parsed_items = patched_items
+                                except Exception:
+                                    pass
+
+                                try:
+                                    parsed_items = _normalize_diaper_items(parsed_items, query)
                                 except Exception:
                                     pass
 
