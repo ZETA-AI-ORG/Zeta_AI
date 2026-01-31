@@ -10,6 +10,7 @@ import re as regex
 import json
 import logging
 import asyncio
+import hashlib
 from typing import Dict, Any, Optional, Tuple
 from datetime import datetime
 from app_utils import log3
@@ -31,6 +32,13 @@ from core.llm_response_validator import (
     extract_system_state_dict,
     validate_llm_response_checklist,
 )
+
+try:
+    from rapidfuzz import process as rf_process
+    from rapidfuzz import fuzz as rf_fuzz
+except Exception:
+    rf_process = None
+    rf_fuzz = None
 
 logger = logging.getLogger(__name__)
 
@@ -92,6 +100,403 @@ class BotliveRAGHybrid:
                 pass
         except Exception:
             return
+
+    def _norm_text_simple(self, text: str) -> str:
+        try:
+            t = str(text or "").strip().lower()
+        except Exception:
+            t = ""
+        if not t:
+            return ""
+        t = (
+            t.replace("à", "a")
+            .replace("â", "a")
+            .replace("ä", "a")
+            .replace("é", "e")
+            .replace("è", "e")
+            .replace("ê", "e")
+            .replace("ë", "e")
+            .replace("î", "i")
+            .replace("ï", "i")
+            .replace("ô", "o")
+            .replace("ö", "o")
+            .replace("ù", "u")
+            .replace("û", "u")
+            .replace("ü", "u")
+            .replace("ç", "c")
+        )
+        t = regex.sub(r"[^a-z0-9\s-]+", " ", t)
+        t = t.replace("-", " ")
+        t = regex.sub(r"\s+", " ", t).strip()
+        return t
+
+    def _norm_text_match(self, text: str) -> str:
+        try:
+            import unicodedata
+
+            t = str(text or "").strip().lower()
+            if not t:
+                return ""
+            t = unicodedata.normalize("NFKD", t)
+            t = "".join(ch for ch in t if not unicodedata.combining(ch))
+        except Exception:
+            t = str(text or "").strip().lower()
+        if not t:
+            return ""
+        t = regex.sub(r"[^a-z0-9\s-]+", " ", t)
+        t = t.replace("-", " ")
+        t = regex.sub(r"\s+", " ", t).strip()
+        return t
+
+    def _product_id_hash(self, product_name: str) -> str:
+        n = self._norm_text_simple(product_name)
+        if not n:
+            return ""
+        h = hashlib.sha1(n.encode("utf-8", errors="replace")).hexdigest()[:8]
+        return f"prod_{h}"
+
+    def _inject_between(self, prompt: str, start_tag: str, end_tag: str, content: str) -> str:
+        base = str(prompt or "")
+        if not base.strip():
+            return base
+        s = str(start_tag or "")
+        e = str(end_tag or "")
+        if not s or not e:
+            return base
+        si = base.find(s)
+        ei = base.find(e)
+        if si == -1 or ei == -1 or ei <= si:
+            return base
+        block_start = si + len(s)
+        c = str(content or "")
+        if c and not c.startswith("\n"):
+            c = "\n" + c
+        if c and not c.endswith("\n"):
+            c = c + "\n"
+        return base[:block_start] + c + base[ei:]
+
+    def _inject_product_index(self, prompt: str, idx_block: str) -> str:
+        base = str(prompt or "")
+        block = str(idx_block or "").strip()
+        if not base.strip() or not block:
+            return base
+        if "[[PRODUCT_INDEX]]" in base:
+            return base.replace("[[PRODUCT_INDEX]]", block)
+        return self._inject_between(base, "[[PRODUCT_INDEX_START]]", "[[PRODUCT_INDEX_END]]", "\n" + block + "\n")
+
+    def _inject_catalogue_markers(self, prompt: str, content: str) -> str:
+        base = str(prompt or "")
+        if not base.strip():
+            return base
+        pat = r"\[CATALOGUE_START\](.*?)\[CATALOGUE_END\]"
+        matches = list(regex.finditer(pat, base, flags=regex.IGNORECASE | regex.DOTALL))
+        if not matches:
+            return base
+        m = matches[-1]
+        start_marker = "[CATALOGUE_START]"
+        end_marker = "[CATALOGUE_END]"
+        c = str(content or "").strip()
+        replacement = start_marker + "\n" + c + "\n" + end_marker if c else (start_marker + "\n\n" + end_marker)
+        return base[: m.start()] + replacement + base[m.end() :]
+
+    def _build_flash_constraint(self, mono_catalog_v2: Dict[str, Any]) -> str:
+        try:
+            if not isinstance(mono_catalog_v2, dict):
+                return ""
+            vtree = mono_catalog_v2.get("v")
+            if not isinstance(vtree, dict) or not vtree:
+                return ""
+            parts = []
+            for vk, vnode in vtree.items():
+                if not isinstance(vnode, dict):
+                    continue
+                has_specs = isinstance(vnode.get("s"), dict) and bool(vnode.get("s"))
+                tag = "VARIABLE" if has_specs else "FIXE"
+                vn = str(vk or "").strip()
+                if vn:
+                    parts.append(f"{vn}={tag}")
+            parts = [p for p in parts if p]
+            if not parts:
+                return ""
+            return " | ".join(parts[:6])
+        except Exception:
+            return ""
+
+    def _build_light_product_index(self, company_catalog_container: Dict[str, Any], *, hide_variants_for_product_id: str = "") -> Tuple[str, Dict[str, Dict[str, Any]]]:
+        products_by_id: Dict[str, Dict[str, Any]] = {}
+        if not isinstance(company_catalog_container, dict):
+            return "", products_by_id
+
+        plist = company_catalog_container.get("products")
+        mono = None
+        if isinstance(plist, list) and plist:
+            products = [p for p in plist if isinstance(p, dict)]
+        else:
+            products = []
+            if isinstance(company_catalog_container.get("v"), dict):
+                mono = company_catalog_container
+                products = [{"product_name": str(mono.get("product_name") or mono.get("name") or "").strip(), "catalog_v2": mono}]
+
+        lines = []
+        for p in products:
+            cat = p.get("catalog_v2") if isinstance(p.get("catalog_v2"), dict) else None
+            if not isinstance(cat, dict):
+                continue
+            pname = str(p.get("product_name") or cat.get("product_name") or cat.get("name") or "").strip()
+            if not pname:
+                continue
+            pid = self._product_id_hash(pname)
+            if not pid:
+                continue
+            vtree = cat.get("v")
+            variants = []
+            if isinstance(vtree, dict) and vtree:
+                variants = [str(k).strip() for k in vtree.keys() if str(k).strip()]
+                variants = sorted(set(variants), key=lambda x: x.lower())
+
+            products_by_id[pid] = {
+                "product_name": pname,
+                "product_id": pid,
+                "variants": variants,
+                "catalog_v2": cat,
+            }
+
+        if not products_by_id:
+            return "", products_by_id
+
+        for pid, info in sorted(products_by_id.items(), key=lambda kv: str(kv[1].get("product_name") or "").lower()):
+            pname = str(info.get("product_name") or "").strip()
+            if not pname:
+                continue
+            variants = list(info.get("variants") or [])
+            if hide_variants_for_product_id and str(hide_variants_for_product_id) == str(pid):
+                variants = []
+            variants_s = ", ".join(variants) if variants else "Aucune"
+            flash = self._build_flash_constraint(info.get("catalog_v2") if isinstance(info.get("catalog_v2"), dict) else {})
+            if flash:
+                lines.append(f"- {pname} [ID: {pid}] | Variantes: {variants_s} | Flash: {flash}")
+            else:
+                lines.append(f"- {pname} [ID: {pid}] | Variantes: {variants_s}")
+
+        block = "\n".join(lines).strip()
+        return block, products_by_id
+
+    def _pick_product_id_strict(self, message: str, products_by_id: Dict[str, Dict[str, Any]]) -> str:
+        msg = self._norm_text_match(message)
+        if not msg or not isinstance(products_by_id, dict) or not products_by_id:
+            return ""
+
+        for pid, info in products_by_id.items():
+            pname = self._norm_text_match(str(info.get("product_name") or ""))
+            if pname and pname in msg:
+                return str(pid)
+
+        variant_hits: Dict[str, set] = {}
+        for pid, info in products_by_id.items():
+            for v in (info.get("variants") or []):
+                vn = self._norm_text_match(v)
+                if vn and re.search(r"\b" + re.escape(vn) + r"\b", msg, flags=re.IGNORECASE):
+                    variant_hits.setdefault(vn, set()).add(str(pid))
+
+        for vn, pids in variant_hits.items():
+            if len(pids) == 1:
+                return list(pids)[0]
+
+        try:
+            enabled = (os.getenv("BOTLIVE_PRODUCT_FUZZY_MATCH", "true") or "").strip().lower() in {"1", "true", "yes", "y", "on"}
+        except Exception:
+            enabled = True
+
+        if (not enabled) or (rf_process is None) or (rf_fuzz is None):
+            return ""
+
+        try:
+            thr_raw = os.getenv("BOTLIVE_PRODUCT_FUZZY_THRESHOLD", "80")
+            threshold = int(str(thr_raw or "80").strip() or "80")
+        except Exception:
+            threshold = 80
+
+        try:
+            delta_raw = os.getenv("BOTLIVE_PRODUCT_FUZZY_DELTA", "4")
+            min_delta = int(str(delta_raw or "4").strip() or "4")
+        except Exception:
+            min_delta = 4
+
+        stop = {
+            "je",
+            "j",
+            "veux",
+            "voudrais",
+            "svp",
+            "stp",
+            "de",
+            "des",
+            "du",
+            "la",
+            "le",
+            "les",
+            "un",
+            "une",
+            "a",
+            "au",
+            "pour",
+            "avec",
+            "et",
+            "sur",
+            "en",
+            "c",
+            "ce",
+            "ces",
+            "sa",
+            "son",
+            "ma",
+            "mon",
+            "mes",
+            "ta",
+            "ton",
+            "tes",
+            "vos",
+            "votre",
+            "suis",
+            "est",
+            "bonjour",
+            "bonsoir",
+            "salut",
+        }
+
+        tokens = [t for t in msg.split() if len(t) >= 3 and t not in stop]
+        if not tokens:
+            return ""
+
+        keyword_to_pids: Dict[str, set] = {}
+        for pid, info in products_by_id.items():
+            pname = self._norm_text_match(str(info.get("product_name") or ""))
+            if pname:
+                keyword_to_pids.setdefault(pname, set()).add(str(pid))
+                for w in pname.split():
+                    if len(w) >= 3:
+                        keyword_to_pids.setdefault(w, set()).add(str(pid))
+            for v in (info.get("variants") or []):
+                vn = self._norm_text_match(v)
+                if vn:
+                    keyword_to_pids.setdefault(vn, set()).add(str(pid))
+                    for w in vn.split():
+                        if len(w) >= 3:
+                            keyword_to_pids.setdefault(w, set()).add(str(pid))
+
+        choices = list(keyword_to_pids.keys())
+        if not choices:
+            return ""
+
+        pid_scores: Dict[str, int] = {}
+        for tok in tokens[:12]:
+            best = rf_process.extractOne(tok, choices, scorer=rf_fuzz.WRatio)
+            if not best:
+                continue
+            kw, score, _ = best
+            try:
+                score_i = int(score)
+            except Exception:
+                score_i = 0
+            if score_i < threshold:
+                continue
+            pids = keyword_to_pids.get(str(kw) or "") or set()
+            if len(pids) != 1:
+                continue
+            pid = list(pids)[0]
+            prev = pid_scores.get(pid, 0)
+            if score_i > prev:
+                pid_scores[pid] = score_i
+
+        if not pid_scores:
+            return ""
+
+        ranked = sorted(pid_scores.items(), key=lambda kv: kv[1], reverse=True)
+        best_pid, best_score = ranked[0]
+        second = ranked[1][1] if len(ranked) > 1 else 0
+        if best_score >= threshold and (best_score - second) >= min_delta:
+            return str(best_pid)
+
+        return ""
+
+    def _extract_product_id_from_text(self, text: str, products_by_id: Dict[str, Dict[str, Any]]) -> str:
+        raw = str(text or "")
+        if not raw.strip() or not isinstance(products_by_id, dict) or not products_by_id:
+            return ""
+
+        m = regex.search(r"<detected_product>\s*(prod_[0-9a-f]{8})\s*</detected_product>", raw, flags=regex.IGNORECASE)
+        if m:
+            pid = str(m.group(1) or "").lower().strip()
+            if pid in products_by_id:
+                return pid
+
+        m = regex.search(r"\"product_id\"\s*:\s*\"(prod_[0-9a-f]{8})\"", raw, flags=regex.IGNORECASE)
+        if m:
+            pid = str(m.group(1) or "").lower().strip()
+            if pid in products_by_id:
+                return pid
+
+        m = regex.search(r"\bprod_[0-9a-f]{8}\b", raw, flags=regex.IGNORECASE)
+        if m:
+            pid = m.group(0).lower()
+            if pid in products_by_id:
+                return pid
+        raw_norm = self._norm_text_match(raw)
+        for pid, info in products_by_id.items():
+            pname = self._norm_text_match(str(info.get("product_name") or ""))
+            if pname and pname in raw_norm:
+                return str(pid)
+        return ""
+
+    def _build_full_catalogue_block(self, mono_catalog_v2: Dict[str, Any]) -> str:
+        if not isinstance(mono_catalog_v2, dict):
+            return ""
+        pname = str(mono_catalog_v2.get("product_name") or mono_catalog_v2.get("name") or "").strip()
+        vtree = mono_catalog_v2.get("v")
+        if not isinstance(vtree, dict) or not vtree:
+            return f"# {pname}" if pname else ""
+        lines = []
+        if pname:
+            lines.append(f"# {pname}")
+        for vk in sorted([str(k).strip() for k in vtree.keys() if str(k).strip()], key=lambda x: x.lower()):
+            vnode = vtree.get(vk)
+            if not isinstance(vnode, dict):
+                continue
+            lines.append("")
+            lines.append(f"## {vk}")
+
+            specs = []
+            s_map = vnode.get("s")
+            if isinstance(s_map, dict) and s_map:
+                specs = [str(k).strip() for k in s_map.keys() if str(k).strip()]
+                specs = sorted(set(specs), key=lambda x: x.lower())
+            if specs:
+                lines.append("Specs: " + ", ".join(specs))
+
+            units_set = set()
+            u_map = vnode.get("u") if isinstance(vnode.get("u"), dict) else None
+            if isinstance(u_map, dict) and u_map:
+                for uk in u_map.keys():
+                    if str(uk).strip():
+                        units_set.add(str(uk).strip())
+            if isinstance(s_map, dict) and s_map:
+                for sub in s_map.values():
+                    if not isinstance(sub, dict):
+                        continue
+                    uu = sub.get("u")
+                    if not isinstance(uu, dict):
+                        continue
+                    for uk in uu.keys():
+                        if str(uk).strip():
+                            units_set.add(str(uk).strip())
+            if units_set:
+                units_sorted = sorted(units_set, key=lambda x: x.lower())
+                lines.append("Units: " + ", ".join(units_sorted))
+
+            has_specs = isinstance(vnode.get("s"), dict) and bool(vnode.get("s"))
+            lines.append("Pricing: VARIABLE" if has_specs else "Pricing: FIXE")
+
+        return "\n".join([ln for ln in lines if ln is not None]).strip()
 
     def _build_canonical_verdict(self, context: Dict[str, Any]) -> Dict[str, Any]:
         try:
@@ -1498,6 +1903,7 @@ class BotliveRAGHybrid:
                 from core.botlive_intent_router import route_botlive_intent
                 from core.jessica_prompt_segmenter import build_jessica_prompt_segment
                 from core.hyde_secour_x import run_hyde_secour_x
+                from core.company_catalog_v2_loader import get_company_catalog_v2_container
 
                 # 1) Template brut Supabase pour Jessica (sans formatage global)
                 # llm_choice="groq-70b" → lit prompt_botlive_groq_70b dans company_rag_configs
@@ -2101,14 +2507,56 @@ class BotliveRAGHybrid:
                                     prompt_used_key = "JESSICA_PROMPT_UNKNOWN"
                             except Exception:
                                 pass
+
                     except Exception as hyde_e:
                         logger.error(
                             " [HYDE_X] Erreur exe9cution HYDE SECOUR X: %s",
                             hyde_e,
                         )
 
-                # Prompt final venant du segment Jessica
-                prompt = segment.get("prompt", "")
+                prompt = segment.get('prompt', '')
+                prompt_base = prompt
+
+                try:
+                    company_container = get_company_catalog_v2_container(active_company_id)
+                except Exception:
+                    company_container = None
+
+                if isinstance(company_container, dict):
+                    try:
+                        product_index_block, products_by_id = self._build_light_product_index(company_container)
+                    except Exception:
+                        product_index_block, products_by_id = "", {}
+
+                if products_by_id:
+                    try:
+                        selected_product_id = self._pick_product_id_strict(message or "", products_by_id)
+                    except Exception:
+                        selected_product_id = ""
+
+                if selected_product_id and selected_product_id in products_by_id:
+                    try:
+                        selected_mono_catalog = products_by_id[selected_product_id].get("catalog_v2")
+                    except Exception:
+                        selected_mono_catalog = None
+
+                if product_index_block:
+                    try:
+                        hide_pid = selected_product_id if selected_product_id else ""
+                        if hide_pid:
+                            product_index_block2, _ = self._build_light_product_index(company_container, hide_variants_for_product_id=hide_pid)  # type: ignore[arg-type]
+                            if product_index_block2:
+                                product_index_block = product_index_block2
+                    except Exception:
+                        pass
+                    prompt = self._inject_product_index(prompt, product_index_block)
+
+                if selected_mono_catalog is not None:
+                    try:
+                        full_block = self._build_full_catalogue_block(selected_mono_catalog)
+                        prompt = self._inject_catalogue_markers(prompt, full_block)
+                    except Exception:
+                        pass
 
                 if not prompt or len(prompt) < 100:
                     raise ValueError(
@@ -2321,6 +2769,76 @@ class BotliveRAGHybrid:
                 extracted_response = "Désolé, je n'ai pas pu traiter votre message. Pouvez-vous réessayer s'il vous plaît ?"
 
             final_response = extracted_response
+
+            did_second_pass = False
+            try:
+                if (not selected_product_id) and (not did_second_pass) and thinking and products_by_id and isinstance(company_container, dict):
+                    inferred_pid = self._extract_product_id_from_text(thinking, products_by_id)
+                    if inferred_pid and inferred_pid in products_by_id:
+                        inferred_cat = products_by_id[inferred_pid].get("catalog_v2")
+                        if isinstance(inferred_cat, dict):
+                            try:
+                                idx2, _ = self._build_light_product_index(company_container, hide_variants_for_product_id=inferred_pid)
+                            except Exception:
+                                idx2 = ""
+                            try:
+                                prompt2 = prompt_base
+                            except Exception:
+                                prompt2 = prompt
+                            if idx2:
+                                prompt2 = self._inject_product_index(prompt2, idx2)
+                            full_block2 = self._build_full_catalogue_block(inferred_cat)
+                            prompt2 = self._inject_catalogue_markers(prompt2, full_block2)
+
+                            step_retry2 = datetime.now()
+                            if llm_choice == "openrouter":
+                                response_data2 = await self._call_openrouter(
+                                    prompt2,
+                                    user_id,
+                                    model_name=None,
+                                    segment_letter=prompt_segment_letter,
+                                )
+                            else:
+                                response_data2 = await self._call_groq(prompt2, user_id)
+                            timings["llm_call_pass2"] = (datetime.now() - step_retry2).total_seconds()
+
+                            raw_response2 = response_data2.get('response', '')
+                            thinking2 = response_data2.get('thinking', '')
+
+                            meta_match2 = None
+                            if raw_response2 and "<meta>" in raw_response2.lower():
+                                meta_match2 = regex.search(r'<meta>(.*?)</meta>', raw_response2, regex.DOTALL | regex.IGNORECASE)
+                            if not meta_match2 and raw_response2 and "<thinking>" in raw_response2.lower():
+                                meta_match2 = regex.search(r'<thinking>(.*?)(</thinking>|$)', raw_response2, regex.DOTALL | regex.IGNORECASE)
+                            if meta_match2:
+                                thinking2 = meta_match2.group(1).strip()
+
+                            response_match2 = None
+                            if raw_response2 and "<response>" in raw_response2.lower():
+                                response_match2 = regex.search(r'<response>(.*?)(</response>|$)', raw_response2, regex.DOTALL | regex.IGNORECASE)
+                            extracted_response2 = None
+                            if response_match2:
+                                extracted_response2 = response_match2.group(1).strip()
+                            if not extracted_response2 and raw_response2 and "</thinking>" in raw_response2.lower():
+                                after_thinking2 = regex.search(r'</thinking>(.*)$', raw_response2, regex.DOTALL | regex.IGNORECASE)
+                                if after_thinking2:
+                                    extracted_response2 = (after_thinking2.group(1) or "").strip()
+                            if not extracted_response2:
+                                cleaned2 = raw_response2 or ""
+                                cleaned2 = regex.sub(r'<meta>.*?</meta>', '', cleaned2, flags=regex.DOTALL | regex.IGNORECASE)
+                                cleaned2 = regex.sub(r'<thinking>.*?</thinking>', '', cleaned2, flags=regex.DOTALL | regex.IGNORECASE)
+                                cleaned2 = regex.sub(r'<thinking>.*$', '', cleaned2, flags=regex.DOTALL | regex.IGNORECASE)
+                                cleaned2 = regex.sub(r'</?response>', '', cleaned2, flags=regex.IGNORECASE)
+                                cleaned2 = cleaned2.strip()
+                                extracted_response2 = cleaned2
+
+                            if extracted_response2:
+                                final_response = extracted_response2
+                                thinking = thinking2
+                                response_data = response_data2
+                                did_second_pass = True
+            except Exception:
+                did_second_pass = did_second_pass
 
             try:
                 if BOTLIVE_COOPERATIVE_HUMAN_MODE:
