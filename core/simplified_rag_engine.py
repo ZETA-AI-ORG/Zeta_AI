@@ -211,6 +211,7 @@ class SimplifiedRAGEngine:
                     detected_name = ""
 
                     if isinstance(container, dict) and isinstance(container.get("products"), list):
+                        candidates = []
                         for p in (container.get("products") or []):
                             if not isinstance(p, dict):
                                 continue
@@ -218,10 +219,58 @@ class SimplifiedRAGEngine:
                             if not pname:
                                 continue
                             pn_norm = _norm_name_for_id(pname)
+                            if pn_norm:
+                                candidates.append((pname, pn_norm))
+
+                        # Strategy A: strict substring (keeps old behavior)
+                        for pname, pn_norm in candidates:
                             if pn_norm and pn_norm in msg_norm:
                                 detected_name = pname
                                 detected_pid = _product_id_hash(pname)
                                 break
+
+                        # Strategy B: token match with uniqueness (handles queries like "je veux des couches")
+                        if not detected_pid and msg_norm:
+                            msg_pad = f" {msg_norm} "
+                            stop_tokens = {
+                                "avec",
+                                "sans",
+                                "pour",
+                                "pack",
+                                "lot",
+                                "paquet",
+                                "carton",
+                                "colis",
+                                "bebe",
+                                "bb",
+                            }
+
+                            matched_products = []  # list of (pname, pn_norm, matched_tokens)
+                            token_to_products = {}
+                            for pname, pn_norm in candidates:
+                                toks = [t for t in pn_norm.split() if len(t) >= 4 and t not in stop_tokens]
+                                hits = [t for t in toks if f" {t} " in msg_pad]
+                                if hits:
+                                    matched_products.append((pname, pn_norm, hits))
+                                    for t in hits:
+                                        token_to_products.setdefault(t, set()).add(pname)
+
+                            # If exactly one product matches any significant token => pick it.
+                            if len(matched_products) == 1:
+                                detected_name = matched_products[0][0]
+                                detected_pid = _product_id_hash(detected_name)
+                            else:
+                                # If a token uniquely identifies a single product => pick it.
+                                uniq_tokens = []
+                                for t, pset in (token_to_products or {}).items():
+                                    if isinstance(pset, set) and len(pset) == 1:
+                                        uniq_tokens.append(t)
+                                # Prefer longer tokens for specificity.
+                                uniq_tokens = sorted(set(uniq_tokens), key=lambda x: (-len(x), x))
+                                if uniq_tokens:
+                                    only_name = list(token_to_products[uniq_tokens[0]])[0]
+                                    detected_name = str(only_name)
+                                    detected_pid = _product_id_hash(detected_name)
                     elif isinstance(container, dict):
                         pname = str(container.get("product_name") or container.get("name") or "").strip()
                         pn_norm = _norm_name_for_id(pname)
@@ -3294,7 +3343,23 @@ class SimplifiedRAGEngine:
                 pass
             
             # 7. Récupérer état checklist
+            # IMPORTANT: la checklist doit refléter l'état persistant (OrderStateTracker)
+            # après parsing du <thinking>, sinon next_step reste bloqué à MISSING.
             checklist = self.prompt_system.get_checklist_state(user_id, company_id)
+            try:
+                st_post = order_tracker.get_state(user_id)
+                checklist.model = bool(str(getattr(st_post, "produit", "") or "").strip())
+                checklist.details = bool(str(getattr(st_post, "produit_details", "") or "").strip())
+                checklist.quantity = bool(str(getattr(st_post, "quantite", "") or "").strip())
+                checklist.zone = bool(str(getattr(st_post, "zone", "") or "").strip())
+                checklist.telephone = bool(str(getattr(st_post, "numero", "") or "").strip())
+                try:
+                    paiement_post = str(getattr(st_post, "paiement", "") or "").strip().lower()
+                    checklist.payment = bool(paiement_post.startswith("validé_") or paiement_post.startswith("valide_"))
+                except Exception:
+                    checklist.payment = False
+            except Exception:
+                pass
             
             # 8. Calcul temps traitement
             processing_time = (time.time() - start_time) * 1000
