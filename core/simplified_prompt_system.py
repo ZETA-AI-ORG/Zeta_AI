@@ -634,7 +634,8 @@ Fais confiance à ton jugement. Tu es Jessica, pas un robot."""
     def _inject_between_catalogue_markers(prompt: str, content: str) -> str:
         """Inject content only inside [CATALOGUE_START]...[CATALOGUE_END] markers.
 
-        If markers are missing, returns prompt unchanged.
+        If markers are missing (common with older Supabase prompts), we append a
+        marker section at the end so runtime injection always works.
         """
         try:
             import re
@@ -647,13 +648,17 @@ Fais confiance à ton jugement. Tu es Jessica, pas un robot."""
 
             pat = r"\[CATALOGUE_START\](.*?)\[CATALOGUE_END\]"
             matches = list(re.finditer(pat, base, flags=re.IGNORECASE | re.DOTALL))
+            c = str(content or "").strip()
+            replacement = start_marker + "\n" + c + "\n" + end_marker if c else (start_marker + "\n\n" + end_marker)
+
             if not matches:
-                return base
+                # Fallback: create a catalogue section if prompt doesn't have markers.
+                # This prevents silent "empty injection" when Supabase prompt is outdated.
+                glue = "\n\n" if base.endswith("\n") else "\n\n"
+                return (base.rstrip() + glue + replacement).strip() + "\n"
 
             # Replace the last occurrence to keep deterministic behavior.
             m = matches[-1]
-            c = str(content or "").strip()
-            replacement = start_marker + "\n" + c + "\n" + end_marker if c else (start_marker + "\n\n" + end_marker)
             out = base[: m.start()] + replacement + base[m.end() :]
             return str(out)
         except Exception:
@@ -1048,6 +1053,13 @@ Fais confiance à ton jugement. Tu es Jessica, pas un robot."""
         except Exception:
             active_product_id = ""
 
+        # Human-readable product label (optional) persisted by simplified_rag_engine.
+        # Useful when active_product_id is a stable prod_xxxx which may not match the catalog's product_name.
+        try:
+            active_product_label = str(order_tracker.get_custom_meta(user_id, "active_product_label", default="") or "").strip()
+        except Exception:
+            active_product_label = ""
+
         # Valeurs réelles déjà collectées (source: OrderStateTracker)
         st = None
         try:
@@ -1401,6 +1413,12 @@ Fais confiance à ton jugement. Tu es Jessica, pas un robot."""
         # Inject product-specific context ONLY inside CATALOGUE_START/END at runtime.
         try:
             pc_block = self._build_product_context_block(catalog_v2, active_product_id) if active_product_id else ""
+
+            # Fallback: if stable prod_xxxx doesn't map cleanly to catalog_v2 product_name,
+            # retry with the human label (ex: "Couches bebe (0-25kg)") to select the right product.
+            if (not str(pc_block or "").strip()) and active_product_label:
+                pc_block = self._build_product_context_block(catalog_v2, active_product_label)
+
             static_prompt = self._inject_between_catalogue_markers(static_prompt, pc_block)
         except Exception:
             pass
