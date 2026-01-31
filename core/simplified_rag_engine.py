@@ -1275,6 +1275,8 @@ class SimplifiedRAGEngine:
                             k_low = str(k or "").lower()
                             if p_low and (p_low in k_low or k_low in p_low):
                                 return str(k)
+                        if len(keys) == 1:
+                            return str(keys[0])
                         return None
 
                     def _extract_t_number(specs_raw: str) -> Optional[int]:
@@ -1345,6 +1347,37 @@ class SimplifiedRAGEngine:
                                 pid = str(it.get("product_id") or "").strip()
                                 if pid:
                                     selected_catalog = get_company_product_catalog_v2(company_id, pid)
+                                    if not isinstance(selected_catalog, dict):
+                                        try:
+                                            if re.fullmatch(r"prod_[0-9a-f]{8}", pid, flags=re.IGNORECASE):
+                                                import hashlib as _hashlib
+                                                import unicodedata as _ud
+
+                                                def _norm_name_for_id(name: str) -> str:
+                                                    t = str(name or "").strip().lower()
+                                                    t = _ud.normalize("NFKD", t)
+                                                    t = "".join([c for c in t if not _ud.combining(c)])
+                                                    t = re.sub(r"[^a-z0-9\s-]+", " ", t)
+                                                    t = t.replace("-", " ")
+                                                    t = re.sub(r"\s+", " ", t).strip()
+                                                    return t
+
+                                                def _pid_hash(name: str) -> str:
+                                                    base = _norm_name_for_id(name)
+                                                    if not base:
+                                                        return ""
+                                                    h = _hashlib.sha1(base.encode("utf-8", errors="replace")).hexdigest()
+                                                    return f"prod_{h[:8]}"
+
+                                                for p in (plist or []):
+                                                    if not isinstance(p, dict):
+                                                        continue
+                                                    pname = str(p.get("product_name") or (p.get("catalog_v2") or {}).get("product_name") or "").strip()
+                                                    if pname and _pid_hash(pname).lower() == pid.lower() and isinstance(p.get("catalog_v2"), dict):
+                                                        selected_catalog = p.get("catalog_v2")
+                                                        break
+                                        except Exception:
+                                            pass
                                 else:
                                     # Only allow missing product_id if there is exactly one product.
                                     only_one = [p for p in plist if isinstance(p, dict) and isinstance(p.get("catalog_v2"), dict)]
@@ -1373,7 +1406,11 @@ class SimplifiedRAGEngine:
                             return False
 
                         product_raw = str(it.get("product") or "").strip()
+                        if not product_raw:
+                            product_raw = str(it.get("product_id") or "").strip()
                         specs_raw = str(it.get("specs") or "").strip()
+                        if not specs_raw:
+                            specs_raw = str(it.get("spec") or "").strip()
                         unit = str(it.get("unit") or "").strip()
                         qty = it.get("qty")
                         conf = it.get("confidence")
@@ -2769,6 +2806,8 @@ class SimplifiedRAGEngine:
                             kl = str(k).strip().lower()
                             if p and (p in kl or kl in p):
                                 return str(k)
+                        if len(keys) == 1:
+                            return str(keys[0])
                         return ""
 
                     def _extract_t_number(specs_raw: str) -> Optional[int]:
@@ -2830,7 +2869,11 @@ class SimplifiedRAGEngine:
                             out["invalid"].append({"item": it, "reason": "not_dict"})
                             continue
                         product_raw = str(it.get("product") or "").strip()
+                        if not product_raw:
+                            product_raw = str(it.get("product_id") or "").strip()
                         specs_raw = str(it.get("specs") or "").strip()
+                        if not specs_raw:
+                            specs_raw = str(it.get("spec") or "").strip()
                         unit = str(it.get("unit") or "").strip()
                         confidence = it.get("confidence")
                         qty = it.get("qty")
@@ -2842,6 +2885,37 @@ class SimplifiedRAGEngine:
                                 pid = str(it.get("product_id") or "").strip()
                                 if pid:
                                     selected_catalog = get_company_product_catalog_v2(company_id, pid)
+                                    if not isinstance(selected_catalog, dict):
+                                        try:
+                                            if re.fullmatch(r"prod_[0-9a-f]{8}", pid, flags=re.IGNORECASE):
+                                                import hashlib as _hashlib
+                                                import unicodedata as _ud
+
+                                                def _norm_name_for_id(name: str) -> str:
+                                                    t = str(name or "").strip().lower()
+                                                    t = _ud.normalize("NFKD", t)
+                                                    t = "".join([c for c in t if not _ud.combining(c)])
+                                                    t = re.sub(r"[^a-z0-9\s-]+", " ", t)
+                                                    t = t.replace("-", " ")
+                                                    t = re.sub(r"\s+", " ", t).strip()
+                                                    return t
+
+                                                def _pid_hash(name: str) -> str:
+                                                    base = _norm_name_for_id(name)
+                                                    if not base:
+                                                        return ""
+                                                    h = _hashlib.sha1(base.encode("utf-8", errors="replace")).hexdigest()
+                                                    return f"prod_{h[:8]}"
+
+                                                for p in (plist or []):
+                                                    if not isinstance(p, dict):
+                                                        continue
+                                                    pname = str(p.get("product_name") or (p.get("catalog_v2") or {}).get("product_name") or "").strip()
+                                                    if pname and _pid_hash(pname).lower() == pid.lower() and isinstance(p.get("catalog_v2"), dict):
+                                                        selected_catalog = p.get("catalog_v2")
+                                                        break
+                                        except Exception:
+                                            pass
                                 else:
                                     only_one = [p for p in plist if isinstance(p, dict) and isinstance(p.get("catalog_v2"), dict)]
                                     if len(only_one) == 1:

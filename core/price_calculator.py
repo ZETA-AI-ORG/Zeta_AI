@@ -264,13 +264,19 @@ class UniversalPriceCalculator:
             for raw in (items or []):
                 if not isinstance(raw, dict):
                     continue
+                pid_raw = str(raw.get("product_id") or "").strip()
                 p_raw = str(raw.get("product") or "").strip()
+                if (not p_raw) and pid_raw:
+                    p_raw = pid_raw
+
                 specs_raw = str(raw.get("specs") or "").strip()
+                if not specs_raw:
+                    specs_raw = str(raw.get("spec") or "").strip()
                 unit_raw = str(raw.get("unit") or "").strip()
                 qty = _get_int_or_none(raw.get("qty"))
                 if not p_raw or not unit_raw or not isinstance(qty, int) or qty <= 0:
                     continue
-                raw_normalized.append({"product": p_raw, "specs": specs_raw, "unit": unit_raw, "qty": qty})
+                raw_normalized.append({"product_id": pid_raw, "product": p_raw, "specs": specs_raw, "unit": unit_raw, "qty": qty})
 
             def _calc_from_catalog_v2_container(catalog_container: Dict[str, Any]) -> Optional[str]:
                 try:
@@ -288,7 +294,45 @@ class UniversalPriceCalculator:
                         try:
                             pid = str(it.get("product_id") or "").strip()
                             if pid and company_id and str(company_id).strip():
-                                return get_company_product_catalog_v2(str(company_id).strip(), pid)
+                                selected = get_company_product_catalog_v2(str(company_id).strip(), pid)
+                                if isinstance(selected, dict):
+                                    return selected
+
+                                # Fallback: pid can be prod_<sha1:8> (stable hash of product_name).
+                                # If so, select by hashing product_name in the container.
+                                try:
+                                    if isinstance(plist, list) and re.fullmatch(r"prod_[0-9a-f]{8}", pid, flags=re.IGNORECASE):
+                                        import hashlib as _hashlib
+
+                                        def _norm_name_for_id(name: str) -> str:
+                                            try:
+                                                import unicodedata as _ud
+
+                                                t = str(name or "").strip().lower()
+                                                t = _ud.normalize("NFKD", t)
+                                                t = "".join([c for c in t if not _ud.combining(c)])
+                                            except Exception:
+                                                t = str(name or "").strip().lower()
+                                            t = re.sub(r"[^a-z0-9\s-]+", " ", t)
+                                            t = t.replace("-", " ")
+                                            t = re.sub(r"\s+", " ", t).strip()
+                                            return t
+
+                                        def _product_id_hash(name: str) -> str:
+                                            base = _norm_name_for_id(name)
+                                            if not base:
+                                                return ""
+                                            h = _hashlib.sha1(base.encode("utf-8", errors="replace")).hexdigest()
+                                            return f"prod_{h[:8]}"
+
+                                        for p in plist:
+                                            if not isinstance(p, dict):
+                                                continue
+                                            pname = str(p.get("product_name") or (p.get("catalog_v2") or {}).get("product_name") or "").strip()
+                                            if pname and _product_id_hash(pname).lower() == pid.lower() and isinstance(p.get("catalog_v2"), dict):
+                                                return p.get("catalog_v2")
+                                except Exception:
+                                    pass
                             return mono_fallback if isinstance(mono_fallback, dict) else (container if isinstance(container, dict) else None)
                         except Exception:
                             return mono_fallback if isinstance(mono_fallback, dict) else None
@@ -323,6 +367,9 @@ class UniversalPriceCalculator:
                             k_low = str(k or "").lower()
                             if p_low and (p_low in k_low or k_low in p_low):
                                 return str(k)
+
+                        if len(keys) == 1:
+                            return str(keys[0])
                         return None
 
                     def _find_subvariant_key(node_s: Dict[str, Any], specs_raw: str) -> Optional[str]:
