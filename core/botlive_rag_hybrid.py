@@ -2534,6 +2534,18 @@ class BotliveRAGHybrid:
                     except Exception:
                         selected_product_id = ""
 
+                if selected_product_id:
+                    try:
+                        if isinstance(context, dict):
+                            context["selected_product_id"] = str(selected_product_id)
+                            context["detected_product_id"] = str(selected_product_id)
+                    except Exception:
+                        pass
+                    try:
+                        logger.info("🎯 [PRODUCT_MATCH] stage=pre_llm detected_product_id=%s", str(selected_product_id))
+                    except Exception:
+                        pass
+
                 if selected_product_id and selected_product_id in products_by_id:
                     try:
                         selected_mono_catalog = products_by_id[selected_product_id].get("catalog_v2")
@@ -2602,6 +2614,23 @@ class BotliveRAGHybrid:
             logger.info(f"{MAGENTA}{BOLD}[BOTLIVE_PROMPT] LLM={llm_choice.upper()} len={len(safe_prompt)} chars (~{len(safe_prompt)//4} tokens){RESET}")
             if first_line:
                 logger.info(f"{MAGENTA}[BOTLIVE_PROMPT_FIRST_LINE] {first_line[:200]}{RESET}")
+
+            try:
+                log_full_prompt = (os.getenv("BOTLIVE_LOG_FULL_PROMPT", "false") or "").strip().lower() in {
+                    "1",
+                    "true",
+                    "yes",
+                    "y",
+                    "on",
+                }
+            except Exception:
+                log_full_prompt = False
+
+            if log_full_prompt and safe_prompt:
+                try:
+                    logger.info(f"{MAGENTA}[BOTLIVE_PROMPT_FULL_START]{RESET}\n{safe_prompt}\n{MAGENTA}[BOTLIVE_PROMPT_FULL_END]{RESET}")
+                except Exception:
+                    pass
             
             # ═══ ÉTAPE 3: APPEL LLM ═══
             step_start = datetime.now()

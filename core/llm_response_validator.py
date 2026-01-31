@@ -452,6 +452,29 @@ def build_system_state_check(context: Dict[str, Any]) -> str:
         verdict_global = ctx.get("verdict_global") if isinstance(ctx, dict) else None
         verdict_global = verdict_global if isinstance(verdict_global, dict) else {}
 
+        def _has_detected_product() -> bool:
+            try:
+                for key in [
+                    "detected_product_id",
+                    "selected_product_id",
+                    "product_id",
+                ]:
+                    v = ctx.get(key)
+                    if v and str(v).strip():
+                        return True
+                for key in [
+                    "detected_product_id",
+                    "selected_product_id",
+                    "product_id",
+                    "detected_product",
+                ]:
+                    v = verdict_global.get(key)
+                    if v and str(v).strip():
+                        return True
+            except Exception:
+                return False
+            return False
+
         def _sym(status: str) -> str:
             s = str(status or "").upper().strip()
             if s == "VALIDATED":
@@ -483,7 +506,7 @@ def build_system_state_check(context: Dict[str, Any]) -> str:
 
         next_step = str(verdict_global.get("next_action") or ctx.get("next_step") or "").strip()
         if not next_step:
-            next_step = "COLLECT_PHOTO"
+            next_step = "COLLECT_SPECS" if _has_detected_product() else "COLLECT_PHOTO"
 
         system_state = (
             "CHECKLIST_SYSTEM_STATE\n"
@@ -504,6 +527,29 @@ def extract_system_state_dict(context: Dict[str, Any]) -> Dict[str, str]:
         ctx = context if isinstance(context, dict) else {}
         verdict_global = ctx.get("verdict_global") if isinstance(ctx, dict) else None
         verdict_global = verdict_global if isinstance(verdict_global, dict) else {}
+
+        def _has_detected_product() -> bool:
+            try:
+                for key in [
+                    "detected_product_id",
+                    "selected_product_id",
+                    "product_id",
+                ]:
+                    v = ctx.get(key)
+                    if v and str(v).strip():
+                        return True
+                for key in [
+                    "detected_product_id",
+                    "selected_product_id",
+                    "product_id",
+                    "detected_product",
+                ]:
+                    v = verdict_global.get(key)
+                    if v and str(v).strip():
+                        return True
+            except Exception:
+                return False
+            return False
 
         def _sym(status: str) -> str:
             s = str(status or "").upper().strip()
@@ -531,7 +577,7 @@ def extract_system_state_dict(context: Dict[str, Any]) -> Dict[str, str]:
 
         next_step = str(verdict_global.get("next_action") or ctx.get("next_step") or "").strip()
         if not next_step:
-            next_step = "COLLECT_PHOTO"
+            next_step = "COLLECT_SPECS" if _has_detected_product() else "COLLECT_PHOTO"
 
         return {
             "photo_status": _sym((photo.get("status") if isinstance(photo, dict) else "")),
@@ -625,6 +671,32 @@ class ChecklistLLMResponseValidator:
         if not response:
             return response
 
+        def _has_detected_product_ctx() -> bool:
+            try:
+                ctx = context if isinstance(context, dict) else {}
+                verdict_global = ctx.get("verdict_global") if isinstance(ctx, dict) else None
+                verdict_global = verdict_global if isinstance(verdict_global, dict) else {}
+                for key in [
+                    "detected_product_id",
+                    "selected_product_id",
+                    "product_id",
+                ]:
+                    v = ctx.get(key)
+                    if v and str(v).strip():
+                        return True
+                for key in [
+                    "detected_product_id",
+                    "selected_product_id",
+                    "product_id",
+                    "detected_product",
+                ]:
+                    v = verdict_global.get(key)
+                    if v and str(v).strip():
+                        return True
+            except Exception:
+                return False
+            return False
+
         resp_lc = response.lower()
         state = system_state if isinstance(system_state, dict) else {}
 
@@ -638,6 +710,13 @@ class ChecklistLLMResponseValidator:
 
         next_step = str(state.get("next_step") or "")
         if next_step == "COLLECT_PHOTO":
+            if _has_detected_product_ctx():
+                try:
+                    if isinstance(context, dict):
+                        context["checklist_rewrite_reason"] = "photo_ignored_product_detected"
+                except Exception:
+                    pass
+                return response
             if any(
                 kw in resp_lc
                 for kw in [
@@ -663,6 +742,13 @@ class ChecklistLLMResponseValidator:
                 return self.FALLBACK_MESSAGES["photo"]
 
         if next_step == "COLLECT_ZONE" and str(state.get("photo_status")) != "✅":
+            if _has_detected_product_ctx():
+                try:
+                    if isinstance(context, dict):
+                        context["checklist_rewrite_reason"] = "incoherence_collect_zone_photo_ignored_product_detected"
+                except Exception:
+                    pass
+                return response
             logger.warning("🚨 [CHECKLIST_VALIDATION] Incoherence: NEXT=COLLECT_ZONE but PHOTO!=✅")
             try:
                 if isinstance(context, dict):
@@ -681,6 +767,13 @@ class ChecklistLLMResponseValidator:
             return self.FALLBACK_MESSAGES["zone"]
 
         if next_step == "COLLECT_SPECS" and str(state.get("photo_status")) != "✅":
+            if _has_detected_product_ctx():
+                try:
+                    if isinstance(context, dict):
+                        context["checklist_rewrite_reason"] = "incoherence_collect_specs_photo_ignored_product_detected"
+                except Exception:
+                    pass
+                return response
             logger.warning("🚨 [CHECKLIST_VALIDATION] Incoherence: NEXT=COLLECT_SPECS but PHOTO!=✅")
             try:
                 if isinstance(context, dict):
