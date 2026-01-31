@@ -145,12 +145,97 @@ class SimplifiedRAGEngine:
             except Exception as _turn_e:
                 print(f"⚠️ [ORDER_STATE] bump_turn_error: {type(_turn_e).__name__}: {_turn_e}")
 
+            def _norm_name_for_id(name: str) -> str:
+                try:
+                    import unicodedata as _ud
+
+                    t = str(name or "").strip().lower()
+                    t = _ud.normalize("NFKD", t)
+                    t = "".join([c for c in t if not _ud.combining(c)])
+                except Exception:
+                    t = str(name or "").strip().lower()
+                t = re.sub(r"[^a-z0-9\s-]+", " ", t)
+                t = t.replace("-", " ")
+                t = re.sub(r"\s+", " ", t).strip()
+                return t
+
+            def _product_id_hash(name: str) -> str:
+                base = _norm_name_for_id(name)
+                if not base:
+                    return ""
+                try:
+                    import hashlib as _hashlib
+
+                    h = _hashlib.sha1(base.encode("utf-8", errors="replace")).hexdigest()
+                    return f"prod_{h[:8]}"
+                except Exception:
+                    return ""
+
+            def _map_product_name_to_pid(company_id_val: str, cand: str) -> str:
+                cname = _norm_name_for_id(cand)
+                if not cname:
+                    return ""
+                try:
+                    container = get_company_catalog_v2(company_id_val)
+                except Exception:
+                    container = None
+
+                if isinstance(container, dict) and isinstance(container.get("products"), list):
+                    for p in (container.get("products") or []):
+                        if not isinstance(p, dict):
+                            continue
+                        pname = str(p.get("product_name") or (p.get("catalog_v2") or {}).get("product_name") or "").strip()
+                        if pname and _norm_name_for_id(pname) == cname:
+                            return _product_id_hash(pname)
+
+                if isinstance(container, dict):
+                    pname = str(container.get("product_name") or container.get("name") or "").strip()
+                    if pname and _norm_name_for_id(pname) == cname:
+                        return _product_id_hash(pname)
+
+                return ""
+
             prev_product_before_llm = ""
             try:
                 st_prev = order_tracker.get_state(user_id)
                 prev_product_before_llm = str(getattr(st_prev, "produit", "") or "").strip()
             except Exception:
                 prev_product_before_llm = ""
+
+            # Pre-LLM: si on détecte clairement un produit depuis le catalogue local, on pré-remplit l'état.
+            try:
+                if not prev_product_before_llm:
+                    container = get_company_catalog_v2(company_id)
+                    msg_norm = _norm_name_for_id(query)
+                    detected_pid = ""
+                    detected_name = ""
+
+                    if isinstance(container, dict) and isinstance(container.get("products"), list):
+                        for p in (container.get("products") or []):
+                            if not isinstance(p, dict):
+                                continue
+                            pname = str(p.get("product_name") or (p.get("catalog_v2") or {}).get("product_name") or "").strip()
+                            if not pname:
+                                continue
+                            pn_norm = _norm_name_for_id(pname)
+                            if pn_norm and pn_norm in msg_norm:
+                                detected_name = pname
+                                detected_pid = _product_id_hash(pname)
+                                break
+                    elif isinstance(container, dict):
+                        pname = str(container.get("product_name") or container.get("name") or "").strip()
+                        pn_norm = _norm_name_for_id(pname)
+                        if pn_norm and pn_norm in msg_norm:
+                            detected_name = pname
+                            detected_pid = _product_id_hash(pname)
+
+                    if detected_pid:
+                        order_tracker.update_produit(user_id, detected_pid, source="PYTHON_PREMATCH", confidence=0.9)
+                        order_tracker.set_custom_meta(user_id, "active_product_id", detected_pid)
+                        order_tracker.set_custom_meta(user_id, "active_product_label", detected_name)
+                        print(f"✅ [PYTHON_PREMATCH] product_id={detected_pid} product='{detected_name}'")
+            except Exception as _prem_e:
+                print(f"⚠️ [PYTHON_PREMATCH] error: {type(_prem_e).__name__}: {_prem_e}")
 
             # 1. Initialisation LLM si nécessaire
             if self.llm_client is None:
@@ -1833,6 +1918,24 @@ class SimplifiedRAGEngine:
                             parsed_items = json.loads(txt)
                             if isinstance(parsed_items, list):
                                 parsed_items = _normalize_packaging_items(parsed_items, query)
+
+                                # Post-LLM: si le LLM met un nom dans product_id, on mappe vers prod_<sha1:8>.
+                                try:
+                                    patched_items: List[Dict[str, Any]] = []
+                                    for it in parsed_items:
+                                        if not isinstance(it, dict):
+                                            continue
+                                        it2 = dict(it)
+                                        pid_raw = str(it2.get("product_id") or "").strip()
+                                        if pid_raw and (not re.fullmatch(r"prod_[0-9a-f]{8}", pid_raw, flags=re.IGNORECASE)):
+                                            mapped = _map_product_name_to_pid(company_id, pid_raw)
+                                            if mapped:
+                                                it2["product_id"] = mapped
+                                        patched_items.append(it2)
+                                    parsed_items = patched_items
+                                except Exception:
+                                    pass
+
                                 order_tracker.set_custom_meta(user_id, "detected_items", parsed_items)
                                 order_tracker.set_custom_meta(user_id, "detected_items_raw", detected_items_json_text)
                                 order_tracker.set_custom_meta(user_id, "detected_items_parse_error", "")
@@ -1879,8 +1982,10 @@ class SimplifiedRAGEngine:
 
                                     if len(clean_items) == 1:
                                         it0 = clean_items[0]
-                                        items_summary["produit"] = _norm(it0.get("product")).lower()
-                                        items_summary["specs"] = _norm(it0.get("specs")).upper()
+                                        pid0 = _norm(it0.get("product_id"))
+                                        prod0 = _norm(it0.get("product")).lower()
+                                        items_summary["produit"] = pid0 if re.fullmatch(r"prod_[0-9a-f]{8}", pid0, flags=re.IGNORECASE) else prod0
+                                        items_summary["specs"] = _norm(it0.get("spec")).upper() or _norm(it0.get("specs")).upper()
                                         q = it0.get("qty")
                                         u = _norm(it0.get("unit")).lower()
                                         if isinstance(q, int) and q > 0 and u:
@@ -1889,8 +1994,9 @@ class SimplifiedRAGEngine:
                                         prods = []
                                         specs_list = []
                                         for it in clean_items:
-                                            p = _norm(it.get("product")).lower()
-                                            s = _norm(it.get("specs")).upper()
+                                            pid_i = _norm(it.get("product_id"))
+                                            p = pid_i if re.fullmatch(r"prod_[0-9a-f]{8}", pid_i, flags=re.IGNORECASE) else _norm(it.get("product")).lower()
+                                            s = _norm(it.get("spec")).upper() or _norm(it.get("specs")).upper()
                                             if p:
                                                 prods.append(p)
                                             if s:
@@ -1942,6 +2048,42 @@ class SimplifiedRAGEngine:
                         order_tracker.set_custom_meta(user_id, "detected_items_raw", "")
                 except Exception as e:
                     print(f"⚠️ [ITEMS_JSON] extraction error: {type(e).__name__}: {e}")
+
+                # Post-LLM: si le JSON items est vide/ambigu, on tente de récupérer le produit depuis d'autres indices.
+                # (Ex: <detected_product>Couches bebe</detected_product> ou 'Catalogue propose: Couches bebe (0-25kg)')
+                try:
+                    mapped_pid = ""
+                    mapped_label = ""
+
+                    det_prod_raw = _extract_tag(thinking, "detected_product")
+                    det_prod = str(det_prod_raw or "").strip()
+                    if det_prod:
+                        mapped_pid = _map_product_name_to_pid(company_id, det_prod)
+                        mapped_label = det_prod
+
+                    if not mapped_pid:
+                        m = re.search(r"Catalogue\s+propose\s*:\s*([^\n\r<]{2,160})", thinking, flags=re.IGNORECASE)
+                        if m:
+                            cand = str(m.group(1) or "").strip()
+                            if cand:
+                                mapped_pid = _map_product_name_to_pid(company_id, cand)
+                                mapped_label = cand
+
+                    if mapped_pid:
+                        current_prod = ""
+                        try:
+                            st_now = order_tracker.get_state(user_id)
+                            current_prod = str(getattr(st_now, "produit", "") or "").strip()
+                        except Exception:
+                            current_prod = ""
+
+                        if not current_prod:
+                            order_tracker.update_produit(user_id, mapped_pid, source="POST_LLM_NAME_MAP", confidence=0.85)
+                            order_tracker.set_custom_meta(user_id, "active_product_id", mapped_pid)
+                            order_tracker.set_custom_meta(user_id, "active_product_label", mapped_label)
+                            print(f"✅ [POST_LLM_NAME_MAP] product_id={mapped_pid} product='{mapped_label}'")
+                except Exception as _map_e:
+                    print(f"⚠️ [POST_LLM_NAME_MAP] error: {type(_map_e).__name__}: {_map_e}")
 
                 # Mise à jour OrderStateTracker depuis le thinking avec fusion intelligente
                 try:

@@ -430,6 +430,30 @@ class BotliveRAGHybrid:
             if pid in products_by_id:
                 return pid
 
+        m = regex.search(r"<detected_product>\s*([^<]{2,120})\s*</detected_product>", raw, flags=regex.IGNORECASE)
+        if m:
+            cand_name = self._norm_text_match(str(m.group(1) or "").strip())
+            if cand_name:
+                hits = []
+                for pid, info in products_by_id.items():
+                    pname = self._norm_text_match(str(info.get("product_name") or ""))
+                    if pname and pname == cand_name:
+                        hits.append(str(pid))
+                if len(hits) == 1 and hits[0] in products_by_id:
+                    return hits[0]
+
+        m = regex.search(r"Catalogue\s+propose\s*:\s*([^\n\r<]{2,160})", raw, flags=regex.IGNORECASE)
+        if m:
+            cand_name = self._norm_text_match(str(m.group(1) or "").strip())
+            if cand_name:
+                hits = []
+                for pid, info in products_by_id.items():
+                    pname = self._norm_text_match(str(info.get("product_name") or ""))
+                    if pname and pname == cand_name:
+                        hits.append(str(pid))
+                if len(hits) == 1 and hits[0] in products_by_id:
+                    return hits[0]
+
         m = regex.search(r"\"product_id\"\s*:\s*\"(prod_[0-9a-f]{8})\"", raw, flags=regex.IGNORECASE)
         if m:
             pid = str(m.group(1) or "").lower().strip()
@@ -3521,23 +3545,27 @@ class BotliveRAGHybrid:
                 )
 
             seg = (segment_letter or "").strip().upper()
+            try:
+                max_tokens_default = int(os.getenv("BOTLIVE_MAX_TOKENS", "900"))
+            except Exception:
+                max_tokens_default = 900
             if seg == "A":
-                max_tokens = 300
+                max_tokens = max_tokens_default
                 temperature = 0.55
                 top_p = 0.9
                 frequency_penalty = 0.2
             elif seg == "B":
-                max_tokens = 500
+                max_tokens = max_tokens_default
                 temperature = 0.4
                 top_p = 0.9
                 frequency_penalty = 0.0
             elif seg == "C":
-                max_tokens = 320
+                max_tokens = max_tokens_default
                 temperature = 0.07
                 top_p = 0.9
                 frequency_penalty = 0.15
             else:
-                max_tokens = int(os.getenv("BOTLIVE_MAX_TOKENS", "600"))
+                max_tokens = max_tokens_default
                 temperature = float(os.getenv("BOTLIVE_TEMPERATURE", "0.3"))
                 top_p = float(os.getenv("BOTLIVE_TOP_P", "0.9"))
                 try:
