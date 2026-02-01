@@ -2558,6 +2558,14 @@ class BotliveRAGHybrid:
                     except Exception:
                         selected_product_id = ""
 
+                # Fallback (critical): if there is only one product in the catalog, always select it.
+                # This guarantees catalogue markers are injected even on generic queries like "je veux des couches".
+                if (not selected_product_id) and isinstance(products_by_id, dict) and len(products_by_id) == 1:
+                    try:
+                        selected_product_id = next(iter(products_by_id.keys()))
+                    except Exception:
+                        selected_product_id = ""
+
                 if selected_product_id:
                     try:
                         if isinstance(context, dict):
