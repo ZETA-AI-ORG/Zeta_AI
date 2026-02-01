@@ -2546,13 +2546,46 @@ class BotliveRAGHybrid:
                 except Exception:
                     company_container = None
 
+                try:
+                    botlive_disable_catalogue_injection = (os.getenv("BOTLIVE_DISABLE_CATALOGUE_INJECTION", "false") or "").strip().lower() in {
+                        "1",
+                        "true",
+                        "yes",
+                        "y",
+                        "on",
+                    }
+                except Exception:
+                    botlive_disable_catalogue_injection = False
+
+                try:
+                    botlive_disable_product_matching = (os.getenv("BOTLIVE_DISABLE_PRODUCT_MATCHING", "false") or "").strip().lower() in {
+                        "1",
+                        "true",
+                        "yes",
+                        "y",
+                        "on",
+                    }
+                except Exception:
+                    botlive_disable_product_matching = False
+
+                try:
+                    botlive_disable_second_pass = (os.getenv("BOTLIVE_DISABLE_SECOND_PASS", "false") or "").strip().lower() in {
+                        "1",
+                        "true",
+                        "yes",
+                        "y",
+                        "on",
+                    }
+                except Exception:
+                    botlive_disable_second_pass = False
+
                 if isinstance(company_container, dict):
                     try:
                         product_index_block, products_by_id = self._build_light_product_index(company_container)
                     except Exception:
                         product_index_block, products_by_id = "", {}
 
-                if products_by_id:
+                if products_by_id and (not botlive_disable_product_matching):
                     try:
                         selected_product_id = self._pick_product_id_strict(message or "", products_by_id)
                     except Exception:
@@ -2593,12 +2626,14 @@ class BotliveRAGHybrid:
                                 product_index_block = product_index_block2
                     except Exception:
                         pass
-                    prompt = self._inject_product_index(prompt, product_index_block)
+                    if not botlive_disable_catalogue_injection:
+                        prompt = self._inject_product_index(prompt, product_index_block)
 
                 if selected_mono_catalog is not None:
                     try:
                         full_block = self._build_full_catalogue_block(selected_mono_catalog)
-                        prompt = self._inject_catalogue_markers(prompt, full_block)
+                        if not botlive_disable_catalogue_injection:
+                            prompt = self._inject_catalogue_markers(prompt, full_block)
                     except Exception:
                         pass
 
@@ -2833,7 +2868,7 @@ class BotliveRAGHybrid:
 
             did_second_pass = False
             try:
-                if (not selected_product_id) and (not did_second_pass) and thinking and products_by_id and isinstance(company_container, dict):
+                if (not botlive_disable_second_pass) and (not selected_product_id) and (not did_second_pass) and thinking and products_by_id and isinstance(company_container, dict):
                     inferred_pid = self._extract_product_id_from_text(thinking, products_by_id)
                     if inferred_pid and inferred_pid in products_by_id:
                         inferred_cat = products_by_id[inferred_pid].get("catalog_v2")
