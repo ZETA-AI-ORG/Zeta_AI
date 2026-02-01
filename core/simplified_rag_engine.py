@@ -3257,6 +3257,20 @@ class SimplifiedRAGEngine:
                                 llm_calc_part = (parts[0] or "").strip()
                                 llm_orientation_part = (parts[1] or "").strip()
 
+                            def _extract_single_question(text: str) -> str:
+                                try:
+                                    t = str(text or "").strip()
+                                    if not t:
+                                        return ""
+                                    # Prefer the last question sentence.
+                                    # Example: "... Pour quelle commune c'est ?" -> keep that.
+                                    qs = re.findall(r"([^?]{3,}\?)", t)
+                                    if qs:
+                                        return str(qs[-1]).strip()
+                                    return ""
+                                except Exception:
+                                    return ""
+
                             total_fcfa = str(_extract_tag(price_block, "total_fcfa") or "").strip()
                             subtotal_fcfa = str(_extract_tag(price_block, "product_subtotal_fcfa") or "").strip()
                             delivery_fcfa = str(_extract_tag(price_block, "delivery_fee_fcfa") or "").strip()
@@ -3276,7 +3290,9 @@ class SimplifiedRAGEngine:
                             llm_amounts = [a for a in llm_amounts if a]
 
                             if not llm_amounts:
-                                tail = llm_orientation_part or llm_resp
+                                tail = (llm_orientation_part or "").strip()
+                                if not tail:
+                                    tail = _extract_single_question(llm_resp)
                                 tail = tail.replace(orientation_marker, "").strip()
                                 if allow_show_price:
                                     if tail and tail.lower() != ready_txt.lower():
