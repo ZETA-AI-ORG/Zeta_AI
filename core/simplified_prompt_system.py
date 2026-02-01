@@ -1254,8 +1254,23 @@ Fais confiance à ton jugement. Tu es Jessica, pas un robot."""
             catalogue_reference_block_s = catalogue_block
 
         # Construire le contexte dynamique
-        detected_location_s = detected_location or "Non détecté"
-        shipping_fee_s = shipping_fee or "À confirmer"
+        # Delivery fee must be based ONLY on the detected zone (not on product/qty).
+        detected_location_s = zone_val or detected_location or "Non détecté"
+        shipping_fee_s = ""
+        try:
+            from core.delivery_zone_extractor import extract_delivery_zone_and_cost
+
+            if zone_val:
+                zinfo = extract_delivery_zone_and_cost(zone_val)
+                fee = (zinfo or {}).get("cost") if isinstance(zinfo, dict) else None
+                if isinstance(fee, (int, float)) and fee > 0:
+                    shipping_fee_s = f"{int(fee)} FCFA"
+        except Exception:
+            shipping_fee_s = ""
+
+        if not str(shipping_fee_s or "").strip():
+            shipping_fee_s = str(shipping_fee or "").strip() or "À confirmer"
+
         delivery_time_s = delivery_time or "À confirmer"
         pricing_context_s = pricing_context or "Aucun tarif temps réel disponible"
         conversation_history_s = conversation_history or "Première interaction"
@@ -1518,9 +1533,11 @@ Fais confiance à ton jugement. Tu es Jessica, pas un robot."""
             "\n\n"
             "DANS <thinking>, fournis TOUJOURS <detected_items_json> (JSON strict).\n"
             "Règles: toujours un ARRAY, même si 1 item.\n"
-            "Schéma: [{\"product\":\"[id_produit selon catalogue]\",\"specs\":\"[variante normalisée selon catalogue]\",\"qty\":N|null,\"unit\":\"[unité selon catalogue]\",\"confidence\":0.0-1.0}]\n"
+            "Schéma: [{\"product_id\":\"prod_xxxxxxxx\",\"variant\":\"Culotte|Pression|null\",\"spec\":\"T3|null\",\"unit\":\"lot_300|piece|null\",\"qty\":N|null,\"confidence\":0.0-1.0}]\n"
+            "- product_id: ID technique (prod_...).\n"
+            "- variant: variante si le produit en a, sinon null.\n"
             "- qty: entier obligatoire ou null si ambigu/incompatible.\n"
-            "- specs/unit: doivent suivre <catalogue_reference>.\n"
+            "- spec/unit: doivent suivre <catalogue_reference>.\n"
         )
 
         # Assembler prompt final

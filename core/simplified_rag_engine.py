@@ -2054,12 +2054,9 @@ class SimplifiedRAGEngine:
                                         if not isinstance(it, dict):
                                             continue
                                         pid = str(it.get("product_id") or "").strip()
-                                        prod = str(it.get("product") or "").strip()
                                         if pid:
                                             active_pid = pid
                                             break
-                                        if prod and not active_pid:
-                                            active_pid = prod
                                     if active_pid:
                                         order_tracker.set_custom_meta(user_id, "active_product_id", active_pid)
                                 except Exception:
@@ -2089,9 +2086,12 @@ class SimplifiedRAGEngine:
                                     if len(clean_items) == 1:
                                         it0 = clean_items[0]
                                         pid0 = _norm(it0.get("product_id"))
-                                        prod0 = _norm(it0.get("product")).lower()
-                                        items_summary["produit"] = pid0 if re.fullmatch(r"prod_[0-9a-f]{8}", pid0, flags=re.IGNORECASE) else prod0
-                                        items_summary["specs"] = _norm(it0.get("spec")).upper() or _norm(it0.get("specs")).upper()
+                                        # Important: `product` can represent a VARIANT (e.g. "culottes") and must never be
+                                        # used as a fallback product id/label.
+                                        items_summary["produit"] = pid0 if re.fullmatch(r"prod_[0-9a-f]{8}", pid0, flags=re.IGNORECASE) else ""
+                                        variant0 = _norm(it0.get("variant")).strip()
+                                        base_specs0 = _norm(it0.get("spec")).upper() or _norm(it0.get("specs")).upper()
+                                        items_summary["specs"] = (variant0 + (" " + base_specs0 if base_specs0 else "")).strip() if variant0 else base_specs0
                                         q = it0.get("qty")
                                         u = _norm(it0.get("unit")).lower()
                                         if isinstance(q, int) and q > 0 and u:
@@ -2101,8 +2101,10 @@ class SimplifiedRAGEngine:
                                         specs_list = []
                                         for it in clean_items:
                                             pid_i = _norm(it.get("product_id"))
-                                            p = pid_i if re.fullmatch(r"prod_[0-9a-f]{8}", pid_i, flags=re.IGNORECASE) else _norm(it.get("product")).lower()
-                                            s = _norm(it.get("spec")).upper() or _norm(it.get("specs")).upper()
+                                            p = pid_i if re.fullmatch(r"prod_[0-9a-f]{8}", pid_i, flags=re.IGNORECASE) else ""
+                                            v = _norm(it.get("variant")).strip()
+                                            s0 = _norm(it.get("spec")).upper() or _norm(it.get("specs")).upper()
+                                            s = (v + (" " + s0 if s0 else "")).strip() if v else s0
                                             if p:
                                                 prods.append(p)
                                             if s:

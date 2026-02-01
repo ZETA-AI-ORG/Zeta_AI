@@ -397,7 +397,9 @@ def normalize_detected_items(
         pid_raw = str(raw.get("product_id") or "").strip()
         pid = _map_product_id_if_needed(company_id=cid, catalog_container=container, raw_pid=pid_raw)
 
-        product_hint = str(raw.get("product") or "").strip()
+        # `product_id` is the technical ID. `variant` is the business variant key (vtree key).
+        # Keep them separate; never use variant as product_id.
+        product_hint = str(raw.get("variant") or raw.get("product") or "").strip()
         specs_hint = str(raw.get("specs") or "").strip() or str(raw.get("spec") or "").strip()
 
         selected_catalog = _select_product_catalog(company_id=cid, container=container, product_id=pid)
@@ -430,7 +432,7 @@ def normalize_detected_items(
         nxt: Dict[str, Any] = dict(raw)
         nxt["product_id"] = pid
         if variant_key:
-            nxt["product"] = variant_key
+            nxt["variant"] = variant_key
         if specs_key:
             nxt["specs"] = specs_key
         else:
