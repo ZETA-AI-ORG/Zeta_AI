@@ -428,6 +428,32 @@ class UniversalPriceCalculator:
                             canonical_units = []
                         canonical_units = [str(u) for u in canonical_units if str(u).strip()]
                         if not canonical_units:
+                            try:
+                                u_set = set()
+                                for _vk, _node in vtree.items():
+                                    if not isinstance(_node, dict):
+                                        continue
+                                    uu = _node.get("u")
+                                    if isinstance(uu, dict):
+                                        for _uk in uu.keys():
+                                            if str(_uk).strip():
+                                                u_set.add(str(_uk).strip())
+                                    ss = _node.get("s")
+                                    if isinstance(ss, dict):
+                                        for _sub in ss.values():
+                                            if not isinstance(_sub, dict):
+                                                continue
+                                            uu2 = _sub.get("u")
+                                            if not isinstance(uu2, dict):
+                                                continue
+                                            for _uk in uu2.keys():
+                                                if str(_uk).strip():
+                                                    u_set.add(str(_uk).strip())
+                                canonical_units = sorted(u_set)
+                            except Exception:
+                                canonical_units = []
+
+                        if not canonical_units:
                             _dprint("canonical_units_empty")
                             return None
 

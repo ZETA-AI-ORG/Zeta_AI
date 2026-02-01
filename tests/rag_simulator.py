@@ -298,6 +298,60 @@ class RAGSimulator:
         self.turn_number += 1
         images = images or []
 
+        def _extract_between(text: str, start_marker: str, end_marker: str) -> str:
+            try:
+                s = str(text or "")
+                i = s.find(start_marker)
+                if i == -1:
+                    return ""
+                j = s.find(end_marker, i + len(start_marker))
+                if j == -1:
+                    return ""
+                return s[i + len(start_marker) : j]
+            except Exception:
+                return ""
+
+        async def _build_prompt_snapshot(label: str) -> None:
+            try:
+                if self.use_http:
+                    return
+
+                from core.simplified_prompt_system import get_simplified_prompt_system
+
+                ps = get_simplified_prompt_system()
+                prompt = await ps.build_prompt(
+                    query=message,
+                    user_id=TEST_USER_ID,
+                    company_id=TEST_COMPANY_ID,
+                    conversation_history=self.conversation_history,
+                    has_image=bool(images),
+                )
+
+                p_s = str(prompt or "")
+                has_cat_markers = ("[CATALOGUE_START]" in p_s) and ("[CATALOGUE_END]" in p_s)
+                cat_inner = _extract_between(p_s, "[CATALOGUE_START]", "[CATALOGUE_END]")
+                cat_clean = (cat_inner or "").strip()
+                print(f"\n{'-'*80}")
+                print(
+                    f"🧾 PROMPT SNAPSHOT ({label}) - CATALOGUE_BLOCK markers={'YES' if has_cat_markers else 'NO'} | chars={len(cat_clean)}"
+                )
+                print(f"{'-'*80}")
+                print(cat_clean if cat_clean else "<EMPTY>")
+                print(f"{'-'*80}\n")
+
+                has_idx_markers = ("[[PRODUCT_INDEX_START]]" in p_s) and ("[[PRODUCT_INDEX_END]]" in p_s)
+                idx_inner = _extract_between(p_s, "[[PRODUCT_INDEX_START]]", "[[PRODUCT_INDEX_END]]")
+                idx_clean = (idx_inner or "").strip()
+                print(f"\n{'-'*80}")
+                print(
+                    f"🧾 PROMPT SNAPSHOT ({label}) - PRODUCT_INDEX markers={'YES' if has_idx_markers else 'NO'} | chars={len(idx_clean)}"
+                )
+                print(f"{'-'*80}")
+                print(idx_clean if idx_clean else "<EMPTY>")
+                print(f"{'-'*80}\n")
+            except Exception as e:
+                print(f"⚠️ [SIMULATOR] prompt snapshot failed ({label}): {type(e).__name__}: {e}")
+
         # IMPORTANT: le backend a un cache exact basé sur req.message.
         # Pour les tours avec images (produit/paiement), on veut FORCER la vision + le parsing,
         # donc on ajoute un suffix unique pour éviter les cache hits entre runs.
@@ -313,6 +367,8 @@ class RAGSimulator:
         print()
 
         self.add_to_history("USER", message)
+
+        await _build_prompt_snapshot(label="PRE_CALL")
 
         payload = {
             "company_id": TEST_COMPANY_ID,
@@ -360,6 +416,8 @@ class RAGSimulator:
                     result = await chat_endpoint(req)
                 else:
                     result = await chat_endpoint(req, fake_request)
+
+                await _build_prompt_snapshot(label="POST_CALL")
 
                 # JSONResponse ou dict
                 if hasattr(result, "body"):

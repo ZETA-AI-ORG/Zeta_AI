@@ -31,6 +31,7 @@ from core.price_calculator import UniversalPriceCalculator
 from core.dynamic_context_injector import get_dynamic_context_injector
 from core.llm_client import get_llm_client
 from core.company_catalog_v2_loader import get_company_catalog_v2, get_company_product_catalog_v2
+from core.catalog_v2_item_normalizer import normalize_detected_items
 
 
 @dataclass
@@ -1906,7 +1907,11 @@ class SimplifiedRAGEngine:
                     return (m.group(1) or m.group(2) or "").strip()
 
                 def pick_field(label: str) -> str:
-                    m = re.search(rf"-\s*{label}:\s*(?:\[([^\]]+)\]|(.+))", t, re.IGNORECASE)
+                    m = re.search(
+                        rf"-\s*{label}:\s*(?:\[([^\]]+)\]|(.+))",
+                        t,
+                        re.IGNORECASE,
+                    )
                     if not m:
                         return ""
                     return (m.group(1) or m.group(2) or "").strip()
@@ -2011,52 +2016,6 @@ class SimplifiedRAGEngine:
                     except Exception:
                         return items
 
-                def _normalize_diaper_items(items: List[Dict[str, Any]], message: str) -> List[Dict[str, Any]]:
-                    try:
-                        msg_l = str(message or "").lower()
-                        out: List[Dict[str, Any]] = []
-
-                        def _extract_t(text: str) -> str:
-                            s = str(text or "").upper()
-                            m = re.search(r"\bT\s*([1-7])\b", s)
-                            if m:
-                                return f"T{m.group(1)}"
-                            m2 = re.search(r"\bTAILLE\s*([1-7])\b", s)
-                            if m2:
-                                return f"T{m2.group(1)}"
-                            return ""
-
-                        for it in (items or []):
-                            if not isinstance(it, dict):
-                                continue
-                            it2 = dict(it)
-                            spec_text = str(it2.get("spec") or it2.get("specs") or "").strip()
-                            spec_l = spec_text.lower()
-
-                            if not str(it2.get("product") or "").strip():
-                                if "pression" in spec_l:
-                                    it2["product"] = "Pression"
-                                elif "culott" in spec_l:
-                                    it2["product"] = "Culotte"
-
-                            t_val = _extract_t(spec_text) or _extract_t(msg_l)
-                            if t_val:
-                                it2["specs"] = t_val
-
-                            unit_l = str(it2.get("unit") or "").strip().lower()
-                            if unit_l == "piece":
-                                if ("lot_" in msg_l) or ("lot_" in spec_l) or ("lot de" in msg_l) or ("lot de" in spec_l):
-                                    mlot = re.search(r"\blot[\s_-]*(\d+)\b", msg_l) or re.search(r"\blot[\s_-]*(\d+)\b", spec_l)
-                                    if mlot:
-                                        it2["unit"] = f"lot_{mlot.group(1)}"
-                                        if it2.get("qty") is None:
-                                            it2["qty"] = 1
-                            out.append(it2)
-
-                        return out
-                    except Exception:
-                        return items
-
                 # Extraire <detected_items_json> (JSON strict) et persister pour validation/pricing
                 try:
                     detected_items_json_text = _extract_tag(thinking, "detected_items_json")
@@ -2065,29 +2024,23 @@ class SimplifiedRAGEngine:
                             txt = str(detected_items_json_text or "").strip()
                             parsed_items = json.loads(txt)
                             if isinstance(parsed_items, list):
-                                parsed_items = _normalize_packaging_items(parsed_items, query)
-
-                                # Post-LLM: si le LLM met un nom dans product_id, on mappe vers prod_<sha1:8>.
                                 try:
-                                    patched_items: List[Dict[str, Any]] = []
-                                    for it in parsed_items:
-                                        if not isinstance(it, dict):
-                                            continue
-                                        it2 = dict(it)
-                                        pid_raw = str(it2.get("product_id") or "").strip()
-                                        if pid_raw and (not re.fullmatch(r"prod_[0-9a-f]{8}", pid_raw, flags=re.IGNORECASE)):
-                                            mapped = _map_product_name_to_pid(company_id, pid_raw)
-                                            if mapped:
-                                                it2["product_id"] = mapped
-                                        patched_items.append(it2)
-                                    parsed_items = patched_items
+                                    parsed_items = _normalize_packaging_items(parsed_items, query)
                                 except Exception:
                                     pass
 
+                                cat_container = None
                                 try:
-                                    parsed_items = _normalize_diaper_items(parsed_items, query)
+                                    cat_container = get_company_catalog_v2(company_id)
                                 except Exception:
-                                    pass
+                                    cat_container = None
+
+                                parsed_items = normalize_detected_items(
+                                    company_id=company_id,
+                                    items=parsed_items,
+                                    message=query,
+                                    catalog_container=cat_container,
+                                )
 
                                 order_tracker.set_custom_meta(user_id, "detected_items", parsed_items)
                                 order_tracker.set_custom_meta(user_id, "detected_items_raw", detected_items_json_text)
@@ -2181,6 +2134,21 @@ class SimplifiedRAGEngine:
                                     parsed_items = json.loads(cand)
                                     if isinstance(parsed_items, list):
                                         parsed_items = _normalize_packaging_items(parsed_items, query)
+                                        try:
+                                            cat_container = None
+                                            try:
+                                                cat_container = get_company_catalog_v2(company_id)
+                                            except Exception:
+                                                cat_container = None
+
+                                            parsed_items = normalize_detected_items(
+                                                company_id=company_id,
+                                                items=parsed_items,
+                                                message=query,
+                                                catalog_container=cat_container,
+                                            )
+                                        except Exception:
+                                            pass
                                         order_tracker.set_custom_meta(user_id, "detected_items", parsed_items)
                                         order_tracker.set_custom_meta(user_id, "detected_items_raw", cand)
                                         order_tracker.set_custom_meta(user_id, "detected_items_parse_error", "")
