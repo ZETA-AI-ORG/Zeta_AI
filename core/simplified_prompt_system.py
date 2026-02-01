@@ -1255,13 +1255,27 @@ Fais confiance à ton jugement. Tu es Jessica, pas un robot."""
 
         # Construire le contexte dynamique
         # Delivery fee must be based ONLY on the detected zone (not on product/qty).
+        # IMPORTANT: the zone might be detected POST-LLM (so not yet persisted in zone_val).
+        # To avoid empty shipping fee on the same turn, we best-effort extract from the current query.
         detected_location_s = zone_val or detected_location or "Non détecté"
         shipping_fee_s = ""
         try:
             from core.delivery_zone_extractor import extract_delivery_zone_and_cost
 
-            if zone_val:
-                zinfo = extract_delivery_zone_and_cost(zone_val)
+            zone_for_fee = str(zone_val or "").strip()
+            if not zone_for_fee:
+                try:
+                    zinfo_q = extract_delivery_zone_and_cost(str(query or ""))
+                    if isinstance(zinfo_q, dict):
+                        zname = str(zinfo_q.get("name") or "").strip()
+                        if zname:
+                            detected_location_s = zname
+                        zone_for_fee = zname or zone_for_fee
+                except Exception:
+                    pass
+
+            if zone_for_fee:
+                zinfo = extract_delivery_zone_and_cost(zone_for_fee)
                 fee = (zinfo or {}).get("cost") if isinstance(zinfo, dict) else None
                 if isinstance(fee, (int, float)) and fee > 0:
                     shipping_fee_s = f"{int(fee)} FCFA"

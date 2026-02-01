@@ -702,6 +702,128 @@ class SimplifiedRAGEngine:
 
                 return "\n".join(blocks)
 
+            def _build_items_validation_errors_xml(company_id: str, user_id: str) -> str:
+                """Build deterministic validation error blocks for invalid/unconfirmed detected_items.
+
+                Purpose: when Python rejects unit/qty, the LLM must recadrer with catalogue choices
+                instead of validating a broken order.
+                """
+                try:
+                    v = order_tracker.get_custom_meta(user_id, "detected_items_validation", default={})
+                except Exception:
+                    v = {}
+                if not isinstance(v, dict):
+                    return ""
+
+                reasons = v.get("reasons") if isinstance(v.get("reasons"), list) else []
+                invalid = v.get("invalid") if isinstance(v.get("invalid"), list) else []
+                unconfirmed = v.get("unconfirmed") if isinstance(v.get("unconfirmed"), list) else []
+
+                if ("invalid_items" not in reasons) and ("unconfirmed_items" not in reasons):
+                    return ""
+
+                def _escape(s: str) -> str:
+                    return _xml_escape(s)
+
+                def _fmt_units(units: List[str]) -> str:
+                    try:
+                        uniq = [u for u in sorted({str(x).strip() for x in (units or []) if str(x).strip()})]
+                        return ", ".join(uniq)
+                    except Exception:
+                        return ""
+
+                # pick a target item (first invalid, else first unconfirmed)
+                target_pack = None
+                if invalid:
+                    target_pack = invalid[0] if isinstance(invalid[0], dict) else None
+                elif unconfirmed:
+                    target_pack = unconfirmed[0] if isinstance(unconfirmed[0], dict) else None
+
+                target_item = target_pack.get("item") if isinstance(target_pack, dict) else None
+                target_reason = str(target_pack.get("reason") or "").strip().lower() if isinstance(target_pack, dict) else ""
+                if not isinstance(target_item, dict):
+                    return ""
+
+                # resolve allowed units from catalog_v2 vtree for this product/variant/spec
+                allowed_units: List[str] = []
+                try:
+                    catalog_v2 = get_company_catalog_v2(company_id)
+                except Exception:
+                    catalog_v2 = None
+
+                selected_catalog = None
+                try:
+                    plist = catalog_v2.get("products") if isinstance(catalog_v2, dict) else None
+                    if isinstance(plist, list):
+                        pid = str(target_item.get("product_id") or "").strip()
+                        if pid:
+                            selected_catalog = get_company_product_catalog_v2(company_id, pid)
+                        else:
+                            only_one = [p for p in plist if isinstance(p, dict) and isinstance(p.get("catalog_v2"), dict)]
+                            if len(only_one) == 1:
+                                selected_catalog = only_one[0].get("catalog_v2")
+                    else:
+                        selected_catalog = catalog_v2
+                except Exception:
+                    selected_catalog = catalog_v2
+
+                try:
+                    vtree = selected_catalog.get("v") if isinstance(selected_catalog, dict) else None
+                    if isinstance(vtree, dict):
+                        variant = str(target_item.get("variant") or target_item.get("product") or "").strip()
+                        spec = str(target_item.get("specs") or target_item.get("spec") or "").strip()
+
+                        node = vtree.get(variant) if variant else None
+                        if isinstance(node, dict):
+                            node_s = node.get("s")
+                            if isinstance(node_s, dict) and node_s and spec:
+                                sub = node_s.get(spec)
+                                if isinstance(sub, dict) and isinstance(sub.get("u"), dict):
+                                    allowed_units = [str(k) for k in sub.get("u").keys() if str(k).strip()]
+                            if not allowed_units and isinstance(node.get("u"), dict):
+                                allowed_units = [str(k) for k in node.get("u").keys() if str(k).strip()]
+                except Exception:
+                    allowed_units = []
+
+                unit_got = str(target_item.get("unit") or "").strip()
+                qty_got = target_item.get("qty")
+                fmt = _fmt_units(allowed_units)
+
+                # Build the XML block
+                msg = ""
+                if target_reason == "bad_unit":
+                    if fmt:
+                        msg = f"Unité '{unit_got or '∅'}' non reconnue. Formats dispo: {fmt}."
+                    else:
+                        msg = f"Unité '{unit_got or '∅'}' non reconnue."
+                elif target_reason in {"qty_null", "qty_invalid"}:
+                    if fmt:
+                        msg = f"Quantité invalide/ambiguë. Choisis un format parmi: {fmt}."
+                    else:
+                        msg = "Quantité invalide/ambiguë."
+                else:
+                    if fmt:
+                        msg = f"Panier à confirmer/corriger. Formats dispo: {fmt}."
+                    else:
+                        msg = "Panier à confirmer/corriger."
+
+                pid_dbg = str(target_item.get("product_id") or "").strip()
+                var_dbg = str(target_item.get("variant") or "").strip()
+                spec_dbg = str(target_item.get("specs") or target_item.get("spec") or "").strip()
+
+                return (
+                    "  <PANIER>\n"
+                    f"    <status>INVALID</status>\n"
+                    f"    <product_id>{_escape(pid_dbg)}</product_id>\n"
+                    f"    <variant>{_escape(var_dbg)}</variant>\n"
+                    f"    <specs>{_escape(spec_dbg)}</specs>\n"
+                    f"    <unit_recue>{_escape(unit_got)}</unit_recue>\n"
+                    f"    <qty_recue>{_escape(str(qty_got) if qty_got is not None else '')}</qty_recue>\n"
+                    f"    <formats_disponibles>{_escape(fmt)}</formats_disponibles>\n"
+                    f"    <message>{_escape(msg)}</message>\n"
+                    "  </PANIER>"
+                )
+
             # Détecter un téléphone invalide (texte contient des chiffres mais pas 0XXXXXXXXX)
             phone_issue: Dict[str, str] = {}
             try:
@@ -748,7 +870,9 @@ class SimplifiedRAGEngine:
 
                 # Construire validation_errors_block à partir des signaux déterministes
                 try:
-                    validation_errors_block = _build_validation_errors_xml(payment_verdict_line, phone_issue)
+                    base_err = _build_validation_errors_xml(payment_verdict_line, phone_issue)
+                    items_err = _build_items_validation_errors_xml(company_id, user_id)
+                    validation_errors_block = "\n".join([b for b in [base_err, items_err] if str(b or "").strip()])
                 except Exception:
                     validation_errors_block = ""
             except Exception as e:
@@ -2265,13 +2389,34 @@ class SimplifiedRAGEngine:
                             except Exception:
                                 return ""
                         
-                        # PRODUIT: si items JSON => on trust (pas besoin de preuve substring).
-                        if produit and produit != "∅":
-                            if use_items_as_truth:
-                                order_tracker.update_produit(user_id, produit, source="ITEMS_JSON", confidence=0.9)
+                        # PRODUIT: doit rester un ID technique stable (prod_...).
+                        # IMPORTANT: le LLM peut renvoyer une variante (ex: "culottes", "pressions") dans det['produit'].
+                        # Dans ce cas, on ne doit PAS écraser le produit persisté.
+                        def _is_stable_product_id(v: str) -> bool:
+                            try:
+                                return bool(re.fullmatch(r"prod_[0-9a-f]{8}", str(v or "").strip(), flags=re.IGNORECASE))
+                            except Exception:
+                                return False
+
+                        produit_candidate = str(produit or "").strip()
+                        if produit_candidate and produit_candidate != "∅":
+                            if _is_stable_product_id(produit_candidate):
+                                if use_items_as_truth:
+                                    order_tracker.update_produit(user_id, produit_candidate, source="ITEMS_JSON", confidence=0.9)
+                                else:
+                                    if _is_value_mentioned(query or "", produit_candidate):
+                                        order_tracker.update_produit(user_id, produit_candidate, source="LLM_INFERRED", confidence=0.6)
                             else:
-                                if _is_value_mentioned(query or "", produit):
-                                    order_tracker.update_produit(user_id, produit, source="LLM_INFERRED", confidence=0.6)
+                                # Route the non-stable product candidate into specs (human readable), never into produit.
+                                # Keep existing produit unchanged.
+                                try:
+                                    existing_specs = str(getattr(current_state, "specs", "") or "").strip()
+                                    cand_l = produit_candidate.lower()
+                                    if cand_l and cand_l not in existing_specs.lower():
+                                        merged = (existing_specs + (" " if existing_specs else "") + produit_candidate).strip()
+                                        order_tracker.update_specs(user_id, merged, source="LLM_INFERRED", confidence=0.5)
+                                except Exception:
+                                    pass
                         
                         # QUANTITÉ: persistance directe si LLM détecte une valeur non-vide
                         # Le LLM a déjà validé l'intention dans <thinking>, on fait confiance

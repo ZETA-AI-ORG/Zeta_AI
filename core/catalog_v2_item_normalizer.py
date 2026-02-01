@@ -344,6 +344,16 @@ def _canonicalize_unit_and_qty(
 
     allowed_set = set(allowed) if allowed else set(canon_units)
 
+    # If user used a non-canonical/vague unit (ex: "carton") but the catalog allows only ONE unit
+    # for this variant/spec, we can safely map to that single unit.
+    if unit_s and (unit_s not in allowed_set) and len(allowed_set) == 1:
+        return list(allowed_set)[0], qty_i
+
+    # If user provided a unit that is not allowed and there are multiple possible units,
+    # do not keep an invalid unit; force clarification downstream.
+    if unit_s and (unit_s not in allowed_set) and len(allowed_set) > 1:
+        return "", None
+
     if (not unit_s) and len(allowed_set) == 1:
         return list(allowed_set)[0], qty_i
 
