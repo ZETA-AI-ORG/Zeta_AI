@@ -312,6 +312,13 @@ def _canonicalize_unit_and_qty(
                         uu2 = _sub.get("u")
                         if not isinstance(uu2, dict):
                             continue
+                        for _uk in uu2.keys():
+                            if str(_uk).strip():
+                                out.add(str(_uk).strip())
+
+            return sorted(out)
+        except Exception:
+            return []
 
     canon_units = catalog_v2.get("canonical_units")
     if not isinstance(canon_units, list):
