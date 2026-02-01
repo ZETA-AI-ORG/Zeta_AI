@@ -3053,6 +3053,7 @@ class SimplifiedRAGEngine:
                         product_raw = str(it.get("product") or "").strip()
                         if not product_raw:
                             product_raw = str(it.get("product_id") or "").strip()
+                        variant_raw = str(it.get("variant") or "").strip()
                         specs_raw = str(it.get("specs") or "").strip()
                         if not specs_raw:
                             specs_raw = str(it.get("spec") or "").strip()
@@ -3128,7 +3129,7 @@ class SimplifiedRAGEngine:
                             out["invalid"].append({"item": it, "reason": "catalog_unavailable"})
                             continue
 
-                        variant_key = _find_variant_key(product_raw)
+                        variant_key = _find_variant_key(variant_raw or product_raw)
                         node = vtree.get(variant_key) if variant_key else None
                         if not isinstance(node, dict):
                             out["invalid"].append({"item": it, "reason": "bad_product"})

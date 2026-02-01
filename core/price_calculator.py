@@ -269,6 +269,13 @@ class UniversalPriceCalculator:
                 if (not p_raw) and pid_raw:
                     p_raw = pid_raw
 
+                # In our catalog_v2 schema, the variant (e.g. "Pression", "Culotte")
+                # is the key for vtree lookup. When product_id is a stable prod_<sha1:8>,
+                # it must NOT be used as a variant selector.
+                variant_raw = str(raw.get("variant") or "").strip()
+                if variant_raw:
+                    p_raw = variant_raw
+
                 specs_raw = str(raw.get("specs") or "").strip()
                 if not specs_raw:
                     specs_raw = str(raw.get("spec") or "").strip()
