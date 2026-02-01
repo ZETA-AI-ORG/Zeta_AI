@@ -713,6 +713,44 @@ Fais confiance à ton jugement. Tu es Jessica, pas un robot."""
             if not isinstance(vtree, dict):
                 return ""
 
+            # If the active_product_id is a stable hashed id (prod_xxxxxxxx), we still want
+            # a useful aggregated context over variants/specs/units.
+            # In mono-product catalogs, vtree keys are usually variant names (e.g. "Pression").
+            # So the prod_ id cannot be used as a vtree lookup key.
+            if pid.lower().startswith("prod_"):
+                lines_prod: List[str] = [f"PRODUCT_CONTEXT: product_id={pid}"]
+                variant_keys_prod = [str(k).strip() for k in vtree.keys() if str(k).strip()]
+                variant_keys_prod = sorted(set(variant_keys_prod))
+                if variant_keys_prod:
+                    lines_prod.append("VARIANTS:")
+                for vk in variant_keys_prod:
+                    node = vtree.get(vk)
+                    if not isinstance(node, dict):
+                        continue
+                    units_set: set[str] = set()
+                    s_map = node.get("s")
+                    u_map = node.get("u") if isinstance(node.get("u"), dict) else None
+                    if isinstance(u_map, dict) and u_map:
+                        for uk in u_map.keys():
+                            if str(uk).strip():
+                                units_set.add(str(uk).strip())
+                    if isinstance(s_map, dict) and s_map:
+                        for sub in s_map.values():
+                            if not isinstance(sub, dict):
+                                continue
+                            uu = sub.get("u")
+                            if not isinstance(uu, dict):
+                                continue
+                            for uk in uu.keys():
+                                if str(uk).strip():
+                                    units_set.add(str(uk).strip())
+                    units_sorted = sorted(units_set)
+                    if units_sorted:
+                        lines_prod.append(f"- variant={vk} | units={', '.join(units_sorted)}")
+                    else:
+                        lines_prod.append(f"- variant={vk} | units=(none)")
+                return "\n".join(lines_prod).strip()
+
             def _norm_pid(s: str) -> str:
                 try:
                     import unicodedata

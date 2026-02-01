@@ -22,6 +22,81 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/catalog-v2", tags=["Catalog V2"])
 
 
+def _norm_name_for_id(name: str) -> str:
+    try:
+        t = str(name or "").strip().lower()
+    except Exception:
+        t = ""
+    if not t:
+        return ""
+    try:
+        import unicodedata as _ud
+
+        t = _ud.normalize("NFKD", t)
+        t = "".join([c for c in t if not _ud.combining(c)])
+    except Exception:
+        pass
+    t = re.sub(r"[^a-z0-9\s-]+", " ", t)
+    t = t.replace("-", " ")
+    t = re.sub(r"\s+", " ", t).strip()
+    return t
+
+
+def _stable_product_id_from_name(name: str) -> str:
+    base = _norm_name_for_id(name)
+    if not base:
+        return ""
+    try:
+        import hashlib as _hashlib
+
+        h = _hashlib.sha1(base.encode("utf-8", errors="replace")).hexdigest()
+        return f"prod_{h[:8]}"
+    except Exception:
+        return ""
+
+
+def _anchor_product_id_in_catalog(catalog: Any, product_id: str, product_name: str) -> None:
+    try:
+        if not isinstance(catalog, dict):
+            return
+        pid = str(product_id or "").strip()
+        pn = str(product_name or "").strip()
+        if pid and not str(catalog.get("product_id") or "").strip():
+            catalog["product_id"] = pid
+        if pn and not str(catalog.get("product_name") or catalog.get("name") or "").strip():
+            catalog["product_name"] = pn
+    except Exception:
+        return
+
+
+def _anchor_product_ids_in_payload(catalog: Any) -> Any:
+    if not isinstance(catalog, dict):
+        return catalog
+
+    plist = catalog.get("products")
+    if isinstance(plist, list):
+        for p in plist:
+            if not isinstance(p, dict):
+                continue
+            pn = str(p.get("product_name") or p.get("name") or "").strip()
+            pid = str(p.get("product_id") or "").strip()
+            if not pid and pn:
+                pid = _stable_product_id_from_name(pn)
+                if pid:
+                    p["product_id"] = pid
+            cat_sub = p.get("catalog_v2")
+            if isinstance(cat_sub, dict):
+                _anchor_product_id_in_catalog(cat_sub, pid, pn)
+        return catalog
+
+    pn2 = str(catalog.get("product_name") or catalog.get("name") or "").strip()
+    pid2 = str(catalog.get("product_id") or "").strip()
+    if not pid2 and pn2:
+        pid2 = _stable_product_id_from_name(pn2)
+    _anchor_product_id_in_catalog(catalog, pid2, pn2)
+    return catalog
+
+
 class CatalogV2UpsertRequest(BaseModel):
     company_id: str
     catalog: Dict[str, Any]
@@ -472,7 +547,7 @@ def _write_local_catalog(company_id: str, payload: CatalogV2SyncLocalRequest) ->
 
     final_path = os.path.join(base_dir, f"{safe_id}.json")
 
-    def _norm_product_id(v: str) -> str:
+    def _norm_product_key(v: str) -> str:
         try:
             import unicodedata
 
@@ -488,7 +563,9 @@ def _write_local_catalog(company_id: str, payload: CatalogV2SyncLocalRequest) ->
     incoming_name = str(incoming_catalog.get("product_name") or incoming_catalog.get("name") or "").strip()
     if not incoming_name:
         raise HTTPException(status_code=400, detail="product_name requis dans catalog")
-    incoming_pid = _norm_product_id(incoming_name)
+    incoming_pid = _stable_product_id_from_name(incoming_name) or ""
+    if incoming_pid:
+        _anchor_product_id_in_catalog(incoming_catalog, incoming_pid, incoming_name)
 
     existing_container: Dict[str, Any] = {}
     try:
@@ -510,7 +587,7 @@ def _write_local_catalog(company_id: str, payload: CatalogV2SyncLocalRequest) ->
         if legacy_name:
             products_list = [
                 {
-                    "product_id": _norm_product_id(legacy_name),
+                    "product_id": str(legacy.get("product_id") or "").strip() or _stable_product_id_from_name(legacy_name) or _norm_product_key(legacy_name),
                     "product_name": legacy_name,
                     "catalog_v2": legacy,
                 }
@@ -520,11 +597,21 @@ def _write_local_catalog(company_id: str, payload: CatalogV2SyncLocalRequest) ->
     out_products: list[Dict[str, Any]] = []
     found = False
     for p in products_list:
-        pid = _norm_product_id(str(p.get("product_id") or p.get("product_name") or ""))
-        if pid and pid == incoming_pid:
+        pid = _norm_product_key(str(p.get("product_id") or ""))
+        p_name = str(p.get("product_name") or "").strip()
+        name_key = _norm_product_key(p_name)
+        incoming_name_key = _norm_product_key(incoming_name)
+        same_by_name = bool(incoming_name_key and name_key and name_key == incoming_name_key)
+        same_by_pid = bool(incoming_pid and pid and pid == _norm_product_key(incoming_pid))
+        if same_by_name or same_by_pid:
+            if incoming_pid and str(p.get("product_id") or "").strip() != incoming_pid:
+                p["product_id"] = incoming_pid
+            cat_existing = p.get("catalog_v2")
+            if isinstance(cat_existing, dict) and incoming_pid:
+                _anchor_product_id_in_catalog(cat_existing, incoming_pid, incoming_name)
             out_products.append(
                 {
-                    "product_id": incoming_pid,
+                    "product_id": incoming_pid or str(p.get("product_id") or "").strip() or _norm_product_key(incoming_name),
                     "product_name": incoming_name,
                     "catalog_v2": incoming_catalog,
                     "updated_at": payload.updated_at,
@@ -538,7 +625,7 @@ def _write_local_catalog(company_id: str, payload: CatalogV2SyncLocalRequest) ->
     if not found:
         out_products.append(
             {
-                "product_id": incoming_pid,
+                "product_id": incoming_pid or _norm_product_key(incoming_name),
                 "product_name": incoming_name,
                 "catalog_v2": incoming_catalog,
                 "updated_at": payload.updated_at,
@@ -593,6 +680,11 @@ async def upsert_company_catalog_v2(request: Request, payload: CatalogV2UpsertRe
 
         client = get_supabase_client()
         company_id = str(payload.company_id).strip()
+
+        try:
+            payload.catalog = _anchor_product_ids_in_payload(payload.catalog)
+        except Exception:
+            pass
 
         def _sync():
             existing = (
