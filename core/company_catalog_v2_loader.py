@@ -5,6 +5,12 @@ import time
 from typing import Any, Dict, Optional, Tuple
 
 
+import logging
+
+
+logger = logging.getLogger(__name__)
+
+
 def _norm_product_id(v: str) -> str:
     try:
         import unicodedata
@@ -26,6 +32,11 @@ def invalidate_company_catalog_v2_cache(company_id: Optional[str] = None) -> Non
         _CACHE.clear()
         return
     cid = str(company_id).strip()
+
+    try:
+        debug_logs = (os.getenv("CATALOG_V2_DEBUG_LOGS", "false") or "").strip().lower() in {"1", "true", "yes", "y", "on"}
+    except Exception:
+        debug_logs = False
     if cid:
         _CACHE.pop(cid, None)
 
@@ -140,6 +151,28 @@ def get_company_catalog_v2(company_id: str) -> Optional[Dict[str, Any]]:
 
     local = _load_catalog_from_local_file(cid)
     if isinstance(local, dict):
+        if debug_logs:
+            try:
+                logger.info(f"[CATALOG_LOAD] company={cid} source=local")
+                plist0 = local.get("products") if isinstance(local, dict) else None
+                if isinstance(plist0, list):
+                    logger.info(f"[CATALOG_LOAD] products_count={len([p for p in plist0 if isinstance(p, dict)])}")
+                    for p in plist0:
+                        if not isinstance(p, dict):
+                            continue
+                        cat = p.get("catalog_v2") if isinstance(p.get("catalog_v2"), dict) else p
+                        pid0 = str(p.get("product_id") or cat.get("product_id") or "").strip()
+                        pname0 = str(p.get("product_name") or cat.get("product_name") or cat.get("name") or "").strip()
+                        logger.info(f"  - product_id={pid0} name={pname0}")
+                        logger.info(f"    technical_specs length: {len(str(cat.get('technical_specs') or ''))}")
+                        logger.info(f"    sales_constraints length: {len(str(cat.get('sales_constraints') or ''))}")
+                else:
+                    logger.info("[CATALOG_LOAD] products_count=1 (mono)")
+                    logger.info(f"  - product_id={str(local.get('product_id') or '').strip()} name={str(local.get('product_name') or local.get('name') or '').strip()}")
+                    logger.info(f"    technical_specs length: {len(str(local.get('technical_specs') or ''))}")
+                    logger.info(f"    sales_constraints length: {len(str(local.get('sales_constraints') or ''))}")
+            except Exception:
+                pass
         _CACHE[cid] = (now + ttl_s, local)
         return local
 
@@ -161,6 +194,29 @@ def get_company_catalog_v2(company_id: str) -> Optional[Dict[str, Any]]:
             return None
         catalog = data[0].get("catalog")
         out = catalog if isinstance(catalog, dict) else None
+
+        if debug_logs and isinstance(out, dict):
+            try:
+                logger.info(f"[CATALOG_LOAD] company={cid} source=supabase")
+                plist1 = out.get("products") if isinstance(out, dict) else None
+                if isinstance(plist1, list):
+                    logger.info(f"[CATALOG_LOAD] products_count={len([p for p in plist1 if isinstance(p, dict)])}")
+                    for p in plist1:
+                        if not isinstance(p, dict):
+                            continue
+                        cat = p.get("catalog_v2") if isinstance(p.get("catalog_v2"), dict) else p
+                        pid1 = str(p.get("product_id") or cat.get("product_id") or "").strip()
+                        pname1 = str(p.get("product_name") or cat.get("product_name") or cat.get("name") or "").strip()
+                        logger.info(f"  - product_id={pid1} name={pname1}")
+                        logger.info(f"    technical_specs length: {len(str(cat.get('technical_specs') or ''))}")
+                        logger.info(f"    sales_constraints length: {len(str(cat.get('sales_constraints') or ''))}")
+                else:
+                    logger.info("[CATALOG_LOAD] products_count=1 (mono)")
+                    logger.info(f"  - product_id={str(out.get('product_id') or '').strip()} name={str(out.get('product_name') or out.get('name') or '').strip()}")
+                    logger.info(f"    technical_specs length: {len(str(out.get('technical_specs') or ''))}")
+                    logger.info(f"    sales_constraints length: {len(str(out.get('sales_constraints') or ''))}")
+            except Exception:
+                pass
         _CACHE[cid] = (now + ttl_s, out)
         return out
     except Exception:

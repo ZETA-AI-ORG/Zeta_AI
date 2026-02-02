@@ -192,12 +192,27 @@ class BotliveRAGHybrid:
         matches = list(regex.finditer(pat, base, flags=regex.IGNORECASE | regex.DOTALL))
         if not matches:
             return base
+
+        try:
+            debug_logs = (os.getenv("CATALOG_V2_DEBUG_LOGS", "false") or "").strip().lower() in {"1", "true", "yes", "y", "on"}
+        except Exception:
+            debug_logs = False
+
         m = matches[-1]
         start_marker = "[CATALOGUE_START]"
         end_marker = "[CATALOGUE_END]"
         c = str(content or "").strip()
         replacement = start_marker + "\n" + c + "\n" + end_marker if c else (start_marker + "\n\n" + end_marker)
-        return base[: m.start()] + replacement + base[m.end() :]
+        out = base[: m.start()] + replacement + base[m.end() :]
+        if debug_logs:
+            try:
+                added = len(out) - len(base)
+            except Exception:
+                added = 0
+            logger.info(f"[INJECT_CATALOG] Input block length: {len(c)} chars")
+            logger.info(f"[INJECT_CATALOG] Markers found in prompt: True")
+            logger.info(f"[INJECT_CATALOG] Added {added} chars")
+        return out
 
     def _build_flash_constraint(self, mono_catalog_v2: Dict[str, Any]) -> str:
         try:
@@ -227,6 +242,11 @@ class BotliveRAGHybrid:
         if not isinstance(company_catalog_container, dict):
             return "", products_by_id
 
+        try:
+            debug_logs = (os.getenv("CATALOG_V2_DEBUG_LOGS", "false") or "").strip().lower() in {"1", "true", "yes", "y", "on"}
+        except Exception:
+            debug_logs = False
+
         plist = company_catalog_container.get("products")
         mono = None
         if isinstance(plist, list) and plist:
@@ -245,7 +265,8 @@ class BotliveRAGHybrid:
             pname = str(p.get("product_name") or cat.get("product_name") or cat.get("name") or "").strip()
             if not pname:
                 continue
-            pid = self._product_id_hash(pname)
+            real_id = str(p.get("product_id") or cat.get("product_id") or "").strip()
+            pid = real_id if real_id else self._product_id_hash(pname)
             if not pid:
                 continue
             vtree = cat.get("v")
@@ -260,6 +281,23 @@ class BotliveRAGHybrid:
                 "variants": variants,
                 "catalog_v2": cat,
             }
+
+            if debug_logs:
+                try:
+                    tech_len = len(str(cat.get("technical_specs") or ""))
+                except Exception:
+                    tech_len = 0
+                try:
+                    sales_len = len(str(cat.get("sales_constraints") or ""))
+                except Exception:
+                    sales_len = 0
+                try:
+                    hashed_id = self._product_id_hash(pname)
+                except Exception:
+                    hashed_id = ""
+                logger.info(f"[PRODUCT_INDEX] name={pname}")
+                logger.info(f"  real_id={real_id or 'NONE'} | chosen_id={pid} | hashed_id={hashed_id} | MATCH={(real_id or '') == hashed_id}")
+                logger.info(f"  technical_specs_length={tech_len} | sales_constraints_length={sales_len} | has_v={bool(cat.get('v'))}")
 
         if not products_by_id:
             return "", products_by_id
@@ -475,27 +513,87 @@ class BotliveRAGHybrid:
     def _build_full_catalogue_block(self, mono_catalog_v2: Dict[str, Any]) -> str:
         if not isinstance(mono_catalog_v2, dict):
             return ""
+        try:
+            debug_logs = (os.getenv("CATALOG_V2_DEBUG_LOGS", "false") or "").strip().lower() in {"1", "true", "yes", "y", "on"}
+        except Exception:
+            debug_logs = False
+
+        pid = str(mono_catalog_v2.get("product_id") or "").strip()
         pname = str(mono_catalog_v2.get("product_name") or mono_catalog_v2.get("name") or "").strip()
+        tech = str(mono_catalog_v2.get("technical_specs") or "").strip()
+        sales = str(mono_catalog_v2.get("sales_constraints") or "").strip()
         vtree = mono_catalog_v2.get("v")
         if not isinstance(vtree, dict) or not vtree:
-            return f"# {pname}" if pname else ""
+            if debug_logs:
+                logger.info(f"[CATALOG_BLOCK] Building for product_id={pid or '(missing)'}")
+                logger.info(f"[CATALOG_BLOCK] product_name={bool(pname)} | technical_specs_chars={len(tech)} | sales_constraints_chars={len(sales)} | has_v={bool(vtree)}")
+            if pname:
+                return f"# {pname}"
+            if pid:
+                return f"# {pid}"
+            return ""
+
+        def _compress_specs(labels: list) -> str:
+            try:
+                items = [str(x).strip() for x in (labels or []) if str(x).strip()]
+                if not items:
+                    return ""
+                items = sorted(set(items), key=lambda x: x)
+
+                m_all = [re.fullmatch(r"([A-Za-z]+)(\d+)", x) for x in items]
+                if all(m_all):
+                    prefix = m_all[0].group(1)
+                    nums = sorted({int(m.group(2)) for m in m_all if m is not None})
+                    if nums:
+                        if nums == list(range(min(nums), max(nums) + 1)) and len(nums) >= 3:
+                            return f"{prefix}{min(nums)}-{prefix}{max(nums)}"
+                        if len(nums) <= 8:
+                            return ", ".join(f"{prefix}{n}" for n in nums)
+                if len(items) <= 10:
+                    return ", ".join(items)
+                return f"{items[0]}, …, {items[-1]} ({len(items)})"
+            except Exception:
+                return ""
+
+        def _append_block(lines: list, title: str, content: str) -> None:
+            try:
+                c = str(content or "").strip()
+                if not c:
+                    return
+                lines.append("")
+                lines.append(f"{title}:")
+                for raw_ln in c.splitlines():
+                    ln = str(raw_ln or "").strip()
+                    if not ln:
+                        continue
+                    if ln.startswith("-"):
+                        lines.append(ln)
+                    else:
+                        lines.append(f"- {ln}")
+            except Exception:
+                return
+
         lines = []
-        if pname:
-            lines.append(f"# {pname}")
+        header = pname if pname else pid
+        if header:
+            lines.append(f"# {header}")
+        if pid:
+            lines.append(f"PRODUCT_ID: {pid}")
+        _append_block(lines, "TECHNICAL_SPECS", tech)
+        _append_block(lines, "SALES_CONSTRAINTS", sales)
+
+        lines.append("")
+        lines.append("VARIANTS:")
         for vk in sorted([str(k).strip() for k in vtree.keys() if str(k).strip()], key=lambda x: x.lower()):
             vnode = vtree.get(vk)
             if not isinstance(vnode, dict):
                 continue
-            lines.append("")
-            lines.append(f"## {vk}")
 
             specs = []
             s_map = vnode.get("s")
             if isinstance(s_map, dict) and s_map:
                 specs = [str(k).strip() for k in s_map.keys() if str(k).strip()]
                 specs = sorted(set(specs), key=lambda x: x.lower())
-            if specs:
-                lines.append("Specs: " + ", ".join(specs))
 
             units_set = set()
             u_map = vnode.get("u") if isinstance(vnode.get("u"), dict) else None
@@ -513,14 +611,24 @@ class BotliveRAGHybrid:
                     for uk in uu.keys():
                         if str(uk).strip():
                             units_set.add(str(uk).strip())
-            if units_set:
-                units_sorted = sorted(units_set, key=lambda x: x.lower())
-                lines.append("Units: " + ", ".join(units_sorted))
+            units_sorted = sorted(units_set, key=lambda x: x.lower())
 
-            has_specs = isinstance(vnode.get("s"), dict) and bool(vnode.get("s"))
-            lines.append("Pricing: VARIABLE" if has_specs else "Pricing: FIXE")
+            specs_s = _compress_specs(specs)
+            if specs_s and units_sorted:
+                lines.append(f"- variant={vk} | specs={specs_s} | units={', '.join(units_sorted)}")
+            elif units_sorted:
+                lines.append(f"- variant={vk} | units={', '.join(units_sorted)}")
+            else:
+                lines.append(f"- variant={vk} | units=(none)")
 
-        return "\n".join([ln for ln in lines if ln is not None]).strip()
+        out = "\n".join([ln for ln in lines if ln is not None]).strip()
+        if debug_logs:
+            logger.info(f"[CATALOG_BLOCK] Building for product_id={pid or '(missing)'}")
+            logger.info(f"[CATALOG_BLOCK] product_name={bool(pname)} | technical_specs_chars={len(tech)} | sales_constraints_chars={len(sales)} | has_v={bool(vtree)}")
+            logger.info(f"[CATALOG_BLOCK] Final block length: {len(out)} chars")
+            logger.info(f"[CATALOG_BLOCK] Block preview (first 500 chars):\n{out[:500]}")
+
+        return out
 
     def _build_canonical_verdict(self, context: Dict[str, Any]) -> Dict[str, Any]:
         try:
@@ -2696,6 +2804,25 @@ class BotliveRAGHybrid:
             if log_full_prompt and safe_prompt:
                 try:
                     logger.info(f"{MAGENTA}[BOTLIVE_PROMPT_FULL_START]{RESET}\n{safe_prompt}\n{MAGENTA}[BOTLIVE_PROMPT_FULL_END]{RESET}")
+                except Exception:
+                    pass
+
+            try:
+                debug_logs = (os.getenv("CATALOG_V2_DEBUG_LOGS", "false") or "").strip().lower() in {"1", "true", "yes", "y", "on"}
+            except Exception:
+                debug_logs = False
+
+            if debug_logs and safe_prompt:
+                try:
+                    mcat = regex.search(r"\[CATALOGUE_START\](.*?)\[CATALOGUE_END\]", safe_prompt, flags=regex.DOTALL | regex.IGNORECASE)
+                    has_cat = bool(mcat)
+                    logger.info(f"[FINAL_PROMPT] Catalogue injected: {has_cat}")
+                    if mcat:
+                        content = str(mcat.group(1) or "").strip()
+                        content_lc = content.lower()
+                        logger.info(f"[FINAL_PROMPT] Catalogue length: {len(content)} chars")
+                        logger.info(f"[FINAL_PROMPT] Contains 'technical_specs': {('technical_specs' in content_lc)}")
+                        logger.info(f"[FINAL_PROMPT] Contains 'sales_constraints': {('sales_constraints' in content_lc)}")
                 except Exception:
                     pass
             

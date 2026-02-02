@@ -20,6 +20,7 @@ from datetime import datetime
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/catalog-v2", tags=["Catalog V2"])
+debug_router = APIRouter(prefix="/api/catalog", tags=["Catalog Debug"])
 
 
 def _norm_name_for_id(name: str) -> str:
@@ -1054,3 +1055,117 @@ async def get_company_catalog_v2(request: Request, company_id: str) -> CatalogV2
     except Exception as e:
         logger.error(f"[CATALOG_V2] Get error: {type(e).__name__}: {e}")
         raise HTTPException(status_code=500, detail="Erreur récupération catalogue")
+
+
+@debug_router.get("/debug/{company_id}")
+async def debug_company_catalog_v2(request: Request, company_id: str) -> Dict[str, Any]:
+    _check_internal_key(request)
+    cid = str(company_id or "").strip()
+    if not cid:
+        raise HTTPException(status_code=400, detail="company_id requis")
+    try:
+        from core.company_catalog_v2_loader import get_company_catalog_v2_container
+
+        catalog = get_company_catalog_v2_container(cid)
+        if not isinstance(catalog, dict):
+            raise HTTPException(status_code=404, detail="catalog_v2 introuvable")
+
+        anchored = _anchor_product_ids_in_payload(catalog)
+
+        products = []
+        try:
+            plist = anchored.get("products") if isinstance(anchored, dict) else None
+            if isinstance(plist, list):
+                products = [p for p in plist if isinstance(p, dict)]
+            else:
+                products = [anchored] if isinstance(anchored, dict) else []
+        except Exception:
+            products = []
+
+        products_meta = []
+        for p in products:
+            try:
+                # In container form, product fields can be on p or inside p['catalog_v2'].
+                cat = p.get("catalog_v2") if isinstance(p.get("catalog_v2"), dict) else p
+                pid = str(p.get("product_id") or cat.get("product_id") or "").strip()
+                pname = str(p.get("product_name") or cat.get("product_name") or cat.get("name") or "").strip()
+                tech = str(cat.get("technical_specs") or "")
+                sales = str(cat.get("sales_constraints") or "")
+                vtree = cat.get("v")
+                products_meta.append(
+                    {
+                        "product_id": pid or None,
+                        "product_name": pname or None,
+                        "technical_specs_length": len(tech),
+                        "sales_constraints_length": len(sales),
+                        "fields_present": {
+                            "technical_specs": bool(str(tech or "").strip()),
+                            "sales_constraints": bool(str(sales or "").strip()),
+                            "v": isinstance(vtree, dict) and bool(vtree),
+                        },
+                    }
+                )
+            except Exception:
+                continue
+        return {
+            "company_id": cid,
+            "exists": True,
+            "products_count": len(products_meta),
+            "products": products_meta,
+            "catalog": anchored,
+            "timestamp": time.time(),
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[CATALOG_V2][DEBUG] error: {type(e).__name__}: {e}")
+        raise HTTPException(status_code=500, detail="Erreur debug catalogue")
+
+
+@debug_router.get("/debug/{company_id}/{product_id}")
+async def debug_company_product_catalog_v2(request: Request, company_id: str, product_id: str) -> Dict[str, Any]:
+    _check_internal_key(request)
+    cid = str(company_id or "").strip()
+    pid = str(product_id or "").strip()
+    if not cid:
+        raise HTTPException(status_code=400, detail="company_id requis")
+    if not pid:
+        raise HTTPException(status_code=400, detail="product_id requis")
+    try:
+        from core.company_catalog_v2_loader import get_company_product_catalog_v2
+
+        mono = get_company_product_catalog_v2(cid, pid)
+        if not isinstance(mono, dict):
+            raise HTTPException(status_code=404, detail="catalog_v2 produit introuvable")
+        anchored = _anchor_product_ids_in_payload(mono)
+        try:
+            tech = str(anchored.get("technical_specs") or "")
+        except Exception:
+            tech = ""
+        try:
+            sales = str(anchored.get("sales_constraints") or "")
+        except Exception:
+            sales = ""
+        try:
+            vtree = anchored.get("v")
+        except Exception:
+            vtree = None
+        return {
+            "company_id": cid,
+            "product_id": pid,
+            "exists": True,
+            "technical_specs_length": len(tech),
+            "sales_constraints_length": len(sales),
+            "fields_present": {
+                "technical_specs": bool(str(tech or "").strip()),
+                "sales_constraints": bool(str(sales or "").strip()),
+                "v": isinstance(vtree, dict) and bool(vtree),
+            },
+            "catalog": anchored,
+            "timestamp": time.time(),
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[CATALOG_V2][DEBUG_PRODUCT] error: {type(e).__name__}: {e}")
+        raise HTTPException(status_code=500, detail="Erreur debug catalogue produit")

@@ -718,10 +718,61 @@ Fais confiance à ton jugement. Tu es Jessica, pas un robot."""
             # In mono-product catalogs, vtree keys are usually variant names (e.g. "Pression").
             # So the prod_ id cannot be used as a vtree lookup key.
             if pid.lower().startswith("prod_"):
+                def _compress_specs(labels: List[str]) -> str:
+                    try:
+                        items = [str(x).strip() for x in (labels or []) if str(x).strip()]
+                        if not items:
+                            return ""
+                        items = sorted(set(items), key=lambda x: x)
+
+                        m_all = [re.fullmatch(r"([A-Za-z]+)(\d+)", x) for x in items]
+                        if all(m_all):
+                            prefix = m_all[0].group(1)
+                            nums = sorted({int(m.group(2)) for m in m_all if m is not None})
+                            if nums:
+                                if nums == list(range(min(nums), max(nums) + 1)) and len(nums) >= 3:
+                                    return f"{prefix}{min(nums)}-{prefix}{max(nums)}"
+                                if len(nums) <= 6:
+                                    return ", ".join(f"{prefix}{n}" for n in nums)
+                        if len(items) <= 8:
+                            return ", ".join(items)
+                        return f"{items[0]}, …, {items[-1]} ({len(items)})"
+                    except Exception:
+                        return ""
+
+                def _append_block(lines: List[str], title: str, content: str) -> None:
+                    try:
+                        c = str(content or "").strip()
+                        if not c:
+                            return
+                        lines.append("")
+                        lines.append(f"{title}:")
+                        for raw_ln in c.splitlines():
+                            ln = str(raw_ln or "").strip()
+                            if not ln:
+                                continue
+                            # Preserve existing dash bullets if present.
+                            if ln.startswith("-"):
+                                lines.append(ln)
+                            else:
+                                lines.append(f"- {ln}")
+                    except Exception:
+                        return
+
+                pname_prod = str(catalog_v2.get("product_name") or catalog_v2.get("name") or "").strip()
+                tech_prod = str(catalog_v2.get("technical_specs") or "").strip()
+                sales_prod = str(catalog_v2.get("sales_constraints") or "").strip()
+
                 lines_prod: List[str] = [f"PRODUCT_CONTEXT: product_id={pid}"]
+                if pname_prod:
+                    lines_prod.append(f"NAME: {pname_prod}")
+                _append_block(lines_prod, "TECHNICAL_SPECS", tech_prod)
+                _append_block(lines_prod, "SALES_CONSTRAINTS", sales_prod)
+
                 variant_keys_prod = [str(k).strip() for k in vtree.keys() if str(k).strip()]
                 variant_keys_prod = sorted(set(variant_keys_prod))
                 if variant_keys_prod:
+                    lines_prod.append("")
                     lines_prod.append("VARIANTS:")
                 for vk in variant_keys_prod:
                     node = vtree.get(vk)
@@ -735,6 +786,8 @@ Fais confiance à ton jugement. Tu es Jessica, pas un robot."""
                             if str(uk).strip():
                                 units_set.add(str(uk).strip())
                     if isinstance(s_map, dict) and s_map:
+                        spec_keys = [str(k).strip() for k in s_map.keys() if str(k).strip()]
+                        specs_s = _compress_specs(spec_keys)
                         for sub in s_map.values():
                             if not isinstance(sub, dict):
                                 continue
@@ -745,7 +798,14 @@ Fais confiance à ton jugement. Tu es Jessica, pas un robot."""
                                 if str(uk).strip():
                                     units_set.add(str(uk).strip())
                     units_sorted = sorted(units_set)
-                    if units_sorted:
+                    try:
+                        spec_keys
+                    except Exception:
+                        spec_keys = []
+                        specs_s = ""
+                    if specs_s and units_sorted:
+                        lines_prod.append(f"- variant={vk} | specs={specs_s} | units={', '.join(units_sorted)}")
+                    elif units_sorted:
                         lines_prod.append(f"- variant={vk} | units={', '.join(units_sorted)}")
                     else:
                         lines_prod.append(f"- variant={vk} | units=(none)")

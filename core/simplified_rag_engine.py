@@ -3257,6 +3257,18 @@ class SimplifiedRAGEngine:
                                 llm_calc_part = (parts[0] or "").strip()
                                 llm_orientation_part = (parts[1] or "").strip()
 
+                            def _with_orientation_marker(q: str) -> str:
+                                try:
+                                    t = str(q or "").strip()
+                                    if not t:
+                                        return ""
+                                    # Ensure marker is present and separated.
+                                    if t.startswith(orientation_marker):
+                                        t = t[len(orientation_marker) :].strip()
+                                    return f"{orientation_marker} {t}".strip()
+                                except Exception:
+                                    return ""
+
                             def _extract_single_question(text: str) -> str:
                                 try:
                                     t = str(text or "").strip()
@@ -3296,7 +3308,7 @@ class SimplifiedRAGEngine:
                                 tail = tail.replace(orientation_marker, "").strip()
                                 if allow_show_price:
                                     if tail and tail.lower() != ready_txt.lower():
-                                        response = (ready_txt + "\n" + tail).strip()
+                                        response = (ready_txt + "\n" + _with_orientation_marker(tail)).strip()
                                     else:
                                         response = ready_txt
                                     try:
@@ -3320,7 +3332,12 @@ class SimplifiedRAGEngine:
                                 if not mismatch:
                                     # Le LLM a cité des montants cohérents: on accepte uniquement si on veut ré-afficher le prix.
                                     if allow_show_price:
-                                        response = llm_resp.replace(orientation_marker, "").strip()
+                                        tail = (llm_orientation_part or "").strip() or _extract_single_question(llm_resp)
+                                        tail = tail.replace(orientation_marker, "").strip()
+                                        if tail and tail.lower() != ready_txt.lower():
+                                            response = (ready_txt + "\n" + _with_orientation_marker(tail)).strip()
+                                        else:
+                                            response = ready_txt
                                         try:
                                             if current_sig:
                                                 order_tracker.set_custom_meta(user_id, "last_price_signature_shown", current_sig)
@@ -3333,7 +3350,7 @@ class SimplifiedRAGEngine:
                                 else:
                                     if allow_show_price:
                                         if llm_orientation_part:
-                                            response = (ready_txt + "\n" + llm_orientation_part).strip()
+                                            response = (ready_txt + "\n" + _with_orientation_marker(llm_orientation_part)).strip()
                                         else:
                                             response = ready_txt
                                         try:
@@ -3512,10 +3529,10 @@ class SimplifiedRAGEngine:
             except Exception as _fs_e:
                 print(f"⚠️ [FAILSAFE] error: {type(_fs_e).__name__}: {_fs_e}")
 
-            try:
-                response = str(response or "").replace("§§", "").strip()
-            except Exception:
-                pass
+            # IMPORTANT: do NOT strip the orientation marker globally.
+            # When price_calculation status=OK, the required output is:
+            #   Line 1: ready_to_send (exact)
+            #   Line 2: starts with '§§ ' + ONE question
 
             # Replace ##RECAP## marker by a structured recap built from price_calculation/last_total_snapshot.
             try:

@@ -399,6 +399,8 @@ except Exception as e:
 try:
     from routes.catalog_v2 import router as catalog_v2_router
     app.include_router(catalog_v2_router, tags=["Catalog V2"])
+    from routes.catalog_v2 import debug_router as catalog_v2_debug_router
+    app.include_router(catalog_v2_debug_router, tags=["Catalog Debug"])
     logger.info("📦 Catalog V2 router intégré avec succès")
 except Exception as e:
     logger.warning(f"⚠️ Erreur intégration Catalog V2 router: {e}")
