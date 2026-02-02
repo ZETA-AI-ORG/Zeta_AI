@@ -134,6 +134,11 @@ def get_company_catalog_v2(company_id: str) -> Optional[Dict[str, Any]]:
 
     cid = str(company_id).strip()
 
+    try:
+        debug_logs = (os.getenv("CATALOG_V2_DEBUG_LOGS", "false") or "").strip().lower() in {"1", "true", "yes", "y", "on"}
+    except Exception:
+        debug_logs = False
+
     ttl_s = 60.0
     ttl_env = os.getenv("CATALOG_V2_CACHE_TTL_SECONDS")
     if ttl_env is not None:
