@@ -225,5 +225,10 @@ def get_company_catalog_v2(company_id: str) -> Optional[Dict[str, Any]]:
         _CACHE[cid] = (now + ttl_s, out)
         return out
     except Exception:
+        if debug_logs:
+            try:
+                logger.exception(f"[CATALOG_LOAD] company={cid} source=supabase error")
+            except Exception:
+                pass
         _CACHE[cid] = (now + ttl_s, None)
         return None
