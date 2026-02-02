@@ -172,6 +172,24 @@ class SimplifiedRAGEngine:
                 except Exception:
                     return ""
 
+            def _looks_like_product_id(v: str) -> bool:
+                s = str(v or "").strip().lower()
+                if not s:
+                    return False
+                if not s.startswith("prod_"):
+                    return False
+                return bool(re.fullmatch(r"prod_[a-z0-9_\-]{6,80}", s, flags=re.IGNORECASE))
+
+            def _pick_pid_from_product_entry(p: dict, pname: str) -> str:
+                try:
+                    cat = p.get("catalog_v2") if isinstance(p.get("catalog_v2"), dict) else {}
+                except Exception:
+                    cat = {}
+                real_id = str(p.get("product_id") or (cat or {}).get("product_id") or "").strip()
+                if real_id:
+                    return real_id
+                return _product_id_hash(pname)
+
             def _map_product_name_to_pid(company_id_val: str, cand: str) -> str:
                 cname = _norm_name_for_id(cand)
                 if not cname:
@@ -187,11 +205,17 @@ class SimplifiedRAGEngine:
                             continue
                         pname = str(p.get("product_name") or (p.get("catalog_v2") or {}).get("product_name") or "").strip()
                         if pname and _norm_name_for_id(pname) == cname:
+                            real_id = str(p.get("product_id") or (p.get("catalog_v2") or {}).get("product_id") or "").strip()
+                            if real_id:
+                                return real_id
                             return _product_id_hash(pname)
 
                 if isinstance(container, dict):
                     pname = str(container.get("product_name") or container.get("name") or "").strip()
                     if pname and _norm_name_for_id(pname) == cname:
+                        real_id = str(container.get("product_id") or "").strip()
+                        if real_id:
+                            return real_id
                         return _product_id_hash(pname)
 
                 return ""
@@ -220,13 +244,13 @@ class SimplifiedRAGEngine:
                             continue
                         pn_norm = _norm_name_for_id(pname)
                         if pn_norm:
-                            candidates.append((pname, pn_norm))
+                            candidates.append((pname, pn_norm, p))
 
                     # Strategy A: strict substring (keeps old behavior)
-                    for pname, pn_norm in candidates:
+                    for pname, pn_norm, p in candidates:
                         if pn_norm and pn_norm in msg_norm:
                             detected_name = pname
-                            detected_pid = _product_id_hash(pname)
+                            detected_pid = _pick_pid_from_product_entry(p, pname)
                             break
 
                     # Strategy B: token match with uniqueness (handles queries like "je veux des couches")
@@ -247,18 +271,18 @@ class SimplifiedRAGEngine:
 
                         matched_products = []  # list of (pname, pn_norm, matched_tokens)
                         token_to_products = {}
-                        for pname, pn_norm in candidates:
+                        for pname, pn_norm, p in candidates:
                             toks = [t for t in pn_norm.split() if len(t) >= 4 and t not in stop_tokens]
                             hits = [t for t in toks if f" {t} " in msg_pad]
                             if hits:
-                                matched_products.append((pname, pn_norm, hits))
+                                matched_products.append((pname, pn_norm, hits, p))
                                 for t in hits:
                                     token_to_products.setdefault(t, set()).add(pname)
 
                         # If exactly one product matches any significant token => pick it.
                         if len(matched_products) == 1:
                             detected_name = matched_products[0][0]
-                            detected_pid = _product_id_hash(detected_name)
+                            detected_pid = _pick_pid_from_product_entry(matched_products[0][3], detected_name)
                         else:
                             # If a token uniquely identifies a single product => pick it.
                             uniq_tokens = []
@@ -270,13 +294,17 @@ class SimplifiedRAGEngine:
                             if uniq_tokens:
                                 only_name = list(token_to_products[uniq_tokens[0]])[0]
                                 detected_name = str(only_name)
-                                detected_pid = _product_id_hash(detected_name)
+                                for pname, pn_norm, hits, p in matched_products:
+                                    if pname == detected_name:
+                                        detected_pid = _pick_pid_from_product_entry(p, detected_name)
+                                        break
                 elif isinstance(container, dict):
                     pname = str(container.get("product_name") or container.get("name") or "").strip()
                     pn_norm = _norm_name_for_id(pname)
                     if pn_norm and pn_norm in msg_norm:
                         detected_name = pname
-                        detected_pid = _product_id_hash(pname)
+                        real_id = str(container.get("product_id") or "").strip()
+                        detected_pid = real_id if real_id else _product_id_hash(pname)
 
                 if detected_pid:
                     if prev_product_before_llm and (str(prev_product_before_llm).strip() != detected_pid):
@@ -2212,7 +2240,7 @@ class SimplifiedRAGEngine:
                                         pid0 = _norm(it0.get("product_id"))
                                         # Important: `product` can represent a VARIANT (e.g. "culottes") and must never be
                                         # used as a fallback product id/label.
-                                        items_summary["produit"] = pid0 if re.fullmatch(r"prod_[0-9a-f]{8}", pid0, flags=re.IGNORECASE) else ""
+                                        items_summary["produit"] = pid0 if re.fullmatch(r"prod_[a-z0-9_\-]{6,80}", pid0, flags=re.IGNORECASE) else ""
                                         variant0 = _norm(it0.get("variant")).strip()
                                         base_specs0 = _norm(it0.get("spec")).upper() or _norm(it0.get("specs")).upper()
                                         items_summary["specs"] = (variant0 + (" " + base_specs0 if base_specs0 else "")).strip() if variant0 else base_specs0
@@ -2225,7 +2253,7 @@ class SimplifiedRAGEngine:
                                         specs_list = []
                                         for it in clean_items:
                                             pid_i = _norm(it.get("product_id"))
-                                            p = pid_i if re.fullmatch(r"prod_[0-9a-f]{8}", pid_i, flags=re.IGNORECASE) else ""
+                                            p = pid_i if re.fullmatch(r"prod_[a-z0-9_\-]{6,80}", pid_i, flags=re.IGNORECASE) else ""
                                             v = _norm(it.get("variant")).strip()
                                             s0 = _norm(it.get("spec")).upper() or _norm(it.get("specs")).upper()
                                             s = (v + (" " + s0 if s0 else "")).strip() if v else s0
@@ -2394,7 +2422,7 @@ class SimplifiedRAGEngine:
                         # Dans ce cas, on ne doit PAS écraser le produit persisté.
                         def _is_stable_product_id(v: str) -> bool:
                             try:
-                                return bool(re.fullmatch(r"prod_[0-9a-f]{8}", str(v or "").strip(), flags=re.IGNORECASE))
+                                return bool(re.fullmatch(r"prod_[a-z0-9_\-]{6,80}", str(v or "").strip(), flags=re.IGNORECASE))
                             except Exception:
                                 return False
 

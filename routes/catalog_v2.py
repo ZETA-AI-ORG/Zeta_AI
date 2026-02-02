@@ -115,6 +115,7 @@ class CatalogV2UpsertResponse(BaseModel):
 class CatalogV2SyncLocalRequest(BaseModel):
     company_id: str
     catalog: Dict[str, Any]
+    product_id: Optional[str] = None
     version: Optional[int] = None
     updated_at: Optional[str] = None
 
@@ -134,6 +135,7 @@ class CatalogV2SyncLocalAndUpsertPromptRequest(BaseModel):
     ai_name: Optional[str] = None
     company_name: Optional[str] = None
     product_name: Optional[str] = None
+    product_id: Optional[str] = None
 
 
 class CatalogV2SyncLocalAndUpsertPromptResponse(BaseModel):
@@ -564,7 +566,12 @@ def _write_local_catalog(company_id: str, payload: CatalogV2SyncLocalRequest) ->
     incoming_name = str(incoming_catalog.get("product_name") or incoming_catalog.get("name") or "").strip()
     if not incoming_name:
         raise HTTPException(status_code=400, detail="product_name requis dans catalog")
-    incoming_pid = _stable_product_id_from_name(incoming_name) or ""
+
+    incoming_pid = str(payload.product_id or incoming_catalog.get("product_id") or "").strip()
+    if incoming_pid:
+        incoming_pid = incoming_pid.lower()
+    if not incoming_pid:
+        incoming_pid = _stable_product_id_from_name(incoming_name) or ""
     if incoming_pid:
         _anchor_product_id_in_catalog(incoming_catalog, incoming_pid, incoming_name)
 
@@ -643,6 +650,83 @@ def _write_local_catalog(company_id: str, payload: CatalogV2SyncLocalRequest) ->
         },
         "synced_at": time.time(),
     }
+
+    try:
+        def _norm_kw(v: Any) -> str:
+            try:
+                import unicodedata as _ud
+
+                t = str(v or "").strip().lower()
+                t = _ud.normalize("NFKD", t)
+                t = "".join([c for c in t if not _ud.combining(c)])
+            except Exception:
+                t = str(v or "").strip().lower()
+            t = re.sub(r"[^a-z0-9\s-]+", " ", t)
+            t = t.replace("-", " ")
+            t = re.sub(r"\s+", " ", t).strip()
+            return t
+
+        keyword_products: list[Dict[str, Any]] = []
+        for prod in out_products:
+            if not isinstance(prod, dict):
+                continue
+            cat = prod.get("catalog_v2") if isinstance(prod.get("catalog_v2"), dict) else {}
+            pid = str(prod.get("product_id") or cat.get("product_id") or "").strip()
+            if pid:
+                pid = pid.lower()
+            pname = str(prod.get("product_name") or cat.get("product_name") or cat.get("name") or "").strip()
+            if not pid or not pname:
+                continue
+
+            kws: set[str] = set()
+            kws.add(_norm_kw(pname))
+            kws.update([w for w in _norm_kw(pname).split() if len(w) >= 3])
+
+            for f in ["category", "subcategory"]:
+                vv = _norm_kw(cat.get(f) or "")
+                if vv:
+                    kws.add(vv)
+                    kws.update([w for w in vv.split() if len(w) >= 3])
+
+            ui = cat.get("ui_state") if isinstance(cat.get("ui_state"), dict) else {}
+            variants = ui.get("variants") if isinstance(ui.get("variants"), list) else []
+            for v in variants:
+                vv = _norm_kw(v)
+                if vv:
+                    kws.add(vv)
+                    kws.update([w for w in vv.split() if len(w) >= 3])
+
+            vtree = cat.get("v") if isinstance(cat.get("v"), dict) else {}
+            for vname in vtree.keys():
+                vv = _norm_kw(vname)
+                if vv:
+                    kws.add(vv)
+                    kws.update([w for w in vv.split() if len(w) >= 3])
+
+            kw_list = sorted({k for k in kws if k and len(k) >= 3}, key=lambda x: (len(x), x))
+            keyword_products.append({"product_id": pid, "product_name": pname, "keywords": kw_list})
+
+        kw_path = os.path.join(base_dir, f"{safe_id}.keywords.json")
+        with tempfile.NamedTemporaryFile("w", encoding="utf-8", delete=False, dir=base_dir, prefix=f"{safe_id}.kw.", suffix=".tmp") as fkw:
+            tmp_kw = fkw.name
+            json.dump(
+                {
+                    "company_id": cid,
+                    "updated_at": payload.updated_at,
+                    "version": payload.version,
+                    "products": keyword_products,
+                    "written_at": time.time(),
+                },
+                fkw,
+                ensure_ascii=False,
+            )
+        os.replace(tmp_kw, kw_path)
+    except Exception:
+        try:
+            if tmp_kw and os.path.exists(tmp_kw):
+                os.unlink(tmp_kw)
+        except Exception:
+            pass
 
     try:
         tmp_path = None
@@ -792,7 +876,7 @@ async def sync_local_and_upsert_botlive_catalogue_block_deepseek(
     if not catalogue_block or not catalogue_block.strip():
         raise HTTPException(status_code=400, detail="catalogue_block vide")
 
-    def _upsert_product_index_block(existing_prompt: str, product_name: str) -> str:
+    def _upsert_product_index_block(existing_prompt: str, product_name: str, product_id: str = "") -> str:
         p = str(existing_prompt or "")
         pn = str(product_name or "").strip()
         if not pn:
@@ -817,19 +901,9 @@ async def sync_local_and_upsert_botlive_catalogue_block_deepseek(
             t = re.sub(r"\s+", " ", t).strip()
             return t
 
-        def _product_id_hash(name: str) -> str:
-            base = _norm_name_for_id(name)
-            if not base:
-                return ""
-            try:
-                import hashlib as _hashlib
-
-                h = _hashlib.sha1(base.encode("utf-8", errors="replace")).hexdigest()
-                return f"prod_{h[:8]}"
-            except Exception:
-                return ""
-
-        pid = _product_id_hash(pn)
+        pid = str(product_id or "").strip()
+        if not pid:
+            pid = _product_id_hash(pn)
         entry = f"{pn} [ID: {pid}]" if pid else pn
         start_tag = "[[PRODUCT_INDEX_START]]"
         end_tag = "[[PRODUCT_INDEX_END]]"
@@ -851,9 +925,9 @@ async def sync_local_and_upsert_botlive_catalogue_block_deepseek(
                     n = ln
                 if not n:
                     continue
-                m_pid = re.search(r"\bprod_[0-9a-f]{8}\b", n, flags=re.IGNORECASE)
+                m_pid = re.search(r"\bprod_[a-z0-9_]{6,64}\b", n, flags=re.IGNORECASE)
                 existing_pid = str(m_pid.group(0)).lower() if m_pid else ""
-                name_only = re.sub(r"\s*\[ID:\s*prod_[0-9a-f]{8}\s*\]\s*", "", n, flags=re.IGNORECASE).strip()
+                name_only = re.sub(r"\s*\[ID:\s*prod_[a-z0-9_]{6,64}\s*\]\s*", "", n, flags=re.IGNORECASE).strip()
                 if existing_pid:
                     if existing_pid in seen_pids:
                         continue
@@ -935,7 +1009,11 @@ async def sync_local_and_upsert_botlive_catalogue_block_deepseek(
         # We keep the markers but force them empty.
         updated_prompt = _clear_catalogue_markers(existing_prompt)
         try:
-            updated_prompt = _upsert_product_index_block(updated_prompt, str(payload.catalog.get("product_name") or ""))
+            updated_prompt = _upsert_product_index_block(
+                updated_prompt,
+                str(payload.catalog.get("product_name") or ""),
+                str(payload.product_id or payload.catalog.get("product_id") or ""),
+            )
         except Exception:
             pass
         if not updated_prompt or len(updated_prompt.strip()) < 50:

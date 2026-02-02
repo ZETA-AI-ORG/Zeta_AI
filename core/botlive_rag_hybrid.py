@@ -319,6 +319,15 @@ class BotliveRAGHybrid:
         block = "\n".join(lines).strip()
         return block, products_by_id
 
+    @staticmethod
+    def _looks_like_product_id(v: str) -> bool:
+        s = str(v or "").strip().lower()
+        if not s:
+            return False
+        if not s.startswith("prod_"):
+            return False
+        return bool(re.fullmatch(r"prod_[a-z0-9_\-]{6,80}", s, flags=re.IGNORECASE))
+
     def _pick_product_id_strict(self, message: str, products_by_id: Dict[str, Dict[str, Any]]) -> str:
         msg = self._norm_text_match(message)
         if not msg or not isinstance(products_by_id, dict) or not products_by_id:
@@ -422,6 +431,37 @@ class BotliveRAGHybrid:
                         if len(w) >= 3:
                             keyword_to_pids.setdefault(w, set()).add(str(pid))
 
+        # Load persisted per-company keywords file if available (enriches choices)
+        try:
+            import json as _json
+            import os as _os
+            base_dir = _os.getenv("CATALOG_V2_LOCAL_DIR") or "/data/catalogs"
+            safe_id = re.sub(r"[^a-zA-Z0-9\-_]", "_", str(self.company_id or ""))
+            kw_path = _os.path.join(base_dir, f"{safe_id}.keywords.json")
+            if _os.path.isfile(kw_path):
+                with open(kw_path, "r", encoding="utf-8") as f:
+                    kw_data = _json.load(f)
+                if isinstance(kw_data, dict) and isinstance(kw_data.get("products"), list):
+                    for prod in kw_data.get("products"):
+                        if not isinstance(prod, dict):
+                            continue
+                        pid = str(prod.get("product_id") or "").strip()
+                        if not pid:
+                            continue
+                        kws = prod.get("keywords")
+                        if not isinstance(kws, list):
+                            continue
+                        for kw in kws:
+                            kw_norm = self._norm_text_match(str(kw))
+                            if kw_norm and len(kw_norm) >= 3:
+                                keyword_to_pids.setdefault(kw_norm, set()).add(pid)
+        except Exception as _kw_e:
+            try:
+                if debug_logs:
+                    logger.warning(f"[BOTLIVE_RAPIDFUZZ] Failed to load keywords file: {type(_kw_e).__name__}: {_kw_e}")
+            except Exception:
+                pass
+
         choices = list(keyword_to_pids.keys())
         if not choices:
             return ""
@@ -462,7 +502,7 @@ class BotliveRAGHybrid:
         if not raw.strip() or not isinstance(products_by_id, dict) or not products_by_id:
             return ""
 
-        m = regex.search(r"<detected_product>\s*(prod_[0-9a-f]{8})\s*</detected_product>", raw, flags=regex.IGNORECASE)
+        m = regex.search(r"<detected_product>\s*(prod_[a-z0-9_\-]{6,80})\s*</detected_product>", raw, flags=regex.IGNORECASE)
         if m:
             pid = str(m.group(1) or "").lower().strip()
             if pid in products_by_id:
@@ -492,13 +532,13 @@ class BotliveRAGHybrid:
                 if len(hits) == 1 and hits[0] in products_by_id:
                     return hits[0]
 
-        m = regex.search(r"\"product_id\"\s*:\s*\"(prod_[0-9a-f]{8})\"", raw, flags=regex.IGNORECASE)
+        m = regex.search(r"\"product_id\"\s*:\s*\"(prod_[a-z0-9_\-]{6,80})\"", raw, flags=regex.IGNORECASE)
         if m:
             pid = str(m.group(1) or "").lower().strip()
             if pid in products_by_id:
                 return pid
 
-        m = regex.search(r"\bprod_[0-9a-f]{8}\b", raw, flags=regex.IGNORECASE)
+        m = regex.search(r"\bprod_[a-z0-9_\-]{6,80}\b", raw, flags=regex.IGNORECASE)
         if m:
             pid = m.group(0).lower()
             if pid in products_by_id:

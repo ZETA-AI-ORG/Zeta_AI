@@ -113,7 +113,18 @@ def _select_product_catalog(
     except Exception:
         selected = None
 
-    # fallback: pid can be prod_<sha1:8>
+    # multi-product: direct product_id match inside container
+    if isinstance(container, dict) and isinstance(container.get("products"), list):
+        plist2 = [p for p in (container.get("products") or []) if isinstance(p, dict)]
+        for p in plist2:
+            cat2 = p.get("catalog_v2") if isinstance(p.get("catalog_v2"), dict) else None
+            if not isinstance(cat2, dict):
+                continue
+            pid2 = str(p.get("product_id") or cat2.get("product_id") or "").strip()
+            if pid2 and pid2.lower() == pid.lower():
+                return cat2
+
+    # fallback: pid can be legacy prod_<sha1:8>
     if re.fullmatch(r"prod_[0-9a-f]{8}", pid, flags=re.IGNORECASE):
         pid_l = pid.lower()
         for p in plist:
@@ -136,10 +147,11 @@ def _map_product_id_if_needed(
     if not pid:
         return ""
 
-    if re.fullmatch(r"prod_[0-9a-f]{8}", pid, flags=re.IGNORECASE):
+    # already a product_id (new format or legacy) -> keep
+    if re.fullmatch(r"prod_[a-z0-9_\-]{6,80}", pid, flags=re.IGNORECASE):
         return pid
 
-    # If container is multi-product, map a name-like product_id to prod_<hash>
+    # If container is multi-product, map a name-like product_id to real product_id (preferred) or legacy hash.
     if isinstance(catalog_container, dict) and isinstance(catalog_container.get("products"), list):
         cname = _norm_name_for_id(pid)
         for p in (catalog_container.get("products") or []):
@@ -147,6 +159,9 @@ def _map_product_id_if_needed(
                 continue
             pname = str(p.get("product_name") or (p.get("catalog_v2") or {}).get("product_name") or "").strip()
             if pname and _norm_name_for_id(pname) == cname:
+                real_id = str(p.get("product_id") or (p.get("catalog_v2") or {}).get("product_id") or "").strip()
+                if real_id:
+                    return real_id
                 mapped = _product_id_hash(pname)
                 return mapped or pid
 
