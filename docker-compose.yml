@@ -1,4 +1,12 @@
 services:
+  redis:
+    image: redis:7-alpine
+    container_name: zeta-redis
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - ./data/redis:/data
+
   zeta-backend:
     build:
       context: .
@@ -10,12 +18,15 @@ services:
       - .env
     environment:
       - ZETA_BOTLIVE_ONLY=false
+      - REDIS_URL=redis://redis:6379/0
       - HOME=/data
       - XDG_CACHE_HOME=/data/cache
       - HF_HOME=/data/cache/huggingface
       - TRANSFORMERS_CACHE=/data/cache/huggingface
       - HUGGINGFACE_HUB_CACHE=/data/cache/huggingface
       - EASYOCR_HOME=/data/easyocr
+    depends_on:
+      - redis
     ports:
       - "0.0.0.0:8002:8002"
     volumes:

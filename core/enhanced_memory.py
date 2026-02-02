@@ -13,6 +13,7 @@ import re
 from typing import Dict, Any, Optional, List
 from datetime import datetime, timedelta
 import logging
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -45,12 +46,14 @@ class EnhancedMemory:
         """Initialise connexion Redis"""
         try:
             import redis
-            self.redis_client = redis.Redis(
-                host='localhost',
-                port=6379,
-                db=2,  # DB dédiée mémoire
-                decode_responses=True
-            )
+            redis_url = (os.getenv("REDIS_URL") or "redis://localhost:6379/0").strip()
+            # Force DB=2 for EnhancedMemory while keeping host/port from REDIS_URL
+            try:
+                import re as _re
+                redis_url = _re.sub(r"/\d+\s*$", "/2", redis_url)
+            except Exception:
+                pass
+            self.redis_client = redis.Redis.from_url(redis_url, decode_responses=True)
             self.redis_client.ping()
             print("✅ [ENHANCED_MEMORY] Redis connecté")
         except Exception as e:
