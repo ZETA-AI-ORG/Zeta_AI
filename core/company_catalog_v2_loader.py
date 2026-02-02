@@ -181,6 +181,12 @@ def get_company_catalog_v2(company_id: str) -> Optional[Dict[str, Any]]:
         _CACHE[cid] = (now + ttl_s, local)
         return local
 
+    if debug_logs:
+        try:
+            logger.info(f"[CATALOG_LOAD] company={cid} source=local missing")
+        except Exception:
+            pass
+
     try:
         from database.supabase_client import get_supabase_client
 
@@ -196,6 +202,11 @@ def get_company_catalog_v2(company_id: str) -> Optional[Dict[str, Any]]:
         )
         data = getattr(resp, "data", None) or []
         if not data:
+            if debug_logs:
+                try:
+                    logger.info(f"[CATALOG_LOAD] company={cid} source=supabase no_active_rows")
+                except Exception:
+                    pass
             return None
         catalog = data[0].get("catalog")
         out = catalog if isinstance(catalog, dict) else None
