@@ -3,6 +3,7 @@ FROM python:3.11-slim
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONPATH=/app
+ENV DEBIAN_FRONTEND=noninteractive
 ENV HOME=/data
 ENV XDG_CACHE_HOME=/data/cache
 ENV HF_HOME=/data/cache/huggingface
@@ -30,8 +31,8 @@ RUN mkdir -p /data/cache /data/easyocr /data/tmp /app/logs \
     && chmod -R 777 /app/logs
 
 COPY requirements.txt /app/requirements.txt
-RUN pip install --no-cache-dir --upgrade pip \
-    && pip install --no-cache-dir --extra-index-url https://download.pytorch.org/whl/cpu -r /app/requirements.txt
+RUN pip install --root-user-action=ignore --no-cache-dir --upgrade pip \
+    && pip install --root-user-action=ignore --no-cache-dir --extra-index-url https://download.pytorch.org/whl/cpu -r /app/requirements.txt
 
 COPY . /app
 
