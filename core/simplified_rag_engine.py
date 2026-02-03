@@ -3255,10 +3255,6 @@ class SimplifiedRAGEngine:
                         if ready:
                             llm_resp = str(response or "").strip()
                             ready_txt = str(ready).strip()
-
-                            # Anti-répétition: ne pas ré-afficher le total à chaque tour.
-                            # - On affiche le ready_to_send si: (a) le client demande le prix/total, ou (b) le panier/prix vient de changer.
-                            # - Sinon, on laisse le LLM guider sur le prochain slot (numéro/paiement/etc.) sans répéter le montant.
                             try:
                                 current_sig = "|".join(
                                     [
@@ -3271,8 +3267,19 @@ class SimplifiedRAGEngine:
                                 last_sig = str(
                                     order_tracker.get_custom_meta(user_id, "last_price_signature_shown", default="") or ""
                                 ).strip()
+                                try:
+                                    last_turn_raw = order_tracker.get_custom_meta(user_id, "last_price_shown_turn", default=0)
+                                    last_turn = int(last_turn_raw) if last_turn_raw is not None else 0
+                                except Exception:
+                                    last_turn = 0
                                 price_requested_now = bool(_is_price_request(query or ""))
                                 allow_show_price = price_requested_now or (not last_sig) or (last_sig != current_sig)
+                                if (not price_requested_now) and last_sig and (last_sig == current_sig) and last_turn and current_turn:
+                                    try:
+                                        if int(current_turn) - int(last_turn) <= 2:
+                                            allow_show_price = False
+                                    except Exception:
+                                        pass
                             except Exception:
                                 current_sig = ""
                                 allow_show_price = True
@@ -3328,67 +3335,36 @@ class SimplifiedRAGEngine:
                             money_pattern = re.compile(r"\b\d[\d\s.,]*\s*(?:fcfa|f)\b", re.IGNORECASE)
                             llm_amounts = [_norm_amt(m.group(0)) for m in money_pattern.finditer(llm_calc_part)]
                             llm_amounts = [a for a in llm_amounts if a]
+                            has_marker = orientation_marker in llm_resp
+                            resp_no_marker = str(llm_resp).replace(orientation_marker, "", 1).strip() if has_marker else llm_resp
+                            if price_requested_now and allow_show_price and (not has_marker):
+                                response = ready_txt
+                                try:
+                                    if current_sig:
+                                        order_tracker.set_custom_meta(user_id, "last_price_signature_shown", current_sig)
+                                        order_tracker.set_custom_meta(user_id, "last_price_shown_turn", int(current_turn or 0))
+                                except Exception:
+                                    pass
+                            elif has_marker:
+                                tail = (llm_orientation_part or "").strip() or _extract_single_question(resp_no_marker) or str(resp_no_marker).strip()
+                                try:
+                                    tail = money_pattern.sub("", str(tail))
+                                    tail = re.sub(r"\s+", " ", tail).strip()
+                                except Exception:
+                                    pass
 
-                            if not llm_amounts:
-                                tail = (llm_orientation_part or "").strip()
-                                if not tail:
-                                    tail = _extract_single_question(llm_resp)
-                                tail = tail.replace(orientation_marker, "").strip()
                                 if allow_show_price:
-                                    if tail and tail.lower() != ready_txt.lower():
-                                        response = (ready_txt + "\n" + _with_orientation_marker(tail)).strip()
-                                    else:
-                                        response = ready_txt
+                                    response = (ready_txt + "\n" + _with_orientation_marker(tail)).strip()
                                     try:
                                         if current_sig:
                                             order_tracker.set_custom_meta(user_id, "last_price_signature_shown", current_sig)
+                                            order_tracker.set_custom_meta(user_id, "last_price_shown_turn", int(current_turn or 0))
                                     except Exception:
                                         pass
                                 else:
-                                    # Prix déjà affiché sur ce panier: ne pas le répéter.
-                                    response = tail or llm_resp
+                                    response = str(tail).strip()
                             else:
-                                mismatch = False
-                                if expected_amounts:
-                                    for a in llm_amounts:
-                                        if a not in expected_amounts:
-                                            mismatch = True
-                                            break
-                                else:
-                                    mismatch = True
-
-                                if not mismatch:
-                                    # Le LLM a cité des montants cohérents: on accepte uniquement si on veut ré-afficher le prix.
-                                    if allow_show_price:
-                                        tail = (llm_orientation_part or "").strip() or _extract_single_question(llm_resp)
-                                        tail = tail.replace(orientation_marker, "").strip()
-                                        if tail and tail.lower() != ready_txt.lower():
-                                            response = (ready_txt + "\n" + _with_orientation_marker(tail)).strip()
-                                        else:
-                                            response = ready_txt
-                                        try:
-                                            if current_sig:
-                                                order_tracker.set_custom_meta(user_id, "last_price_signature_shown", current_sig)
-                                        except Exception:
-                                            pass
-                                    else:
-                                        # On garde seulement la partie orientation (question) pour éviter la répétition du total.
-                                        response = (llm_orientation_part or "").strip() or llm_resp
-                                        response = response.replace(orientation_marker, "").strip()
-                                else:
-                                    if allow_show_price:
-                                        if llm_orientation_part:
-                                            response = (ready_txt + "\n" + _with_orientation_marker(llm_orientation_part)).strip()
-                                        else:
-                                            response = ready_txt
-                                        try:
-                                            if current_sig:
-                                                order_tracker.set_custom_meta(user_id, "last_price_signature_shown", current_sig)
-                                        except Exception:
-                                            pass
-                                    else:
-                                        response = (llm_orientation_part or "").strip() or llm_resp
-                                        response = response.replace(orientation_marker, "").strip()
+                                response = llm_resp
                         print(f"✅ [PRICE_MULTI] injected | items={len(detected_items)} | zone='{zone_for_price}'")
                     else:
                         print(f"⚠️ [PRICE_MULTI] calc returned empty | raw_items_len={len(str(detected_items_raw or ''))}")
@@ -3564,7 +3540,7 @@ class SimplifiedRAGEngine:
 
             # Replace ##RECAP## marker by a structured recap built from price_calculation/last_total_snapshot.
             try:
-                if "##RECAP##" in str(response or ""):
+                if re.search(r"##\s*RECAP\s*##", str(response or ""), flags=re.IGNORECASE):
                     price_block = ""
                     try:
                         price_block = str(order_tracker.get_custom_meta(user_id, "price_calculation_block", default="") or "")
@@ -3598,8 +3574,8 @@ class SimplifiedRAGEngine:
                             for it in items:
                                 if not isinstance(it, dict):
                                     continue
-                                p = str(it.get("product") or "").strip().lower()
-                                specs = str(it.get("specs") or "").strip().upper()
+                                p = str(it.get("product") or it.get("variant") or "").strip().lower()
+                                specs = str(it.get("specs") or it.get("spec") or "").strip().upper()
                                 unit = str(it.get("unit") or "").strip().lower()
                                 qty = it.get("qty")
                                 if p == "pressions" and specs and unit == "lot" and isinstance(qty, int) and qty > 0:
@@ -3642,8 +3618,25 @@ class SimplifiedRAGEngine:
                             if total is not None:
                                 recap_lines.append(f"- Total: {UniversalPriceCalculator._fmt_fcfa(int(total))}F")
 
+                    if not recap_lines:
+                        try:
+                            st_r = order_tracker.get_state(user_id)
+                            prod_r = str(getattr(st_r, "produit", "") or "").strip()
+                            specs_r = str(getattr(st_r, "produit_details", "") or "").strip()
+                            qty_r = str(getattr(st_r, "quantite", "") or "").strip()
+                            zone_r = str(getattr(st_r, "zone", "") or "").strip()
+                            tel_r = str(getattr(st_r, "numero", "") or "").strip()
+                            if prod_r or specs_r or qty_r:
+                                recap_lines.append(f"- Produit: {prod_r} {specs_r} {qty_r}".strip())
+                            if zone_r:
+                                recap_lines.append(f"- Livraison: {zone_r}")
+                            if tel_r:
+                                recap_lines.append(f"- Numéro: {tel_r}")
+                        except Exception:
+                            pass
+
                     recap_block = "\n".join(recap_lines).strip()
-                    response = str(response or "").replace("##RECAP##", recap_block).strip()
+                    response = re.sub(r"##\s*RECAP\s*##", recap_block, str(response or ""), flags=re.IGNORECASE).strip()
             except Exception:
                 pass
 
@@ -3927,7 +3920,7 @@ async def get_simplified_rag_response(
             order_tracker.set_custom_meta(user_id, "order_confirmed_code", awaiting_code)
             order_tracker.set_custom_meta(user_id, "awaiting_confirmation_code", "")
             return {
-                "response": f"Commande validée ✅ (code: {awaiting_code}).\n\nVeuillez ne pas répondre à ce message (sauf problème). Merci 🙏",
+                "response": f"C’est validé ✅ (code: {awaiting_code}).\n\nMerci ! Si tu as un souci, écris-moi ici.",
                 "confidence": 1.0,
                 "documents_found": True,
                 "processing_time_ms": 0,
@@ -4146,8 +4139,16 @@ async def get_simplified_rag_response(
                 lines.append(f"- Paiement: {pay}")
 
             recap = "\n".join([str(x).strip() for x in lines if str(x).strip()])
+
+            try:
+                from core.timezone_helper import is_same_day_delivery_possible
+
+                delai_txt = "aujourd'hui" if is_same_day_delivery_possible() else "demain"
+                recap = (recap + f"\n- Délai: livraison prévue {delai_txt}").strip()
+            except Exception:
+                pass
             return {
-                "response": f"{recap}\n\nC'est bon pour toi ? Réponds juste OUI pour confirmer.",
+                "response": f"{recap}\n\nOn valide ? Réponds OUI pour confirmer.",
                 "confidence": 1.0,
                 "documents_found": True,
                 "processing_time_ms": result.processing_time_ms,
