@@ -51,6 +51,16 @@ def _get_local_catalog_path(company_id: str) -> Optional[str]:
     except Exception:
         base_dir = "/data/catalogs"
 
+    # In local/in-process runs (outside Docker), /data/catalogs may not exist.
+    # Fall back to the repo-relative path if available.
+    try:
+        if base_dir == "/data/catalogs" and (not os.path.exists(base_dir)):
+            alt = os.path.join(os.getcwd(), "data", "catalogs")
+            if os.path.exists(alt):
+                base_dir = alt
+    except Exception:
+        pass
+
     safe_id = re.sub(r"[^a-zA-Z0-9\-_]", "_", str(company_id).strip())
     if not safe_id:
         return None

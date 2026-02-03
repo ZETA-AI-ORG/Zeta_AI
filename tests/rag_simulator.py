@@ -40,6 +40,19 @@ if project_root not in sys.path:
 
 load_dotenv()
 
+# Ensure in-process runs (outside Docker) can still load local catalogs and connect to Redis.
+try:
+    if not (os.getenv("CATALOG_V2_LOCAL_DIR") or "").strip():
+        os.environ["CATALOG_V2_LOCAL_DIR"] = str(Path(project_root) / "data" / "catalogs")
+except Exception:
+    pass
+try:
+    ru = (os.getenv("REDIS_URL") or "").strip()
+    if ru.startswith("redis://redis:"):
+        os.environ["REDIS_URL"] = "redis://localhost:6379/0"
+except Exception:
+    pass
+
 DEFAULT_COMPANY_ID = "W27PwOPiblP8TlOrhPcjOtxd0cza"
 DEFAULT_COMPANY_NAME = "Test Company"
 
