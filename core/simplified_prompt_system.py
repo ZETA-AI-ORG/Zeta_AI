@@ -1189,6 +1189,59 @@ Fais confiance à ton jugement. Tu es Jessica, pas un robot."""
                     except Exception:
                         mono = None
 
+                # First-turn best-effort: if we still don't have a mono product (because active_product_id
+                # isn't persisted yet), try to select by matching the current query against product_name.
+                if mono is None:
+                    try:
+                        def _norm_text(s: str) -> str:
+                            try:
+                                import unicodedata
+
+                                t = str(s or "").strip().lower()
+                                t = unicodedata.normalize("NFKD", t)
+                                t = "".join(ch for ch in t if not unicodedata.combining(ch))
+                            except Exception:
+                                t = str(s or "").strip().lower()
+                            t = re.sub(r"[^a-z0-9\s-]+", " ", t)
+                            t = t.replace("-", " ")
+                            t = re.sub(r"\s+", " ", t).strip()
+                            return t
+
+                        qn = _norm_text(query)
+                        best = None
+                        best_pid = ""
+                        best_name = ""
+
+                        for p in [pp for pp in (catalog_v2.get("products") or []) if isinstance(pp, dict)]:
+                            cat = p.get("catalog_v2") if isinstance(p.get("catalog_v2"), dict) else None
+                            if not isinstance(cat, dict) or not cat:
+                                continue
+                            pname = str(p.get("product_name") or cat.get("product_name") or cat.get("name") or "").strip()
+                            pid = str(p.get("product_id") or cat.get("product_id") or "").strip()
+                            pn = _norm_text(pname)
+                            if not pn or not qn:
+                                continue
+                            if pn in qn or any(tok in qn for tok in pn.split() if len(tok) >= 4):
+                                best = cat
+                                best_pid = pid
+                                best_name = pname
+                                break
+
+                        if isinstance(best, dict) and best:
+                            mono = best
+                            if not active_pid and best_pid:
+                                try:
+                                    order_tracker.set_custom_meta(user_id, "active_product_id", str(best_pid).strip())
+                                except Exception:
+                                    pass
+                            if not active_label and best_name:
+                                try:
+                                    order_tracker.set_custom_meta(user_id, "active_product_label", str(best_name).strip())
+                                except Exception:
+                                    pass
+                    except Exception:
+                        mono = None
+
                 if isinstance(mono, dict) and mono:
                     catalog_v2 = mono
         except Exception:
