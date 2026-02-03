@@ -3241,6 +3241,16 @@ class SimplifiedRAGEngine:
                         return int(m.group(1)) if m else None
 
                     delivery_fee_fcfa = _parse_fee(dynamic_context.get("shipping_fee"))
+                    if (delivery_fee_fcfa is None or int(delivery_fee_fcfa) <= 0) and zone_for_price:
+                        try:
+                            from core.delivery_zone_extractor import extract_delivery_zone_and_cost
+
+                            zinfo = extract_delivery_zone_and_cost(str(zone_for_price))
+                            fee2 = (zinfo or {}).get("cost") if isinstance(zinfo, dict) else None
+                            if isinstance(fee2, (int, float)) and int(fee2) > 0:
+                                delivery_fee_fcfa = int(fee2)
+                        except Exception:
+                            pass
                     pc_inner = UniversalPriceCalculator.build_price_calculation_block_from_detected_items(
                         company_id=company_id,
                         items=detected_items,
@@ -3920,12 +3930,12 @@ async def get_simplified_rag_response(
             order_tracker.set_custom_meta(user_id, "order_confirmed_code", awaiting_code)
             order_tracker.set_custom_meta(user_id, "awaiting_confirmation_code", "")
             return {
-                "response": f"C’est validé ✅ (code: {awaiting_code}).\n\nMerci ! Si tu as un souci, écris-moi ici.",
+                "response": f"Commande validée ✅ (code: {awaiting_code}).\n\nNe réponds pas à ce message sauf si tu as un problème avec ta commande.",
                 "confidence": 1.0,
                 "documents_found": True,
                 "processing_time_ms": 0,
                 "search_method": "short_circuit",
-                "context_used": "order_confirmation",
+                "context_used": "confirmation_code",
                 "thinking": "",
                 "validation": None,
                 "usage": {},
@@ -4051,10 +4061,8 @@ async def get_simplified_rag_response(
         request_id=request_id
     )
 
-    try:
-        result.response = str(result.response or "").replace("§§", "").strip()
-    except Exception:
-        pass
+    # IMPORTANT: do not strip the orientation marker here.
+    # The marker may be needed for downstream formatting rules.
 
     try:
         pc_meta = str(order_tracker.get_custom_meta(user_id, "price_calculation_block", default="") or "").strip()
@@ -4122,8 +4130,31 @@ async def get_simplified_rag_response(
                         lines.append(f"- Produit: {p}{sfx} × {qty}{ufx}")
 
             if zone:
-                if delivery_fee is not None:
-                    lines.append(f"- Livraison: {zone} ({UniversalPriceCalculator._fmt_fcfa(int(delivery_fee))}F)")
+                # If the fee is missing or looks wrong (0), recompute from zone.
+                fee_out = delivery_fee
+                try:
+                    fee_i = int(fee_out) if fee_out is not None else None
+                except Exception:
+                    fee_i = None
+
+                if fee_i is None or fee_i <= 0:
+                    try:
+                        from core.delivery_zone_extractor import extract_delivery_zone_and_cost
+
+                        zinfo = extract_delivery_zone_and_cost(str(zone))
+                        fee2 = (zinfo or {}).get("cost") if isinstance(zinfo, dict) else None
+                        if isinstance(fee2, (int, float)) and int(fee2) > 0:
+                            fee_i = int(fee2)
+                            fee_out = fee_i
+                    except Exception:
+                        pass
+
+                if fee_i is not None and fee_i > 0:
+                    lines.append(f"- Livraison: {zone} ({UniversalPriceCalculator._fmt_fcfa(int(fee_i))}F)")
+                    try:
+                        delivery_fee = int(fee_i)
+                    except Exception:
+                        pass
                 else:
                     lines.append(f"- Livraison: {zone}")
             if total is not None:
@@ -4141,10 +4172,21 @@ async def get_simplified_rag_response(
             recap = "\n".join([str(x).strip() for x in lines if str(x).strip()])
 
             try:
-                from core.timezone_helper import is_same_day_delivery_possible
+                from core.timezone_helper import get_current_time_ci, is_same_day_delivery_possible
 
-                delai_txt = "aujourd'hui" if is_same_day_delivery_possible() else "demain"
-                recap = (recap + f"\n- Délai: livraison prévue {delai_txt}").strip()
+                now_ci = get_current_time_ci()
+                delai_day = "aujourd'hui" if is_same_day_delivery_possible() else "demain"
+                bucket = ""
+                if now_ci is not None:
+                    h = int(getattr(now_ci, "hour", 0) or 0)
+                    if 5 <= h < 12:
+                        bucket = "matin"
+                    elif 12 <= h < 18:
+                        bucket = "après-midi"
+                    else:
+                        bucket = "soir"
+                delai_line = f"Livraison prévue {delai_day}" + (f" {bucket}" if bucket else "") + "."
+                recap = (recap + f"\n- Délai: {delai_line}").strip()
             except Exception:
                 pass
             return {

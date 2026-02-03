@@ -1393,25 +1393,17 @@ Fais confiance à ton jugement. Tu es Jessica, pas un robot."""
             from core.timezone_helper import get_current_time_ci, is_same_day_delivery_possible
 
             now_ci = get_current_time_ci()
-            delai_s = "aujourd'hui" if is_same_day_delivery_possible() else "demain"
+            delai_day = "aujourd'hui" if is_same_day_delivery_possible() else "demain"
             bucket = ""
             if now_ci is not None:
                 h = int(getattr(now_ci, "hour", 0) or 0)
-                if 5 <= h < 11:
-                    bucket = "Matin"
-                elif 11 <= h < 14:
-                    bucket = "Midi"
-                elif 14 <= h < 19:
-                    bucket = "Après-midi"
+                if 5 <= h < 12:
+                    bucket = "matin"
+                elif 12 <= h < 18:
+                    bucket = "après-midi"
                 else:
-                    bucket = "Soir"
-
-            if bucket and delai_s:
-                delai_message_s = f"⏰ HEURE CI: {bucket}. Livraison prévue {delai_s}."
-            elif bucket:
-                delai_message_s = f"⏰ HEURE CI: {bucket}."
-            elif delai_s:
-                delai_message_s = f"Livraison prévue {delai_s}."
+                    bucket = "soir"
+            delai_message_s = f"Livraison prévue {delai_day}" + (f" {bucket}" if bucket else "") + "."
         except Exception as _delai_e:
             delai_message_s = ""
             delai_calc_failed = True
