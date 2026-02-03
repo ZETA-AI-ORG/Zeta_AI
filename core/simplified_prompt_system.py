@@ -1158,6 +1158,42 @@ Fais confiance à ton jugement. Tu es Jessica, pas un robot."""
         except Exception:
             active_product_label = ""
 
+        # If catalog_v2 is a multi-product container (catalog.products[]), select the active mono-product
+        # to build a stable PRODUCT_CONTEXT. Without this, the catalogue injection becomes empty.
+        try:
+            if isinstance(catalog_v2, dict) and isinstance(catalog_v2.get("products"), list):
+                active_pid = str(active_product_id or "").strip()
+                active_label = str(active_product_label or "").strip()
+
+                mono = None
+                try:
+                    # Prefer stable product_id (prod_*) if available.
+                    if active_pid:
+                        mono = get_company_product_catalog_v2(company_id, active_pid)
+                except Exception:
+                    mono = None
+
+                # Fallback: try label if we didn't match by product_id.
+                try:
+                    if mono is None and active_label:
+                        mono = get_company_product_catalog_v2(company_id, active_label)
+                except Exception:
+                    mono = None
+
+                # Final fallback: if only one product in container, use it.
+                if mono is None:
+                    try:
+                        plist = [p for p in (catalog_v2.get("products") or []) if isinstance(p, dict)]
+                        if len(plist) == 1:
+                            mono = plist[0].get("catalog_v2") if isinstance(plist[0].get("catalog_v2"), dict) else None
+                    except Exception:
+                        mono = None
+
+                if isinstance(mono, dict) and mono:
+                    catalog_v2 = mono
+        except Exception:
+            pass
+
         # Valeurs réelles déjà collectées (source: OrderStateTracker)
         st = None
         try:
