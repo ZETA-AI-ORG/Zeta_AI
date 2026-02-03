@@ -1578,7 +1578,7 @@ Fais confiance à ton jugement. Tu es Jessica, pas un robot."""
         # Règle runtime (appliquée même si le prompt vient de Supabase):
         # quand le client demande un délai, Jessica doit répondre avec {delai_message} (ou fallback si vide)
         # et ne doit pas inventer de dépendance au produit/zone.
-        delay_line = delai_message_s if delai_message_s else "Le service client va te préciser le créneau par appel."
+        delay_line = delai_message_s if delai_message_s else "Le service client va vous préciser le créneau par appel."
         delay_rule_block = (
             "\n\n"
             "RÈGLE (QUESTIONS DÉLAI)\n"

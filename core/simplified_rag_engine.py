@@ -3763,7 +3763,20 @@ async def get_simplified_rag_response(
 
     def _is_affirmation(s: str) -> bool:
         t = str(s or "").strip().lower()
-        return t in {"oui", "ok", "okay", "d'accord", "dac", "c'est bon", "valide", "validé", "validee", "validé", "go"}
+        t = re.sub(r"\s+", " ", t)
+        if not t:
+            return False
+        # Strong signals (including repeated forms)
+        if re.fullmatch(r"(oui)( oui)*", t):
+            return True
+        if re.fullmatch(r"(ok|okay)( ok| okay)*", t):
+            return True
+        if t in {"oui", "ok", "okay", "d'accord", "dac", "daccord", "ça marche", "ca marche", "c'est bon", "cest bon", "valide", "validé", "validee", "go"}:
+            return True
+        # Mixed short confirmations
+        if t.startswith("oui") and any(k in t for k in ["merci", "stp", "svp"]):
+            return True
+        return False
 
     def _is_negation(s: str) -> bool:
         t = str(s or "").strip().lower()
@@ -3930,7 +3943,7 @@ async def get_simplified_rag_response(
             order_tracker.set_custom_meta(user_id, "order_confirmed_code", awaiting_code)
             order_tracker.set_custom_meta(user_id, "awaiting_confirmation_code", "")
             return {
-                "response": f"Commande validée ✅ (code: {awaiting_code}).\n\nNe réponds pas à ce message sauf si tu as un problème avec ta commande.",
+                "response": f"C'est noté 🎉 (code: {awaiting_code}). On vous contacte pour la livraison. Merci !",
                 "confidence": 1.0,
                 "documents_found": True,
                 "processing_time_ms": 0,
@@ -3952,7 +3965,7 @@ async def get_simplified_rag_response(
         if _is_negation(msg):
             order_tracker.set_custom_meta(user_id, "awaiting_confirmation_code", "")
             return {
-                "response": "D'accord 👍 Dis-moi juste ce que tu veux changer (produit, taille, quantité ou livraison).",
+                "response": "D'accord 👍 Dites-moi juste ce que vous voulez changer (produit, taille, quantité ou livraison).",
                 "confidence": 1.0,
                 "documents_found": True,
                 "processing_time_ms": 0,
@@ -4110,7 +4123,7 @@ async def get_simplified_rag_response(
                 pay = ""
 
             lines = []
-            lines.append("📋 Résumé commande:")
+            lines.append("Récap rapide :")
 
             try:
                 items = order_tracker.get_custom_meta(user_id, "detected_items", default=[])
@@ -4127,7 +4140,7 @@ async def get_simplified_rag_response(
                     if p and isinstance(qty, int) and qty > 0:
                         sfx = f" {specs}" if specs else ""
                         ufx = f" {unit}" if unit else ""
-                        lines.append(f"- Produit: {p}{sfx} × {qty}{ufx}")
+                        lines.append(f"- {qty}{ufx}{sfx} → {p}")
 
             if zone:
                 # If the fee is missing or looks wrong (0), recompute from zone.
@@ -4150,24 +4163,24 @@ async def get_simplified_rag_response(
                         pass
 
                 if fee_i is not None and fee_i > 0:
-                    lines.append(f"- Livraison: {zone} ({UniversalPriceCalculator._fmt_fcfa(int(fee_i))}F)")
+                    lines.append(f"- Livraison {zone} → {UniversalPriceCalculator._fmt_fcfa(int(fee_i))}F")
                     try:
                         delivery_fee = int(fee_i)
                     except Exception:
                         pass
                 else:
-                    lines.append(f"- Livraison: {zone}")
+                    lines.append(f"- Livraison {zone}")
             if total is not None:
                 if product_subtotal is not None and delivery_fee is not None:
                     lines.append(
-                        f"- Total: {UniversalPriceCalculator._fmt_fcfa(int(total))}F (produits {UniversalPriceCalculator._fmt_fcfa(int(product_subtotal))}F + livraison {UniversalPriceCalculator._fmt_fcfa(int(delivery_fee))}F)"
+                        f"- Total → {UniversalPriceCalculator._fmt_fcfa(int(total))}F (produits {UniversalPriceCalculator._fmt_fcfa(int(product_subtotal))}F + livraison {UniversalPriceCalculator._fmt_fcfa(int(delivery_fee))}F)"
                     )
                 else:
-                    lines.append(f"- Total: {UniversalPriceCalculator._fmt_fcfa(int(total))}F")
+                    lines.append(f"- Total → {UniversalPriceCalculator._fmt_fcfa(int(total))}F")
             if phone:
-                lines.append(f"- Numéro: {phone}")
+                lines.append(f"- Numéro → {phone}")
             if pay:
-                lines.append(f"- Paiement: {pay}")
+                lines.append(f"- Paiement → {pay}")
 
             recap = "\n".join([str(x).strip() for x in lines if str(x).strip()])
 
@@ -4186,11 +4199,11 @@ async def get_simplified_rag_response(
                     else:
                         bucket = "soir"
                 delai_line = f"Livraison prévue {delai_day}" + (f" {bucket}" if bucket else "") + "."
-                recap = (recap + f"\n- Délai: {delai_line}").strip()
+                recap = (recap + f"\n- {delai_line}").strip()
             except Exception:
                 pass
             return {
-                "response": f"{recap}\n\nOn valide ? Réponds OUI pour confirmer.",
+                "response": f"{recap}\n\nOn valide ? 😊",
                 "confidence": 1.0,
                 "documents_found": True,
                 "processing_time_ms": result.processing_time_ms,
