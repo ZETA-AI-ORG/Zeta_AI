@@ -40,6 +40,15 @@ if project_root not in sys.path:
 
 load_dotenv()
 
+try:
+    tmp_dir = Path(project_root) / ".tmp"
+    tmp_dir.mkdir(parents=True, exist_ok=True)
+    os.environ.setdefault("TMPDIR", str(tmp_dir))
+    os.environ.setdefault("TEMP", str(tmp_dir))
+    os.environ.setdefault("TMP", str(tmp_dir))
+except Exception:
+    pass
+
 # Ensure in-process runs (outside Docker) can still load local catalogs and connect to Redis.
 try:
     if not (os.getenv("CATALOG_V2_LOCAL_DIR") or "").strip():
