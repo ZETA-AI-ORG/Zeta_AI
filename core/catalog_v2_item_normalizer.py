@@ -232,6 +232,48 @@ def _resolve_variant_and_specs(
     return str(variant_key), ""
 
 
+def _map_weight_to_spec_from_technical_specs(*, catalog_v2: Dict[str, Any], specs_hint: str) -> Tuple[str, str]:
+    specs_s = str(specs_hint or "").strip()
+    if not specs_s:
+        return "", ""
+
+    w = _extract_int(specs_s)
+    if w is None:
+        return "", ""
+
+    if not re.search(r"\bkg\b", specs_s, flags=re.IGNORECASE):
+        return "", ""
+
+    tech = str(catalog_v2.get("technical_specs") or "")
+    if not tech.strip():
+        return "", ""
+
+    matches: List[Tuple[str, int, int]] = []
+    try:
+        for m in re.finditer(r"\b(T\d+)\b[^\n\r]*?\(\s*(\d+)\s*[–\-]\s*(\d+)\s*kg\s*\)", tech, flags=re.IGNORECASE):
+            key = str(m.group(1) or "").strip().upper()
+            try:
+                lo = int(m.group(2))
+                hi = int(m.group(3))
+            except Exception:
+                continue
+            if key and lo > 0 and hi > 0 and lo <= hi:
+                matches.append((key, lo, hi))
+    except Exception:
+        matches = []
+
+    if not matches:
+        return "", ""
+
+    hits = [k for (k, lo, hi) in matches if lo <= int(w) <= hi]
+    hits = sorted(set([h for h in hits if h]))
+    if len(hits) == 1:
+        return hits[0], ""
+    if len(hits) > 1:
+        return "", "AMBIGU"
+    return "", "INCOMPATIBLE"
+
+
 def _allowed_units_for_variant_and_specs(
     *,
     catalog_v2: Dict[str, Any],
@@ -440,6 +482,18 @@ def normalize_detected_items(
             specs_hint=specs_hint,
         )
 
+        weight_mapped_spec, weight_status = "", ""
+        try:
+            if (not specs_key) and specs_hint:
+                weight_mapped_spec, weight_status = _map_weight_to_spec_from_technical_specs(
+                    catalog_v2=selected_catalog,
+                    specs_hint=specs_hint,
+                )
+                if weight_mapped_spec:
+                    specs_key = weight_mapped_spec
+        except Exception:
+            weight_mapped_spec, weight_status = "", ""
+
         allowed_units = _allowed_units_for_variant_and_specs(
             catalog_v2=selected_catalog,
             variant_key=variant_key,
@@ -460,9 +514,14 @@ def normalize_detected_items(
             nxt["variant"] = variant_key
         if specs_key:
             nxt["specs"] = specs_key
+            nxt["spec"] = specs_key
         else:
             if specs_hint:
-                nxt["specs"] = specs_hint
+                if weight_status in {"AMBIGU", "INCOMPATIBLE"}:
+                    nxt["specs"] = ""
+                    nxt["spec"] = ""
+                else:
+                    nxt["specs"] = specs_hint
         if unit_key:
             nxt["unit"] = unit_key
         if qty_i is not None:
