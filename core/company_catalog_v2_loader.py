@@ -187,9 +187,12 @@ def get_company_product_catalog_v2(company_id: str, product_id: str) -> Optional
     for p in plist:
         if not isinstance(p, dict):
             continue
-        ppid = _norm_product_id(str(p.get("product_id") or p.get("product_name") or ""))
+        cat0 = p.get("catalog_v2") if isinstance(p.get("catalog_v2"), dict) else None
+        ppid_raw = str(p.get("product_id") or (cat0 or {}).get("product_id") or "").strip()
+        pname_raw = str(p.get("product_name") or (cat0 or {}).get("product_name") or (cat0 or {}).get("name") or "").strip()
+        ppid = _norm_product_id(ppid_raw or pname_raw)
         if ppid and ppid == pid:
-            cat = p.get("catalog_v2")
+            cat = cat0 if isinstance(cat0, dict) else p
             return cat if isinstance(cat, dict) else None
     return None
 

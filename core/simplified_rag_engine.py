@@ -744,6 +744,38 @@ class SimplifiedRAGEngine:
                                 detected_pid = _pick_pid_from_product_entry(only_p, only_name)
                         except Exception:
                             pass
+
+                    # Strategy D: variant-only mention on a multi-product container.
+                    # If multiple products exist, pick the unique product whose catalog.v contains the variant.
+                    if (not detected_pid) and detected_variant:
+                        try:
+                            plist = [pp for pp in (container.get("products") or []) if isinstance(pp, dict)]
+                            if len(plist) >= 2:
+                                v_norm = _norm_name_for_id(detected_variant)
+                                matches = []
+                                for pp in plist:
+                                    cat = pp.get("catalog_v2") if isinstance(pp.get("catalog_v2"), dict) else None
+                                    if not isinstance(cat, dict):
+                                        continue
+                                    vtree = cat.get("v") if isinstance(cat.get("v"), dict) else None
+                                    if not isinstance(vtree, dict) or not vtree:
+                                        continue
+                                    keys = [str(k or "").strip() for k in list(vtree.keys())]
+                                    if any(_norm_name_for_id(k) == v_norm for k in keys if str(k).strip()):
+                                        matches.append(pp)
+
+                                if len(matches) == 1:
+                                    one = matches[0]
+                                    one_name = str(
+                                        one.get("product_name")
+                                        or (one.get("catalog_v2") or {}).get("product_name")
+                                        or (one.get("catalog_v2") or {}).get("name")
+                                        or ""
+                                    ).strip()
+                                    detected_name = one_name
+                                    detected_pid = _pick_pid_from_product_entry(one, one_name)
+                        except Exception:
+                            pass
                 elif isinstance(container, dict):
                     pname = str(container.get("product_name") or container.get("name") or "").strip()
                     pn_norm = _norm_name_for_id(pname)
@@ -2426,6 +2458,12 @@ class SimplifiedRAGEngine:
             except Exception:
                 had_product_context_in_prompt = False
 
+            active_pid_before_prompt = ""
+            try:
+                active_pid_before_prompt = str(order_tracker.get_custom_meta(user_id, "active_product_id", default="") or "").strip()
+            except Exception:
+                active_pid_before_prompt = ""
+
             final_prompt = await self.prompt_system.build_prompt(
                 query=query,
                 user_id=user_id,
@@ -2456,6 +2494,18 @@ class SimplifiedRAGEngine:
                 ),
                 has_image=bool(images and len(images) > 0),
             )
+
+            first_pass_catalogue_block_empty = True
+            try:
+                pat = r"\[CATALOGUE_START\](.*?)\[CATALOGUE_END\]"
+                m_cat = list(re.finditer(pat, str(final_prompt or ""), flags=re.IGNORECASE | re.DOTALL))
+                if m_cat:
+                    inner = str(m_cat[-1].group(1) or "").strip()
+                    first_pass_catalogue_block_empty = not bool(inner)
+                else:
+                    first_pass_catalogue_block_empty = True
+            except Exception:
+                first_pass_catalogue_block_empty = True
             
             print(f"✅ [PROMPT] Prompt construit: {len(final_prompt)} chars")
             
@@ -2534,6 +2584,7 @@ class SimplifiedRAGEngine:
             thinking = ""
             thinking_parsed: Dict[str, Any] = {}
             tool_call_req: Optional[Dict[str, Any]] = None
+            second_pass_attempted = False
 
             def _coerce_json_obj(raw: str) -> Optional[Any]:
                 try:
@@ -2682,6 +2733,120 @@ class SimplifiedRAGEngine:
                         "paiement": clean(paiement),
                     },
                 }
+
+            try:
+                def _is_stable_product_id(v: str) -> bool:
+                    return bool(re.fullmatch(r"prod_[a-z0-9_\-]{6,80}", str(v or "").strip(), flags=re.IGNORECASE))
+
+                stable_pid = ""
+                stable_label = ""
+
+                if first_pass_catalogue_block_empty and (not active_pid_before_prompt) and (not second_pass_attempted):
+                    t_match0 = re.search(r'<thinking>(.*?)</thinking>', raw_llm_output, re.DOTALL | re.IGNORECASE)
+                    t0 = t_match0.group(1).strip() if t_match0 else ""
+
+                    if t0:
+                        di_txt = _extract_tag(t0, "detected_items_json")
+                        if di_txt:
+                            try:
+                                txt = str(di_txt or "").strip()
+                                start = txt.find("[")
+                                end = txt.rfind("]")
+                                if start != -1 and end != -1 and end > start:
+                                    txt = txt[start : end + 1]
+                                parsed = json.loads(txt)
+                                if isinstance(parsed, list):
+                                    for it in parsed:
+                                        if not isinstance(it, dict):
+                                            continue
+                                        pid = str(it.get("product_id") or "").strip()
+                                        if _is_stable_product_id(pid):
+                                            stable_pid = pid
+                                            break
+                            except Exception:
+                                pass
+
+                        if not stable_pid:
+                            try:
+                                tp0 = _parse_thinking_schema(t0)
+                                cand = str(((tp0 or {}).get("detection") or {}).get("produit") or "").strip()
+                                if _is_stable_product_id(cand):
+                                    stable_pid = cand
+                            except Exception:
+                                pass
+
+                        if not stable_pid:
+                            det_prod_raw = _extract_tag(t0, "detected_product")
+                            det_prod = str(det_prod_raw or "").strip()
+                            if det_prod:
+                                try:
+                                    mapped = _map_product_name_to_pid(company_id, det_prod)
+                                except Exception:
+                                    mapped = ""
+                                if _is_stable_product_id(mapped):
+                                    stable_pid = mapped
+                                    stable_label = det_prod
+
+                    if stable_pid:
+                        try:
+                            order_tracker.set_custom_meta(user_id, "active_product_id", stable_pid)
+                            if stable_label:
+                                order_tracker.set_custom_meta(user_id, "active_product_label", stable_label)
+                        except Exception:
+                            pass
+
+                        second_pass_attempted = True
+
+                        final_prompt_2 = await self.prompt_system.build_prompt(
+                            query=query,
+                            user_id=user_id,
+                            company_id=company_id,
+                            detected_location=dynamic_context.get('detected_location'),
+                            shipping_fee=dynamic_context.get('shipping_fee'),
+                            delivery_time=dynamic_context.get('delivery_time'),
+                            product_context=dynamic_context.get('product_context', ''),
+                            pricing_context=dynamic_context.get('pricing_context', ''),
+                            conversation_history=str(dynamic_context.get('conversation_history') or ''),
+                            instruction_block=instruction_block,
+                            validation_errors_block=validation_errors_block,
+                            price_calculation_block=price_calculation_block,
+                            catalogue_reference_block=(
+                                catalogue_reference_block_override
+                                if str(catalogue_reference_block_override or "").strip()
+                                else "\n".join(
+                                    [
+                                        ln
+                                        for ln in str(dynamic_context.get('product_context', '') or '').splitlines()
+                                        if ln.strip()
+                                        and (not str(ln).upper().startswith('PAYMENT_VERDICT'))
+                                        and (not str(ln).upper().startswith('PHONE_VERDICT'))
+                                        and (not str(ln).upper().startswith('LOCATION_VERDICT'))
+                                        and (not str(ln).upper().startswith('VISION_GEMINI'))
+                                    ]
+                                ).strip()
+                            ),
+                            has_image=bool(images and len(images) > 0),
+                        )
+
+                        print(f"🔁 [LLM_SECOND_PASS] product_id='{stable_pid}' | prompt_chars={len(final_prompt_2)}")
+
+                        llm_result_2 = await self.llm_client.complete(
+                            prompt=final_prompt_2,
+                            model_name=model_name,
+                            temperature=0.2,
+                            top_p=0.7,
+                            max_tokens=max_tokens_cfg,
+                            frequency_penalty=0.0,
+                        )
+
+                        if isinstance(llm_result_2, dict):
+                            response = llm_result_2.get("response", llm_result_2)
+                        else:
+                            response = llm_result_2
+
+                        raw_llm_output = str(response or "")
+            except Exception as _second_e:
+                print(f"⚠️ [LLM_SECOND_PASS] error: {type(_second_e).__name__}: {_second_e}")
 
             # Extraire <thinking>
             thinking_match = re.search(r'<thinking>(.*?)</thinking>', raw_llm_output, re.DOTALL | re.IGNORECASE)
