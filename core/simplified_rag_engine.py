@@ -14,7 +14,7 @@ import os
 import json
 import uuid
 from datetime import datetime
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, Tuple
 from dataclasses import dataclass
 import re
 
@@ -180,6 +180,224 @@ class SimplifiedRAGEngine:
                     return False
                 return bool(re.fullmatch(r"prod_[a-z0-9_\-]{6,80}", s, flags=re.IGNORECASE))
 
+            def _parse_price_value(raw: Any) -> Optional[int]:
+                try:
+                    if raw is None:
+                        return None
+                    if isinstance(raw, bool):
+                        return None
+                    if isinstance(raw, (int, float)):
+                        v = int(raw)
+                        return v if v > 0 else None
+                    if isinstance(raw, (list, tuple)) and raw:
+                        x0 = raw[0]
+                        if isinstance(x0, (int, float)):
+                            v = int(x0)
+                            return v if v > 0 else None
+                        if isinstance(x0, str):
+                            m = re.search(r"(\d+)", x0.replace(" ", ""))
+                            v = int(m.group(1)) if m else 0
+                            return v if v > 0 else None
+                    if isinstance(raw, dict):
+                        for k in ["price", "prix", "amount", "value"]:
+                            if k in raw:
+                                return _parse_price_value(raw.get(k))
+                    s = str(raw)
+                    m2 = re.search(r"(\d+)", s.replace(" ", ""))
+                    v2 = int(m2.group(1)) if m2 else 0
+                    return v2 if v2 > 0 else None
+                except Exception:
+                    return None
+
+            def _match_key_case_insensitive(keys: List[str], target: str) -> str:
+                t = str(target or "").strip().lower()
+                if not t:
+                    return ""
+                for k in keys:
+                    if str(k or "").strip().lower() == t:
+                        return str(k)
+                return ""
+
+            def _format_unit_label(unit_key: str, custom_formats: List[Dict[str, Any]]) -> str:
+                u = str(unit_key or "").strip()
+                if not u:
+                    return ""
+                try:
+                    for f in (custom_formats or []):
+                        if not isinstance(f, dict):
+                            continue
+                        f_type = str(f.get("type") or "").strip()
+                        qty = f.get("quantity")
+                        try:
+                            qty_i = int(qty) if qty is not None else None
+                        except Exception:
+                            qty_i = None
+                        canonical = ""
+                        if f_type and qty_i and qty_i > 0:
+                            canonical = f"{f_type}_{qty_i}"
+                        if canonical and canonical.strip().lower() == u.lower():
+                            label = str(
+                                f.get("label")
+                                or f.get("customLabel")
+                                or f.get("custom_label")
+                                or f.get("unitLabel")
+                                or ""
+                            ).strip()
+                            return label if label else u.replace("_", " ")
+                except Exception:
+                    pass
+                return u.replace("_", " ")
+
+            def _generate_price_list_for_tool_call(
+                *,
+                company_id_val: str,
+                product_id_val: str,
+                variant_val: str,
+                spec_val: Optional[str] = None,
+            ) -> Tuple[str, List[Dict[str, Any]]]:
+                try:
+                    pid = str(product_id_val or "").strip()
+                    if not pid:
+                        return "", []
+                    variant_s = str(variant_val or "").strip()
+                    if not variant_s:
+                        return "", []
+
+                    selected_catalog = None
+                    try:
+                        selected_catalog = get_company_product_catalog_v2(company_id_val, pid)
+                    except Exception:
+                        selected_catalog = None
+                    if not isinstance(selected_catalog, dict):
+                        try:
+                            container = get_company_catalog_v2(company_id_val)
+                        except Exception:
+                            container = None
+                        if isinstance(container, dict) and isinstance(container.get("products"), list):
+                            for p in (container.get("products") or []):
+                                if not isinstance(p, dict):
+                                    continue
+                                ppid = str(p.get("product_id") or (p.get("catalog_v2") or {}).get("product_id") or "").strip()
+                                if ppid and ppid.strip().lower() == pid.lower() and isinstance(p.get("catalog_v2"), dict):
+                                    selected_catalog = p.get("catalog_v2")
+                                    break
+                        elif isinstance(container, dict):
+                            selected_catalog = container
+
+                    if not isinstance(selected_catalog, dict):
+                        return "", []
+
+                    if str(selected_catalog.get("pricing_strategy") or "").upper() != "UNIT_AS_ATOMIC":
+                        return "", []
+
+                    product_name = str(selected_catalog.get("product_name") or selected_catalog.get("name") or "").strip()
+                    ui_state = selected_catalog.get("ui_state") if isinstance(selected_catalog.get("ui_state"), dict) else {}
+                    custom_formats = ui_state.get("customFormats") if isinstance(ui_state.get("customFormats"), list) else []
+                    vtree = selected_catalog.get("v") if isinstance(selected_catalog.get("v"), dict) else {}
+                    if not vtree:
+                        return "", []
+
+                    variant_key = _match_key_case_insensitive([str(k) for k in vtree.keys()], variant_s)
+                    if not variant_key:
+                        return "", []
+                    node = vtree.get(variant_key)
+                    if not isinstance(node, dict):
+                        return "", []
+
+                    u_map = node.get("u") if isinstance(node.get("u"), dict) else None
+                    if not isinstance(u_map, dict) or not u_map:
+                        return "", []
+
+                    items: List[Dict[str, Any]] = []
+                    for unit_key, raw_price in u_map.items():
+                        p = _parse_price_value(raw_price)
+                        if p is None:
+                            continue
+                        uk = str(unit_key or "").strip()
+                        if not uk:
+                            continue
+                        label = _format_unit_label(uk, custom_formats)
+                        items.append(
+                            {
+                                "product_id": pid,
+                                "variant": variant_key,
+                                "spec": str(spec_val).strip() if spec_val else None,
+                                "unit": uk,
+                                "label": label,
+                                "price_fcfa": int(p),
+                            }
+                        )
+
+                    if not items:
+                        return "", []
+
+                    items = sorted(items, key=lambda x: int(x.get("price_fcfa") or 0))
+                    if len(items) > 12:
+                        items = items[:12]
+
+                    lines: List[str] = []
+                    head = (product_name if product_name else "Catalogue").strip()
+                    lines.append(head)
+                    lines.append(str(variant_key).upper())
+                    lines.append("")
+                    for i, it in enumerate(items, 1):
+                        lbl = str(it.get("label") or "").strip() or str(it.get("unit") or "").strip()
+                        price_i = int(it.get("price_fcfa") or 0)
+                        lines.append(f"{i}. {lbl} → {UniversalPriceCalculator._fmt_fcfa(price_i)}F")
+                    lines.append("")
+                    lines.append("Lequel vous intéresse ? (répondez par le numéro)")
+
+                    for i, it in enumerate(items, 1):
+                        it["index"] = i
+
+                    return "\n".join([ln for ln in lines if ln is not None]), items
+                except Exception:
+                    return "", []
+
+            def _reverse_lookup_price_choice(message: str, items: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+                try:
+                    if not isinstance(items, list) or not items:
+                        return None
+                    msg = str(message or "").strip().lower()
+                    if not msg:
+                        return None
+
+                    m_ord = re.search(r"\b(\d{1,2})\s*(?:e|eme|ème|er)\b", msg)
+                    if m_ord:
+                        idx = int(m_ord.group(1))
+                        if 1 <= idx <= len(items):
+                            return items[idx - 1]
+
+                    if re.fullmatch(r"\d{1,2}", msg):
+                        idx2 = int(msg)
+                        if 1 <= idx2 <= len(items):
+                            return items[idx2 - 1]
+
+                    norm_msg = _norm_name_for_id(msg)
+                    best = None
+                    for it in items:
+                        lbl = _norm_name_for_id(str(it.get("label") or ""))
+                        uk = _norm_name_for_id(str(it.get("unit") or ""))
+                        if lbl and lbl in norm_msg:
+                            best = it
+                            break
+                        if uk and uk in norm_msg:
+                            best = it
+                            break
+                    if best is not None:
+                        return best
+
+                    m_amt = re.search(r"(\d{3,6})", msg.replace(" ", ""))
+                    if m_amt:
+                        amt = int(m_amt.group(1))
+                        matches = [it for it in items if int(it.get("price_fcfa") or 0) == amt]
+                        if len(matches) == 1:
+                            return matches[0]
+
+                    return None
+                except Exception:
+                    return None
+
             def _pick_pid_from_product_entry(p: dict, pname: str) -> str:
                 try:
                     cat = p.get("catalog_v2") if isinstance(p.get("catalog_v2"), dict) else {}
@@ -226,6 +444,81 @@ class SimplifiedRAGEngine:
                 prev_product_before_llm = str(getattr(st_prev, "produit", "") or "").strip()
             except Exception:
                 prev_product_before_llm = ""
+
+            try:
+                if order_tracker.get_flag(user_id, "awaiting_price_choice"):
+                    raw_items = order_tracker.get_custom_meta(user_id, "price_list_items", default=[])
+                    price_list_items = raw_items if isinstance(raw_items, list) else []
+                    price_list_text = str(order_tracker.get_custom_meta(user_id, "price_list_text", default="") or "").strip()
+
+                    picked = _reverse_lookup_price_choice(query, price_list_items)
+                    if picked is None:
+                        if price_list_text:
+                            processing_time = (time.time() - start_time) * 1000
+                            checklist = self.prompt_system.get_checklist_state(user_id, company_id)
+                            return SimplifiedRAGResult(
+                                response=price_list_text,
+                                confidence=1.0,
+                                processing_time_ms=processing_time,
+                                checklist_state=checklist.to_string(),
+                                next_step=checklist.get_next_step(),
+                                detected_location=None,
+                                shipping_fee=None,
+                                usage=None,
+                                prompt_tokens=0,
+                                completion_tokens=0,
+                                total_tokens=0,
+                                cost=0.0,
+                                model="python_short_circuit",
+                                thinking="",
+                            )
+                    else:
+                        order_tracker.set_flag(user_id, "awaiting_price_choice", False)
+                        try:
+                            order_tracker.set_custom_meta(user_id, "price_list_choice", picked)
+                        except Exception:
+                            pass
+
+                        try:
+                            pid = str(picked.get("product_id") or "").strip()
+                            if pid:
+                                order_tracker.set_custom_meta(user_id, "active_product_id", pid)
+                                order_tracker.update_produit(user_id, pid, source="PRICE_LIST_CHOICE", confidence=0.95)
+                        except Exception:
+                            pass
+
+                        try:
+                            v = str(picked.get("variant") or "").strip()
+                            sp = str(picked.get("spec") or "").strip()
+                            details = (v + (" " + sp if sp else "")).strip()
+                            if details:
+                                order_tracker.update_produit_details(user_id, details, source="PRICE_LIST_CHOICE", confidence=0.9)
+                        except Exception:
+                            pass
+
+                        try:
+                            u = str(picked.get("unit") or "").strip().lower()
+                            if u:
+                                order_tracker.update_quantite(user_id, f"1 {u}", source="PRICE_LIST_CHOICE", confidence=0.9)
+                        except Exception:
+                            pass
+
+                        try:
+                            detected_items_choice = [
+                                {
+                                    "product_id": str(picked.get("product_id") or "").strip(),
+                                    "variant": str(picked.get("variant") or "").strip() or None,
+                                    "spec": (str(picked.get("spec") or "").strip() or None),
+                                    "unit": str(picked.get("unit") or "").strip() or None,
+                                    "qty": 1,
+                                    "confidence": 0.95,
+                                }
+                            ]
+                            order_tracker.set_custom_meta(user_id, "detected_items", detected_items_choice)
+                        except Exception:
+                            pass
+            except Exception:
+                pass
 
             # Pre-LLM: si on détecte clairement un produit depuis le catalogue local, on pré-remplit l'état.
             try:
@@ -2003,6 +2296,7 @@ class SimplifiedRAGEngine:
             # 6. Extraction thinking + response
             thinking = ""
             thinking_parsed: Dict[str, Any] = {}
+            tool_call_req: Optional[Dict[str, Any]] = None
 
             def _norm_text(s: str) -> str:
                 try:
@@ -2125,6 +2419,15 @@ class SimplifiedRAGEngine:
             if thinking_match:
                 thinking = thinking_match.group(1).strip()
                 thinking_parsed = _parse_thinking_schema(thinking)
+
+                try:
+                    tool_call_raw = _extract_tag(thinking, "tool_call")
+                    if tool_call_raw:
+                        cand = str(tool_call_raw or "").strip()
+                        tool_call_req = json.loads(cand) if cand else None
+                except Exception:
+                    tool_call_req = None
+
                 print(f"{C_YELLOW}🧠 [THINKING] {len(thinking)} chars{C_RESET}")
                 print(f"{C_YELLOW}{'='*80}{C_RESET}")
                 print(f"{C_YELLOW}{thinking}{C_RESET}")
@@ -3660,6 +3963,29 @@ class SimplifiedRAGEngine:
                         parts = re.split(r"(?<=[.!?])\s+", str(response or "").strip())
                         kept = [p for p in parts if not re.search(r"(pas au bon format|n['’]est pas au bon format)", p, re.IGNORECASE)]
                         response = " ".join(kept).strip() or response
+            except Exception:
+                pass
+
+            try:
+                if isinstance(tool_call_req, dict) and str(tool_call_req.get("action") or "").strip().upper() == "SEND_PRICE_LIST":
+                    pid = str(tool_call_req.get("product_id") or "").strip()
+                    if not pid:
+                        pid = str(order_tracker.get_custom_meta(user_id, "active_product_id", default="") or "").strip()
+                    variant = str(tool_call_req.get("variant") or "").strip()
+                    spec = tool_call_req.get("spec")
+                    spec_s = str(spec).strip() if spec is not None and str(spec).strip() else None
+                    if pid and variant:
+                        list_text, list_items = _generate_price_list_for_tool_call(
+                            company_id_val=company_id,
+                            product_id_val=pid,
+                            variant_val=variant,
+                            spec_val=spec_s,
+                        )
+                        if list_text and list_items:
+                            order_tracker.set_custom_meta(user_id, "price_list_text", list_text)
+                            order_tracker.set_custom_meta(user_id, "price_list_items", list_items)
+                            order_tracker.set_flag(user_id, "awaiting_price_choice", True)
+                            response = list_text
             except Exception:
                 pass
             
