@@ -64,10 +64,14 @@ class OrderState:
         # Pour pressions (taille T1..T7) et autres produits, specs restent obligatoires.
         try:
             prod_l = str(self.produit or "").lower()
+            details_l = str(self.produit_details or "").lower()
+            ctx_l = (prod_l + " " + details_l).strip()
         except Exception:
             prod_l = ""
+            details_l = ""
+            ctx_l = ""
         specs_required = True
-        if "culott" in prod_l:
+        if "culott" in ctx_l:
             specs_required = False
         if specs_required and (not self.produit_details):
             missing.add("SPECS")

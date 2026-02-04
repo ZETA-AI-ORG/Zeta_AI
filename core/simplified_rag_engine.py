@@ -445,6 +445,21 @@ class SimplifiedRAGEngine:
             except Exception:
                 prev_product_before_llm = ""
 
+            def _is_price_intent(msg: str) -> bool:
+                try:
+                    s = str(msg or "").lower()
+                except Exception:
+                    s = ""
+                if not s.strip():
+                    return False
+                return bool(
+                    re.search(
+                        r"\b(prix|tarif|tarifs|combien|co[uû]te|cout|co[uû]t|c'est\s+combien|cest\s+combien|montant)\b",
+                        s,
+                        flags=re.IGNORECASE,
+                    )
+                )
+
             try:
                 if order_tracker.get_flag(user_id, "awaiting_price_choice"):
                     raw_items = order_tracker.get_custom_meta(user_id, "price_list_items", default=[])
@@ -476,6 +491,13 @@ class SimplifiedRAGEngine:
                         order_tracker.set_flag(user_id, "awaiting_price_choice", False)
                         try:
                             order_tracker.set_custom_meta(user_id, "price_list_choice", picked)
+                        except Exception:
+                            pass
+
+                        # Cleanup: avoid stale list being replayed on future turns.
+                        try:
+                            order_tracker.set_custom_meta(user_id, "price_list_text", "")
+                            order_tracker.set_custom_meta(user_id, "price_list_items", [])
                         except Exception:
                             pass
 
@@ -526,6 +548,53 @@ class SimplifiedRAGEngine:
                 msg_norm = _norm_name_for_id(query)
                 detected_pid = ""
                 detected_name = ""
+                detected_variant = ""
+
+                # Variant hint (company-agnostic but geared for diaper catalog vocab)
+                try:
+                    ql = str(query or "")
+                except Exception:
+                    ql = ""
+
+                def _fuzzy_pick_variant(msg: str) -> str:
+                    m = _norm_name_for_id(msg)
+                    if not m:
+                        return ""
+
+                    # Hard hints (cheap + fast)
+                    try:
+                        if re.search(r"\bculott", m, flags=re.IGNORECASE):
+                            return "Culotte"
+                        if re.search(r"\bpression\b|\bpress\b", m, flags=re.IGNORECASE):
+                            return "Pression"
+                    except Exception:
+                        pass
+
+                    # Fuzzy fallback (typos/plurals like 'culote', 'culottes', 'pressons', etc.)
+                    # Uses rapidfuzz if available, otherwise no-op.
+                    synonyms = {
+                        "Culotte": ["culotte", "culottes", "culote", "culot", "pants", "pant"],
+                        "Pression": ["pression", "pressions", "press", "tape", "adhesive", "adhesive", "adhesives"],
+                    }
+                    try:
+                        from rapidfuzz import fuzz  # type: ignore
+
+                        best_variant = ""
+                        best_score = 0
+                        for var, syns in synonyms.items():
+                            for s in syns:
+                                sn = _norm_name_for_id(s)
+                                if not sn:
+                                    continue
+                                score = int(fuzz.partial_ratio(m, sn) or 0)
+                                if score > best_score:
+                                    best_score = score
+                                    best_variant = var
+                        return best_variant if best_score >= 85 else ""
+                    except Exception:
+                        return ""
+
+                detected_variant = _fuzzy_pick_variant(ql)
 
                 if isinstance(container, dict) and isinstance(container.get("products"), list):
                     candidates = []
@@ -591,6 +660,24 @@ class SimplifiedRAGEngine:
                                     if pname == detected_name:
                                         detected_pid = _pick_pid_from_product_entry(p, detected_name)
                                         break
+
+                    # Strategy C: variant-only mention on a mono-product container.
+                    # If the user says "prix culotte ?" without the product name, but the company has exactly one product,
+                    # we can safely select that product_id and carry the variant hint.
+                    if (not detected_pid) and detected_variant:
+                        try:
+                            plist = [pp for pp in (container.get("products") or []) if isinstance(pp, dict)]
+                            if len(plist) == 1:
+                                only_p = plist[0]
+                                only_name = str(
+                                    only_p.get("product_name")
+                                    or (only_p.get("catalog_v2") or {}).get("product_name")
+                                    or ""
+                                ).strip()
+                                detected_name = only_name
+                                detected_pid = _pick_pid_from_product_entry(only_p, only_name)
+                        except Exception:
+                            pass
                 elif isinstance(container, dict):
                     pname = str(container.get("product_name") or container.get("name") or "").strip()
                     pn_norm = _norm_name_for_id(pname)
@@ -621,6 +708,45 @@ class SimplifiedRAGEngine:
                     order_tracker.set_custom_meta(user_id, "active_product_id", detected_pid)
                     order_tracker.set_custom_meta(user_id, "active_product_label", detected_name)
                     print(f"✅ [PYTHON_PREMATCH] product_id={detected_pid} product='{detected_name}'")
+
+                    # If this is a price intent and we have a clear variant, short-circuit the LLM and send price list.
+                    # This is a robustness fallback when the prompt doesn't emit <tool_call>.
+                    try:
+                        if detected_variant and _is_price_intent(query):
+                            list_text, list_items = _generate_price_list_for_tool_call(
+                                company_id_val=company_id,
+                                product_id_val=detected_pid,
+                                variant_val=detected_variant,
+                                spec_val=None,
+                            )
+                            if list_text and list_items:
+                                try:
+                                    order_tracker.set_custom_meta(user_id, "price_list_text", list_text)
+                                    order_tracker.set_custom_meta(user_id, "price_list_items", list_items)
+                                    order_tracker.set_flag(user_id, "awaiting_price_choice", True)
+                                except Exception:
+                                    pass
+
+                                processing_time = (time.time() - start_time) * 1000
+                                checklist = self.prompt_system.get_checklist_state(user_id, company_id)
+                                return SimplifiedRAGResult(
+                                    response=list_text,
+                                    confidence=1.0,
+                                    processing_time_ms=processing_time,
+                                    checklist_state=checklist.to_string(),
+                                    next_step=checklist.get_next_step(),
+                                    detected_location=None,
+                                    shipping_fee=None,
+                                    usage=None,
+                                    prompt_tokens=0,
+                                    completion_tokens=0,
+                                    total_tokens=0,
+                                    cost=0.0,
+                                    model="python_price_list_short_circuit",
+                                    thinking="",
+                                )
+                    except Exception:
+                        pass
             except Exception as _prem_e:
                 print(f"⚠️ [PYTHON_PREMATCH] error: {type(_prem_e).__name__}: {_prem_e}")
 
@@ -1942,11 +2068,46 @@ class SimplifiedRAGEngine:
                 # on autorise le switch produit même si un ancien produit est déjà en mémoire.
                 change_markers = ["finalement", "a la place", "à la place", "plutot", "plutôt", "change", "remplace"]
                 is_switch = any(m in msg_l for m in change_markers)
-                if (not produit_val) or is_switch:
+                # IMPORTANT: pour Rue du Grossiste, "culotte/pression" sont des VARIANTES, pas des produits.
+                # On ne doit jamais écrire ces valeurs dans le slot produit, sinon le price_calc échoue.
+                variant_hint = ""
+                try:
                     if "culott" in msg_l:
-                        produit_val = "culottes"
+                        variant_hint = "Culotte"
                     elif "pression" in msg_l or "press" in msg_l:
-                        produit_val = "pressions"
+                        variant_hint = "Pression"
+                except Exception:
+                    variant_hint = ""
+
+                # Best-effort: si on est sur un catalogue mono-produit, on peut fixer active_product_id,
+                # et mettre la variante dans produit_details (jamais dans produit).
+                if variant_hint:
+                    try:
+                        catalog_v2_for_variant = None
+                        try:
+                            catalog_v2_for_variant = get_company_catalog_v2(company_id)
+                        except Exception:
+                            catalog_v2_for_variant = None
+
+                        only_pid = ""
+                        if isinstance(catalog_v2_for_variant, dict) and isinstance(catalog_v2_for_variant.get("products"), list):
+                            plist = [p for p in (catalog_v2_for_variant.get("products") or []) if isinstance(p, dict)]
+                            if len(plist) == 1:
+                                one = plist[0]
+                                only_pid = str(one.get("product_id") or (one.get("catalog_v2") or {}).get("product_id") or "").strip()
+                        elif isinstance(catalog_v2_for_variant, dict):
+                            only_pid = str(catalog_v2_for_variant.get("product_id") or "").strip()
+
+                        if only_pid:
+                            # Ne fixe produit_val que si c'est un ID stable.
+                            if _is_stable_product_id(only_pid):
+                                produit_val = only_pid
+                                try:
+                                    order_tracker.set_custom_meta(user_id, "active_product_id", only_pid)
+                                except Exception:
+                                    pass
+                    except Exception:
+                        pass
 
                 # Pré-remplissage tracker AVANT LLM (évite missing=QUANTITÉ alors que présent dans le message)
                 try:
@@ -1969,6 +2130,16 @@ class SimplifiedRAGEngine:
 
                     if specs_val and str(getattr(st_pre, "produit_details", "") or "").strip() != specs_val:
                         order_tracker.update_produit_details(user_id, specs_val, source="CONTEXT_INFERRED", confidence=0.8)
+
+                    # Si on a détecté une variante (culotte/pression) mais pas de specs, on la stocke en details.
+                    # (On évite de polluer produit.)
+                    try:
+                        if variant_hint and (not specs_val):
+                            cur_details = str(getattr(st_pre, "produit_details", "") or "").strip()
+                            if not cur_details:
+                                order_tracker.update_produit_details(user_id, variant_hint, source="CONTEXT_INFERRED", confidence=0.75)
+                    except Exception:
+                        pass
 
                     # Quantité: si détectée dans le message, elle doit remplacer l'ancienne (sinon on recycle une
                     # quantité obsolète sur un nouveau produit et le price_calc part sur INVALID_QUANTITY).
@@ -2298,6 +2469,38 @@ class SimplifiedRAGEngine:
             thinking_parsed: Dict[str, Any] = {}
             tool_call_req: Optional[Dict[str, Any]] = None
 
+            def _coerce_json_obj(raw: str) -> Optional[Any]:
+                try:
+                    s = str(raw or "").strip()
+                    if not s:
+                        return None
+
+                    # Strip markdown code fences if the model wrapped the JSON.
+                    s = re.sub(r"^```(?:json)?\s*", "", s, flags=re.IGNORECASE)
+                    s = re.sub(r"\s*```$", "", s, flags=re.IGNORECASE)
+                    s = s.strip()
+
+                    # Best-effort: extract the first JSON object/array substring.
+                    first_obj = s.find("{")
+                    last_obj = s.rfind("}")
+                    first_arr = s.find("[")
+                    last_arr = s.rfind("]")
+
+                    cand = ""
+                    if first_obj != -1 and last_obj != -1 and last_obj > first_obj:
+                        cand = s[first_obj : last_obj + 1]
+                    elif first_arr != -1 and last_arr != -1 and last_arr > first_arr:
+                        cand = s[first_arr : last_arr + 1]
+                    else:
+                        cand = s
+
+                    cand = cand.strip()
+                    if not cand:
+                        return None
+                    return json.loads(cand)
+                except Exception:
+                    return None
+
             def _norm_text(s: str) -> str:
                 try:
                     import unicodedata
@@ -2423,8 +2626,7 @@ class SimplifiedRAGEngine:
                 try:
                     tool_call_raw = _extract_tag(thinking, "tool_call")
                     if tool_call_raw:
-                        cand = str(tool_call_raw or "").strip()
-                        tool_call_req = json.loads(cand) if cand else None
+                        tool_call_req = _coerce_json_obj(tool_call_raw)
                 except Exception:
                     tool_call_req = None
 
