@@ -24,6 +24,49 @@ def _norm_product_id(v: str) -> str:
         return str(v or "").strip().upper()
 
 
+def _unwrap_catalog_shape(obj: Any) -> Any:
+    """Normalize Supabase/local catalog shapes.
+
+    Supported shapes:
+    - mono product: {product_id, product_name, v, ...}
+    - container: {products: [{product_id, catalog_v2}, ...]}
+    - wrapper: {"prod_xxx": {product_id, v, ...}} or {"prod_xxx": {catalog_v2: {...}}}
+    - nested wrapper: {catalog: <any of the above>}
+    """
+
+    try:
+        if not isinstance(obj, dict):
+            return obj
+
+        # Nested wrapper.
+        if isinstance(obj.get("catalog"), dict):
+            obj = obj.get("catalog")
+            if not isinstance(obj, dict):
+                return obj
+
+        # If it already looks like a mono product or container, keep it.
+        if "products" in obj or "v" in obj or "product_id" in obj:
+            return obj
+
+        # Wrapper dict keyed by product ids.
+        keys = [str(k) for k in obj.keys()]
+        prod_like = [k for k in keys if re.fullmatch(r"prod_[a-z0-9_\-]{6,80}", str(k), flags=re.IGNORECASE)]
+        if not prod_like:
+            return obj
+
+        # If it's a single wrapped product, unwrap directly.
+        if len(obj) == 1 and len(prod_like) == 1:
+            inner = obj.get(prod_like[0])
+            if isinstance(inner, dict) and isinstance(inner.get("catalog_v2"), dict):
+                return inner.get("catalog_v2")
+            return inner if isinstance(inner, dict) else obj
+
+        # Otherwise keep as wrapper container (multi). Callers may select by id.
+        return obj
+    except Exception:
+        return obj
+
+
 _CACHE: Dict[str, Tuple[float, Optional[Dict[str, Any]]]] = {}
 
 
@@ -114,8 +157,27 @@ def get_company_product_catalog_v2(company_id: str, product_id: str) -> Optional
     if not isinstance(container, dict):
         return None
 
+    # Normalize wrapper shapes at the container level.
+    try:
+        container = _unwrap_catalog_shape(container)
+    except Exception:
+        pass
+
     plist = container.get("products")
     if not isinstance(plist, list):
+        # Wrapper dict keyed by product_id.
+        try:
+            pid_norm = _norm_product_id(str(product_id or ""))
+            if pid_norm:
+                for k, v in (container or {}).items():
+                    kk = _norm_product_id(str(k or ""))
+                    if kk and kk == pid_norm and isinstance(v, dict):
+                        inner = v.get("catalog_v2") if isinstance(v.get("catalog_v2"), dict) else v
+                        return inner if isinstance(inner, dict) else None
+        except Exception:
+            pass
+
+        # Already mono-product.
         return container
 
     pid = _norm_product_id(str(product_id or ""))
@@ -166,6 +228,10 @@ def get_company_catalog_v2(company_id: str) -> Optional[Dict[str, Any]]:
 
     local = _load_catalog_from_local_file(cid)
     if isinstance(local, dict):
+        try:
+            local = _unwrap_catalog_shape(local)
+        except Exception:
+            pass
         if debug_logs:
             try:
                 logger.info(f"[CATALOG_LOAD] company={cid} source=local")
@@ -220,6 +286,11 @@ def get_company_catalog_v2(company_id: str) -> Optional[Dict[str, Any]]:
             return None
         catalog = data[0].get("catalog")
         out = catalog if isinstance(catalog, dict) else None
+
+        try:
+            out = _unwrap_catalog_shape(out)
+        except Exception:
+            pass
 
         if debug_logs and isinstance(out, dict):
             try:

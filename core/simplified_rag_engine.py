@@ -561,6 +561,48 @@ class SimplifiedRAGEngine:
                     if not m:
                         return ""
 
+                    def _extract_variants_from_catalog(obj: Any) -> List[str]:
+                        try:
+                            if not isinstance(obj, dict):
+                                return []
+
+                            # Primary source of truth: catalog.v keys
+                            vtree = obj.get("v") if isinstance(obj.get("v"), dict) else None
+                            if isinstance(vtree, dict) and vtree:
+                                out = []
+                                for k in list(vtree.keys()):
+                                    kk = str(k or "").strip()
+                                    if kk:
+                                        out.append(kk)
+                                return out
+
+                            # Fallback: ui_state.variants (may contain trailing spaces)
+                            ui = obj.get("ui_state") if isinstance(obj.get("ui_state"), dict) else {}
+                            vv = ui.get("variants") if isinstance(ui.get("variants"), list) else []
+                            out2 = []
+                            for x in vv:
+                                xs = str(x or "").strip()
+                                if xs:
+                                    out2.append(xs)
+                            return out2
+                        except Exception:
+                            return []
+
+                    def _pick_best_variant_from_candidates(candidates: List[str]) -> str:
+                        try:
+                            cand = [str(x or "").strip() for x in (candidates or []) if str(x or "").strip()]
+                            if not cand:
+                                return ""
+
+                            # Cheap hints first
+                            for v in cand:
+                                vn = _norm_name_for_id(v)
+                                if vn and re.search(rf"\b{re.escape(vn)}\b", m, flags=re.IGNORECASE):
+                                    return v
+                        except Exception:
+                            pass
+                        return ""
+
                     # Hard hints (cheap + fast)
                     try:
                         if re.search(r"\bculott", m, flags=re.IGNORECASE):
@@ -570,17 +612,41 @@ class SimplifiedRAGEngine:
                     except Exception:
                         pass
 
-                    # Fuzzy fallback (typos/plurals like 'culote', 'culottes', 'pressons', etc.)
-                    # Uses rapidfuzz if available, otherwise no-op.
+                    # Prefer real company variants from the catalogue when available.
+                    try:
+                        raw_variants = _extract_variants_from_catalog(selected_catalog) if isinstance(selected_catalog, dict) else []
+                        best_direct = _pick_best_variant_from_candidates(raw_variants)
+                        if best_direct:
+                            return best_direct
+                    except Exception:
+                        pass
+
+                    # Fuzzy fallback (typos/plurals). Uses rapidfuzz if available, otherwise conservative no-op.
                     synonyms = {
                         "Culotte": ["culotte", "culottes", "culote", "culot", "pants", "pant"],
-                        "Pression": ["pression", "pressions", "press", "tape", "adhesive", "adhesive", "adhesives"],
+                        "Pression": ["pression", "pressions", "press", "pressons", "tape"],
                     }
                     try:
                         from rapidfuzz import fuzz  # type: ignore
 
                         best_variant = ""
                         best_score = 0
+                        # Compare against both canonical synonyms and catalog variants.
+                        variants_from_catalog = []
+                        try:
+                            variants_from_catalog = _extract_variants_from_catalog(selected_catalog) if isinstance(selected_catalog, dict) else []
+                        except Exception:
+                            variants_from_catalog = []
+
+                        for v in (variants_from_catalog or []):
+                            vn = _norm_name_for_id(v)
+                            if not vn:
+                                continue
+                            score_v = int(fuzz.partial_ratio(m, vn) or 0)
+                            if score_v > best_score:
+                                best_score = score_v
+                                best_variant = v
+
                         for var, syns in synonyms.items():
                             for s in syns:
                                 sn = _norm_name_for_id(s)
