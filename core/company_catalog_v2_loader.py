@@ -229,43 +229,10 @@ def get_company_catalog_v2(company_id: str) -> Optional[Dict[str, Any]]:
         if now < expires_at:
             return val
 
-    local = _load_catalog_from_local_file(cid)
-    if isinstance(local, dict):
-        try:
-            local = _unwrap_catalog_shape(local)
-        except Exception:
-            pass
-        if debug_logs:
-            try:
-                logger.info(f"[CATALOG_LOAD] company={cid} source=local")
-                plist0 = local.get("products") if isinstance(local, dict) else None
-                if isinstance(plist0, list):
-                    logger.info(f"[CATALOG_LOAD] products_count={len([p for p in plist0 if isinstance(p, dict)])}")
-                    for p in plist0:
-                        if not isinstance(p, dict):
-                            continue
-                        cat = p.get("catalog_v2") if isinstance(p.get("catalog_v2"), dict) else p
-                        pid0 = str(p.get("product_id") or cat.get("product_id") or "").strip()
-                        pname0 = str(p.get("product_name") or cat.get("product_name") or cat.get("name") or "").strip()
-                        logger.info(f"  - product_id={pid0} name={pname0}")
-                        logger.info(f"    technical_specs length: {len(str(cat.get('technical_specs') or ''))}")
-                        logger.info(f"    sales_constraints length: {len(str(cat.get('sales_constraints') or ''))}")
-                else:
-                    logger.info("[CATALOG_LOAD] products_count=1 (mono)")
-                    logger.info(f"  - product_id={str(local.get('product_id') or '').strip()} name={str(local.get('product_name') or local.get('name') or '').strip()}")
-                    logger.info(f"    technical_specs length: {len(str(local.get('technical_specs') or ''))}")
-                    logger.info(f"    sales_constraints length: {len(str(local.get('sales_constraints') or ''))}")
-            except Exception:
-                pass
-        _CACHE[cid] = (now + ttl_s, local)
-        return local
-
-    if debug_logs:
-        try:
-            logger.info(f"[CATALOG_LOAD] company={cid} source=local missing")
-        except Exception:
-            pass
-
+    # --- PRIORITY: Supabase FIRST, local file as FALLBACK only ---
+    # This ensures catalogs are always up-to-date from the database,
+    # not stale local files on VPS with old product IDs or ghost products.
+    supabase_result = None
     try:
         from database.supabase_client import get_supabase_client
 
@@ -280,25 +247,25 @@ def get_company_catalog_v2(company_id: str) -> Optional[Dict[str, Any]]:
             .execute()
         )
         data = getattr(resp, "data", None) or []
-        if not data:
-            if debug_logs:
-                try:
-                    logger.info(f"[CATALOG_LOAD] company={cid} source=supabase no_active_rows")
-                except Exception:
-                    pass
-            return None
-        catalog = data[0].get("catalog")
-        out = catalog if isinstance(catalog, dict) else None
+        if data:
+            catalog = data[0].get("catalog")
+            supabase_result = catalog if isinstance(catalog, dict) else None
+            try:
+                supabase_result = _unwrap_catalog_shape(supabase_result)
+            except Exception:
+                pass
+    except Exception:
+        if debug_logs:
+            try:
+                logger.exception(f"[CATALOG_LOAD] company={cid} source=supabase error")
+            except Exception:
+                pass
 
-        try:
-            out = _unwrap_catalog_shape(out)
-        except Exception:
-            pass
-
-        if debug_logs and isinstance(out, dict):
+    if isinstance(supabase_result, dict):
+        if debug_logs:
             try:
                 logger.info(f"[CATALOG_LOAD] company={cid} source=supabase")
-                plist1 = out.get("products") if isinstance(out, dict) else None
+                plist1 = supabase_result.get("products") if isinstance(supabase_result, dict) else None
                 if isinstance(plist1, list):
                     logger.info(f"[CATALOG_LOAD] products_count={len([p for p in plist1 if isinstance(p, dict)])}")
                     for p in plist1:
@@ -308,22 +275,34 @@ def get_company_catalog_v2(company_id: str) -> Optional[Dict[str, Any]]:
                         pid1 = str(p.get("product_id") or cat.get("product_id") or "").strip()
                         pname1 = str(p.get("product_name") or cat.get("product_name") or cat.get("name") or "").strip()
                         logger.info(f"  - product_id={pid1} name={pname1}")
-                        logger.info(f"    technical_specs length: {len(str(cat.get('technical_specs') or ''))}")
-                        logger.info(f"    sales_constraints length: {len(str(cat.get('sales_constraints') or ''))}")
                 else:
                     logger.info("[CATALOG_LOAD] products_count=1 (mono)")
-                    logger.info(f"  - product_id={str(out.get('product_id') or '').strip()} name={str(out.get('product_name') or out.get('name') or '').strip()}")
-                    logger.info(f"    technical_specs length: {len(str(out.get('technical_specs') or ''))}")
-                    logger.info(f"    sales_constraints length: {len(str(out.get('sales_constraints') or ''))}")
+                    logger.info(f"  - product_id={str(supabase_result.get('product_id') or '').strip()} name={str(supabase_result.get('product_name') or supabase_result.get('name') or '').strip()}")
             except Exception:
                 pass
-        _CACHE[cid] = (now + ttl_s, out)
-        return out
-    except Exception:
+        _CACHE[cid] = (now + ttl_s, supabase_result)
+        return supabase_result
+
+    # FALLBACK: local file only if Supabase returned nothing
+    if debug_logs:
+        try:
+            logger.info(f"[CATALOG_LOAD] company={cid} source=supabase no_active_rows, trying local fallback")
+        except Exception:
+            pass
+
+    local = _load_catalog_from_local_file(cid)
+    if isinstance(local, dict):
+        try:
+            local = _unwrap_catalog_shape(local)
+        except Exception:
+            pass
         if debug_logs:
             try:
-                logger.exception(f"[CATALOG_LOAD] company={cid} source=supabase error")
+                logger.info(f"[CATALOG_LOAD] company={cid} source=local_fallback")
             except Exception:
                 pass
-        _CACHE[cid] = (now + ttl_s, None)
-        return None
+        _CACHE[cid] = (now + ttl_s, local)
+        return local
+
+    _CACHE[cid] = (now + ttl_s, None)
+    return None
