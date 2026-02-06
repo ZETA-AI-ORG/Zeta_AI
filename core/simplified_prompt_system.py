@@ -1219,12 +1219,56 @@ Fais confiance à ton jugement. Tu es Jessica, pas un robot."""
                             pname = str(p.get("product_name") or cat.get("product_name") or cat.get("name") or "").strip()
                             pid = str(p.get("product_id") or cat.get("product_id") or "").strip()
                             pn = _norm_text(pname)
-                            if not pn or not qn:
+                            if not qn:
                                 continue
-                            if pn in qn or any(tok in qn for tok in pn.split() if len(tok) >= 4):
+
+                            matched = False
+                            # 1) Match on product name tokens (existing logic)
+                            if pn and (pn in qn or any(tok in qn for tok in pn.split() if len(tok) >= 4)):
+                                matched = True
+
+                            # 2) Match on variant names from vtree (e.g. "Pression", "Culotte")
+                            if not matched:
+                                vtree = cat.get("v")
+                                if isinstance(vtree, dict):
+                                    for vk in vtree.keys():
+                                        vk_n = _norm_text(str(vk))
+                                        if vk_n and len(vk_n) >= 3 and vk_n in qn:
+                                            matched = True
+                                            break
+                                    # 3) Match on spec keywords inside vtree nodes (e.g. "T1", "T5")
+                                    if not matched:
+                                        for vk, node in vtree.items():
+                                            if not isinstance(node, dict):
+                                                continue
+                                            s_map = node.get("s")
+                                            if isinstance(s_map, dict):
+                                                for sk in s_map.keys():
+                                                    sk_n = _norm_text(str(sk))
+                                                    if sk_n and len(sk_n) >= 2 and sk_n in qn:
+                                                        matched = True
+                                                        break
+                                            if matched:
+                                                break
+
+                            # 4) Match on sales_constraints / technical_specs keywords
+                            if not matched:
+                                for field in ("sales_constraints", "technical_specs"):
+                                    raw = str(cat.get(field) or "").strip()
+                                    if not raw:
+                                        continue
+                                    for tok in _norm_text(raw).split():
+                                        if len(tok) >= 5 and tok in qn:
+                                            matched = True
+                                            break
+                                    if matched:
+                                        break
+
+                            if matched:
                                 best = cat
                                 best_pid = pid
                                 best_name = pname
+                                print(f"🎯 [PRE_LLM_MATCH] product matched: pid={pid} name='{pname}' from query")
                                 break
 
                         if isinstance(best, dict) and best:

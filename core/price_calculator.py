@@ -217,26 +217,38 @@ class UniversalPriceCalculator:
 
             def _canon_product(v: str) -> str:
                 s = str(v or "").strip().lower()
+                if not s:
+                    return ""
+                # Normalize known legacy aliases (backward compat)
                 if s in {"pressions", "pression"}:
                     return "pressions"
                 if s in {"culottes", "culotte"}:
                     return "culottes"
-                return ""
+                # Generic: pass through any non-empty product/variant name
+                return s
 
             def _canon_specs_t(v: str) -> str:
                 s = str(v or "").strip().upper()
-                m = re.fullmatch(r"T([1-7])", s)
+                if not s:
+                    return ""
+                # Normalize T-size patterns (T1, T2, ..., T99)
+                m = re.fullmatch(r"T([1-9]\d?)", s)
                 if m:
                     return f"T{m.group(1)}"
-                return ""
+                # Generic: pass through any non-empty specs
+                return s
 
             def _canon_unit(v: str) -> str:
                 s = str(v or "").strip().lower()
+                if not s:
+                    return ""
+                # Legacy aliases
                 if s in {"lot", "lots"}:
                     return "lot"
                 if s in {"paquet", "paquets", "pack", "packs"}:
                     return "paquet"
-                return ""
+                # Generic: pass through canonical unit names (lot_300, paquet_50, colis_X, etc.)
+                return s
 
             def _get_int_or_none(v) -> Optional[int]:
                 if v is None:
@@ -413,6 +425,7 @@ class UniversalPriceCalculator:
                         return None
 
                     lines: List[str] = []
+                    ready_lines: List[str] = []
                     subtotal_products = 0
 
                     for idx, it in enumerate(normalized_items, start=1):
@@ -549,6 +562,10 @@ class UniversalPriceCalculator:
                             qty_tag = "qty_balles"
 
                         product_label = str(variant_key or product_raw).strip().upper() or "PRODUCT"
+                        unit_label = unit_key.replace("_", " ") if "_" in unit_key else unit_key
+                        size_suffix = f" {size_label}" if size_label else ""
+                        ready_line = f"- {product_label}{size_suffix} x{qty} {unit_label} \u2192 {UniversalPriceCalculator._fmt_fcfa(item_subtotal)}F"
+                        ready_lines.append(ready_line)
 
                         lines.append(
                             "  <item>\n"
@@ -564,14 +581,21 @@ class UniversalPriceCalculator:
 
                     delivery_known = bool(zone_s) and (delivery_fee_fcfa is not None)
                     total = int(subtotal_products) + (int(delivery_fee) if delivery_known else 0)
+                    detail_block = "\n".join(ready_lines) if ready_lines else ""
+
                     if delivery_known:
-                        ready = (
-                            f"Le total fait {UniversalPriceCalculator._fmt_fcfa(total)}F"
+                        total_line = (
+                            f"Total : {UniversalPriceCalculator._fmt_fcfa(total)}F"
                             + f" (produits {UniversalPriceCalculator._fmt_fcfa(subtotal_products)}F"
-                            + f" + livraison {UniversalPriceCalculator._fmt_fcfa(delivery_fee)}F)."
+                            + f" + livraison {UniversalPriceCalculator._fmt_fcfa(delivery_fee)}F)"
                         )
                     else:
-                        ready = f"Le total produits fait {UniversalPriceCalculator._fmt_fcfa(subtotal_products)}F."
+                        total_line = f"Total : {UniversalPriceCalculator._fmt_fcfa(subtotal_products)}F"
+
+                    if detail_block:
+                        ready = f"Votre panier :\n{detail_block}\n{total_line}"
+                    else:
+                        ready = total_line
 
                     return (
                         "  <status>OK</status>\n"
@@ -718,14 +742,66 @@ class UniversalPriceCalculator:
         zone: str,
         delivery_fee: int,
     ) -> str:
-        # Normalisation produit
+        # --- Scalable product_key resolution: catalog-driven, no hardcoded variant names ---
         p = str(produit or "").strip().lower()
-        if "pression" in p or "press" in p:
-            product_key = "pressions"
-        elif "culott" in p:
-            product_key = "culottes"
-        else:
-            product_key = ""
+        specs_lower = str(specs or "").strip().lower()
+        q_hint = str(quantite or "").strip().lower()
+        vtree_all = catalog_v2.get("v") if isinstance(catalog_v2, dict) else None
+        vtree_keys_raw = list(vtree_all.keys()) if isinstance(vtree_all, dict) else []
+
+        product_key = ""
+
+        def _match_vtree_key(text: str) -> str:
+            """Find the vtree key whose name appears in `text` (substring match, case-insensitive)."""
+            for vk in vtree_keys_raw:
+                vk_low = str(vk or "").strip().lower()
+                if vk_low and vk_low in text:
+                    return str(vk).strip()
+            return ""
+
+        # Strategy 1: produit string contains a vtree key name (e.g. "pression", "culotte", "savon", ...)
+        product_key = _match_vtree_key(p)
+
+        # Strategy 2: specs string contains a vtree key name (e.g. "Pression taille 1")
+        if not product_key:
+            product_key = _match_vtree_key(specs_lower)
+
+        # Strategy 3: mono-variant catalog — only one vtree key, use it directly
+        if not product_key and len(vtree_keys_raw) == 1:
+            product_key = str(vtree_keys_raw[0]).strip()
+
+        # Strategy 4: disambiguate by unit availability in vtree
+        # e.g. if "lot" is in quantite and only one variant has lot_ units, pick that one
+        if not product_key and len(vtree_keys_raw) > 1 and isinstance(vtree_all, dict):
+            unit_prefix = ""
+            if "lot" in q_hint:
+                unit_prefix = "lot_"
+            elif "paquet" in q_hint or "pack" in q_hint:
+                unit_prefix = "paquet_"
+            elif "colis" in q_hint:
+                unit_prefix = "colis_"
+            elif "balle" in q_hint:
+                unit_prefix = "balle_"
+            if unit_prefix:
+                candidates = []
+                for vk in vtree_keys_raw:
+                    node = vtree_all.get(vk)
+                    if not isinstance(node, dict):
+                        continue
+                    # Collect all units for this variant (from s[spec].u or direct u)
+                    units_set: set = set()
+                    s_map = node.get("s")
+                    if isinstance(s_map, dict):
+                        for snode in s_map.values():
+                            if isinstance(snode, dict) and isinstance(snode.get("u"), dict):
+                                units_set.update(str(u).strip() for u in snode["u"].keys())
+                    u_direct = node.get("u")
+                    if isinstance(u_direct, dict):
+                        units_set.update(str(u).strip() for u in u_direct.keys())
+                    if any(u.startswith(unit_prefix) for u in units_set):
+                        candidates.append(str(vk).strip())
+                if len(candidates) == 1:
+                    product_key = candidates[0]
 
         if not product_key:
             return ""
@@ -765,6 +841,47 @@ class UniversalPriceCalculator:
                 return matches[0]
             return None
 
+        # Helper: resolve unit from vtree when canonical_units has multiple matches
+        def _pick_from_vtree(prefix: str) -> Optional[str]:
+            """Pick the unique lot_/paquet_ unit available in the vtree for this variant+spec."""
+            try:
+                vtree_r = catalog_v2.get("v") if isinstance(catalog_v2, dict) else None
+                if not isinstance(vtree_r, dict):
+                    return None
+                # Find variant key (generic: exact → case-insensitive → substring)
+                vk = None
+                if product_key in vtree_r:
+                    vk = product_key
+                else:
+                    pk_low = product_key.lower()
+                    for k in vtree_r.keys():
+                        kl = str(k or "").strip().lower()
+                        if kl == pk_low or pk_low in kl or kl in pk_low:
+                            vk = str(k).strip()
+                            break
+                if not vk:
+                    return None
+                node_r = vtree_r.get(vk)
+                if not isinstance(node_r, dict):
+                    return None
+                # Collect available units for this variant+spec
+                avail_units: set = set()
+                s_map = node_r.get("s")
+                if isinstance(s_map, dict) and spec:
+                    for sk, snode in s_map.items():
+                        if str(sk or "").strip().upper() == spec.upper() and isinstance(snode, dict):
+                            u_map = snode.get("u")
+                            if isinstance(u_map, dict):
+                                avail_units.update(str(u).strip() for u in u_map.keys() if str(u).strip())
+                if not avail_units:
+                    u_map_direct = node_r.get("u")
+                    if isinstance(u_map_direct, dict):
+                        avail_units.update(str(u).strip() for u in u_map_direct.keys() if str(u).strip())
+                matches = [u for u in avail_units if u.startswith(prefix)]
+                return matches[0] if len(matches) == 1 else None
+            except Exception:
+                return None
+
         unit: Optional[str] = None
 
         if "lot" in q_s:
@@ -774,12 +891,14 @@ class UniversalPriceCalculator:
                 unit = "lot_6"
             else:
                 unit = _pick_single("lot_")
+                if not unit:
+                    unit = _pick_from_vtree("lot_")
         elif "paquet" in q_s or "pack" in q_s:
-            unit = _pick_single("paquet_") or ("piece" if "piece" in canonical_units else None)
+            unit = _pick_single("paquet_") or _pick_from_vtree("paquet_") or ("piece" if "piece" in canonical_units else None)
         elif "colis" in q_s:
-            unit = _pick_single("colis_")
+            unit = _pick_single("colis_") or _pick_from_vtree("colis_")
         elif "balle" in q_s:
-            unit = _pick_single("balle_")
+            unit = _pick_single("balle_") or _pick_from_vtree("balle_")
         elif "piece" in q_s or "pièce" in q_s or "pcs" in q_s:
             unit = "piece" if "piece" in canonical_units else None
 
@@ -809,15 +928,21 @@ class UniversalPriceCalculator:
         vtree = catalog_v2.get("v")
         if (not price_lookup) and isinstance(vtree, dict):
             def _find_variant_key(target: str) -> Optional[str]:
-                t = target.lower()
+                """Generic case-insensitive vtree key lookup (scalable for any catalog)."""
+                # Exact match first
+                if target in vtree:
+                    return target
+                # Case-insensitive match
+                t_low = target.lower()
                 for k in vtree.keys():
                     kk = str(k or "").strip()
-                    if not kk:
-                        continue
-                    k_low = kk.lower()
-                    if t == "pressions" and "pression" in k_low:
+                    if kk.lower() == t_low:
                         return kk
-                    if t == "culottes" and "culott" in k_low:
+                # Substring match (e.g. product_key="pressions" matches vtree key "Pression")
+                for k in vtree.keys():
+                    kk = str(k or "").strip()
+                    k_low = kk.lower()
+                    if t_low in k_low or k_low in t_low:
                         return kk
                 return None
 
@@ -909,14 +1034,15 @@ class UniversalPriceCalculator:
             zone_s = str(zone or "").strip()
             delivery_fee = int(delivery_fee_fcfa) if delivery_fee_fcfa is not None else 0
 
-            # --- Nouveau: calcul UNIT_AS_ATOMIC via Catalogue V2 (si dispo) ---
+            # --- Scalable: calcul via Catalogue V2 (si dispo) ---
+            # Works for ANY company with a catalog_v2 containing vtree pricing data.
             if company_id:
                 try:
                     catalog_v2 = get_company_catalog_v2(company_id)
                 except Exception:
                     catalog_v2 = None
 
-                if isinstance(catalog_v2, dict) and str(catalog_v2.get("pricing_strategy") or "").upper() == "UNIT_AS_ATOMIC":
+                if isinstance(catalog_v2, dict) and isinstance(catalog_v2.get("v"), dict):
                     try:
                         pc = UniversalPriceCalculator._build_price_block_from_catalog_v2(
                             catalog_v2=catalog_v2,
@@ -931,8 +1057,9 @@ class UniversalPriceCalculator:
                     except Exception:
                         pass
 
-            is_culottes = "culott" in produit_l
-            is_pression = ("pression" in produit_l) or ("press" in produit_l)
+            specs_l_legacy = str(specs or "").strip().lower()
+            is_culottes = "culott" in produit_l or "culott" in specs_l_legacy
+            is_pression = ("pression" in produit_l) or ("press" in produit_l) or ("pression" in specs_l_legacy) or ("press" in specs_l_legacy)
 
             if not (is_culottes or is_pression):
                 return ""

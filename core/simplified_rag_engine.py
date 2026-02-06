@@ -32,6 +32,7 @@ from core.dynamic_context_injector import get_dynamic_context_injector
 from core.llm_client import get_llm_client
 from core.company_catalog_v2_loader import get_company_catalog_v2, get_company_product_catalog_v2
 from core.catalog_v2_item_normalizer import normalize_detected_items
+from core.cart_manager import CartManager
 
 
 @dataclass
@@ -65,6 +66,7 @@ class SimplifiedRAGEngine:
         self.prompt_system = get_simplified_prompt_system()
         self.context_injector = get_dynamic_context_injector()
         self.llm_client = None
+        self.cart_manager = CartManager(ttl_seconds=259200)
     
     async def initialize(self):
         """Initialise le client LLM"""
@@ -124,9 +126,116 @@ class SimplifiedRAGEngine:
                     completion_tokens=0,
                     total_tokens=0,
                     cost=0.0,
-                    model="paused",
+                    model="python_paused_short_circuit",
                     thinking="",
                 )
+        except Exception:
+            pass
+
+        # Post-confirmation: quand la commande est complète, éviter de rappeler le LLM principal
+        # pour des confirmations/courtoisie simples.
+        try:
+            st0 = order_tracker.get_state(user_id)
+            completion_rate = float(st0.get_completion_rate()) if st0 is not None else 0.0
+        except Exception:
+            completion_rate = 0.0
+
+        async def _call_mini_llm_post_confirmation(user_message: str) -> Dict[str, Any]:
+            prompt = (
+                "Tu es un classificateur rapide. La commande est COMPLETE et confirmee.\n"
+                f"Message client: \"{str(user_message or '').strip()}\"\n\n"
+                "Classifie l'intention:\n"
+                "- THANKS: remerciements\n"
+                "- SMALL_TALK: conversation legere\n"
+                "- GOODBYE: au revoir\n"
+                "- PROBLEM: probleme serieux\n"
+                "- COMPLAINT: reclamation\n"
+                "- QUESTION: question importante\n"
+                "- MODIFICATION: modifier commande\n\n"
+                "Reponds UNIQUEMENT en JSON: {\"intent\":\"...\",\"response\":\"...\" ou null}"
+            )
+            try:
+                if self.llm_client is None:
+                    await self.initialize()
+                out = await self.llm_client.complete(
+                    prompt=prompt,
+                    model_name="google/gemini-2.5-flash",
+                    temperature=0.0,
+                    max_tokens=100,
+                )
+                txt = str((out or {}).get("response") if isinstance(out, dict) else out).strip()
+
+                # Robust JSON extraction (model may wrap in ```json ...```)
+                if txt.startswith("```"):
+                    txt = re.sub(r"^```(?:json)?\s*", "", txt.strip(), flags=re.IGNORECASE)
+                    txt = re.sub(r"```\s*$", "", txt.strip())
+
+                m_obj = re.search(r"\{.*\}", txt, flags=re.DOTALL)
+                txt_json = (m_obj.group(0).strip() if m_obj else txt.strip())
+
+                data = json.loads(txt_json) if txt_json else {}
+                if not isinstance(data, dict):
+                    return {"intent": "UNKNOWN", "response": None}
+                return {
+                    "intent": str(data.get("intent") or "UNKNOWN").strip().upper(),
+                    "response": (None if data.get("response") is None else str(data.get("response") or "").strip()),
+                }
+            except Exception:
+                return {"intent": "UNKNOWN", "response": None}
+
+        async def _handle_post_confirmation(user_message: str) -> Optional[Dict[str, Any]]:
+            try:
+                msg = str(user_message or "").strip().lower()
+            except Exception:
+                msg = ""
+            if not msg:
+                return None
+
+            confirmation_simple = r"^\s*(oui|ok|d'?accord|parfait|valide|valid[eé]?|yes|oui\s+oui|c'?est\s+bon)\s*[!.]?\s*$"
+            if re.match(confirmation_simple, msg, flags=re.IGNORECASE):
+                return {"response": "C'est noté ! 🎉 Merci !", "level": "L1_PYTHON"}
+
+            courtoisie = r"^\s*(merci|merci\s+beaucoup|merci\s+bien|ok\s+merci|super|cool|nickel|parfait\s+merci)\s*[!.]?\s*$"
+            if re.match(courtoisie, msg, flags=re.IGNORECASE):
+                return {"response": "Avec plaisir ! 😊", "level": "L1_PYTHON"}
+
+            mini = await _call_mini_llm_post_confirmation(user_message)
+            intent = str(mini.get("intent") or "UNKNOWN").strip().upper()
+            resp = mini.get("response")
+            if intent in {"THANKS", "SMALL_TALK", "GOODBYE"} and resp:
+                return {"response": str(resp), "level": "L2_MINI_LLM"}
+
+            if intent in {"PROBLEM", "COMPLAINT", "QUESTION", "MODIFICATION"}:
+                return None
+
+            if resp:
+                return {"response": str(resp), "level": "L2_MINI_LLM"}
+
+            return {"response": "Merci pour votre confiance ! 😊", "level": "L1_FALLBACK"}
+
+        try:
+            if completion_rate >= 1.0:
+                post_conf = await _handle_post_confirmation(query)
+                if post_conf and post_conf.get("response"):
+                    processing_time = (time.time() - start_time) * 1000
+                    checklist = self.prompt_system.get_checklist_state(user_id, company_id)
+                    level = str(post_conf.get("level") or "UNKNOWN")
+                    return SimplifiedRAGResult(
+                        response=str(post_conf.get("response") or "").strip(),
+                        confidence=1.0,
+                        processing_time_ms=processing_time,
+                        checklist_state=checklist.to_string(),
+                        next_step=checklist.get_next_step(),
+                        detected_location=None,
+                        shipping_fee=None,
+                        usage=None,
+                        prompt_tokens=0,
+                        completion_tokens=0,
+                        total_tokens=0,
+                        cost=0.0,
+                        model=f"post_confirmation_{level.lower()}",
+                        thinking="",
+                    )
         except Exception:
             pass
 
@@ -222,6 +331,19 @@ class SimplifiedRAGEngine:
                 u = str(unit_key or "").strip()
                 if not u:
                     return ""
+
+                def _from_unit_key(u0: str) -> str:
+                    try:
+                        m = re.match(r"^(paquet|lot)_(\d{1,4})$", str(u0 or "").strip(), flags=re.IGNORECASE)
+                        if m:
+                            typ = str(m.group(1) or "").strip().lower()
+                            qty = str(m.group(2) or "").strip()
+                            if typ and qty:
+                                return f"{typ} de {qty}".strip()
+                    except Exception:
+                        pass
+                    return ""
+
                 try:
                     for f in (custom_formats or []):
                         if not isinstance(f, dict):
@@ -236,16 +358,32 @@ class SimplifiedRAGEngine:
                         if f_type and qty_i and qty_i > 0:
                             canonical = f"{f_type}_{qty_i}"
                         if canonical and canonical.strip().lower() == u.lower():
-                            label = str(
+                            primary = str(
                                 f.get("label")
                                 or f.get("customLabel")
                                 or f.get("custom_label")
-                                or f.get("unitLabel")
                                 or ""
                             ).strip()
-                            return label if label else u.replace("_", " ")
+                            if primary:
+                                return primary
+
+                            unit_label = str(f.get("unitLabel") or "").strip()
+                            if unit_label and unit_label.lower() not in {"pièces", "pieces", "piece", "pcs", "pc"}:
+                                return unit_label
+
+                            if f_type and qty_i and qty_i > 0:
+                                return f"{f_type} de {qty_i}".strip()
+
+                            by_key = _from_unit_key(u)
+                            if by_key:
+                                return by_key
+
+                            return u.replace("_", " ")
                 except Exception:
                     pass
+                by_key = _from_unit_key(u)
+                if by_key:
+                    return by_key
                 return u.replace("_", " ")
 
             def _generate_price_list_for_tool_call(
@@ -305,28 +443,59 @@ class SimplifiedRAGEngine:
                         return "", []
 
                     u_map = node.get("u") if isinstance(node.get("u"), dict) else None
-                    if not isinstance(u_map, dict) or not u_map:
-                        return "", []
-
                     items: List[Dict[str, Any]] = []
-                    for unit_key, raw_price in u_map.items():
-                        p = _parse_price_value(raw_price)
-                        if p is None:
-                            continue
-                        uk = str(unit_key or "").strip()
-                        if not uk:
-                            continue
-                        label = _format_unit_label(uk, custom_formats)
-                        items.append(
-                            {
-                                "product_id": pid,
-                                "variant": variant_key,
-                                "spec": str(spec_val).strip() if spec_val else None,
-                                "unit": uk,
-                                "label": label,
-                                "price_fcfa": int(p),
-                            }
-                        )
+                    if isinstance(u_map, dict) and u_map:
+                        for unit_key, raw_price in u_map.items():
+                            p = _parse_price_value(raw_price)
+                            if p is None:
+                                continue
+                            uk = str(unit_key or "").strip()
+                            if not uk:
+                                continue
+                            label = _format_unit_label(uk, custom_formats)
+                            items.append(
+                                {
+                                    "product_id": pid,
+                                    "variant": variant_key,
+                                    "spec": str(spec_val).strip() if spec_val else None,
+                                    "unit": uk,
+                                    "label": label,
+                                    "price_fcfa": int(p),
+                                }
+                            )
+                    else:
+                        # Fallback: certains catalogues stockent les prix sous s->u (prix par spec)
+                        s_map = node.get("s") if isinstance(node.get("s"), dict) else None
+                        if not isinstance(s_map, dict) or not s_map:
+                            return "", []
+
+                        spec_keys = [str(k) for k in s_map.keys() if str(k).strip()]
+                        spec_keys = sorted(spec_keys)
+                        for sk in spec_keys[:12]:
+                            snode = s_map.get(sk)
+                            if not isinstance(snode, dict):
+                                continue
+                            u2 = snode.get("u") if isinstance(snode.get("u"), dict) else None
+                            if not isinstance(u2, dict) or not u2:
+                                continue
+                            for unit_key, raw_price in u2.items():
+                                p = _parse_price_value(raw_price)
+                                if p is None:
+                                    continue
+                                uk = str(unit_key or "").strip()
+                                if not uk:
+                                    continue
+                                label = _format_unit_label(uk, custom_formats)
+                                items.append(
+                                    {
+                                        "product_id": pid,
+                                        "variant": variant_key,
+                                        "spec": str(sk).strip(),
+                                        "unit": uk,
+                                        "label": label,
+                                        "price_fcfa": int(p),
+                                    }
+                                )
 
                     if not items:
                         return "", []
@@ -337,15 +506,181 @@ class SimplifiedRAGEngine:
 
                     lines: List[str] = []
                     head = (product_name if product_name else "Catalogue").strip()
-                    lines.append(head)
-                    lines.append(str(variant_key).upper())
+
+                    def _num_emoji(n: int) -> str:
+                        try:
+                            mp = {
+                                1: "1️⃣",
+                                2: "2️⃣",
+                                3: "3️⃣",
+                                4: "4️⃣",
+                                5: "5️⃣",
+                                6: "6️⃣",
+                                7: "7️⃣",
+                                8: "8️⃣",
+                                9: "9️⃣",
+                                10: "🔟",
+                            }
+                            return mp.get(int(n), f"{n}.")
+                        except Exception:
+                            return f"{n}."
+
+                    lines.append(f"D'accord 😊 Voici les options pour {str(variant_key).strip().lower()} :")
                     lines.append("")
                     for i, it in enumerate(items, 1):
                         lbl = str(it.get("label") or "").strip() or str(it.get("unit") or "").strip()
+                        sp = str(it.get("spec") or "").strip()
                         price_i = int(it.get("price_fcfa") or 0)
-                        lines.append(f"{i}. {lbl} → {UniversalPriceCalculator._fmt_fcfa(price_i)}F")
+                        if lbl.lower() in {"pièces", "pieces", "piece", "pcs", "pc"}:
+                            lbl = _format_unit_label(str(it.get("unit") or "").strip(), custom_formats)
+
+                        if sp and (not spec_val):
+                            left = f"{_num_emoji(i)} {sp} - {lbl}".strip()
+                            lines.append(f"{left} — {UniversalPriceCalculator._fmt_fcfa(price_i)}F")
+                        else:
+                            left = f"{_num_emoji(i)} {lbl}".strip()
+                            lines.append(f"{left} — {UniversalPriceCalculator._fmt_fcfa(price_i)}F")
                     lines.append("")
-                    lines.append("Lequel vous intéresse ? (répondez par le numéro)")
+                    lines.append("Que prenez-vous ? (répondez par le numéro)")
+
+                    for i, it in enumerate(items, 1):
+                        it["index"] = i
+
+                    return "\n".join([ln for ln in lines if ln is not None]), items
+                except Exception:
+                    return "", []
+
+            def _generate_price_table_for_product(
+                *,
+                company_id_val: str,
+                product_id_val: str,
+            ) -> Tuple[str, List[Dict[str, Any]]]:
+                try:
+                    pid = str(product_id_val or "").strip()
+                    if not pid:
+                        return "", []
+
+                    selected_catalog = None
+                    try:
+                        selected_catalog = get_company_product_catalog_v2(company_id_val, pid)
+                    except Exception:
+                        selected_catalog = None
+                    if not isinstance(selected_catalog, dict):
+                        try:
+                            container = get_company_catalog_v2(company_id_val)
+                        except Exception:
+                            container = None
+                        if isinstance(container, dict) and isinstance(container.get("products"), list):
+                            for p in (container.get("products") or []):
+                                if not isinstance(p, dict):
+                                    continue
+                                ppid = str(p.get("product_id") or (p.get("catalog_v2") or {}).get("product_id") or "").strip()
+                                if ppid and ppid.strip().lower() == pid.lower() and isinstance(p.get("catalog_v2"), dict):
+                                    selected_catalog = p.get("catalog_v2")
+                                    break
+                        elif isinstance(container, dict):
+                            selected_catalog = container
+
+                    if not isinstance(selected_catalog, dict):
+                        return "", []
+
+                    if str(selected_catalog.get("pricing_strategy") or "").upper() != "UNIT_AS_ATOMIC":
+                        return "", []
+
+                    product_name = str(selected_catalog.get("product_name") or selected_catalog.get("name") or "").strip()
+                    ui_state = selected_catalog.get("ui_state") if isinstance(selected_catalog.get("ui_state"), dict) else {}
+                    custom_formats = ui_state.get("customFormats") if isinstance(ui_state.get("customFormats"), list) else []
+                    vtree = selected_catalog.get("v") if isinstance(selected_catalog.get("v"), dict) else {}
+                    if not vtree:
+                        return "", []
+
+                    items: List[Dict[str, Any]] = []
+
+                    def _add_unit_map(*, variant_key: str, spec_key: Optional[str], u_map: Dict[str, Any]) -> None:
+                        if not isinstance(u_map, dict) or not u_map:
+                            return
+                        for unit_key, raw_price in u_map.items():
+                            p = _parse_price_value(raw_price)
+                            if p is None:
+                                continue
+                            uk = str(unit_key or "").strip()
+                            if not uk:
+                                continue
+                            label = _format_unit_label(uk, custom_formats)
+                            items.append(
+                                {
+                                    "product_id": pid,
+                                    "variant": str(variant_key),
+                                    "spec": str(spec_key).strip() if spec_key else None,
+                                    "unit": uk,
+                                    "label": label,
+                                    "price_fcfa": int(p),
+                                }
+                            )
+
+                    for vk, vnode in vtree.items():
+                        vkey = str(vk or "").strip()
+                        if not vkey:
+                            continue
+                        if not isinstance(vnode, dict):
+                            continue
+
+                        u_map0 = vnode.get("u") if isinstance(vnode.get("u"), dict) else None
+                        if isinstance(u_map0, dict) and u_map0:
+                            _add_unit_map(variant_key=vkey, spec_key=None, u_map=u_map0)
+                            continue
+
+                        s_map = vnode.get("s") if isinstance(vnode.get("s"), dict) else None
+                        if isinstance(s_map, dict) and s_map:
+                            sub_keys = [str(k) for k in s_map.keys() if str(k).strip()]
+                            sub_keys = sorted(sub_keys)
+                            for sk in sub_keys[:8]:
+                                snode = s_map.get(sk)
+                                if not isinstance(snode, dict):
+                                    continue
+                                u_map1 = snode.get("u") if isinstance(snode.get("u"), dict) else None
+                                if isinstance(u_map1, dict) and u_map1:
+                                    _add_unit_map(variant_key=vkey, spec_key=str(sk), u_map=u_map1)
+
+                    if not items:
+                        return "", []
+
+                    items = sorted(items, key=lambda x: (str(x.get("variant") or ""), int(x.get("price_fcfa") or 0)))
+                    if len(items) > 18:
+                        items = items[:18]
+
+                    lines: List[str] = []
+                    head = (product_name if product_name else "Catalogue").strip()
+
+                    def _num_emoji(n: int) -> str:
+                        try:
+                            mp = {
+                                1: "1️⃣",
+                                2: "2️⃣",
+                                3: "3️⃣",
+                                4: "4️⃣",
+                                5: "5️⃣",
+                                6: "6️⃣",
+                                7: "7️⃣",
+                                8: "8️⃣",
+                                9: "9️⃣",
+                                10: "🔟",
+                            }
+                            return mp.get(int(n), f"{n}.")
+                        except Exception:
+                            return f"{n}."
+
+                    lines.append("D'accord 😊 Voici nos options :")
+                    lines.append("")
+                    for i, it in enumerate(items, 1):
+                        v = str(it.get("variant") or "").strip()
+                        sp = str(it.get("spec") or "").strip()
+                        lbl = str(it.get("label") or "").strip() or str(it.get("unit") or "").strip()
+                        price_i = int(it.get("price_fcfa") or 0)
+                        left = (v + (" " + sp if sp else "")).strip()
+                        lines.append(f"{_num_emoji(i)} {left} - {lbl} — {UniversalPriceCalculator._fmt_fcfa(price_i)}F")
+                    lines.append("")
+                    lines.append("Que prenez-vous ? (répondez par le numéro)")
 
                     for i, it in enumerate(items, 1):
                         it["index"] = i
@@ -356,24 +691,35 @@ class SimplifiedRAGEngine:
 
             def _reverse_lookup_price_choice(message: str, items: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
                 try:
-                    if not isinstance(items, list) or not items:
-                        return None
-                    msg = str(message or "").strip().lower()
-                    if not msg:
+                    if not items:
                         return None
 
-                    m_ord = re.search(r"\b(\d{1,2})\s*(?:e|eme|ème|er)\b", msg)
+                    m_ord = re.search(r"\b(\d{1,2})\s*(?:e|eme|ème|er)\b", message)
                     if m_ord:
                         idx = int(m_ord.group(1))
                         if 1 <= idx <= len(items):
                             return items[idx - 1]
 
-                    if re.fullmatch(r"\d{1,2}", msg):
-                        idx2 = int(msg)
+                    # Support: "le 2", "option 2", "numéro 2", "choix 2", "n°2"
+                    m_idx = re.search(r"\b(?:le|la|l'|option|choix|numero|numéro|n°|no)\s*(\d{1,2})\b", message, flags=re.IGNORECASE)
+                    if m_idx:
+                        idx0 = int(m_idx.group(1))
+                        if 1 <= idx0 <= len(items):
+                            return items[idx0 - 1]
+
+                    if re.fullmatch(r"\d{1,2}", message):
+                        idx2 = int(message)
                         if 1 <= idx2 <= len(items):
                             return items[idx2 - 1]
 
-                    norm_msg = _norm_name_for_id(msg)
+                    # Dernier filet: si le message contient un chiffre unique (ex: "2" dans une phrase)
+                    digits = re.findall(r"\b(\d{1,2})\b", message)
+                    if len(digits) == 1:
+                        idx3 = int(digits[0])
+                        if 1 <= idx3 <= len(items):
+                            return items[idx3 - 1]
+
+                    norm_msg = _norm_name_for_id(message)
                     best = None
                     for it in items:
                         lbl = _norm_name_for_id(str(it.get("label") or ""))
@@ -387,7 +733,7 @@ class SimplifiedRAGEngine:
                     if best is not None:
                         return best
 
-                    m_amt = re.search(r"(\d{3,6})", msg.replace(" ", ""))
+                    m_amt = re.search(r"(\d{3,6})", message.replace(" ", ""))
                     if m_amt:
                         amt = int(m_amt.group(1))
                         matches = [it for it in items if int(it.get("price_fcfa") or 0) == amt]
@@ -460,6 +806,9 @@ class SimplifiedRAGEngine:
                     )
                 )
 
+            pending_price_list_text = ""
+            pending_price_list_items: List[Dict[str, Any]] = []
+
             try:
                 if order_tracker.get_flag(user_id, "awaiting_price_choice"):
                     raw_items = order_tracker.get_custom_meta(user_id, "price_list_items", default=[])
@@ -468,29 +817,94 @@ class SimplifiedRAGEngine:
 
                     picked = _reverse_lookup_price_choice(query, price_list_items)
                     if picked is None:
+                        # Ne pas boucler en renvoyant la liste: laisser le LLM interpréter la réponse libre.
+                        # On garde la liste pour l'injecter dans l'historique (contexte) plus bas.
                         if price_list_text:
-                            processing_time = (time.time() - start_time) * 1000
-                            checklist = self.prompt_system.get_checklist_state(user_id, company_id)
-                            return SimplifiedRAGResult(
-                                response=price_list_text,
-                                confidence=1.0,
-                                processing_time_ms=processing_time,
-                                checklist_state=checklist.to_string(),
-                                next_step=checklist.get_next_step(),
-                                detected_location=None,
-                                shipping_fee=None,
-                                usage=None,
-                                prompt_tokens=0,
-                                completion_tokens=0,
-                                total_tokens=0,
-                                cost=0.0,
-                                model="python_short_circuit",
-                                thinking="",
-                            )
+                            pending_price_list_text = price_list_text
+                            pending_price_list_items = price_list_items if isinstance(price_list_items, list) else []
                     else:
                         order_tracker.set_flag(user_id, "awaiting_price_choice", False)
                         try:
                             order_tracker.set_custom_meta(user_id, "price_list_choice", picked)
+                        except Exception:
+                            pass
+
+                        # Si un panier existe déjà et que ce choix pivote (variant/spec/unit), demander A/B
+                        # au lieu d'écraser silencieusement l'existant.
+                        try:
+                            existing_items = order_tracker.get_custom_meta(user_id, "detected_items", default=[])
+                            existing_items = existing_items if isinstance(existing_items, list) else []
+                        except Exception:
+                            existing_items = []
+
+                        try:
+                            if isinstance(existing_items, list) and existing_items:
+                                ex0 = existing_items[0] if isinstance(existing_items[0], dict) else {}
+                                ex_pid = str((ex0 or {}).get("product_id") or "").strip().lower()
+                                ex_var = str((ex0 or {}).get("variant") or "").strip().lower()
+
+                                pk_pid = str(picked.get("product_id") or "").strip().lower()
+                                pk_var = str(picked.get("variant") or "").strip().lower()
+
+                                would_pivot = bool((ex_pid and pk_pid and ex_pid != pk_pid) or (ex_var and pk_var and ex_var != pk_var))
+
+                                if would_pivot:
+                                    ans = _parse_add_or_modify_answer(query)
+                                    if not ans:
+                                        detected_items_choice = [
+                                            {
+                                                "product_id": str(picked.get("product_id") or "").strip(),
+                                                "variant": str(picked.get("variant") or "").strip() or None,
+                                                "spec": (str(picked.get("spec") or "").strip() or None),
+                                                "unit": str(picked.get("unit") or "").strip() or None,
+                                                "qty": 1,
+                                                "confidence": 0.95,
+                                            }
+                                        ]
+                                        try:
+                                            order_tracker.set_custom_meta(user_id, "pending_cart_items", detected_items_choice)
+                                            order_tracker.set_custom_meta(user_id, "pending_cart_question", "add_or_modify")
+                                        except Exception:
+                                            pass
+
+                                        processing_time = (time.time() - start_time) * 1000
+                                        checklist = self.prompt_system.get_checklist_state(user_id, company_id)
+                                        new_variant = str(picked.get("variant") or "").strip()
+                                        new_spec = str(picked.get("spec") or "").strip()
+                                        new_label = (new_variant + (" " + new_spec if new_spec else "")).strip()
+
+                                        cur_label = ""
+                                        try:
+                                            ex0 = existing_items[0] if existing_items and isinstance(existing_items[0], dict) else {}
+                                            cur_v = str((ex0 or {}).get("variant") or "").strip()
+                                            cur_s = str((ex0 or {}).get("spec") or "").strip()
+                                            cur_label = (cur_v + (" " + cur_s if cur_s else "")).strip()
+                                        except Exception:
+                                            cur_label = ""
+
+                                        if cur_label and new_label:
+                                            forced_q = f"Vous modifiez votre panier ({cur_label}) pour {new_label} ou on ajoute ?"
+                                        elif new_label:
+                                            forced_q = f"On ajoute {new_label} au panier ou vous modifiez ?"
+                                        else:
+                                            forced_q = "On ajoute au panier ou vous modifiez ?"
+
+                                        return SimplifiedRAGResult(
+                                            response=forced_q,
+                                            confidence=1.0,
+                                            processing_time_ms=processing_time,
+                                            checklist_state=checklist.to_string(),
+                                            next_step=checklist.get_next_step(),
+                                            detected_location=None,
+                                            shipping_fee=None,
+                                            usage=None,
+                                            prompt_tokens=int(prompt_tokens or 0),
+                                            completion_tokens=int(completion_tokens or 0),
+                                            total_tokens=int(total_tokens or 0),
+                                            cost=float(cost or 0.0),
+                                            model="python_cart_change_clarify",
+                                            thinking="",
+                                        )
                         except Exception:
                             pass
 
@@ -539,6 +953,173 @@ class SimplifiedRAGEngine:
                             order_tracker.set_custom_meta(user_id, "detected_items", detected_items_choice)
                         except Exception:
                             pass
+            except Exception:
+                pass
+
+            # Clarification "ajout ou modification": si on a une question en attente, résoudre ici
+            # avant de relancer une détection/LLM. Objectif: éviter fusion/pivot implicite.
+            try:
+                pending_q = str(order_tracker.get_custom_meta(user_id, "pending_cart_question", default="") or "").strip()
+            except Exception:
+                pending_q = ""
+
+            try:
+                pending_items = order_tracker.get_custom_meta(user_id, "pending_cart_items", default=[])
+                pending_items = pending_items if isinstance(pending_items, list) else []
+            except Exception:
+                pending_items = []
+
+            def _parse_add_or_modify_answer(msg: str) -> str:
+                try:
+                    s = str(msg or "").strip().lower()
+                except Exception:
+                    s = ""
+                if not s:
+                    return ""
+                if re.fullmatch(r"\s*(a|1)\s*", s, flags=re.IGNORECASE):
+                    return "add"
+                if re.fullmatch(r"\s*(b|2)\s*", s, flags=re.IGNORECASE):
+                    return "modify"
+                if re.search(r"\b(ajout|ajouter|ajoute|en\s*plus|aussi|rajoute|rajouter)\b", s, flags=re.IGNORECASE):
+                    return "add"
+                if re.search(r"\b(modif|modifier|modification|change|changer|remplace|remplacer|au\s+lieu|plut[oô]t|annule|annuler)\b", s, flags=re.IGNORECASE):
+                    return "modify"
+                return ""
+
+            def _dedupe_items(items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+                out: List[Dict[str, Any]] = []
+                seen = set()
+                for it in (items or []):
+                    if not isinstance(it, dict):
+                        continue
+                    pid = str(it.get("product_id") or "").strip()
+                    var = str(it.get("variant") or "").strip()
+                    spec = str(it.get("spec") or "").strip()
+                    unit = str(it.get("unit") or "").strip()
+                    k = (pid.lower(), var.lower(), spec.lower(), unit.lower())
+                    if k in seen:
+                        continue
+                    seen.add(k)
+                    out.append(it)
+                return out
+
+            try:
+                if pending_q == "add_or_modify" and pending_items:
+                    choice = _parse_add_or_modify_answer(query)
+                    if not choice:
+                        processing_time = (time.time() - start_time) * 1000
+                        checklist = self.prompt_system.get_checklist_state(user_id, company_id)
+                        pending_variant = ""
+                        pending_spec = ""
+                        try:
+                            it0 = pending_items[0] if pending_items else {}
+                            if isinstance(it0, dict):
+                                pending_variant = str(it0.get("variant") or "").strip()
+                                pending_spec = str(it0.get("spec") or "").strip()
+                        except Exception:
+                            pending_variant = ""
+                            pending_spec = ""
+                        pending_label = (pending_variant + (" " + pending_spec if pending_spec else "")).strip()
+                        forced_q = f"On ajoute {pending_label} au panier ou vous modifiez ?" if pending_label else "On ajoute au panier ou vous modifiez ?"
+
+                        return SimplifiedRAGResult(
+                            response=forced_q,
+                            confidence=1.0,
+                            processing_time_ms=processing_time,
+                            checklist_state=checklist.to_string(),
+                            next_step=checklist.get_next_step(),
+                            detected_location=None,
+                            shipping_fee=None,
+                            usage=None,
+                            prompt_tokens=int(prompt_tokens or 0),
+                            completion_tokens=int(completion_tokens or 0),
+                            total_tokens=int(total_tokens or 0),
+                            cost=float(cost or 0.0),
+                            model="python_cart_change_clarify",
+                            thinking="",
+                        )
+
+                    if choice == "modify":
+                        # ── CartManager: resolve pending pivot → REPLACE ──
+                        try:
+                            self.cart_manager.resolve_pending_pivot(user_id, "REPLACE")
+                        except Exception:
+                            pass
+
+                        try:
+                            order_tracker.set_custom_meta(user_id, "detected_items", pending_items)
+                        except Exception:
+                            pass
+
+                        try:
+                            it0 = pending_items[0] if pending_items else {}
+                            pid0 = str(it0.get("product_id") or "").strip()
+                            if pid0:
+                                order_tracker.set_custom_meta(user_id, "active_product_id", pid0)
+                                order_tracker.update_produit(user_id, pid0, source="CART_MODIFY", confidence=0.9)
+                        except Exception:
+                            pass
+
+                        try:
+                            it0 = pending_items[0] if pending_items else {}
+                            v0 = str(it0.get("variant") or "").strip()
+                            sp0 = str(it0.get("spec") or "").strip()
+                            details0 = (v0 + (" " + sp0 if sp0 else "")).strip()
+                            if details0:
+                                order_tracker.update_produit_details(user_id, details0, source="CART_MODIFY", confidence=0.85)
+                        except Exception:
+                            pass
+
+                        # Quantité: on efface pour éviter carry-over (elle sera redemandée ou redétectée).
+                        try:
+                            order_tracker.update_quantite(user_id, "", source="CART_MODIFY", confidence=0.7)
+                        except Exception:
+                            pass
+
+                    if choice == "add":
+                        # ── CartManager: resolve pending pivot → ADD ──
+                        try:
+                            self.cart_manager.resolve_pending_pivot(user_id, "ADD")
+                        except Exception:
+                            pass
+
+                        try:
+                            existing = order_tracker.get_custom_meta(user_id, "detected_items", default=[])
+                            existing = existing if isinstance(existing, list) else []
+                        except Exception:
+                            existing = []
+                        try:
+                            merged = _dedupe_items((existing or []) + (pending_items or []))
+                            order_tracker.set_custom_meta(user_id, "detected_items", merged)
+                        except Exception:
+                            pass
+
+                    try:
+                        order_tracker.set_custom_meta(user_id, "pending_cart_items", [])
+                        order_tracker.set_custom_meta(user_id, "pending_cart_question", "")
+                        order_tracker.set_custom_meta(user_id, "backend_forced_pivot", False)
+                        order_tracker.set_custom_meta(user_id, "backend_forced_pivot_maj_action", "")
+                    except Exception:
+                        pass
+
+                    processing_time = (time.time() - start_time) * 1000
+                    checklist = self.prompt_system.get_checklist_state(user_id, company_id)
+                    return SimplifiedRAGResult(
+                        response="D'accord.",
+                        confidence=1.0,
+                        processing_time_ms=processing_time,
+                        checklist_state=checklist.to_string(),
+                        next_step=checklist.get_next_step(),
+                        detected_location=None,
+                        shipping_fee=None,
+                        usage=None,
+                        prompt_tokens=int(prompt_tokens or 0),
+                        completion_tokens=int(completion_tokens or 0),
+                        total_tokens=int(total_tokens or 0),
+                        cost=float(cost or 0.0),
+                        model="python_cart_change_apply",
+                        thinking="",
+                    )
             except Exception:
                 pass
 
@@ -603,64 +1184,54 @@ class SimplifiedRAGEngine:
                             pass
                         return ""
 
-                    # Hard hints (cheap + fast)
-                    try:
-                        if re.search(r"\bculott", m, flags=re.IGNORECASE):
-                            return "Culotte"
-                        if re.search(r"\bpression\b|\bpress\b", m, flags=re.IGNORECASE):
-                            return "Pression"
-                    except Exception:
-                        pass
-
-                    # Prefer real company variants from the catalogue when available.
+                    # --- SCALABLE: catalog-driven variant detection (works for ANY company) ---
+                    # Step 1: Try real company variants from the catalogue FIRST.
+                    raw_variants: List[str] = []
                     try:
                         raw_variants = _extract_variants_from_catalog(selected_catalog) if isinstance(selected_catalog, dict) else []
+                    except Exception:
+                        raw_variants = []
+
+                    if raw_variants:
+                        # Direct substring match against catalog variant names
                         best_direct = _pick_best_variant_from_candidates(raw_variants)
                         if best_direct:
                             return best_direct
-                    except Exception:
-                        pass
 
-                    # Fuzzy fallback (typos/plurals). Uses rapidfuzz if available, otherwise conservative no-op.
-                    synonyms = {
-                        "Culotte": ["culotte", "culottes", "culote", "culot", "pants", "pant"],
-                        "Pression": ["pression", "pressions", "press", "pressons", "tape"],
-                    }
-                    try:
-                        from rapidfuzz import fuzz  # type: ignore
-
-                        best_variant = ""
-                        best_score = 0
-                        # Compare against both canonical synonyms and catalog variants.
-                        variants_from_catalog = []
+                    # Step 2: Fuzzy match against catalog variants (handles typos)
+                    if raw_variants:
                         try:
-                            variants_from_catalog = _extract_variants_from_catalog(selected_catalog) if isinstance(selected_catalog, dict) else []
-                        except Exception:
-                            variants_from_catalog = []
-
-                        for v in (variants_from_catalog or []):
-                            vn = _norm_name_for_id(v)
-                            if not vn:
-                                continue
-                            score_v = int(fuzz.partial_ratio(m, vn) or 0)
-                            if score_v > best_score:
-                                best_score = score_v
-                                best_variant = v
-
-                        for var, syns in synonyms.items():
-                            for s in syns:
-                                sn = _norm_name_for_id(s)
-                                if not sn:
+                            from rapidfuzz import fuzz  # type: ignore
+                            best_variant = ""
+                            best_score = 0
+                            for v in raw_variants:
+                                vn = _norm_name_for_id(v)
+                                if not vn:
                                     continue
-                                score = int(fuzz.partial_ratio(m, sn) or 0)
-                                if score > best_score:
-                                    best_score = score
-                                    best_variant = var
-                        return best_variant if best_score >= 85 else ""
-                    except Exception:
-                        return ""
+                                score_v = int(fuzz.partial_ratio(m, vn) or 0)
+                                if score_v > best_score:
+                                    best_score = score_v
+                                    best_variant = v
+                            if best_variant and best_score >= 85:
+                                return best_variant
+                        except Exception:
+                            pass
+
+                    # Step 3: Legacy hardcoded hints (fallback when no catalog available)
+                    # These only fire if the catalog didn't provide variant names.
+                    if not raw_variants:
+                        try:
+                            if re.search(r"\bculott", m, flags=re.IGNORECASE):
+                                return "Culotte"
+                            if re.search(r"\bpression\b|\bpress\b", m, flags=re.IGNORECASE):
+                                return "Pression"
+                        except Exception:
+                            pass
+
+                    return ""
 
                 detected_variant = _fuzzy_pick_variant(ql)
+                print(f"🔍 [PREMATCH_DEBUG] detected_variant='{detected_variant}' | container_type={type(container).__name__} | has_products={isinstance(container, dict) and isinstance(container.get('products'), list) if isinstance(container, dict) else 'N/A'}")
 
                 if isinstance(container, dict) and isinstance(container.get("products"), list):
                     candidates = []
@@ -733,6 +1304,7 @@ class SimplifiedRAGEngine:
                     if (not detected_pid) and detected_variant:
                         try:
                             plist = [pp for pp in (container.get("products") or []) if isinstance(pp, dict)]
+                            print(f"🔍 [PREMATCH_DEBUG] Strategy C: detected_variant='{detected_variant}' | plist_len={len(plist)}")
                             if len(plist) == 1:
                                 only_p = plist[0]
                                 only_name = str(
@@ -742,7 +1314,9 @@ class SimplifiedRAGEngine:
                                 ).strip()
                                 detected_name = only_name
                                 detected_pid = _pick_pid_from_product_entry(only_p, only_name)
-                        except Exception:
+                                print(f"🔍 [PREMATCH_DEBUG] Strategy C matched: pid='{detected_pid}' name='{detected_name}'")
+                        except Exception as _sc_e:
+                            print(f"⚠️ [PREMATCH_DEBUG] Strategy C error: {type(_sc_e).__name__}: {_sc_e}")
                             pass
 
                     # Strategy D: variant-only mention on a multi-product container.
@@ -784,6 +1358,23 @@ class SimplifiedRAGEngine:
                         real_id = str(container.get("product_id") or "").strip()
                         detected_pid = real_id if real_id else _product_id_hash(pname)
 
+                    # Strategy E: mono-product container + variant detected in message
+                    # If product_name didn't match but we detected a variant, check vtree
+                    if (not detected_pid) and detected_variant and pname:
+                        try:
+                            vtree = container.get("v") if isinstance(container.get("v"), dict) else None
+                            if isinstance(vtree, dict) and vtree:
+                                v_norm = _norm_name_for_id(detected_variant)
+                                for vk in vtree.keys():
+                                    if _norm_name_for_id(str(vk)) == v_norm:
+                                        detected_name = pname
+                                        real_id = str(container.get("product_id") or "").strip()
+                                        detected_pid = real_id if real_id else _product_id_hash(pname)
+                                        print(f"🎯 [PREMATCH_DEBUG] Strategy E (mono+variant): pid='{detected_pid}' variant='{detected_variant}'")
+                                        break
+                        except Exception:
+                            pass
+
                 if detected_pid:
                     if prev_product_before_llm and (str(prev_product_before_llm).strip() != detected_pid):
                         try:
@@ -810,13 +1401,20 @@ class SimplifiedRAGEngine:
                     # If this is a price intent and we have a clear variant, short-circuit the LLM and send price list.
                     # This is a robustness fallback when the prompt doesn't emit <tool_call>.
                     try:
-                        if detected_variant and _is_price_intent(query):
-                            list_text, list_items = _generate_price_list_for_tool_call(
-                                company_id_val=company_id,
-                                product_id_val=detected_pid,
-                                variant_val=detected_variant,
-                                spec_val=None,
-                            )
+                        if _is_price_intent(query):
+                            if detected_variant:
+                                list_text, list_items = _generate_price_list_for_tool_call(
+                                    company_id_val=company_id,
+                                    product_id_val=detected_pid,
+                                    variant_val=detected_variant,
+                                    spec_val=None,
+                                )
+                            else:
+                                list_text, list_items = _generate_price_table_for_product(
+                                    company_id_val=company_id,
+                                    product_id_val=detected_pid,
+                                )
+
                             if list_text and list_items:
                                 try:
                                     order_tracker.set_custom_meta(user_id, "price_list_text", list_text)
@@ -859,6 +1457,17 @@ class SimplifiedRAGEngine:
                 user_id=user_id,
                 company_id=company_id
             )
+
+            # Si on attend un choix de prix et que Python n'a pas pu parser la réponse du client,
+            # on injecte la dernière liste envoyée dans l'historique pour que le LLM puisse choisir.
+            try:
+                if pending_price_list_text:
+                    prev_hist = str(dynamic_context.get("conversation_history") or "")
+                    if pending_price_list_text not in prev_hist:
+                        dyn_tail = ("\n\nASSISTANT:\n" + pending_price_list_text.strip()).strip()
+                        dynamic_context["conversation_history"] = (prev_hist + dyn_tail).strip() if prev_hist.strip() else dyn_tail
+            except Exception:
+                pass
 
             # Fallback persistance livraison (zone/frais) :
             # si le message courant ne contient pas la zone, on réutilise la dernière zone connue.
@@ -1903,16 +2512,26 @@ class SimplifiedRAGEngine:
 
                 def _extract_quantity_value(text: str) -> str:
                     try:
+                        t = str(text or "")
+                        # Match digit + unit
                         m = re.search(
-                            r"\b(\d+)\s*(cartons?|carton|paquets?|packs?|unit[ée]s?)\b",
-                            str(text or ""),
+                            r"\b(\d+)\s*(cartons?|paquets?|packs?|lots?|unit[ée]s?)\b",
+                            t,
                             flags=re.IGNORECASE,
                         )
-                        if not m:
-                            return ""
-                        n = m.group(1)
-                        u = m.group(2)
-                        return f"{n} {u}".strip()
+                        if m:
+                            return f"{m.group(1)} {m.group(2)}".strip()
+                        # Match French number word + unit (un lot, deux paquets, etc.)
+                        _fr_nums = {"un": "1", "une": "1", "deux": "2", "trois": "3", "quatre": "4", "cinq": "5"}
+                        m2 = re.search(
+                            r"\b(un|une|deux|trois|quatre|cinq)\s+(cartons?|paquets?|packs?|lots?|unit[ée]s?)\b",
+                            t,
+                            flags=re.IGNORECASE,
+                        )
+                        if m2:
+                            n = _fr_nums.get(m2.group(1).lower(), m2.group(1))
+                            return f"{n} {m2.group(2)}".strip()
+                        return ""
                     except Exception:
                         return ""
 
@@ -1926,6 +2545,21 @@ class SimplifiedRAGEngine:
                     return int(m.group(1)) if m else None
 
                 delivery_fee_fcfa = _parse_fee(dynamic_context.get("shipping_fee"))
+
+                # Fallback: si le message courant ne contient pas de zone, lire depuis OrderState persisté
+                if delivery_fee_fcfa is None or int(delivery_fee_fcfa or 0) <= 0:
+                    try:
+                        _st_fee = order_tracker.get_state(user_id)
+                        _zone_persisted = str(getattr(_st_fee, "zone", "") or "").strip()
+                        if _zone_persisted:
+                            from core.delivery_zone_extractor import extract_delivery_zone_and_cost
+                            _zinfo = extract_delivery_zone_and_cost(_zone_persisted)
+                            _fee2 = (_zinfo or {}).get("cost") if isinstance(_zinfo, dict) else None
+                            if isinstance(_fee2, (int, float)) and int(_fee2) > 0:
+                                delivery_fee_fcfa = int(_fee2)
+                                print(f"📦 [PRICE_CALC] fee recovered from OrderState zone='{_zone_persisted}' → {delivery_fee_fcfa}")
+                    except Exception:
+                        pass
 
                 def _validate_cart_items(items) -> bool:
                     if not isinstance(items, list) or not items:
@@ -2166,14 +2800,29 @@ class SimplifiedRAGEngine:
                 # on autorise le switch produit même si un ancien produit est déjà en mémoire.
                 change_markers = ["finalement", "a la place", "à la place", "plutot", "plutôt", "change", "remplace"]
                 is_switch = any(m in msg_l for m in change_markers)
-                # IMPORTANT: pour Rue du Grossiste, "culotte/pression" sont des VARIANTES, pas des produits.
-                # On ne doit jamais écrire ces valeurs dans le slot produit, sinon le price_calc échoue.
+                # Detect variant from message using catalog vtree keys (scalable for any company).
+                # Variant names are NEVER written to the produit slot — only to produit_details.
                 variant_hint = ""
                 try:
-                    if "culott" in msg_l:
-                        variant_hint = "Culotte"
-                    elif "pression" in msg_l or "press" in msg_l:
-                        variant_hint = "Pression"
+                    _cat_for_vh = None
+                    try:
+                        _cat_for_vh = get_company_catalog_v2(company_id)
+                    except Exception:
+                        _cat_for_vh = None
+                    _vtree_vh = _cat_for_vh.get("v") if isinstance(_cat_for_vh, dict) and isinstance(_cat_for_vh.get("v"), dict) else None
+                    if isinstance(_vtree_vh, dict) and _vtree_vh:
+                        for _vk in _vtree_vh.keys():
+                            _vk_s = str(_vk or "").strip()
+                            _vk_low = _vk_s.lower()
+                            if _vk_low and _vk_low in msg_l:
+                                variant_hint = _vk_s
+                                break
+                    # Legacy fallback when catalog has no vtree
+                    if not variant_hint:
+                        if "culott" in msg_l:
+                            variant_hint = "Culotte"
+                        elif "pression" in msg_l or "press" in msg_l:
+                            variant_hint = "Pression"
                 except Exception:
                     variant_hint = ""
 
@@ -2223,6 +2872,20 @@ class SimplifiedRAGEngine:
                             order_tracker.update_produit_details(user_id, "", source="CONTEXT_INFERRED", confidence=0.6)
                             order_tracker.update_quantite(user_id, "", source="CONTEXT_INFERRED", confidence=0.6)
                             print("🧹 [ORDER_STATE] SPECS+QUANTITÉ cleared (pre_llm_pivot)")
+                            # Re-extract from current message (pivot clears stale values,
+                            # but the current message may carry fresh specs+qty).
+                            quantite_val = _extract_quantity_value(query) or ""
+                            m_sz_re = re.search(r"\b(?:taille\s*|t)([1-7])\b", str(query or ""), flags=re.IGNORECASE)
+                            if m_sz_re:
+                                specs_val = f"taille {m_sz_re.group(1)}"
+                            # Prepend variant hint so price_calc can resolve product_key
+                            # e.g. "Pression taille 1" instead of just "taille 1"
+                            if variant_hint:
+                                if specs_val and variant_hint.lower() not in specs_val.lower():
+                                    specs_val = f"{variant_hint} {specs_val}"
+                                elif not specs_val:
+                                    specs_val = variant_hint
+                            print(f"🔄 [ORDER_STATE] Re-extracted from msg: specs='{specs_val}' quantite='{quantite_val}'")
                         except Exception:
                             pass
 
@@ -2264,6 +2927,16 @@ class SimplifiedRAGEngine:
                         pre_llm_price_calc_allowed = False
                         specs_val = ""
                         quantite_val = ""
+                except Exception:
+                    pass
+
+                # Ensure variant_hint is in specs_val so price_calc can resolve product_key
+                # when produit is a product_id (e.g. prod_ml6dxg73_a0rloi)
+                try:
+                    if variant_hint and specs_val and variant_hint.lower() not in specs_val.lower():
+                        specs_val = f"{variant_hint} {specs_val}"
+                    elif variant_hint and not specs_val:
+                        specs_val = variant_hint
                 except Exception:
                     pass
 
@@ -2463,6 +3136,52 @@ class SimplifiedRAGEngine:
                 active_pid_before_prompt = str(order_tracker.get_custom_meta(user_id, "active_product_id", default="") or "").strip()
             except Exception:
                 active_pid_before_prompt = ""
+
+            # ── CartManager: injecter le résumé panier dans le prompt ──
+            try:
+                cart_summary = self.cart_manager.get_cart_summary(user_id)
+                if cart_summary:
+                    instruction_block += f"\n<current_cart>{cart_summary}</current_cart>\n"
+            except Exception as _cart_e:
+                print(f"⚠️ [CART_SUMMARY] injection error: {type(_cart_e).__name__}: {_cart_e}")
+
+            # ── PATCH D: Hints proactifs — Python injecte les montants connus pour que Jessica les annonce ──
+            proactive_hints = []
+            try:
+                # Hint 1: Prix produit — si price_calculation_block contient un ready_to_send, le LLM DOIT l'annoncer
+                _pc_block_str = str(price_calculation_block or "").strip()
+                if _pc_block_str:
+                    _ready_hint = ""
+                    try:
+                        _m_ready = re.search(r"<ready_to_send>(.*?)</ready_to_send>", _pc_block_str, re.DOTALL | re.IGNORECASE)
+                        if _m_ready:
+                            _ready_hint = str(_m_ready.group(1) or "").strip()
+                    except Exception:
+                        pass
+                    if _ready_hint:
+                        proactive_hints.append(
+                            f"<proactive_price>\n"
+                            f"  Python a calculé le prix. Tu DOIS annoncer ce montant au client dans ta réponse.\n"
+                            f"  Copie-colle ce récapitulatif tel quel :\n"
+                            f"  {_ready_hint}\n"
+                            f"  Puis enchaîne naturellement (ex: demander zone, paiement, numéro selon ce qui manque).\n"
+                            f"</proactive_price>"
+                        )
+
+                # Hint 2: Frais de livraison — si zone connue + fee calculé, le LLM DOIT annoncer les frais
+                if delivery_fee_fcfa and isinstance(delivery_fee_fcfa, int) and delivery_fee_fcfa > 0 and zone_val:
+                    proactive_hints.append(
+                        f"<proactive_delivery>\n"
+                        f"  La livraison à {zone_val} coûte {delivery_fee_fcfa} FCFA.\n"
+                        f"  Tu DOIS informer le client de ce montant dans ta réponse si ce n'est pas déjà fait.\n"
+                        f"</proactive_delivery>"
+                    )
+            except Exception as _ph_e:
+                print(f"⚠️ [PROACTIVE_HINTS] error: {type(_ph_e).__name__}: {_ph_e}")
+
+            if proactive_hints:
+                instruction_block += "\n" + "\n".join(proactive_hints) + "\n"
+                print(f"💡 [PROACTIVE_HINTS] {len(proactive_hints)} hint(s) injected into instruction_block")
 
             final_prompt = await self.prompt_system.build_prompt(
                 query=query,
@@ -2861,6 +3580,48 @@ class SimplifiedRAGEngine:
                 except Exception:
                     tool_call_req = None
 
+                if not tool_call_req:
+                    try:
+                        m_tc = re.search(
+                            r"\{.*?\"action\"\s*:\s*\"SEND_PRICE_LIST\".*?\}",
+                            str(thinking or ""),
+                            flags=re.IGNORECASE | re.DOTALL,
+                        )
+                        if m_tc:
+                            tool_call_req = _coerce_json_obj(m_tc.group(0))
+                    except Exception:
+                        pass
+
+                def _is_price_list_request(*, thinking_text: str, tool_req: Any) -> bool:
+                    try:
+                        if isinstance(tool_req, dict):
+                            act = str(tool_req.get("action") or "").strip().upper()
+                            if act == "SEND_PRICE_LIST":
+                                return True
+                    except Exception:
+                        pass
+                    try:
+                        t = str(thinking_text or "")
+                    except Exception:
+                        t = ""
+                    if not t.strip():
+                        return False
+                    if re.search(r"<tool_call>.*?SEND_PRICE_LIST.*?</tool_call>", t, flags=re.IGNORECASE | re.DOTALL):
+                        return True
+                    if re.search(r"\"action\"\s*:\s*\"SEND_PRICE_LIST\"", t, flags=re.IGNORECASE):
+                        return True
+                    return False
+
+                def _extract_maj_action(thinking_text: str) -> str:
+                    try:
+                        t = str(thinking_text or "")
+                    except Exception:
+                        t = ""
+                    if not t.strip():
+                        return ""
+                    m = re.search(r"<maj>.*?<action>(.*?)</action>.*?</maj>", t, flags=re.IGNORECASE | re.DOTALL)
+                    return str(m.group(1) or "").strip().upper() if m else ""
+
                 print(f"{C_YELLOW}🧠 [THINKING] {len(thinking)} chars{C_RESET}")
                 print(f"{C_YELLOW}{'='*80}{C_RESET}")
                 print(f"{C_YELLOW}{thinking}{C_RESET}")
@@ -2912,6 +3673,7 @@ class SimplifiedRAGEngine:
                             txt = str(detected_items_json_text or "").strip()
                             parsed_items = json.loads(txt)
                             if isinstance(parsed_items, list):
+                                items_raw_to_persist = detected_items_json_text
                                 try:
                                     parsed_items = _normalize_packaging_items(parsed_items, query)
                                 except Exception:
@@ -2930,10 +3692,233 @@ class SimplifiedRAGEngine:
                                     catalog_container=cat_container,
                                 )
 
+                                # Pivot panier: ne pas écraser un panier existant sans intention explicite.
+                                # Si le message n'indique pas clairement AJOUT/MODIFICATION, on demande A/B.
+
+                                def _extract_first_item_sig(items: List[Dict[str, Any]]) -> Tuple[str, str]:
+                                    try:
+                                        for it in (items or []):
+                                            if not isinstance(it, dict):
+                                                continue
+                                            pid = str(it.get("product_id") or "").strip()
+                                            var = str(it.get("variant") or "").strip()
+                                            if pid or var:
+                                                return pid, var
+                                    except Exception:
+                                        pass
+                                    return "", ""
+
+                                def _infer_cart_change_intent(msg: str) -> str:
+                                    try:
+                                        s = str(msg or "").lower()
+                                    except Exception:
+                                        s = ""
+                                    if not s.strip():
+                                        return ""
+                                    # add
+                                    if re.search(r"\b(ajout|ajoute|ajouter|en\s*plus|aussi|rajoute|rajouter|mets\s+aussi|ajouter\s+au\s+panier)\b", s, flags=re.IGNORECASE):
+                                        return "add"
+                                    # modify
+                                    if re.search(r"\b(change|changer|remplace|remplacer|finalement|plut[oô]t|au\s+lieu|modif|modifier|annule|annuler|retire|retirer)\b", s, flags=re.IGNORECASE):
+                                        return "modify"
+                                    return ""
+
+                                def _dedupe_items(items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+                                    out: List[Dict[str, Any]] = []
+                                    seen = set()
+                                    for it in (items or []):
+                                        if not isinstance(it, dict):
+                                            continue
+                                        pid = str(it.get("product_id") or "").strip()
+                                        var = str(it.get("variant") or "").strip()
+                                        spec = str(it.get("spec") or "").strip()
+                                        unit = str(it.get("unit") or "").strip()
+                                        k = (pid.lower(), var.lower(), spec.lower(), unit.lower())
+                                        if k in seen:
+                                            continue
+                                        seen.add(k)
+                                        out.append(it)
+                                    return out
+
+                                def _items_are_informational(items: List[Dict[str, Any]]) -> bool:
+                                    try:
+                                        xs = [it for it in (items or []) if isinstance(it, dict)]
+                                        if not xs:
+                                            return False
+                                        for it in xs:
+                                            if it.get("qty") not in (None, "", 0):
+                                                return False
+                                        return True
+                                    except Exception:
+                                        return False
+
+                                try:
+                                    cur_items = order_tracker.get_custom_meta(user_id, "detected_items", default=[])
+                                    cur_items = cur_items if isinstance(cur_items, list) else []
+
+                                    cur_state_details = ""
+                                    cur_state_variant = ""
+                                    try:
+                                        st0 = order_tracker.get_state(user_id)
+                                        cur_state_details = str(getattr(st0, "produit_details", "") or "").strip()
+                                    except Exception:
+                                        cur_state_details = ""
+
+                                    try:
+                                        s_l = cur_state_details.lower()
+                                        # Catalog-driven variant detection
+                                        _cat_csv = None
+                                        try:
+                                            _cat_csv = get_company_catalog_v2(company_id) if company_id else None
+                                        except Exception:
+                                            _cat_csv = None
+                                        _vt_csv = _cat_csv.get("v") if isinstance(_cat_csv, dict) and isinstance(_cat_csv.get("v"), dict) else None
+                                        if isinstance(_vt_csv, dict):
+                                            for _vk in _vt_csv.keys():
+                                                _vk_s = str(_vk or "").strip()
+                                                if _vk_s and _vk_s.lower() in s_l:
+                                                    cur_state_variant = _vk_s
+                                                    break
+                                        # Legacy fallback
+                                        if not cur_state_variant:
+                                            if "culotte" in s_l:
+                                                cur_state_variant = "Culotte"
+                                            elif "pression" in s_l:
+                                                cur_state_variant = "Pression"
+                                    except Exception:
+                                        cur_state_variant = ""
+
+                                    cur_pid, cur_var = _extract_first_item_sig(cur_items)
+                                    new_pid, new_var = _extract_first_item_sig(parsed_items if isinstance(parsed_items, list) else [])
+
+                                    has_existing_cart = bool(cur_items) or bool(cur_state_variant) or bool(cur_state_details)
+
+                                    pivot = bool(
+                                        (cur_pid and new_pid and cur_pid.strip().lower() != new_pid.strip().lower())
+                                        or (cur_var and new_var and cur_var.strip().lower() != new_var.strip().lower())
+                                        or (cur_state_variant and new_var and cur_state_variant.strip().lower() != new_var.strip().lower())
+                                    )
+
+                                    is_price_tool = _is_price_list_request(thinking_text=thinking, tool_req=tool_call_req)
+                                    if is_price_tool:
+                                        try:
+                                            order_tracker.set_custom_meta(user_id, "detected_items_price_probe", parsed_items)
+                                            order_tracker.set_custom_meta(user_id, "detected_items_price_probe_raw", detected_items_json_text)
+                                        except Exception:
+                                            pass
+                                        try:
+                                            items_raw_to_persist = str(
+                                                order_tracker.get_custom_meta(user_id, "detected_items_raw", default="") or ""
+                                            )
+                                        except Exception:
+                                            items_raw_to_persist = str(items_raw_to_persist or "")
+                                        parsed_items = cur_items
+
+                                    if pivot and has_existing_cart and (not is_price_tool):
+                                        intent = _infer_cart_change_intent(query)
+
+                                        maj_action = _extract_maj_action(thinking)
+
+                                        if not intent:
+                                            try:
+                                                order_tracker.set_custom_meta(user_id, "pending_cart_items", parsed_items)
+                                                order_tracker.set_custom_meta(user_id, "pending_cart_question", "add_or_modify")
+                                            except Exception:
+                                                pass
+                                            # ── CartManager: stocker en pending_pivot ──
+                                            try:
+                                                if isinstance(parsed_items, list) and parsed_items:
+                                                    self.cart_manager.set_pending_pivot(user_id, parsed_items[0])
+                                            except Exception:
+                                                pass
+
+                                            processing_time = (time.time() - start_time) * 1000
+                                            checklist = self.prompt_system.get_checklist_state(user_id, company_id)
+                                            new_label = ""
+                                            try:
+                                                pid_x, var_x = _extract_first_item_sig(parsed_items)
+                                                sp_x = ""
+                                                try:
+                                                    for _it in (parsed_items or []):
+                                                        if isinstance(_it, dict):
+                                                            sp_x = str(_it.get("spec") or "").strip()
+                                                            if sp_x:
+                                                                break
+                                                except Exception:
+                                                    sp_x = ""
+                                                new_label = (str(var_x or "").strip() + (" " + sp_x if sp_x else "")).strip()
+                                            except Exception:
+                                                new_label = ""
+
+                                            cur_label = ""
+                                            try:
+                                                itc0 = cur_items[0] if cur_items and isinstance(cur_items[0], dict) else {}
+                                                cur_v = str((itc0 or {}).get("variant") or "").strip()
+                                                cur_s = str((itc0 or {}).get("spec") or "").strip()
+                                                cur_label = (cur_v + (" " + cur_s if cur_s else "")).strip()
+                                            except Exception:
+                                                cur_label = ""
+                                            if not cur_label:
+                                                cur_label = cur_state_details
+
+                                            forced_q = "On ajoute au panier ou vous modifiez ?"
+                                            if cur_label and new_label:
+                                                forced_q = f"Vous modifiez votre panier ({cur_label}) pour {new_label} ou on ajoute ?"
+                                            elif new_label:
+                                                forced_q = f"On ajoute {new_label} au panier ou vous modifiez ?"
+
+                                            try:
+                                                order_tracker.set_custom_meta(user_id, "backend_forced_pivot", maj_action != "CLARIFY_PIVOT")
+                                                order_tracker.set_custom_meta(user_id, "backend_forced_pivot_maj_action", maj_action)
+                                            except Exception:
+                                                pass
+
+                                            return SimplifiedRAGResult(
+                                                response=forced_q,
+                                                confidence=1.0,
+                                                processing_time_ms=processing_time,
+                                                checklist_state=checklist.to_string(),
+                                                next_step=checklist.get_next_step(),
+                                                detected_location=None,
+                                                shipping_fee=None,
+                                                usage=None,
+                                                prompt_tokens=int(prompt_tokens or 0),
+                                                completion_tokens=int(completion_tokens or 0),
+                                                total_tokens=int(total_tokens or 0),
+                                                cost=float(cost or 0.0),
+                                                model="python_cart_change_clarify",
+                                                thinking=thinking,
+                                            )
+
+                                        if intent == "add":
+                                            try:
+                                                parsed_items = _dedupe_items((cur_items or []) + (parsed_items or []))
+                                            except Exception:
+                                                pass
+                                        # intent == 'modify' => keep parsed_items
+                                except Exception:
+                                    pass
+
                                 order_tracker.set_custom_meta(user_id, "detected_items", parsed_items)
-                                order_tracker.set_custom_meta(user_id, "detected_items_raw", detected_items_json_text)
+                                try:
+                                    order_tracker.set_custom_meta(user_id, "detected_items_raw", items_raw_to_persist)
+                                except Exception:
+                                    order_tracker.set_custom_meta(user_id, "detected_items_raw", detected_items_json_text)
                                 order_tracker.set_custom_meta(user_id, "detected_items_parse_error", "")
                                 print(f"✅ [ITEMS_JSON] parsed_items={len(parsed_items)}")
+
+                                # ── CartManager: upsert panier selon <maj><action> ──
+                                try:
+                                    maj_action_now = _extract_maj_action(thinking)
+                                    if maj_action_now and isinstance(parsed_items, list) and parsed_items:
+                                        self.cart_manager.upsert_from_items_json(
+                                            user_id=user_id,
+                                            items=parsed_items,
+                                            action=maj_action_now,
+                                        )
+                                        print(f"🛒 [CART] upsert action={maj_action_now} items={len(parsed_items)}")
+                                except Exception as _cart_upsert_e:
+                                    print(f"⚠️ [CART] upsert error: {type(_cart_upsert_e).__name__}: {_cart_upsert_e}")
 
                                 # Hot-swap product context: persist the current active product id/label.
                                 try:
@@ -2947,6 +3932,70 @@ class SimplifiedRAGEngine:
                                             break
                                     if active_pid:
                                         order_tracker.set_custom_meta(user_id, "active_product_id", active_pid)
+
+                                        try:
+                                            if re.fullmatch(r"prod_[a-z0-9_\-]{6,80}", str(active_pid), flags=re.IGNORECASE):
+                                                st_now = order_tracker.get_state(user_id)
+                                                if not str(getattr(st_now, "produit", "") or "").strip():
+                                                    order_tracker.update_produit(user_id, str(active_pid), source="ITEMS_JSON", confidence=0.95)
+                                        except Exception:
+                                            pass
+                                except Exception:
+                                    pass
+
+                                # Fallback tool pricing (scalable): si intention=prix et product_id+variant détectés,
+                                # on envoie la liste de prix immédiatement même si unit/spec/qty sont null.
+                                try:
+                                    if (
+                                        (not order_tracker.get_flag(user_id, "awaiting_price_choice"))
+                                        and _is_price_intent(query)
+                                        and (not _is_price_list_request(thinking_text=thinking, tool_req=tool_call_req))
+                                    ):
+                                        v_pid = ""
+                                        v_variant = ""
+                                        for it in parsed_items:
+                                            if not isinstance(it, dict):
+                                                continue
+                                            v_pid = str(it.get("product_id") or "").strip()
+                                            v_variant = str(it.get("variant") or "").strip()
+                                            if v_pid and v_variant:
+                                                break
+
+                                        if v_pid and v_variant and re.fullmatch(
+                                            r"prod_[a-z0-9_\-]{6,80}", str(v_pid), flags=re.IGNORECASE
+                                        ):
+                                            list_text, list_items = _generate_price_list_for_tool_call(
+                                                company_id_val=company_id,
+                                                product_id_val=v_pid,
+                                                variant_val=v_variant,
+                                                spec_val=None,
+                                            )
+                                            if list_text and list_items:
+                                                try:
+                                                    order_tracker.set_custom_meta(user_id, "price_list_text", list_text)
+                                                    order_tracker.set_custom_meta(user_id, "price_list_items", list_items)
+                                                    order_tracker.set_flag(user_id, "awaiting_price_choice", True)
+                                                except Exception:
+                                                    pass
+
+                                                processing_time = (time.time() - start_time) * 1000
+                                                checklist = self.prompt_system.get_checklist_state(user_id, company_id)
+                                                return SimplifiedRAGResult(
+                                                    response=list_text,
+                                                    confidence=0.95,
+                                                    processing_time_ms=processing_time,
+                                                    checklist_state=checklist.to_string(),
+                                                    next_step=checklist.get_next_step(),
+                                                    detected_location=None,
+                                                    shipping_fee=None,
+                                                    usage=None,
+                                                    prompt_tokens=int(prompt_tokens or 0),
+                                                    completion_tokens=int(completion_tokens or 0),
+                                                    total_tokens=int(total_tokens or 0),
+                                                    cost=float(cost or 0.0),
+                                                    model="python_price_list_post_llm_fallback",
+                                                    thinking=thinking,
+                                                )
                                 except Exception:
                                     pass
 
@@ -3069,8 +4118,12 @@ class SimplifiedRAGEngine:
                     det_prod_raw = _extract_tag(thinking, "detected_product")
                     det_prod = str(det_prod_raw or "").strip()
                     if det_prod:
-                        mapped_pid = _map_product_name_to_pid(company_id, det_prod)
-                        mapped_label = det_prod
+                        if re.fullmatch(r"prod_[a-z0-9_\-]{6,80}", det_prod, flags=re.IGNORECASE):
+                            mapped_pid = det_prod
+                            mapped_label = det_prod
+                        else:
+                            mapped_pid = _map_product_name_to_pid(company_id, det_prod)
+                            mapped_label = det_prod
 
                     if not mapped_pid:
                         m = re.search(r"Catalogue\s+propose\s*:\s*([^\n\r<]{2,160})", thinking, flags=re.IGNORECASE)
@@ -3102,6 +4155,139 @@ class SimplifiedRAGEngine:
                     if isinstance(det, dict):
                         # Récupérer l'état actuel pour fusion intelligente
                         current_state = order_tracker.get_state(user_id)
+
+                        def _extract_variant_from_details(txt: str) -> str:
+                            try:
+                                s = str(txt or "")
+                            except Exception:
+                                s = ""
+                            s_l = s.lower()
+                            if not s_l:
+                                return ""
+                            # Catalog-driven: match against vtree keys
+                            try:
+                                _cat_evd = get_company_catalog_v2(company_id) if company_id else None
+                                _vt_evd = _cat_evd.get("v") if isinstance(_cat_evd, dict) and isinstance(_cat_evd.get("v"), dict) else None
+                                if isinstance(_vt_evd, dict):
+                                    for _vk in _vt_evd.keys():
+                                        _vk_s = str(_vk or "").strip()
+                                        if _vk_s and _vk_s.lower() in s_l:
+                                            return _vk_s
+                            except Exception:
+                                pass
+                            # Legacy fallback
+                            if "culotte" in s_l:
+                                return "Culotte"
+                            if "pression" in s_l:
+                                return "Pression"
+                            return ""
+
+                        def _is_unit_allowed(*, pid: str, variant: str, spec: str, unit: str) -> bool:
+                            try:
+                                pid_s = str(pid or "").strip()
+                                v_s = str(variant or "").strip()
+                                u_s = str(unit or "").strip()
+                                if not pid_s or not v_s or not u_s:
+                                    return True
+
+                                cat = None
+                                try:
+                                    cat = get_company_product_catalog_v2(company_id, pid_s)
+                                except Exception:
+                                    cat = None
+                                if not isinstance(cat, dict):
+                                    return True
+                                vtree = cat.get("v") if isinstance(cat.get("v"), dict) else {}
+                                if not isinstance(vtree, dict) or not vtree:
+                                    return True
+
+                                node = vtree.get(v_s)
+                                if not isinstance(node, dict):
+                                    # try case-insensitive match
+                                    for k in list(vtree.keys()):
+                                        if str(k).strip().lower() == v_s.lower():
+                                            node = vtree.get(k)
+                                            break
+                                if not isinstance(node, dict):
+                                    return True
+
+                                spec_s = str(spec or "").strip()
+                                if spec_s:
+                                    s_map = node.get("s") if isinstance(node.get("s"), dict) else None
+                                    if isinstance(s_map, dict) and s_map:
+                                        sn = s_map.get(spec_s)
+                                        if not isinstance(sn, dict):
+                                            # try case-insensitive
+                                            for sk in list(s_map.keys()):
+                                                if str(sk).strip().lower() == spec_s.lower():
+                                                    sn = s_map.get(sk)
+                                                    break
+                                        if isinstance(sn, dict):
+                                            u_map = sn.get("u") if isinstance(sn.get("u"), dict) else None
+                                            if isinstance(u_map, dict) and u_map:
+                                                return u_s in {str(x).strip() for x in u_map.keys()}
+
+                                u_map0 = node.get("u") if isinstance(node.get("u"), dict) else None
+                                if isinstance(u_map0, dict) and u_map0:
+                                    return u_s in {str(x).strip() for x in u_map0.keys()}
+                            except Exception:
+                                return True
+                            return True
+
+                        # Pivot protection (scalable): si le LLM pivote de variante/format (ex: Culotte -> Pression)
+                        # on nettoie les slots dépendants pour éviter carry-over.
+                        try:
+                            di0 = order_tracker.get_custom_meta(user_id, "detected_items", default=[])
+                        except Exception:
+                            di0 = []
+                        try:
+                            if isinstance(di0, list) and len(di0) == 1 and isinstance(di0[0], dict):
+                                new_pid = str(di0[0].get("product_id") or "").strip()
+                                new_variant = str(di0[0].get("variant") or "").strip()
+                                new_spec = str(di0[0].get("spec") or di0[0].get("specs") or "").strip()
+                                new_unit = str(di0[0].get("unit") or "").strip()
+
+                                old_variant = _extract_variant_from_details(str(getattr(current_state, "produit_details", "") or ""))
+
+                                if old_variant and new_variant and old_variant != new_variant:
+                                    if not _is_price_list_request(thinking_text=thinking, tool_req=tool_call_req):
+                                        # ── PIVOT FREEZE: ne PAS reset si CLARIFY_PIVOT ou pending pivot actif ──
+                                        _maj_action_pivot = _extract_maj_action(thinking)
+                                        _pending_q2 = ""
+                                        _cart_pending = False
+                                        try:
+                                            _pending_q2 = str(order_tracker.get_custom_meta(user_id, "pending_cart_question", default="") or "").strip()
+                                        except Exception:
+                                            _pending_q2 = ""
+                                        try:
+                                            _cart_pending = self.cart_manager.has_pending_pivot(user_id)
+                                        except Exception:
+                                            _cart_pending = False
+
+                                        if _maj_action_pivot == "CLARIFY_PIVOT" or _pending_q2 or _cart_pending:
+                                            # Freeze: stocker le nouvel item en pending_pivot au lieu de reset
+                                            try:
+                                                if isinstance(di0, list) and di0 and isinstance(di0[0], dict):
+                                                    self.cart_manager.set_pending_pivot(user_id, di0[0])
+                                            except Exception:
+                                                pass
+                                            print(f"🛑 [ORDER_STATE] pivot_FREEZE (no reset) variant {old_variant} -> {new_variant}")
+                                        else:
+                                            order_tracker.update_produit_details(user_id, "", source="PIVOT_RESET", confidence=0.9)
+                                            order_tracker.update_quantite(user_id, "", source="PIVOT_RESET", confidence=0.9)
+                                            print(f"🧹 [ORDER_STATE] pivot_reset variant {old_variant} -> {new_variant}")
+
+                                # If unit is not allowed for the new variant/spec, clear global quantity.
+                                if str(getattr(current_state, "quantite", "") or "").strip():
+                                    # parse current global unit from 'qty unit'
+                                    cur_q = str(getattr(current_state, "quantite", "") or "").strip().lower()
+                                    m_q = re.search(r"\b([a-z_]+\d*)\b", cur_q)
+                                    cur_unit_guess = m_q.group(1).strip() if m_q else ""
+                                    if new_pid and new_variant and cur_unit_guess and (not _is_unit_allowed(pid=new_pid, variant=new_variant, spec=new_spec, unit=cur_unit_guess)):
+                                        order_tracker.update_quantite(user_id, "", source="PIVOT_UNIT_NOT_ALLOWED", confidence=0.9)
+                                        print(f"🧹 [ORDER_STATE] QUANTITÉ cleared (unit_not_allowed): {cur_unit_guess}")
+                        except Exception:
+                            pass
 
                         # Si le LLM a détecté plusieurs items (multi-produits/tailles),
                         # la quantité globale ne doit pas rester (sinon carryover: "3 paquets").
@@ -3195,13 +4381,16 @@ class SimplifiedRAGEngine:
 
                         # Si le LLM indique explicitement une quantité inconnue/null/correction nécessaire,
                         # on efface la quantité persistée pour éviter de recalculer sur une ancienne valeur.
-                        if q_is_nullish:
+                        # MAIS: ne PAS effacer si detected_items_json était vide (message = zone/tel/paiement).
+                        if q_is_nullish and use_items_as_truth:
                             try:
                                 if str(current_state.quantite or "").strip():
                                     order_tracker.update_quantite(user_id, "", source="LLM_INFERRED", confidence=0.4)
                                     print("🧹 [ORDER_STATE] QUANTITÉ cleared (thinking_nullish)")
                             except Exception:
                                 pass
+                        elif q_is_nullish and not use_items_as_truth:
+                            print("🛡️ [ORDER_STATE] QUANTITÉ preserved (no items in thinking, msg likely zone/tel/payment)")
 
                         if (not q_is_nullish) and quantite and quantite != "∅" and (use_items_as_truth or _is_value_mentioned(query or "", quantite)):
                             # Nettoyer la quantité (enlever parenthèses, commentaires)
@@ -3371,7 +4560,17 @@ class SimplifiedRAGEngine:
                     def _fallback_question(field: Optional[str]) -> str:
                         f = str(field or "").upper().strip()
                         if f == "PRODUIT":
-                            return "Pressions ou culottes stp ?"
+                            # Catalog-driven: list available variants/products
+                            try:
+                                _cat_fb = get_company_catalog_v2(company_id) if company_id else None
+                                _vt_fb = _cat_fb.get("v") if isinstance(_cat_fb, dict) and isinstance(_cat_fb.get("v"), dict) else None
+                                if isinstance(_vt_fb, dict) and _vt_fb:
+                                    vnames = [str(k).strip() for k in _vt_fb.keys() if str(k).strip()]
+                                    if vnames:
+                                        return f"{' ou '.join(vnames)} ?"
+                            except Exception:
+                                pass
+                            return "Quel produit vous intéresse ?"
                         if f == "SPECS":
                             return "Tu veux quelle taille exactement stp ?"
                         if f == "QUANTITÉ":
@@ -3591,6 +4790,13 @@ class SimplifiedRAGEngine:
             # 6.a Pricing multi-items (post LLM): validation + injection du ready_to_send
             validated_price = False
             try:
+                try:
+                    pending_cart_q = str(order_tracker.get_custom_meta(user_id, "pending_cart_question", default="") or "").strip()
+                except Exception:
+                    pending_cart_q = ""
+                if pending_cart_q:
+                    raise StopIteration("pending_cart_question")
+
                 detected_items = order_tracker.get_custom_meta(user_id, "detected_items", default=[])
                 detected_items_raw = order_tracker.get_custom_meta(user_id, "detected_items_raw", default="")
 
@@ -3609,7 +4815,21 @@ class SimplifiedRAGEngine:
                     m = str(msg or "").lower()
                     if _is_packsize_question(m):
                         return False
-                    return any(k in m for k in ["prix", "total", "ça fait combien", "ca fait combien", "montant"])
+                    if any(k in m for k in ["prix", "tarif", "tarifs", "total", "montant", "c'est combien", "cest combien", "ça coute", "ca coute"]):
+                        return True
+                    if re.search(r"\b(ca|ça)\s*(va\s*)?faire\s*combien\b", m):
+                        return True
+                    if re.search(r"\bcombien\s*(ca|ça)\s*(fait|fera|va\s*faire)\b", m):
+                        return True
+                    if re.search(r"\b(ca|ça)\s*va\s*(etre|être)\s*(de\s*)?combien\b", m):
+                        return True
+                    if re.search(r"\b(le\s*)?total\s*va\s*(etre|être)\s*(de\s*)?combien\b", m):
+                        return True
+                    if re.search(r"\btotal\s*(=|:)?\s*combien\b", m):
+                        return True
+                    if re.search(r"\b(revient|revient\s+a)\s*combien\b", m):
+                        return True
+                    return False
 
                 def _is_packsize_question(m: str) -> bool:
                     t = str(m or "").lower()
@@ -4083,8 +5303,43 @@ class SimplifiedRAGEngine:
                             llm_amounts = [a for a in llm_amounts if a]
                             has_marker = orientation_marker in llm_resp
                             resp_no_marker = str(llm_resp).replace(orientation_marker, "", 1).strip() if has_marker else llm_resp
+
+                            def _next_question_after_price() -> str:
+                                try:
+                                    stp = order_tracker.get_state(user_id)
+                                    missing2 = sorted(list(stp.get_missing_fields())) if stp else []
+                                except Exception:
+                                    missing2 = []
+
+                                if not missing2:
+                                    return "Vous confirmez la commande ? (Oui/Non)"
+
+                                try:
+                                    nf2 = order_tracker.get_next_required_field(user_id, current_turn=current_turn)
+                                except Exception:
+                                    nf2 = None
+
+                                f2 = str(nf2 or "").upper().strip()
+                                if f2 == "ZONE":
+                                    return "Vous êtes dans quelle commune/quartier pour la livraison ?"
+                                if f2 in {"NUMÉRO", "NUMERO", "TÉLÉPHONE", "TELEPHONE"}:
+                                    return "Quel est votre numéro WhatsApp pour le livreur ?"
+                                if f2 == "PAIEMENT":
+                                    return "veuillez effectuez un depot de validation de 2000FCFA sur wave ( +225 0787360757 ) puis envoyez moi la capture. merci"
+
+                                # Fallback: si le next_field est inattendu, on suit l'ordre zone -> tel -> paiement.
+                                if any(x in {"ZONE"} for x in missing2):
+                                    return "Vous êtes dans quelle commune/quartier pour la livraison ?"
+                                if any(x in {"NUMÉRO", "NUMERO", "TÉLÉPHONE", "TELEPHONE"} for x in missing2):
+                                    return "Quel est votre numéro WhatsApp pour le livreur ?"
+                                if any(x in {"PAIEMENT"} for x in missing2):
+                                    return "veuillez effectuez un depot de validation de 2000FCFA sur wave ( +225 0787360757 ) puis envoyez moi la capture. merci"
+
+                                return "Vous confirmez la commande ? (Oui/Non)"
+
                             if price_requested_now and allow_show_price and (not has_marker):
-                                response = ready_txt
+                                follow_q = _next_question_after_price()
+                                response = (ready_txt + " " + str(follow_q or "").strip()).strip()
                                 try:
                                     if current_sig:
                                         order_tracker.set_custom_meta(user_id, "last_price_signature_shown", current_sig)
@@ -4100,7 +5355,11 @@ class SimplifiedRAGEngine:
                                     pass
 
                                 if allow_show_price:
-                                    response = (ready_txt + "\n" + _with_orientation_marker(tail)).strip()
+                                    if price_requested_now:
+                                        follow_q = _next_question_after_price()
+                                        response = (ready_txt + " " + str(follow_q or "").strip()).strip()
+                                    else:
+                                        response = (ready_txt + "\n" + _with_orientation_marker(tail)).strip()
                                     try:
                                         if current_sig:
                                             order_tracker.set_custom_meta(user_id, "last_price_signature_shown", current_sig)
@@ -4215,7 +5474,18 @@ class SimplifiedRAGEngine:
             try:
                 # 6.a Hallucination Guard: enlever les mentions de prix non validées
                 has_money = bool(re.search(r"\b\d[\d\s.,]*\s*(?:fcfa|f)\b", str(response or ""), re.IGNORECASE))
-                is_price_request_now = _is_price_request(query or "")
+                q_low = str(query or "").lower()
+                is_price_request_now = any(
+                    k in q_low
+                    for k in [
+                        "prix",
+                        "total",
+                        "ça fait combien",
+                        "ca fait combien",
+                        "montant",
+                        "combien",
+                    ]
+                )
                 price_is_validated = bool(validated_price or ("validated_price_single" in locals() and validated_price_single))
                 if not price_is_validated:
                     try:
@@ -4242,9 +5512,21 @@ class SimplifiedRAGEngine:
                 if missing_now:
                     resp_low = str(response or "").lower()
                     # Gardes: ne jamais écraser une vraie clarification/question en cours.
+                    try:
+                        pending_cart_q2 = str(order_tracker.get_custom_meta(user_id, "pending_cart_question", default="") or "").strip()
+                    except Exception:
+                        pending_cart_q2 = ""
+                    if pending_cart_q2:
+                        raise StopIteration("pending_cart_question")
+
                     if "?" in str(response or ""):
                         raise StopIteration("skip_failsafe_question")
                     try:
+                        if (
+                            isinstance(thinking_parsed, dict)
+                            and str(thinking_parsed.get("priority") or "").strip().upper() == "CLARIFY_PIVOT"
+                        ):
+                            raise StopIteration("skip_failsafe_clarify_pivot")
                         if isinstance(thinking_parsed, dict) and str(thinking_parsed.get("priority") or "").strip().upper() == "CLARIFY":
                             raise StopIteration("skip_failsafe_clarify")
                     except StopIteration:
@@ -4407,13 +5689,19 @@ class SimplifiedRAGEngine:
                     variant = str(tool_call_req.get("variant") or "").strip()
                     spec = tool_call_req.get("spec")
                     spec_s = str(spec).strip() if spec is not None and str(spec).strip() else None
-                    if pid and variant:
-                        list_text, list_items = _generate_price_list_for_tool_call(
-                            company_id_val=company_id,
-                            product_id_val=pid,
-                            variant_val=variant,
-                            spec_val=spec_s,
-                        )
+                    if pid:
+                        if variant:
+                            list_text, list_items = _generate_price_list_for_tool_call(
+                                company_id_val=company_id,
+                                product_id_val=pid,
+                                variant_val=variant,
+                                spec_val=spec_s,
+                            )
+                        else:
+                            list_text, list_items = _generate_price_table_for_product(
+                                company_id_val=company_id,
+                                product_id_val=pid,
+                            )
                         if list_text and list_items:
                             order_tracker.set_custom_meta(user_id, "price_list_text", list_text)
                             order_tracker.set_custom_meta(user_id, "price_list_items", list_items)
@@ -4530,10 +5818,12 @@ async def get_simplified_rag_response(
             return True
         if re.fullmatch(r"(ok|okay)( ok| okay)*", t):
             return True
-        if t in {"oui", "ok", "okay", "d'accord", "dac", "daccord", "ça marche", "ca marche", "c'est bon", "cest bon", "valide", "validé", "validee", "go"}:
+        if t in {"oui", "ok", "okay", "d'accord", "dac", "daccord", "ça marche", "ca marche", "c'est bon", "cest bon", "valide", "validé", "validee", "go", "je confirme", "confirme", "confirmed"}:
             return True
         # Mixed short confirmations
-        if t.startswith("oui") and any(k in t for k in ["merci", "stp", "svp"]):
+        if t.startswith("oui") and any(k in t for k in ["merci", "stp", "svp", "je confirme", "confirme", "c'est bon", "cest bon"]):
+            return True
+        if "je confirme" in t or "oui je confirme" in t:
             return True
         return False
 
@@ -4549,7 +5839,8 @@ async def get_simplified_rag_response(
         t = str(s or "").strip().lower()
         if len(t) >= 8 and any(k in t for k in ["ajoute", "changer", "finalement", "annule", "annuler", "modifier", "je veux", "je prend", "je prends", "rajoute", "plus", "encore"]):
             return True
-        if any(k in t for k in ["pressions", "culottes", "taille", "t1", "t2", "t3", "t4", "t5", "t6", "t7", "lot", "paquet", "livraison"]):
+        # Generic product/unit keywords (scalable, not company-specific)
+        if any(k in t for k in ["taille", "t1", "t2", "t3", "t4", "t5", "t6", "t7", "lot", "paquet", "livraison", "carton", "colis", "balle"]):
             return True
         return False
 
@@ -4557,12 +5848,24 @@ async def get_simplified_rag_response(
         m = str(msg or "").lower()
         return any(k in m for k in ["prix", "total", "ça fait combien", "ca fait combien", "combien", "montant"])
 
-    def _is_total_request_local(msg: str) -> bool:
+    def _is_total_request_local(msg: str, company_id: Optional[str] = None) -> bool:
         m = str(msg or "").lower()
         if not m.strip():
             return False
         # If the user explicitly asks about a product, do NOT short-circuit to last_total_snapshot.
-        if any(k in m for k in ["pressions", "culotte", "culottes", "couche", "couches", "taille", "t1", "t2", "t3", "t4", "t5", "t6", "t7", "lot", "paquet", "paquets", "carton", "cartons"]):
+        # Build exclusion keywords from catalog vtree keys (scalable) + generic unit/size keywords.
+        product_keywords = {"taille", "lot", "paquet", "paquets", "carton", "cartons", "colis", "balle"}
+        try:
+            _cat_tr = get_company_catalog_v2(company_id) if company_id else None
+            _vt_tr = _cat_tr.get("v") if isinstance(_cat_tr, dict) and isinstance(_cat_tr.get("v"), dict) else None
+            if isinstance(_vt_tr, dict):
+                for _vk in _vt_tr.keys():
+                    _vk_low = str(_vk or "").strip().lower()
+                    if _vk_low:
+                        product_keywords.add(_vk_low)
+        except Exception:
+            pass
+        if any(k in m for k in product_keywords):
             return False
         # Otherwise, only accept explicit cart/total wording.
         return any(
@@ -4702,7 +6005,7 @@ async def get_simplified_rag_response(
             order_tracker.set_custom_meta(user_id, "order_confirmed_code", awaiting_code)
             order_tracker.set_custom_meta(user_id, "awaiting_confirmation_code", "")
             return {
-                "response": f"C'est noté 🎉 (code: {awaiting_code}). On vous contacte pour la livraison. Merci !",
+                "response": "Commande confirmée ✅\nL'équipe vous rappelera pour procéder à votre livraison.\nMerci de ne pas répondre à ce message.",
                 "confidence": 1.0,
                 "documents_found": True,
                 "processing_time_ms": 0,
@@ -4766,18 +6069,163 @@ async def get_simplified_rag_response(
                 "shipping_fee": None,
             }
 
-    # Post-confirmation trivial messages -> mini model (cheap) to save tokens.
+    # Post-confirmation: mini-LLM routeur systématique pour TOUS les messages.
     if confirmed_code:
-        if _is_simple_ack(msg) and (not _looks_like_new_request(msg)):
-            mini_ans = await _mini_smalltalk_reply(msg)
-            if mini_ans:
+        # Fast path: pure confirmation/ack → block
+        if _is_affirmation(msg) or (_is_simple_ack(msg) and not _looks_like_new_request(msg)):
+            print(f"🛑 [POST_CONFIRM] blocked ack/confirm: '{msg[:50]}'")
+            return {
+                "response": "Votre commande est déjà confirmée ✅ L'équipe vous contactera pour la livraison. Merci de ne pas répondre à ce message.",
+                "confidence": 1.0,
+                "documents_found": True,
+                "processing_time_ms": 0,
+                "search_method": "short_circuit",
+                "context_used": "post_confirmation_block",
+                "thinking": "",
+                "validation": None,
+                "usage": {},
+                "prompt_tokens": 0,
+                "completion_tokens": 0,
+                "total_tokens": 0,
+                "cost": 0.0,
+                "model": "none",
+                "checklist_state": "CONFIRMED",
+                "next_step": "STOP",
+                "detected_location": None,
+                "shipping_fee": None,
+            }
+
+        # All other messages → mini-LLM router to classify intent
+        try:
+            route_action = await _mini_route_confirmation(msg)
+            print(f"🔀 [POST_CONFIRM_ROUTER] action={route_action} | msg='{msg[:60]}'")
+        except Exception as _route_e:
+            print(f"⚠️ [POST_CONFIRM_ROUTER] error: {_route_e}")
+            route_action = "UNKNOWN"
+
+        if route_action in {"CONFIRM", "ACK"}:
+            return {
+                "response": "Votre commande est déjà confirmée ✅ L'équipe vous contactera pour la livraison. Merci de ne pas répondre à ce message.",
+                "confidence": 1.0,
+                "documents_found": True,
+                "processing_time_ms": 0,
+                "search_method": "mini_llm_router",
+                "context_used": "post_confirmation_block",
+                "thinking": "",
+                "validation": None,
+                "usage": {},
+                "prompt_tokens": 0,
+                "completion_tokens": 0,
+                "total_tokens": 0,
+                "cost": 0.0,
+                "model": "none",
+                "checklist_state": "CONFIRMED",
+                "next_step": "STOP",
+                "detected_location": None,
+                "shipping_fee": None,
+            }
+
+        if route_action == "CANCEL":
+            try:
+                order_tracker.set_custom_meta(user_id, "order_confirmed_code", "")
+            except Exception:
+                pass
+            return {
+                "response": "D'accord, votre commande est annulée. Dites-moi si vous souhaitez passer une nouvelle commande 👍",
+                "confidence": 1.0,
+                "documents_found": True,
+                "processing_time_ms": 0,
+                "search_method": "mini_llm_router",
+                "context_used": "post_confirmation_cancel",
+                "thinking": "",
+                "validation": None,
+                "usage": {},
+                "prompt_tokens": 0,
+                "completion_tokens": 0,
+                "total_tokens": 0,
+                "cost": 0.0,
+                "model": "none",
+                "checklist_state": "CANCELLED",
+                "next_step": "RESTART",
+                "detected_location": None,
+                "shipping_fee": None,
+            }
+
+        if route_action in {"EDIT_REQUEST", "NEW_REQUEST"}:
+            # Re-open flow → route to full Jessica LLM
+            try:
+                order_tracker.set_custom_meta(user_id, "order_confirmed_code", "")
+                print(f"🔓 [POST_CONFIRM] re-opened flow for {route_action}")
+            except Exception:
+                pass
+            # Fall through to full LLM below
+
+        # UNKNOWN → also route to Jessica (could be SAV, question, etc.)
+        if route_action == "UNKNOWN":
+            print(f"❓ [POST_CONFIRM] UNKNOWN intent, routing to Jessica LLM")
+
+    # ── PATCH C: Short-circuit total/price requests when cart is already known ──
+    # Si le client demande le total/combien et qu'on a déjà un panier + prix calculé,
+    # Python répond directement sans appeler le LLM (économie ~9000 tokens).
+    if _is_price_request_local(msg) and not _looks_like_new_request(msg):
+        try:
+            # 1) Essayer ready_to_send depuis le price_calculation_block persisté
+            pc_stored = str(order_tracker.get_custom_meta(user_id, "price_calculation_block", default="") or "").strip()
+            ready_stored = str(_extract_tag_local(pc_stored, "ready_to_send") or "").strip()
+
+            # 2) Si pas de ready_to_send, tenter un calcul frais depuis CartManager + OrderState
+            if not ready_stored:
+                _engine_tmp = get_simplified_rag_engine()
+                _cart_data = _engine_tmp.cart_manager.get_cart(user_id)
+                _cart_items = _cart_data.get("items", []) if isinstance(_cart_data, dict) else []
+                if _cart_items:
+                    _st_sc = order_tracker.get_state(user_id)
+                    _zone_sc = str(getattr(_st_sc, "zone", "") or "").strip()
+                    _fee_sc = None
+                    if _zone_sc:
+                        try:
+                            from core.delivery_zone_extractor import extract_delivery_zone_and_cost
+                            _zinfo_sc = extract_delivery_zone_and_cost(_zone_sc)
+                            _fee_val = (_zinfo_sc or {}).get("cost") if isinstance(_zinfo_sc, dict) else None
+                            if isinstance(_fee_val, (int, float)) and int(_fee_val) > 0:
+                                _fee_sc = int(_fee_val)
+                        except Exception:
+                            pass
+                    # Recalculer le prix
+                    _pc_fresh = UniversalPriceCalculator.build_price_calculation_block_from_detected_items(
+                        company_id=company_id,
+                        items=_cart_items,
+                        zone=_zone_sc,
+                        delivery_fee_fcfa=_fee_sc,
+                    )
+                    if str(_pc_fresh or "").strip():
+                        ready_stored = str(_extract_tag_local(_pc_fresh, "ready_to_send") or "").strip()
+                        # Persister pour les prochains tours
+                        if ready_stored:
+                            order_tracker.set_custom_meta(
+                                user_id,
+                                "price_calculation_block",
+                                "<price_calculation>\n" + str(_pc_fresh).strip() + "\n</price_calculation>",
+                            )
+
+            if ready_stored:
+                # Déterminer la prochaine question (paiement manquant ?)
+                _st_sc2 = order_tracker.get_state(user_id)
+                _missing = sorted(list(_st_sc2.get_missing_fields())) if hasattr(_st_sc2, "get_missing_fields") else []
+                follow_up = ""
+                if "PAIEMENT" in _missing:
+                    payment_phone_s = str(os.getenv("PAYMENT_PHONE", "+225 0787360757") or "+225 0787360757").strip()
+                    expected_deposit = str(os.getenv("EXPECTED_DEPOSIT", "2000 FCFA") or "2000 FCFA").strip()
+                    follow_up = f"\n\nVeuillez effectuer un dépôt de validation de {expected_deposit} sur Wave ({payment_phone_s}) puis envoyez-moi la capture."
+
+                print(f"⚡ [SHORT_CIRCUIT_PRICE] ready_to_send found, skipping LLM | len={len(ready_stored)}")
                 return {
-                    "response": str(mini_ans).strip(),
+                    "response": ready_stored + follow_up,
                     "confidence": 1.0,
                     "documents_found": True,
                     "processing_time_ms": 0,
-                    "search_method": "mini_llm",
-                    "context_used": "post_confirmation_smalltalk",
+                    "search_method": "python_price_shortcircuit",
+                    "context_used": "cart_price_cached",
                     "thinking": "",
                     "validation": None,
                     "usage": {},
@@ -4786,41 +6234,13 @@ async def get_simplified_rag_response(
                     "total_tokens": 0,
                     "cost": 0.0,
                     "model": "none",
-                    "checklist_state": "CONFIRMED",
-                    "next_step": "STOP",
+                    "checklist_state": "PRICE_SHOWN",
+                    "next_step": "PAIEMENT" if "PAIEMENT" in _missing else "CONTINUE",
                     "detected_location": None,
                     "shipping_fee": None,
                 }
-
-    if confirmed_code and (not _looks_like_new_request(msg)) and _is_simple_ack(msg):
-        # After confirmation, ignore pure acknowledgements without hitting the LLM.
-        return {
-            "response": "Merci ✅",
-            "confidence": 1.0,
-            "documents_found": True,
-            "processing_time_ms": 0,
-            "search_method": "short_circuit",
-            "context_used": "post_confirmation_ack",
-            "thinking": "",
-            "validation": None,
-            "usage": {},
-            "prompt_tokens": 0,
-            "completion_tokens": 0,
-            "total_tokens": 0,
-            "cost": 0.0,
-            "model": "none",
-            "checklist_state": "CONFIRMED",
-            "next_step": "STOP",
-            "detected_location": None,
-            "shipping_fee": None,
-        }
-
-    # Re-open flow on real new request after confirmation.
-    if confirmed_code and _looks_like_new_request(msg):
-        try:
-            order_tracker.set_custom_meta(user_id, "order_confirmed_code", "")
-        except Exception:
-            pass
+        except Exception as _sc_e:
+            print(f"⚠️ [SHORT_CIRCUIT_PRICE] error: {type(_sc_e).__name__}: {_sc_e}")
 
     engine = get_simplified_rag_engine()
     
@@ -4854,7 +6274,7 @@ async def get_simplified_rag_response(
         asks_validation = bool(re.search(r"\b(on\s+valide|on\s+confirme|c['’]?est\s+bien\s+ça)\b", resp_l)) and ("?" in str(result.response or ""))
         already_waiting = bool(str(order_tracker.get_custom_meta(user_id, "awaiting_confirmation_code", default="") or "").strip())
         already_confirmed = bool(str(order_tracker.get_custom_meta(user_id, "order_confirmed_code", default="") or "").strip())
-        if is_complete and asks_validation and (not already_waiting) and (not already_confirmed):
+        if is_complete and (not already_waiting) and (not already_confirmed):
             code = uuid.uuid4().hex[:8]
             order_tracker.set_custom_meta(user_id, "awaiting_confirmation_code", code)
 
@@ -4881,88 +6301,77 @@ async def get_simplified_rag_response(
             except Exception:
                 pay = ""
 
-            lines = []
-            lines.append("Récap rapide :")
-
+            # ── Build recap: prefer ready_to_send (detailed, Python-calculated) ──
+            ready_to_send_recap = ""
             try:
-                items = order_tracker.get_custom_meta(user_id, "detected_items", default=[])
+                ready_to_send_recap = str(_extract_tag_local(pc_meta, "ready_to_send") or "").strip()
             except Exception:
-                items = []
-            if isinstance(items, list) and items:
-                for it in items:
-                    if not isinstance(it, dict):
-                        continue
-                    p = str(it.get("product") or "").strip().lower()
-                    specs = str(it.get("specs") or "").strip().upper()
-                    unit = str(it.get("unit") or "").strip().lower()
-                    qty = it.get("qty")
-                    if p and isinstance(qty, int) and qty > 0:
-                        sfx = f" {specs}" if specs else ""
-                        ufx = f" {unit}" if unit else ""
-                        lines.append(f"- {qty}{ufx}{sfx} → {p}")
+                pass
 
-            if zone:
-                # If the fee is missing or looks wrong (0), recompute from zone.
-                fee_out = delivery_fee
+            lines = []
+
+            if ready_to_send_recap:
+                # ready_to_send already contains item breakdown + total
+                lines.append(ready_to_send_recap)
+            else:
+                # Fallback: build manually from detected_items + snapshot
                 try:
-                    fee_i = int(fee_out) if fee_out is not None else None
+                    items = order_tracker.get_custom_meta(user_id, "detected_items", default=[])
                 except Exception:
-                    fee_i = None
+                    items = []
+                if isinstance(items, list) and items:
+                    for it in items:
+                        if not isinstance(it, dict):
+                            continue
+                        p = str(it.get("product") or "").strip().upper()
+                        specs = str(it.get("specs") or "").strip().upper()
+                        unit = str(it.get("unit") or "").strip().lower()
+                        qty = it.get("qty")
+                        if p and isinstance(qty, int) and qty > 0:
+                            sfx = f" {specs}" if specs else ""
+                            ufx = f" {unit}" if unit else ""
+                            lines.append(f"- {p}{sfx} x{qty} {ufx}".strip())
 
-                if fee_i is None or fee_i <= 0:
+                if zone:
+                    fee_out = delivery_fee
                     try:
-                        from core.delivery_zone_extractor import extract_delivery_zone_and_cost
-
-                        zinfo = extract_delivery_zone_and_cost(str(zone))
-                        fee2 = (zinfo or {}).get("cost") if isinstance(zinfo, dict) else None
-                        if isinstance(fee2, (int, float)) and int(fee2) > 0:
-                            fee_i = int(fee2)
-                            fee_out = fee_i
+                        fee_i = int(fee_out) if fee_out is not None else None
                     except Exception:
-                        pass
+                        fee_i = None
 
-                if fee_i is not None and fee_i > 0:
-                    lines.append(f"- Livraison {zone} → {UniversalPriceCalculator._fmt_fcfa(int(fee_i))}F")
-                    try:
-                        delivery_fee = int(fee_i)
-                    except Exception:
-                        pass
-                else:
-                    lines.append(f"- Livraison {zone}")
-            if total is not None:
-                if product_subtotal is not None and delivery_fee is not None:
-                    lines.append(
-                        f"- Total → {UniversalPriceCalculator._fmt_fcfa(int(total))}F (produits {UniversalPriceCalculator._fmt_fcfa(int(product_subtotal))}F + livraison {UniversalPriceCalculator._fmt_fcfa(int(delivery_fee))}F)"
-                    )
-                else:
-                    lines.append(f"- Total → {UniversalPriceCalculator._fmt_fcfa(int(total))}F")
-            if phone:
-                lines.append(f"- Numéro → {phone}")
-            if pay:
-                lines.append(f"- Paiement → {pay}")
+                    if fee_i is None or fee_i <= 0:
+                        try:
+                            from core.delivery_zone_extractor import extract_delivery_zone_and_cost
+
+                            zinfo = extract_delivery_zone_and_cost(str(zone))
+                            fee2 = (zinfo or {}).get("cost") if isinstance(zinfo, dict) else None
+                            if isinstance(fee2, (int, float)) and int(fee2) > 0:
+                                fee_i = int(fee2)
+                                fee_out = fee_i
+                        except Exception:
+                            pass
+
+                    if fee_i is not None and fee_i > 0:
+                        lines.append(f"Livraison {zone} → {UniversalPriceCalculator._fmt_fcfa(int(fee_i))}F")
+                        try:
+                            delivery_fee = int(fee_i)
+                        except Exception:
+                            pass
+                    else:
+                        lines.append(f"Livraison {zone}")
+                if total is not None:
+                    if product_subtotal is not None and delivery_fee is not None:
+                        lines.append(
+                            f"Total : {UniversalPriceCalculator._fmt_fcfa(int(total))}F (produits {UniversalPriceCalculator._fmt_fcfa(int(product_subtotal))}F + livraison {UniversalPriceCalculator._fmt_fcfa(int(delivery_fee))}F)"
+                        )
+                    else:
+                        lines.append(f"Total : {UniversalPriceCalculator._fmt_fcfa(int(total))}F")
 
             recap = "\n".join([str(x).strip() for x in lines if str(x).strip()])
 
-            try:
-                from core.timezone_helper import get_current_time_ci, is_same_day_delivery_possible
-
-                now_ci = get_current_time_ci()
-                delai_day = "aujourd'hui" if is_same_day_delivery_possible() else "demain"
-                bucket = ""
-                if now_ci is not None:
-                    h = int(getattr(now_ci, "hour", 0) or 0)
-                    if 5 <= h < 12:
-                        bucket = "matin"
-                    elif 12 <= h < 18:
-                        bucket = "après-midi"
-                    else:
-                        bucket = "soir"
-                delai_line = f"Livraison prévue {delai_day}" + (f" {bucket}" if bucket else "") + "."
-                recap = (recap + f"\n- {delai_line}").strip()
-            except Exception:
-                pass
+            print(f"📋 [CONFIRMATION_RECAP] code={code} | recap_len={len(recap)}")
             return {
-                "response": f"{recap}\n\nOn valide ? 😊",
+                "response": f"{recap}\n\nVous confirmez votre commande ?",
                 "confidence": 1.0,
                 "documents_found": True,
                 "processing_time_ms": result.processing_time_ms,
@@ -4984,6 +6393,17 @@ async def get_simplified_rag_response(
     except Exception:
         pass
     
+    # ── CartManager: récupérer le panier pour l'API response ──
+    cart_items_for_response = []
+    cart_pending_for_response = None
+    try:
+        _cm = engine.cart_manager
+        _cart = _cm.get_cart(user_id)
+        cart_items_for_response = _cart.get("items", [])
+        cart_pending_for_response = _cart.get("pending_pivot")
+    except Exception:
+        pass
+
     # Format compatible avec l'ancien système
     return {
         "response": result.response,
@@ -5007,5 +6427,12 @@ async def get_simplified_rag_response(
         "checklist_state": result.checklist_state,
         "next_step": result.next_step,
         "detected_location": result.detected_location,
-        "shipping_fee": result.shipping_fee
+        "shipping_fee": result.shipping_fee,
+
+        # Panier multi-produits (CartManager)
+        "cart": {
+            "items": cart_items_for_response,
+            "pending_pivot": cart_pending_for_response,
+            "items_count": len(cart_items_for_response),
+        },
     }

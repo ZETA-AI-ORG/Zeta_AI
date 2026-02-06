@@ -155,6 +155,17 @@ SCENARIO_VALIDATION_STATE = [
 ]
 
 
+SCENARIO_PRICE_PIVOT = [
+    "Je veux des couches culottes",
+    "Taille 4 s'il vous plaît",
+    "En lot 150",
+    "Je prends 1 lot",
+    "le total va être de combien ?",
+    "Pressions",
+    "Ajoute aussi culotte taille 4 lot 150",
+]
+
+
 SCENARIO_11_QUESTIONS = [
     "Quel est le numéro Wave ?",
     "C’est combien l’acompte ?",
@@ -683,6 +694,8 @@ class RAGSimulator:
             scenario_msgs = _load_whatsapp_120_questions()
         elif arg in {"--scenario58", "--scenario_58", "--whatsapp58"}:
             scenario_msgs = SCENARIO_58_QUESTIONS
+        elif arg in {"--scenario-price-pivot", "--scenario_price_pivot"}:
+            scenario_msgs = SCENARIO_PRICE_PIVOT
         elif arg in {"--scenario-validation", "--scenario_validation"}:
             scenario_msgs = SCENARIO_VALIDATION_STATE
         elif arg in {"--scenario", "--scenario11", "--scenario_11"}:

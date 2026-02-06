@@ -2741,6 +2741,8 @@ async def chat_endpoint(req: ChatRequest, request: Request):
                     vv = str(v or "").strip()
                     if vv in {"∅", "Ø", "N/A", "NA", "none", "null", ""}:
                         return ""
+                    if vv.strip().upper() in {"MISSING"}:
+                        return ""
                     return vv
 
                 produit = clean(produit)
