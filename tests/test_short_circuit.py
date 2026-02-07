@@ -265,6 +265,7 @@ def test_full_short_circuit():
         ("C'est combien ?", cart_with_item, False, None),  # question → pas de SC
         ("je veux un lot de pression", cart_with_item, False, None),  # produit → pas de SC
         ("Oui", cart_with_item, False, None),  # pas de SC (pas phone/zone/image)
+        ("Voici la capture", cart_with_item, True, None),  # image → JAMAIS SC (Gemini Vision requis)
     ]
 
     passed = 0

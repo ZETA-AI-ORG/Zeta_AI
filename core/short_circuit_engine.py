@@ -414,16 +414,13 @@ def check_short_circuit(
             pass
 
     # ═══════════════════════════════════════════════════════════════════════
-    # CAS A: IMAGE (capture paiement)
+    # CAS A: IMAGE → JAMAIS short-circuit
+    # Les images DOIVENT passer par Gemini Vision pour vérification paiement
+    # (montant, destinataire Wave, PAYMENT_VERDICT). Ne pas bypasser.
     # ═══════════════════════════════════════════════════════════════════════
-    if has_image and word_count <= 5:
-        logger.info("⚡ [SHORT_CIRCUIT] capture paiement (image) → Python")
-        return {
-            "response": template_capture_recue(),
-            "search_method": "python_short_circuit",
-            "context_used": "capture_paiement",
-            "sc_type": "CAPTURE",
-        }
+    if has_image:
+        logger.info("🚫 [SHORT_CIRCUIT] image detected → LLM (Gemini Vision required)")
+        return None
 
     # ═══════════════════════════════════════════════════════════════════════
     # CAS B: NUMÉRO DE TÉLÉPHONE
