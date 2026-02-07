@@ -6242,6 +6242,45 @@ async def get_simplified_rag_response(
         except Exception as _sc_e:
             print(f"⚠️ [SHORT_CIRCUIT_PRICE] error: {type(_sc_e).__name__}: {_sc_e}")
 
+    # ── SHORT-CIRCUIT ENGINE: bypass LLM pour messages simples ──
+    # (numéro de téléphone, zone seule, capture paiement)
+    try:
+        from core.short_circuit_engine import check_short_circuit as _sc_check
+        _sc_engine = get_simplified_rag_engine()
+        _sc_result = _sc_check(
+            message=msg,
+            user_id=user_id,
+            company_id=company_id,
+            cart_manager=_sc_engine.cart_manager,
+            order_tracker=order_tracker,
+            has_image=bool(images and len(images) > 0),
+        )
+        if _sc_result and _sc_result.get("response"):
+            sc_type = _sc_result.get("sc_type", "UNKNOWN")
+            print(f"⚡ [SHORT_CIRCUIT] type={sc_type} → Python direct (0 LLM tokens)")
+            return {
+                "response": str(_sc_result["response"]),
+                "confidence": 1.0,
+                "documents_found": True,
+                "processing_time_ms": 0,
+                "search_method": str(_sc_result.get("search_method", "python_short_circuit")),
+                "context_used": str(_sc_result.get("context_used", "short_circuit")),
+                "thinking": "",
+                "validation": None,
+                "usage": {},
+                "prompt_tokens": 0,
+                "completion_tokens": 0,
+                "total_tokens": 0,
+                "cost": 0.0,
+                "model": "none",
+                "checklist_state": f"SC_{sc_type}",
+                "next_step": "CONTINUE",
+                "detected_location": None,
+                "shipping_fee": None,
+            }
+    except Exception as _sc_err:
+        print(f"⚠️ [SHORT_CIRCUIT] error: {type(_sc_err).__name__}: {_sc_err}")
+
     engine = get_simplified_rag_engine()
     
     result = await engine.process_query(
