@@ -3917,6 +3917,54 @@ class SimplifiedRAGEngine:
                                             action=maj_action_now,
                                         )
                                         print(f"🛒 [CART] upsert action={maj_action_now} items={len(parsed_items)}")
+
+                                        # ── FIX: Après DELETE/UPDATE, synchroniser OrderStateTracker depuis CartManager ──
+                                        # CartManager = source de vérité. OrderStateTracker doit refléter le panier réel.
+                                        if maj_action_now in ("DELETE", "UPDATE"):
+                                            try:
+                                                _real_cart = self.cart_manager.get_cart(user_id)
+                                                _real_items = _real_cart.get("items", []) if isinstance(_real_cart, dict) else []
+
+                                                if _real_items:
+                                                    # Reconstruire SPECS depuis items restants
+                                                    _specs_parts = []
+                                                    _pids = set()
+                                                    for _ri in _real_items:
+                                                        if not isinstance(_ri, dict):
+                                                            continue
+                                                        _rv = str(_ri.get("variant") or "").strip()
+                                                        _rs = str(_ri.get("spec") or _ri.get("specs") or "").strip().upper()
+                                                        _rp = str(_ri.get("product_id") or "").strip()
+                                                        if _rp:
+                                                            _pids.add(_rp)
+                                                        _label = (_rv + (" " + _rs if _rs else "")).strip()
+                                                        if _label:
+                                                            _specs_parts.append(_label)
+                                                    _new_specs = ", ".join(_specs_parts)
+                                                    order_tracker.update_produit_details(user_id, _new_specs, source="CART_SYNC", confidence=0.95)
+                                                    # Clear global quantité (multi-items or changed)
+                                                    order_tracker.update_quantite(user_id, "", source="CART_SYNC", confidence=0.9)
+                                                    # Update produit if single pid
+                                                    if len(_pids) == 1:
+                                                        order_tracker.update_produit(user_id, list(_pids)[0], source="CART_SYNC", confidence=0.95)
+                                                    print(f"✅ [CART_SYNC] OrderState synced after {maj_action_now} | specs='{_new_specs}' | items={len(_real_items)}")
+
+                                                    # Override parsed_items with real cart for downstream items_slot_summary
+                                                    parsed_items = _real_items
+                                                else:
+                                                    # Panier vide → reset produit/specs/quantité
+                                                    order_tracker.update_produit_details(user_id, "", source="CART_SYNC_EMPTY", confidence=0.95)
+                                                    order_tracker.update_quantite(user_id, "", source="CART_SYNC_EMPTY", confidence=0.95)
+                                                    order_tracker.update_produit(user_id, "", source="CART_SYNC_EMPTY", confidence=0.95)
+                                                    parsed_items = []
+                                                    print(f"🧹 [CART_SYNC] OrderState cleared (cart empty after {maj_action_now})")
+
+                                                # Invalider le cache price_calculation_block (stale après modif panier)
+                                                order_tracker.set_custom_meta(user_id, "price_calculation_block", "")
+                                                order_tracker.set_custom_meta(user_id, "last_total_snapshot", None)
+                                                print(f"🗑️ [CART_SYNC] price_calculation_block cache invalidated")
+                                            except Exception as _sync_e:
+                                                print(f"⚠️ [CART_SYNC] error: {type(_sync_e).__name__}: {_sync_e}")
                                 except Exception as _cart_upsert_e:
                                     print(f"⚠️ [CART] upsert error: {type(_cart_upsert_e).__name__}: {_cart_upsert_e}")
 
@@ -6167,65 +6215,77 @@ async def get_simplified_rag_response(
     # ── PATCH C: Short-circuit total/price requests when cart is already known ──
     # Si le client demande le total/combien et qu'on a déjà un panier + prix calculé,
     # Python répond directement sans appeler le LLM (économie ~9000 tokens).
+    # IMPORTANT: Toujours recalculer depuis CartManager (source de vérité), jamais depuis le cache.
     if _is_price_request_local(msg) and not _looks_like_new_request(msg):
         try:
-            # 1) Essayer ready_to_send depuis le price_calculation_block persisté
-            pc_stored = str(order_tracker.get_custom_meta(user_id, "price_calculation_block", default="") or "").strip()
-            ready_stored = str(_extract_tag_local(pc_stored, "ready_to_send") or "").strip()
+            _engine_tmp = get_simplified_rag_engine()
+            _cart_data = _engine_tmp.cart_manager.get_cart(user_id)
+            _cart_items = _cart_data.get("items", []) if isinstance(_cart_data, dict) else []
 
-            # 2) Si pas de ready_to_send, tenter un calcul frais depuis CartManager + OrderState
-            if not ready_stored:
-                _engine_tmp = get_simplified_rag_engine()
-                _cart_data = _engine_tmp.cart_manager.get_cart(user_id)
-                _cart_items = _cart_data.get("items", []) if isinstance(_cart_data, dict) else []
-                if _cart_items:
-                    _st_sc = order_tracker.get_state(user_id)
-                    _zone_sc = str(getattr(_st_sc, "zone", "") or "").strip()
-                    _fee_sc = None
-                    if _zone_sc:
-                        try:
-                            from core.delivery_zone_extractor import extract_delivery_zone_and_cost
-                            _zinfo_sc = extract_delivery_zone_and_cost(_zone_sc)
-                            _fee_val = (_zinfo_sc or {}).get("cost") if isinstance(_zinfo_sc, dict) else None
-                            if isinstance(_fee_val, (int, float)) and int(_fee_val) > 0:
-                                _fee_sc = int(_fee_val)
-                        except Exception:
-                            pass
-                    # Recalculer le prix
-                    _pc_fresh = UniversalPriceCalculator.build_price_calculation_block_from_detected_items(
-                        company_id=company_id,
-                        items=_cart_items,
-                        zone=_zone_sc,
-                        delivery_fee_fcfa=_fee_sc,
-                    )
-                    if str(_pc_fresh or "").strip():
-                        ready_stored = str(_extract_tag_local(_pc_fresh, "ready_to_send") or "").strip()
-                        # Persister pour les prochains tours
-                        if ready_stored:
-                            order_tracker.set_custom_meta(
-                                user_id,
-                                "price_calculation_block",
-                                "<price_calculation>\n" + str(_pc_fresh).strip() + "\n</price_calculation>",
-                            )
+            ready_stored = ""
+            if _cart_items:
+                _st_sc = order_tracker.get_state(user_id)
+                _zone_sc = str(getattr(_st_sc, "zone", "") or "").strip()
+                _fee_sc = None
+                if _zone_sc:
+                    try:
+                        from core.delivery_zone_extractor import extract_delivery_zone_and_cost
+                        _zinfo_sc = extract_delivery_zone_and_cost(_zone_sc)
+                        _fee_val = (_zinfo_sc or {}).get("cost") if isinstance(_zinfo_sc, dict) else None
+                        if isinstance(_fee_val, (int, float)) and int(_fee_val) > 0:
+                            _fee_sc = int(_fee_val)
+                    except Exception:
+                        pass
+                # Recalculer le prix depuis CartManager (source de vérité)
+                _pc_fresh = UniversalPriceCalculator.build_price_calculation_block_from_detected_items(
+                    company_id=company_id,
+                    items=_cart_items,
+                    zone=_zone_sc,
+                    delivery_fee_fcfa=_fee_sc,
+                )
+                if str(_pc_fresh or "").strip():
+                    ready_stored = str(_extract_tag_local(_pc_fresh, "ready_to_send") or "").strip()
+                    # Persister le prix recalculé
+                    if ready_stored:
+                        order_tracker.set_custom_meta(
+                            user_id,
+                            "price_calculation_block",
+                            "<price_calculation>\n" + str(_pc_fresh).strip() + "\n</price_calculation>",
+                        )
 
             if ready_stored:
-                # Déterminer la prochaine question (paiement manquant ?)
+                # ── Follow-up intelligent: vérifier ce qui manque RÉELLEMENT ──
                 _st_sc2 = order_tracker.get_state(user_id)
                 _missing = sorted(list(_st_sc2.get_missing_fields())) if hasattr(_st_sc2, "get_missing_fields") else []
+
+                _has_numero = "NUMÉRO" not in _missing and "NUMERO" not in _missing
+                _has_zone = "ZONE" not in _missing
+                _has_paiement = "PAIEMENT" not in _missing
+
                 follow_up = ""
-                if "PAIEMENT" in _missing:
+                if _has_numero and _has_zone and _has_paiement:
+                    # Tout est complet → attendre capture
+                    follow_up = "\n\nEnvoyez-moi la capture du paiement dès que c'est fait 📸"
+                elif _has_numero and _has_zone and not _has_paiement:
+                    # Numéro + Zone OK, manque paiement
                     payment_phone_s = str(os.getenv("PAYMENT_PHONE", "+225 0787360757") or "+225 0787360757").strip()
                     expected_deposit = str(os.getenv("EXPECTED_DEPOSIT", "2000 FCFA") or "2000 FCFA").strip()
-                    follow_up = f"\n\nVeuillez effectuer un dépôt de validation de {expected_deposit} sur Wave ({payment_phone_s}) puis envoyez-moi la capture."
+                    follow_up = f"\n\nPour valider, envoyez un dépôt de {expected_deposit} via Wave au {payment_phone_s} puis partagez la capture ici 📸"
+                elif not _has_numero and _has_zone:
+                    follow_up = "\n\nSur quel numéro peut-on vous joindre pour la livraison ?"
+                elif not _has_zone and _has_numero:
+                    follow_up = "\n\nC'est pour quelle zone de livraison ?"
+                elif not _has_zone and not _has_numero:
+                    follow_up = "\n\nDonnez-moi votre zone de livraison et numéro pour finaliser 👍"
 
-                print(f"⚡ [SHORT_CIRCUIT_PRICE] ready_to_send found, skipping LLM | len={len(ready_stored)}")
+                print(f"⚡ [SHORT_CIRCUIT_PRICE] ready_to_send from CartManager | items={len(_cart_items)} | len={len(ready_stored)} | missing={_missing}")
                 return {
                     "response": ready_stored + follow_up,
                     "confidence": 1.0,
                     "documents_found": True,
                     "processing_time_ms": 0,
                     "search_method": "python_price_shortcircuit",
-                    "context_used": "cart_price_cached",
+                    "context_used": "cart_price_live",
                     "thinking": "",
                     "validation": None,
                     "usage": {},
@@ -6235,7 +6295,7 @@ async def get_simplified_rag_response(
                     "cost": 0.0,
                     "model": "none",
                     "checklist_state": "PRICE_SHOWN",
-                    "next_step": "PAIEMENT" if "PAIEMENT" in _missing else "CONTINUE",
+                    "next_step": "PAIEMENT" if not _has_paiement else "CONTINUE",
                     "detected_location": None,
                     "shipping_fee": None,
                 }
