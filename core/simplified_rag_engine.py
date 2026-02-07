@@ -525,7 +525,7 @@ class SimplifiedRAGEngine:
                         except Exception:
                             return f"{n}."
 
-                    lines.append(f"D'accord 😊 Voici les options pour {str(variant_key).strip().lower()} :")
+                    lines.append(f"Bien reçu 😊 Voici les options pour {str(variant_key).strip().lower()} :")
                     lines.append("")
                     for i, it in enumerate(items, 1):
                         lbl = str(it.get("label") or "").strip() or str(it.get("unit") or "").strip()
@@ -679,7 +679,7 @@ class SimplifiedRAGEngine:
                             grouped[vk] = []
                         grouped[vk].append(it)
 
-                    lines.append("D'accord 😊 Voici nos formats disponibles :")
+                    lines.append("Bien reçu 😊 Voici nos formats disponibles :")
                     lines.append("")
                     global_idx = 1
                     for variant_name, variant_items in grouped.items():
@@ -6151,7 +6151,7 @@ async def get_simplified_rag_response(
         if _is_negation(msg):
             order_tracker.set_custom_meta(user_id, "awaiting_confirmation_code", "")
             return {
-                "response": "D'accord 👍 Dites-moi juste ce que vous voulez changer (produit, taille, quantité ou livraison).",
+                "response": "Noté 👍 Dites-moi juste ce que vous voulez changer (produit, taille, quantité ou livraison).",
                 "confidence": 1.0,
                 "documents_found": True,
                 "processing_time_ms": 0,
@@ -6255,7 +6255,7 @@ async def get_simplified_rag_response(
             except Exception:
                 pass
             return {
-                "response": "D'accord, votre commande est annulée. Dites-moi si vous souhaitez passer une nouvelle commande 👍",
+                "response": "Bien reçu, votre commande est annulée. Dites-moi si vous souhaitez passer une nouvelle commande 👍",
                 "confidence": 1.0,
                 "documents_found": True,
                 "processing_time_ms": 0,
@@ -6292,7 +6292,49 @@ async def get_simplified_rag_response(
     # Si le client demande le total/combien et qu'on a déjà un panier + prix calculé,
     # Python répond directement sans appeler le LLM (économie ~9000 tokens).
     # IMPORTANT: Toujours recalculer depuis CartManager (source de vérité), jamais depuis le cache.
-    if _is_price_request_local(msg) and not _looks_like_new_request(msg):
+
+    def _mentions_different_variant(msg_txt: str, uid: str, cid: str) -> bool:
+        """Return True if message mentions a catalog variant different from order_state."""
+        try:
+            m_low = str(msg_txt or "").strip().lower()
+            if not m_low:
+                return False
+            # Get current variant from order_state
+            _st_v = order_tracker.get_state(uid)
+            _cur_variant = str(getattr(_st_v, "specs", "") or getattr(_st_v, "produit_details", "") or "").strip().lower()
+            if not _cur_variant:
+                return False
+            # Get catalog vtree keys (variant names)
+            _cat_v = None
+            try:
+                _cat_v = get_company_catalog_v2(cid)
+            except Exception:
+                pass
+            _vtree = _cat_v.get("v") if isinstance(_cat_v, dict) and isinstance(_cat_v.get("v"), dict) else None
+            if not isinstance(_vtree, dict):
+                # Fallback: check product-level catalog
+                try:
+                    _pid_v = str(getattr(_st_v, "produit", "") or "").strip()
+                    if _pid_v:
+                        _pcat = get_company_product_catalog_v2(cid, _pid_v)
+                        _vtree = _pcat.get("v") if isinstance(_pcat, dict) and isinstance(_pcat.get("v"), dict) else None
+                except Exception:
+                    pass
+            if not isinstance(_vtree, dict) or len(_vtree) < 2:
+                return False  # mono-variant or no catalog
+            # Check if message mentions a variant key different from current
+            for _vk in _vtree.keys():
+                _vk_low = str(_vk or "").strip().lower()
+                if not _vk_low:
+                    continue
+                if _vk_low in m_low and _vk_low != _cur_variant:
+                    print(f"🚫 [SHORT_CIRCUIT_PRICE] BLOCKED — message mentions variant '{_vk_low}' vs current '{_cur_variant}'")
+                    return True
+            return False
+        except Exception:
+            return False
+
+    if _is_price_request_local(msg) and not _looks_like_new_request(msg) and not _mentions_different_variant(msg, user_id, company_id):
         try:
             _engine_tmp = get_simplified_rag_engine()
             _cart_data = _engine_tmp.cart_manager.get_cart(user_id)

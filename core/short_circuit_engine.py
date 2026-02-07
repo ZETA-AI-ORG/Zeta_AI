@@ -365,14 +365,14 @@ def template_zone_recue(
     fee_str = _format_price(delivery_fee)
 
     if not phone_current:
-        return f"D'accord, la livraison à {zone_name} est de {fee_str}.\nSur quel numéro peut-on vous joindre ?"
+        return f"Noté ✅ la livraison à {zone_name} est de {fee_str}.\nSur quel numéro peut-on vous joindre ?"
 
     # Zone + Numéro OK → demander paiement
     payment_phone = _get_payment_phone()
     deposit = _get_expected_deposit()
 
     return (
-        f"D'accord, la livraison à {zone_name} est de {fee_str}.\n"
+        f"Noté ✅ la livraison à {zone_name} est de {fee_str}.\n"
         f"J'aurais besoin d'un dépôt de validation de {deposit} via Wave au {payment_phone} "
         f"pour valider votre commande ; une fois fait envoyez-moi une capture svp 📸"
     )
