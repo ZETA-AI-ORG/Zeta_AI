@@ -670,20 +670,42 @@ class SimplifiedRAGEngine:
                         except Exception:
                             return f"{n}."
 
-                    lines.append("D'accord 😊 Voici nos options :")
-                    lines.append("")
-                    for i, it in enumerate(items, 1):
-                        v = str(it.get("variant") or "").strip()
-                        sp = str(it.get("spec") or "").strip()
-                        lbl = str(it.get("label") or "").strip() or str(it.get("unit") or "").strip()
-                        price_i = int(it.get("price_fcfa") or 0)
-                        left = (v + (" " + sp if sp else "")).strip()
-                        lines.append(f"{_num_emoji(i)} {left} - {lbl} — {UniversalPriceCalculator._fmt_fcfa(price_i)}F")
-                    lines.append("")
-                    lines.append("Que prenez-vous ? (répondez par le numéro)")
+                    # ── Regrouper par variante pour une meilleure lisibilité WhatsApp ──
+                    from collections import OrderedDict
+                    grouped: OrderedDict = OrderedDict()
+                    for it in items:
+                        vk = str(it.get("variant") or "").strip()
+                        if vk not in grouped:
+                            grouped[vk] = []
+                        grouped[vk].append(it)
 
-                    for i, it in enumerate(items, 1):
-                        it["index"] = i
+                    lines.append("D'accord 😊 Voici nos formats disponibles :")
+                    lines.append("")
+                    global_idx = 1
+                    for variant_name, variant_items in grouped.items():
+                        # Sous-titre par variante
+                        has_specs = any(str(it.get("spec") or "").strip() for it in variant_items)
+                        # Déterminer le format unique si tous les items ont le même unit
+                        unique_units = set(str(it.get("label") or it.get("unit") or "").strip() for it in variant_items)
+                        unit_suffix = ""
+                        if has_specs and len(unique_units) == 1:
+                            unit_suffix = f" ({list(unique_units)[0]})"
+                        lines.append(f"🔹 {variant_name}{unit_suffix}")
+                        for it in variant_items:
+                            sp = str(it.get("spec") or "").strip()
+                            lbl = str(it.get("label") or "").strip() or str(it.get("unit") or "").strip()
+                            price_i = int(it.get("price_fcfa") or 0)
+                            price_str = f"{UniversalPriceCalculator._fmt_fcfa(price_i)} F"
+                            if has_specs:
+                                # Variante avec specs (ex: Pression T1-T6) → "Taille X : prix"
+                                lines.append(f"{_num_emoji(global_idx)} {sp} : {price_str}")
+                            else:
+                                # Variante sans specs, formats multiples (ex: Culotte paquet/lot) → "format : prix"
+                                lines.append(f"{_num_emoji(global_idx)} {lbl} : {price_str}")
+                            it["index"] = global_idx
+                            global_idx += 1
+                        lines.append("")
+                    lines.append("👉 Dites-moi simplement le numéro de votre choix.")
 
                     return "\n".join([ln for ln in lines if ln is not None]), items
                 except Exception:
@@ -5405,30 +5427,22 @@ class SimplifiedRAGEngine:
                                 if not missing2:
                                     return "Vous confirmez la commande ? (Oui/Non)"
 
-                                try:
-                                    nf2 = order_tracker.get_next_required_field(user_id, current_turn=current_turn)
-                                except Exception:
-                                    nf2 = None
+                                _has_zone_missing = any(x in {"ZONE"} for x in missing2)
+                                _has_phone_missing = any(x in {"NUMÉRO", "NUMERO", "TÉLÉPHONE", "TELEPHONE"} for x in missing2)
+                                _has_payment_missing = any(x in {"PAIEMENT"} for x in missing2)
 
-                                f2 = str(nf2 or "").upper().strip()
-                                if f2 == "ZONE":
+                                # Combo: zone + numéro manquants → demander les 2 en 1 question
+                                if _has_zone_missing and _has_phone_missing:
+                                    return "Pouvez-vous m'envoyer le numéro à joindre ainsi que le lieu de livraison (commune) ?"
+
+                                if _has_zone_missing:
                                     return "Vous êtes dans quelle commune/quartier pour la livraison ?"
-                                if f2 in {"NUMÉRO", "NUMERO", "TÉLÉPHONE", "TELEPHONE"}:
+                                if _has_phone_missing:
                                     return "Quel est votre numéro WhatsApp pour le livreur ?"
-                                if f2 == "PAIEMENT":
+                                if _has_payment_missing:
                                     _pp = str(os.getenv("PAYMENT_PHONE", "+225 0787360757") or "+225 0787360757").strip()
                                     _dp = str(os.getenv("EXPECTED_DEPOSIT", "2000 FCFA") or "2000 FCFA").strip()
-                                    return f"J'aurais besoin d'un d\u00e9p\u00f4t de validation de {_dp} via Wave au {_pp} pour valider votre commande ; une fois fait envoyez-moi la capture svp \ud83d\udcf8"
-
-                                # Fallback: si le next_field est inattendu, on suit l'ordre zone -> tel -> paiement.
-                                if any(x in {"ZONE"} for x in missing2):
-                                    return "Vous êtes dans quelle commune/quartier pour la livraison ?"
-                                if any(x in {"NUMÉRO", "NUMERO", "TÉLÉPHONE", "TELEPHONE"} for x in missing2):
-                                    return "Quel est votre numéro WhatsApp pour le livreur ?"
-                                if any(x in {"PAIEMENT"} for x in missing2):
-                                    _pp = str(os.getenv("PAYMENT_PHONE", "+225 0787360757") or "+225 0787360757").strip()
-                                    _dp = str(os.getenv("EXPECTED_DEPOSIT", "2000 FCFA") or "2000 FCFA").strip()
-                                    return f"J'aurais besoin d'un d\u00e9p\u00f4t de validation de {_dp} via Wave au {_pp} pour valider votre commande ; une fois fait envoyez-moi la capture svp \ud83d\udcf8"
+                                    return f"J'aurais besoin d'un dépôt de validation de {_dp} via Wave au {_pp} pour valider votre commande ; une fois fait envoyez-moi une capture svp 📸"
 
                                 return "Vous confirmez la commande ? (Oui/Non)"
 
@@ -6336,16 +6350,16 @@ async def get_simplified_rag_response(
 
                 follow_up = ""
                 if _has_numero and _has_zone and _has_paiement:
-                    follow_up = "\nEnvoyez-moi la capture du paiement dès que c'est fait 📸"
+                    follow_up = "\nEnvoyez-moi une capture du paiement dès que c'est fait 📸"
                 elif _has_numero and _has_zone and not _has_paiement:
                     payment_phone_s = str(os.getenv("PAYMENT_PHONE", "+225 0787360757") or "+225 0787360757").strip()
                     expected_deposit = str(os.getenv("EXPECTED_DEPOSIT", "2000 FCFA") or "2000 FCFA").strip()
-                    follow_up = f"\nJ'aurais besoin d'un dépôt de validation de {expected_deposit} via Wave au {payment_phone_s} pour valider votre commande ; une fois fait envoyez-moi la capture svp 📸"
+                    follow_up = f"\nJ'aurais besoin d'un dépôt de validation de {expected_deposit} via Wave au {payment_phone_s} pour valider votre commande ; une fois fait envoyez-moi une capture svp 📸"
+                elif not _has_numero and not _has_zone:
+                    follow_up = "\nPouvez-vous m'envoyer le numéro à joindre ainsi que le lieu de livraison (commune) ?"
                 elif not _has_numero and _has_zone:
                     follow_up = "\nSur quel numéro peut-on vous joindre pour la livraison ?"
                 elif not _has_zone and _has_numero:
-                    follow_up = "\nVous êtes dans quelle commune/quartier pour la livraison ?"
-                elif not _has_zone and not _has_numero:
                     follow_up = "\nVous êtes dans quelle commune/quartier pour la livraison ?"
 
                 print(f"⚡ [SHORT_CIRCUIT_PRICE] simplified | items={len(_cart_items)} | missing={_missing}")
@@ -6462,17 +6476,77 @@ async def get_simplified_rag_response(
                 order_tracker.set_custom_meta(user_id, "order_confirmed_code", _auto_code)
                 order_tracker.set_custom_meta(user_id, "awaiting_confirmation_code", "")
 
-                # Construire le recap depuis CartManager (source de vérité)
-                _auto_recap = ""
+                # Construire le recap dynamique depuis price_calculation_block + order state
+                _cloture_msg = "Commande confirmée ✅\nL'équipe vous rappelera pour procéder à votre livraison.\nMerci pour votre confiance 🙏"
                 try:
                     _pc_auto = str(order_tracker.get_custom_meta(user_id, "price_calculation_block", default="") or "").strip()
-                    _auto_recap = str(_extract_tag_local(_pc_auto, "ready_to_send") or "").strip()
+                    _total_tag = str(_extract_tag_local(_pc_auto, "total_fcfa") or "").strip()
+                    _subtotal_tag = str(_extract_tag_local(_pc_auto, "product_subtotal_fcfa") or "").strip()
+                    _fee_tag = str(_extract_tag_local(_pc_auto, "delivery_fee_fcfa") or "").strip()
+                    _zone_tag = str(_extract_tag_local(_pc_auto, "zone") or "").strip()
+
+                    # Extraire le montant de l'avance depuis le paiement
+                    _advance_amount = 0
+                    try:
+                        _adv_match = re.search(r"(\d+)", _paiement_now)
+                        if _adv_match:
+                            _advance_amount = int(_adv_match.group(1))
+                    except Exception:
+                        pass
+
+                    _total_int = int(_total_tag) if _total_tag and _total_tag.isdigit() else 0
+                    _fee_int = int(_fee_tag) if _fee_tag and _fee_tag.isdigit() else 0
+                    _balance = max(0, _total_int - _advance_amount) if _total_int and _advance_amount else 0
+
+                    # Construire les lignes panier depuis CartManager
+                    _cart_lines = []
+                    try:
+                        _rag_eng = get_simplified_rag_engine()
+                        if _rag_eng and _rag_eng.cart_manager:
+                            _cart_data = _rag_eng.cart_manager.get_cart(user_id)
+                            _cart_items_recap = _cart_data.get("items", []) if isinstance(_cart_data, dict) else []
+                            for _ci in _cart_items_recap:
+                                _cv = str(_ci.get("variant") or "").strip()
+                                _cs = str(_ci.get("spec") or _ci.get("specs") or "").strip()
+                                _cu = str(_ci.get("unit") or "").strip().replace("_", " ")
+                                _cq = _ci.get("qty") or 1
+                                _cp = int(_ci.get("price_fcfa") or _ci.get("unit_price") or 0)
+                                _item_label = (_cv + (" " + _cs if _cs else "")).strip() or "Produit"
+                                _unit_label = _cu if _cu else ""
+                                _price_str = f"{_cp:,}".replace(",", " ") + " F" if _cp else ""
+                                _cart_lines.append(f"• {_item_label} — {_unit_label} x{_cq} : {_price_str}")
+                    except Exception:
+                        pass
+
+                    # Délai de livraison
+                    _delai_txt = ""
+                    try:
+                        from core.timezone_helper import get_delai_message
+                        _delai_txt = get_delai_message()
+                    except Exception:
+                        _delai_txt = ""
+
+                    if _total_int > 0:
+                        _recap_lines = ["Commande validée ✅", ""]
+                        _recap_lines.append("🧺 Votre commande")
+                        if _cart_lines:
+                            _recap_lines.extend(_cart_lines)
+                        if _fee_int > 0 and _zone_tag:
+                            _recap_lines.append(f"🚚 Livraison {_zone_tag} : {_fee_int:,} F".replace(",", " "))
+                        _recap_lines.append(f"💰 Total : {_total_int:,} F".replace(",", " "))
+                        _recap_lines.append("")
+                        if _advance_amount > 0:
+                            _recap_lines.append(f"Avance reçue : {_advance_amount:,} FCFA".replace(",", " "))
+                            if _balance > 0:
+                                _recap_lines.append(f"Reste à payer à la livraison : {_balance:,} FCFA".replace(",", " "))
+                        _recap_lines.append("")
+                        if _delai_txt:
+                            _recap_lines.append(f"🚚 {_delai_txt}")
+                            _recap_lines.append("")
+                        _recap_lines.append("L'équipe vous rappelera. Merci ! 🙏")
+                        _cloture_msg = "\n".join(_recap_lines)
                 except Exception:
                     pass
-
-                _cloture_msg = "Commande confirmée ✅\nL'équipe vous rappelera pour procéder à votre livraison.\nMerci pour votre confiance 🙏"
-                if _auto_recap:
-                    _cloture_msg = f"Paiement reçu ✅\n\n{_auto_recap}\n\nCommande confirmée ! L'équipe vous rappelera pour la livraison 🙏"
 
                 print(f"⚡ [AUTO_CLOTURE] payment={_paiement_now} → clôture directe (skip confirmation) | code={_auto_code}")
                 return {

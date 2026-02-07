@@ -220,6 +220,37 @@ def _extract_phone(message: str) -> Optional[str]:
     return None
 
 
+# Pattern pour trouver un numéro CI DANS un texte plus long
+_PHONE_INLINE_RE = re.compile(
+    r"[+]?(?:225\s*)?0[1-9](?:[-.\s]?\d{2}){4}"
+)
+
+
+def _extract_phone_from_text(message: str):
+    """Extrait un numéro CI depuis un texte mixte (ex: 'angre 0160924560').
+
+    Returns:
+        tuple: (phone_normalized, remaining_text) ou (None, original_message)
+    """
+    raw = str(message or "").strip()
+    m = _PHONE_INLINE_RE.search(raw)
+    if not m:
+        return None, raw
+    matched = m.group(0).strip()
+    digits = re.sub(r"[^\d]", "", matched)
+    phone = None
+    if digits.startswith("225") and len(digits) == 13:
+        phone = digits[3:]
+    elif len(digits) == 10 and digits.startswith("0"):
+        phone = digits
+    if not phone:
+        return None, raw
+    # Texte restant après suppression du numéro
+    remaining = (raw[:m.start()] + " " + raw[m.end():]).strip()
+    remaining = re.sub(r"\s+", " ", remaining).strip()
+    return phone, remaining
+
+
 def _format_phone_display(phone: str) -> str:
     """Formate un numéro pour affichage : 07 12 34 56 78."""
     d = str(phone or "")
@@ -304,16 +335,16 @@ def template_numero_recu(
     Si zone OK → accuser réception + demander paiement.
     """
     if not zone:
-        return "Ok je confierai ça au livreur ✅\nVous êtes dans quelle commune/quartier pour la livraison ?"
+        return "Parfait !\nVous êtes dans quelle commune/quartier pour la livraison ?"
 
     # Zone + Numéro OK → demander paiement
     payment_phone = _get_payment_phone()
     deposit = _get_expected_deposit()
 
     return (
-        f"Ok je confierai ça au livreur ✅\n"
+        f"Parfait !\n"
         f"J'aurais besoin d'un dépôt de validation de {deposit} via Wave au {payment_phone} "
-        f"pour valider votre commande ; une fois fait envoyez-moi la capture svp 📸"
+        f"pour valider votre commande ; une fois fait envoyez-moi une capture svp 📸"
     )
 
 
@@ -343,7 +374,7 @@ def template_zone_recue(
     return (
         f"D'accord, la livraison à {zone_name} est de {fee_str}.\n"
         f"J'aurais besoin d'un dépôt de validation de {deposit} via Wave au {payment_phone} "
-        f"pour valider votre commande ; une fois fait envoyez-moi la capture svp 📸"
+        f"pour valider votre commande ; une fois fait envoyez-moi une capture svp 📸"
     )
 
 
@@ -441,25 +472,82 @@ def check_short_circuit(
         return None
 
     # ═══════════════════════════════════════════════════════════════════════
-    # CAS B: NUMÉRO DE TÉLÉPHONE
+    # EXTRACTION PARALLÈLE: PHONE + ZONE depuis le même message
+    # Ex: "angre 0160924560" → phone=0160924560, zone=Angré
     # ═══════════════════════════════════════════════════════════════════════
-    phone = _extract_phone(raw)
-    if phone:
-        # Persister le numéro
-        if order_tracker:
-            try:
-                order_tracker.update_telephone(user_id, phone, source="SHORT_CIRCUIT", confidence=0.95)
-            except Exception:
-                pass
+    phone_found, text_after_phone = _extract_phone_from_text(raw)
+    zone_info_found = None
+    zone_name_found = None
+    delivery_fee_found = None
 
+    # Chercher une zone dans le texte restant (après extraction du numéro)
+    text_for_zone = text_after_phone if phone_found else raw
+    if not zone_current and word_count <= 8:
+        zone_info_found = _extract_zone_simple(text_for_zone)
+        if zone_info_found and zone_info_found.get("cost"):
+            zone_name_found = zone_info_found.get("name", text_for_zone)
+            delivery_fee_found = int(zone_info_found["cost"])
+
+    # Si pas trouvé via inline, essayer full-match phone (cas simple: juste un numéro)
+    if not phone_found:
+        phone_found = _extract_phone(raw)
+
+    # ── Persister ce qu'on a trouvé ──
+    if phone_found and order_tracker:
+        try:
+            order_tracker.update_telephone(user_id, phone_found, source="SHORT_CIRCUIT", confidence=0.95)
+        except Exception:
+            pass
+
+    if zone_name_found and order_tracker:
+        try:
+            order_tracker.update_zone(user_id, zone_name_found, source="SHORT_CIRCUIT", confidence=0.95)
+        except Exception:
+            pass
+
+    # Calculer le total si on a zone + prix produit
+    total_calc = None
+    fee_for_template = delivery_fee_found or last_delivery_fee
+    if zone_name_found and delivery_fee_found:
+        if last_subtotal:
+            total_calc = last_subtotal + delivery_fee_found
+        elif last_total and last_delivery_fee:
+            total_calc = (last_total - last_delivery_fee) + delivery_fee_found
+
+    # ═══════════════════════════════════════════════════════════════════════
+    # CAS B+C COMBO: PHONE + ZONE ensemble
+    # ═══════════════════════════════════════════════════════════════════════
+    if phone_found and zone_name_found:
+        effective_zone = zone_name_found
+        effective_phone = phone_found
+        resp = template_zone_recue(
+            cart_items=cart_items,
+            zone_name=effective_zone,
+            delivery_fee=delivery_fee_found,
+            subtotal=last_subtotal,
+            total=total_calc,
+            phone_current=effective_phone,
+        )
+        logger.info("⚡ [SHORT_CIRCUIT] zone+phone combo: zone=%s phone=%s → Python", effective_zone, effective_phone[:4] + "****")
+        return {
+            "response": resp,
+            "search_method": "python_short_circuit",
+            "context_used": "zone_phone_combo",
+            "sc_type": "ZONE_PHONE",
+        }
+
+    # ═══════════════════════════════════════════════════════════════════════
+    # CAS B: NUMÉRO DE TÉLÉPHONE seul
+    # ═══════════════════════════════════════════════════════════════════════
+    if phone_found:
         resp = template_numero_recu(
             cart_items=cart_items,
-            phone=phone,
+            phone=phone_found,
             zone=last_zone or zone_current or None,
             delivery_fee=last_delivery_fee,
             total=last_total,
         )
-        logger.info("⚡ [SHORT_CIRCUIT] phone=%s → Python", phone[:4] + "****")
+        logger.info("⚡ [SHORT_CIRCUIT] phone=%s → Python", phone_found[:4] + "****")
         return {
             "response": resp,
             "search_method": "python_short_circuit",
@@ -468,45 +556,24 @@ def check_short_circuit(
         }
 
     # ═══════════════════════════════════════════════════════════════════════
-    # CAS C: ZONE DE LIVRAISON SIMPLE
-    # Conditions: cart a des items, pas encore de zone, message = zone seule
+    # CAS C: ZONE DE LIVRAISON seule
     # ═══════════════════════════════════════════════════════════════════════
-    if not zone_current and word_count <= 5:
-        zone_info = _extract_zone_simple(raw)
-        if zone_info and zone_info.get("cost"):
-            zone_name = zone_info.get("name", raw)
-            delivery_fee = int(zone_info["cost"])
-
-            # Persister la zone
-            if order_tracker:
-                try:
-                    order_tracker.update_zone(user_id, zone_name, source="SHORT_CIRCUIT", confidence=0.95)
-                except Exception:
-                    pass
-
-            # Calculer le total si on a un prix produit
-            total = None
-            if last_subtotal:
-                total = last_subtotal + delivery_fee
-            elif last_total and last_delivery_fee:
-                # Recalculer avec la nouvelle zone
-                total = (last_total - last_delivery_fee) + delivery_fee
-
-            resp = template_zone_recue(
-                cart_items=cart_items,
-                zone_name=zone_name,
-                delivery_fee=delivery_fee,
-                subtotal=last_subtotal,
-                total=total,
-                phone_current=phone_current or None,
-            )
-            logger.info("⚡ [SHORT_CIRCUIT] zone=%s fee=%d → Python", zone_name, delivery_fee)
-            return {
-                "response": resp,
-                "search_method": "python_short_circuit",
-                "context_used": "zone_received",
-                "sc_type": "ZONE",
-            }
+    if zone_name_found:
+        resp = template_zone_recue(
+            cart_items=cart_items,
+            zone_name=zone_name_found,
+            delivery_fee=delivery_fee_found,
+            subtotal=last_subtotal,
+            total=total_calc,
+            phone_current=phone_current or None,
+        )
+        logger.info("⚡ [SHORT_CIRCUIT] zone=%s fee=%d → Python", zone_name_found, delivery_fee_found)
+        return {
+            "response": resp,
+            "search_method": "python_short_circuit",
+            "context_used": "zone_received",
+            "sc_type": "ZONE",
+        }
 
     # Pas de short-circuit possible
     return None

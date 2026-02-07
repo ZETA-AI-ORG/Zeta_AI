@@ -78,10 +78,7 @@ def get_delivery_context_with_time() -> str:
     date_str = now.strftime("%d/%m/%Y")
     
     # Calcul simple du délai
-    if is_before_13h:
-        delai_message = "Livraison prévue aujourd'hui"
-    else:
-        delai_message = "Livraison prévue demain"
+    delai_message = get_delai_message()
     
     # Message simplifié avec heure actuelle
     context = f"""⏰ HEURE CI: Il est {hour:02d}h{minute:02d}. {delai_message}."""
@@ -98,6 +95,23 @@ def is_same_day_delivery_possible() -> bool:
     """
     now = get_current_time_ci()
     return now.hour < 13
+
+
+def get_delai_message() -> str:
+    """
+    Retourne le message de délai de livraison basé sur l'heure CI.
+    
+    Règle business:
+    - Avant 13h → "Livraison cet après-midi"
+    - Après 13h → "Livraison demain entre 11h et 18h"
+    
+    Returns:
+        str: Message de délai prêt à afficher
+    """
+    if is_same_day_delivery_possible():
+        return "Livraison cet après-midi"
+    else:
+        return "Livraison demain entre 11h et 18h"
 
 
 def get_estimated_delivery_time() -> str:
