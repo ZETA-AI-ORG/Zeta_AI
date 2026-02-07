@@ -327,17 +327,23 @@ def template_numero_recu(
     zone: Optional[str] = None,
     delivery_fee: Optional[int] = None,
     total: Optional[int] = None,
+    paiement_status: Optional[str] = None,
 ) -> str:
     """Template quand le client envoie son numéro.
     
     Scalable — aucun nom de produit hardcodé.
-    Si zone manque → accuser réception + demander zone.
-    Si zone OK → accuser réception + demander paiement.
+    Vérifie order_state pour ne jamais redemander une info déjà collectée.
     """
+    _paid = bool(paiement_status and ("valid" in str(paiement_status).lower() or "reçu" in str(paiement_status).lower()))
+
     if not zone:
         return "Parfait !\nVous êtes dans quelle commune/quartier pour la livraison ?"
 
-    # Zone + Numéro OK → demander paiement
+    # Zone + Numéro + Paiement déjà OK → simple confirmation
+    if _paid:
+        return "Parfait ! Tout est noté ✅"
+
+    # Zone + Numéro OK, paiement manquant → demander paiement
     payment_phone = _get_payment_phone()
     deposit = _get_expected_deposit()
 
@@ -355,19 +361,26 @@ def template_zone_recue(
     subtotal: Optional[int] = None,
     total: Optional[int] = None,
     phone_current: Optional[str] = None,
+    paiement_status: Optional[str] = None,
 ) -> str:
     """Template quand le client envoie sa zone.
     
     Scalable — aucun nom de produit hardcodé.
-    Si numéro manque → confirmer zone + frais + demander numéro.
-    Si numéro OK → confirmer zone + frais + demander paiement.
+    Vérifie order_state pour ne jamais redemander une info déjà collectée.
     """
     fee_str = _format_price(delivery_fee)
+    _paid = bool(paiement_status and ("valid" in str(paiement_status).lower() or "reçu" in str(paiement_status).lower()))
 
     if not phone_current:
+        if _paid:
+            return f"Noté ✅ la livraison à {zone_name} est de {fee_str}.\nSur quel numéro peut-on vous joindre ?"
         return f"Noté ✅ la livraison à {zone_name} est de {fee_str}.\nSur quel numéro peut-on vous joindre ?"
 
-    # Zone + Numéro OK → demander paiement
+    # Zone + Numéro + Paiement déjà OK → simple confirmation
+    if _paid:
+        return f"Noté ✅ la livraison à {zone_name} est de {fee_str}. Tout est en ordre !"
+
+    # Zone + Numéro OK, paiement manquant → demander paiement
     payment_phone = _get_payment_phone()
     deposit = _get_expected_deposit()
 
@@ -438,11 +451,13 @@ def check_short_circuit(
     st = None
     zone_current = ""
     phone_current = ""
+    paiement_current = ""
     if order_tracker:
         try:
             st = order_tracker.get_state(user_id)
             zone_current = str(getattr(st, "zone", "") or "").strip()
             phone_current = str(getattr(st, "telephone", "") or "").strip()
+            paiement_current = str(getattr(st, "paiement", "") or "").strip()
         except Exception:
             pass
 
@@ -527,6 +542,7 @@ def check_short_circuit(
             subtotal=last_subtotal,
             total=total_calc,
             phone_current=effective_phone,
+            paiement_status=paiement_current,
         )
         logger.info("⚡ [SHORT_CIRCUIT] zone+phone combo: zone=%s phone=%s → Python", effective_zone, effective_phone[:4] + "****")
         return {
@@ -546,6 +562,7 @@ def check_short_circuit(
             zone=last_zone or zone_current or None,
             delivery_fee=last_delivery_fee,
             total=last_total,
+            paiement_status=paiement_current,
         )
         logger.info("⚡ [SHORT_CIRCUIT] phone=%s → Python", phone_found[:4] + "****")
         return {
@@ -566,6 +583,7 @@ def check_short_circuit(
             subtotal=last_subtotal,
             total=total_calc,
             phone_current=phone_current or None,
+            paiement_status=paiement_current,
         )
         logger.info("⚡ [SHORT_CIRCUIT] zone=%s fee=%d → Python", zone_name_found, delivery_fee_found)
         return {

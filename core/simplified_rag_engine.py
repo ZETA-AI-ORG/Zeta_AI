@@ -6391,8 +6391,11 @@ async def get_simplified_rag_response(
                 _has_paiement = "PAIEMENT" not in _missing
 
                 follow_up = ""
-                if _has_numero and _has_zone and _has_paiement:
-                    follow_up = "\nEnvoyez-moi une capture du paiement dès que c'est fait 📸"
+                # Vérifier si paiement est déjà validé (pas juste "présent" dans order_state)
+                _paiement_val = str(getattr(_st_sc2, "paiement", "") or "").strip().lower() if _st_sc2 else ""
+                _paiement_validated = "validé" in _paiement_val or "valide" in _paiement_val or "reçu" in _paiement_val
+                if _has_numero and _has_zone and _paiement_validated:
+                    follow_up = ""  # Tout est collecté, rien à demander
                 elif _has_numero and _has_zone and not _has_paiement:
                     payment_phone_s = str(os.getenv("PAYMENT_PHONE", "+225 0787360757") or "+225 0787360757").strip()
                     expected_deposit = str(os.getenv("EXPECTED_DEPOSIT", "2000 FCFA") or "2000 FCFA").strip()
