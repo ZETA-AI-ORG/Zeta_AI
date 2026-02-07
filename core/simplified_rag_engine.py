@@ -525,23 +525,42 @@ class SimplifiedRAGEngine:
                         except Exception:
                             return f"{n}."
 
-                    lines.append(f"Bien reçu 😊 Voici les options pour {str(variant_key).strip().lower()} :")
-                    lines.append("")
+                    # Détecter si toutes les options partagent le même unit → factoriser en header
+                    _all_units = [str(it.get("label") or it.get("unit") or "").strip() for it in items]
+                    _unique_units = set(u for u in _all_units if u)
+                    _common_unit = list(_unique_units)[0] if len(_unique_units) == 1 else None
+                    _has_specs = any(str(it.get("spec") or "").strip() for it in items)
+
+                    # Header avec format commun si applicable
+                    _variant_display = str(variant_key).strip().lower()
+                    if _common_unit and _has_specs:
+                        lines.append(f"Bien reçu 😊 Voici les options pour {_variant_display} :")
+                        lines.append("")
+                        lines.append(f"🔹 {str(variant_key).strip()} ({_common_unit} uniquement)")
+                        lines.append("")
+                    else:
+                        lines.append(f"Bien reçu 😊 Voici les options pour {_variant_display} :")
+                        lines.append("")
+
                     for i, it in enumerate(items, 1):
                         lbl = str(it.get("label") or "").strip() or str(it.get("unit") or "").strip()
                         sp = str(it.get("spec") or "").strip()
                         price_i = int(it.get("price_fcfa") or 0)
                         if lbl.lower() in {"pièces", "pieces", "piece", "pcs", "pc"}:
                             lbl = _format_unit_label(str(it.get("unit") or "").strip(), custom_formats)
+                        price_str = f"{UniversalPriceCalculator._fmt_fcfa(price_i)} F"
 
-                        if sp and (not spec_val):
+                        if sp and (not spec_val) and _common_unit:
+                            # Specs + common unit → spec : price (unit already in header)
+                            lines.append(f"{_num_emoji(i)} {sp} : {price_str}")
+                        elif sp and (not spec_val):
                             left = f"{_num_emoji(i)} {sp} - {lbl}".strip()
-                            lines.append(f"{left} — {UniversalPriceCalculator._fmt_fcfa(price_i)}F")
+                            lines.append(f"{left} — {price_str}")
                         else:
                             left = f"{_num_emoji(i)} {lbl}".strip()
-                            lines.append(f"{left} — {UniversalPriceCalculator._fmt_fcfa(price_i)}F")
+                            lines.append(f"{left} — {price_str}")
                     lines.append("")
-                    lines.append("Que prenez-vous ? (répondez par le numéro)")
+                    lines.append("👉 Dites-moi simplement le numéro de votre choix.")
 
                     for i, it in enumerate(items, 1):
                         it["index"] = i
@@ -689,7 +708,7 @@ class SimplifiedRAGEngine:
                         unique_units = set(str(it.get("label") or it.get("unit") or "").strip() for it in variant_items)
                         unit_suffix = ""
                         if has_specs and len(unique_units) == 1:
-                            unit_suffix = f" ({list(unique_units)[0]})"
+                            unit_suffix = f" ({list(unique_units)[0]} uniquement)"
                         lines.append(f"🔹 {variant_name}{unit_suffix}")
                         for it in variant_items:
                             sp = str(it.get("spec") or "").strip()
@@ -1581,6 +1600,19 @@ class SimplifiedRAGEngine:
                         except Exception as _log_e:
                             print(f"🖼️ [VISION][GEMINI] log_error: {type(_log_e).__name__}: {_log_e}")
 
+                        # Check if vision returned an error (e.g. NON_JSON_RESPONSE)
+                        _vision_error = str((gemini_result or {}).get("error") or "").strip()
+                        if _vision_error:
+                            print(f"⚠️ [VISION][GEMINI] result_error={_vision_error}")
+                            if not vision_summary:
+                                vision_summary = f"VISION_GEMINI: ERREUR_ANALYSE ({_vision_error})"
+                            if not payment_verdict_line:
+                                payment_verdict_line = (
+                                    "PAYMENT_VERDICT|status=VISION_FAILED"
+                                    "|message=Impossible de lire la capture. Demander au client de confirmer manuellement: montant envoyé + numéro destinataire."
+                                )
+                                print(f"🔄 [VISION] Fallback manual validation (result_error)")
+
                         # Normaliser vers 2 sorties: produit + transactions
                         detected_objects: List[Dict[str, Any]] = []
                         filtered_transactions: List[Dict[str, Any]] = []
@@ -1744,6 +1776,13 @@ class SimplifiedRAGEngine:
                             vision_summary = ""
                 except Exception as e:
                     print(f"🖼️ [VISION][GEMINI] fatal_error: {type(e).__name__}: {e}")
+                    # Fallback: signal to LLM that vision failed → ask manual confirmation
+                    vision_summary = "VISION_GEMINI: ERREUR_LECTURE_IMAGE (impossible de lire la capture)"
+                    payment_verdict_line = (
+                        "PAYMENT_VERDICT|status=VISION_FAILED"
+                        "|message=Impossible de lire la capture. Demander au client de confirmer manuellement: montant envoyé + numéro destinataire."
+                    )
+                    print(f"🔄 [VISION] Fallback manual validation injected")
 
             # Mise à jour OrderStateTracker via signaux déterministes (sans RAG retrieval)
             try:

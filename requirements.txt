@@ -45,6 +45,7 @@ easyocr>=1.7.0
 # HTTP/Network dependencies
 aiohttp>=3.9.0
 httpx>=0.25.0
+requests>=2.31.0
 
 # Monitoring dependencies
 prometheus-fastapi-instrumentator>=6.1.0

@@ -1,10 +1,73 @@
+import base64
 import json
 import os
 import re
+import time
 from datetime import datetime, timedelta
+from io import BytesIO
 from typing import Any, Dict, List, Optional, Tuple
 
+import requests
+
 from core.llm_client_openrouter import complete
+
+
+_FB_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    "Accept": "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
+    "Referer": "https://www.facebook.com/",
+}
+
+
+def _is_protected_url(url: str) -> bool:
+    """Detect URLs that need server-side download (Facebook CDN, etc.)."""
+    u = str(url or "").lower()
+    return any(k in u for k in ["fbcdn.net", "facebook.com", "fb.com", "cdninstagram.com"])
+
+
+def _download_image_robust(url: str, max_retries: int = 3) -> Optional[str]:
+    """Download image from protected URL, return base64 data URI or None.
+    
+    Tries multiple strategies:
+    1. Direct download with Facebook-friendly headers
+    2. Retry after short delay (CDN cache propagation)
+    3. Try alternate URL path (/vA/ → /v/)
+    """
+    attempts = [
+        (url, _FB_HEADERS, 0),
+        (url, _FB_HEADERS, 2),
+    ]
+    # Add alternate URL if /vA/ pattern detected
+    if "/vA/" in url:
+        alt_url = url.replace("/vA/", "/v/")
+        attempts.append((alt_url, _FB_HEADERS, 0))
+    elif "/v/" in url:
+        alt_url = url.replace("/v/", "/vA/")
+        attempts.append((alt_url, _FB_HEADERS, 0))
+
+    for attempt_url, headers, delay in attempts:
+        try:
+            if delay > 0:
+                time.sleep(delay)
+            resp = requests.get(attempt_url, headers=headers, timeout=15, stream=True)
+            if resp.status_code == 200:
+                content_type = resp.headers.get("Content-Type", "image/jpeg")
+                if ";" in content_type:
+                    content_type = content_type.split(";")[0].strip()
+                img_bytes = resp.content
+                if len(img_bytes) < 100:
+                    continue  # Too small, probably error page
+                b64 = base64.b64encode(img_bytes).decode("utf-8")
+                data_uri = f"data:{content_type};base64,{b64}"
+                print(f"\u2705 [VISION] Image downloaded OK | size={len(img_bytes)} bytes | content_type={content_type}")
+                return data_uri
+            else:
+                print(f"\u26a0\ufe0f [VISION] Download attempt failed: HTTP {resp.status_code} | url={attempt_url[:80]}...")
+        except Exception as e:
+            print(f"\u26a0\ufe0f [VISION] Download attempt error: {type(e).__name__}: {e}")
+
+    print(f"\u274c [VISION] All download attempts failed for: {url[:80]}...")
+    return None
 
 
 def _extract_first_json_object(text: str) -> Optional[Dict[str, Any]]:
@@ -244,12 +307,22 @@ async def analyze_product_with_gemini(
     if user_message:
         prompt = prompt + "\n\nContexte utilisateur: " + str(user_message).strip()
 
+    # For protected URLs (Facebook CDN etc.), download server-side and send as base64
+    effective_image_url = image_url
+    if _is_protected_url(image_url):
+        print(f"\ud83d\udce5 [VISION] Protected URL detected, downloading server-side...")
+        data_uri = _download_image_robust(image_url)
+        if data_uri:
+            effective_image_url = data_uri
+        else:
+            print(f"\u26a0\ufe0f [VISION] Fallback: sending raw URL (may fail)")
+
     messages = [
         {
             "role": "user",
             "content": [
                 {"type": "text", "text": prompt},
-                {"type": "image_url", "image_url": {"url": image_url}},
+                {"type": "image_url", "image_url": {"url": effective_image_url}},
             ],
         }
     ]
