@@ -297,8 +297,18 @@ def template_numero_recu(
     delivery_fee: Optional[int] = None,
     total: Optional[int] = None,
 ) -> str:
-    """Template quand le client envoie son numéro."""
+    """Template quand le client envoie son numéro.
+    
+    Règle: PAS de récap tant que zone n'est pas renseignée.
+    Récap complet + demande paiement UNIQUEMENT si tous les champs (sauf paiement) sont OK.
+    """
     phone_display = _format_phone_display(phone)
+
+    if not zone:
+        # Zone manquante → juste accuser réception + demander zone
+        return f"Numéro {phone_display} bien noté ✅\nVous êtes dans quelle commune/quartier pour la livraison ?"
+
+    # Zone + Numéro OK → récap complet + demande paiement
     recap = _build_cart_recap_lines(cart_items, zone, delivery_fee, total)
     payment_phone = _get_payment_phone()
     deposit = _get_expected_deposit()
@@ -306,8 +316,8 @@ def template_numero_recu(
     return (
         f"Numéro {phone_display} bien reçu ✅\n\n"
         f"{recap}\n\n"
-        f"Pour valider, envoyez un dépôt de {deposit} via Wave au {payment_phone} "
-        f"puis partagez la capture ici 📸"
+        f"J'aurais besoin d'un dépôt de validation de {deposit} via Wave au {payment_phone} "
+        f"pour valider votre commande ; une fois fait envoyez-moi la capture svp 📸"
     )
 
 
@@ -317,16 +327,35 @@ def template_zone_recue(
     delivery_fee: int,
     subtotal: Optional[int] = None,
     total: Optional[int] = None,
+    phone_current: Optional[str] = None,
 ) -> str:
-    """Template quand le client envoie sa zone."""
+    """Template quand le client envoie sa zone.
+    
+    Règle: PAS de récap complet tant que numéro n'est pas renseigné.
+    Récap complet + demande paiement UNIQUEMENT si tous les champs (sauf paiement) sont OK.
+    """
     fee_str = _format_price(delivery_fee)
-    total_str = _format_price(total) if total else None
 
-    resp = f"{zone_name} noté ✅ Frais de livraison : {fee_str}\n"
-    if total_str:
-        resp += f"💰 Total : {total_str}\n"
-    resp += "Sur quel numéro peut-on vous joindre ?"
-    return resp
+    if not phone_current:
+        # Numéro manquant → juste confirmer zone + frais + demander numéro
+        resp = f"{zone_name} noté ✅ Frais de livraison : {fee_str}\n"
+        if total and total > 0:
+            total_str = _format_price(total)
+            resp += f"💰 Total : {total_str}\n"
+        resp += "Sur quel numéro peut-on vous joindre ?"
+        return resp
+
+    # Zone + Numéro OK → récap complet + demande paiement
+    recap = _build_cart_recap_lines(cart_items, zone_name, delivery_fee, total)
+    payment_phone = _get_payment_phone()
+    deposit = _get_expected_deposit()
+
+    return (
+        f"{zone_name} noté ✅\n\n"
+        f"{recap}\n\n"
+        f"J'aurais besoin d'un dépôt de validation de {deposit} via Wave au {payment_phone} "
+        f"pour valider votre commande ; une fois fait envoyez-moi la capture svp 📸"
+    )
 
 
 def template_capture_recue() -> str:
@@ -480,6 +509,7 @@ def check_short_circuit(
                 delivery_fee=delivery_fee,
                 subtotal=last_subtotal,
                 total=total,
+                phone_current=phone_current or None,
             )
             logger.info("⚡ [SHORT_CIRCUIT] zone=%s fee=%d → Python", zone_name, delivery_fee)
             return {

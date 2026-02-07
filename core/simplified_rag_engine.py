@@ -5409,7 +5409,9 @@ class SimplifiedRAGEngine:
                                 if f2 in {"NUMÉRO", "NUMERO", "TÉLÉPHONE", "TELEPHONE"}:
                                     return "Quel est votre numéro WhatsApp pour le livreur ?"
                                 if f2 == "PAIEMENT":
-                                    return "veuillez effectuez un depot de validation de 2000FCFA sur wave ( +225 0787360757 ) puis envoyez moi la capture. merci"
+                                    _pp = str(os.getenv("PAYMENT_PHONE", "+225 0787360757") or "+225 0787360757").strip()
+                                    _dp = str(os.getenv("EXPECTED_DEPOSIT", "2000 FCFA") or "2000 FCFA").strip()
+                                    return f"J'aurais besoin d'un d\u00e9p\u00f4t de validation de {_dp} via Wave au {_pp} pour valider votre commande ; une fois fait envoyez-moi la capture svp \ud83d\udcf8"
 
                                 # Fallback: si le next_field est inattendu, on suit l'ordre zone -> tel -> paiement.
                                 if any(x in {"ZONE"} for x in missing2):
@@ -5417,9 +5419,14 @@ class SimplifiedRAGEngine:
                                 if any(x in {"NUMÉRO", "NUMERO", "TÉLÉPHONE", "TELEPHONE"} for x in missing2):
                                     return "Quel est votre numéro WhatsApp pour le livreur ?"
                                 if any(x in {"PAIEMENT"} for x in missing2):
-                                    return "veuillez effectuez un depot de validation de 2000FCFA sur wave ( +225 0787360757 ) puis envoyez moi la capture. merci"
+                                    _pp = str(os.getenv("PAYMENT_PHONE", "+225 0787360757") or "+225 0787360757").strip()
+                                    _dp = str(os.getenv("EXPECTED_DEPOSIT", "2000 FCFA") or "2000 FCFA").strip()
+                                    return f"J'aurais besoin d'un d\u00e9p\u00f4t de validation de {_dp} via Wave au {_pp} pour valider votre commande ; une fois fait envoyez-moi la capture svp \ud83d\udcf8"
 
                                 return "Vous confirmez la commande ? (Oui/Non)"
+
+                            # Déterminer si c'est la PREMIÈRE fois qu'on montre le prix
+                            _first_time_price = allow_show_price and (not last_sig)
 
                             if price_requested_now and allow_show_price and (not has_marker):
                                 follow_q = _next_question_after_price()
@@ -5452,6 +5459,18 @@ class SimplifiedRAGEngine:
                                         pass
                                 else:
                                     response = str(tail).strip()
+                            elif _first_time_price:
+                                # Prix calculé pour la 1ère fois + produit complet → TOUJOURS annoncer le prix
+                                # même si le client n'a pas demandé explicitement le total
+                                follow_q = _next_question_after_price()
+                                response = (ready_txt + "\n" + str(follow_q or "").strip()).strip()
+                                try:
+                                    if current_sig:
+                                        order_tracker.set_custom_meta(user_id, "last_price_signature_shown", current_sig)
+                                        order_tracker.set_custom_meta(user_id, "last_price_shown_turn", int(current_turn or 0))
+                                except Exception:
+                                    pass
+                                print(f"💡 [PRICE_MULTI] first-time price shown (no marker, no explicit request)")
                             else:
                                 response = llm_resp
                         print(f"✅ [PRICE_MULTI] injected | items={len(detected_items)} | zone='{zone_for_price}'")
@@ -6306,13 +6325,14 @@ async def get_simplified_rag_response(
                     # Numéro + Zone OK, manque paiement
                     payment_phone_s = str(os.getenv("PAYMENT_PHONE", "+225 0787360757") or "+225 0787360757").strip()
                     expected_deposit = str(os.getenv("EXPECTED_DEPOSIT", "2000 FCFA") or "2000 FCFA").strip()
-                    follow_up = f"\n\nPour valider, envoyez un dépôt de {expected_deposit} via Wave au {payment_phone_s} puis partagez la capture ici 📸"
+                    follow_up = f"\n\nJ'aurais besoin d'un dépôt de validation de {expected_deposit} via Wave au {payment_phone_s} pour valider votre commande ; une fois fait envoyez-moi la capture svp 📸"
                 elif not _has_numero and _has_zone:
                     follow_up = "\n\nSur quel numéro peut-on vous joindre pour la livraison ?"
                 elif not _has_zone and _has_numero:
                     follow_up = "\n\nC'est pour quelle zone de livraison ?"
                 elif not _has_zone and not _has_numero:
-                    follow_up = "\n\nDonnez-moi votre zone de livraison et numéro pour finaliser 👍"
+                    # Demander zone en premier, numéro viendra au tour suivant
+                    follow_up = "\n\nVous êtes dans quelle commune/quartier pour la livraison ?"
 
                 print(f"⚡ [SHORT_CIRCUIT_PRICE] ready_to_send from CartManager | items={len(_cart_items)} | len={len(ready_stored)} | missing={_missing}")
                 return {
