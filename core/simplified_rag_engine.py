@@ -1398,23 +1398,10 @@ class SimplifiedRAGEngine:
                     order_tracker.set_custom_meta(user_id, "active_product_label", detected_name)
                     print(f"✅ [PYTHON_PREMATCH] product_id={detected_pid} product='{detected_name}'")
 
-                    # ── Inject price table: on price intent OR first-time product+variant identification ──
-                    # Règle: dès que produit + variante identifiés → envoyer la grille tarifaire
-                    # (même si le client n'a pas demandé le prix explicitement)
+                    # If this is a price intent and we have a clear variant, short-circuit the LLM and send price list.
+                    # This is a robustness fallback when the prompt doesn't emit <tool_call>.
                     try:
-                        _should_inject_price_table = False
                         if _is_price_intent(query):
-                            _should_inject_price_table = True
-                        elif detected_pid:
-                            # First-time identification → inject price table automatically
-                            _prev_pt_pid = str(order_tracker.get_custom_meta(user_id, "last_price_table_pid", default="") or "").strip()
-                            _prev_pt_var = str(order_tracker.get_custom_meta(user_id, "last_price_table_variant", default="") or "").strip()
-                            _check_var = str(detected_variant or "").strip().lower()
-                            if _prev_pt_pid != detected_pid or _prev_pt_var.lower() != _check_var:
-                                _should_inject_price_table = True
-
-                        if _should_inject_price_table:
-                            list_text, list_items = "", []
                             if detected_variant:
                                 list_text, list_items = _generate_price_list_for_tool_call(
                                     company_id_val=company_id,
@@ -1432,13 +1419,10 @@ class SimplifiedRAGEngine:
                                 try:
                                     order_tracker.set_custom_meta(user_id, "price_list_text", list_text)
                                     order_tracker.set_custom_meta(user_id, "price_list_items", list_items)
-                                    order_tracker.set_custom_meta(user_id, "last_price_table_pid", detected_pid)
-                                    order_tracker.set_custom_meta(user_id, "last_price_table_variant", str(detected_variant or "").strip())
                                     order_tracker.set_flag(user_id, "awaiting_price_choice", True)
                                 except Exception:
                                     pass
 
-                                print(f"💰 [PREMATCH_PRICE_TABLE] product={detected_pid} variant={detected_variant} → grille envoyée ({len(list_items)} items)")
                                 processing_time = (time.time() - start_time) * 1000
                                 checklist = self.prompt_system.get_checklist_state(user_id, company_id)
                                 return SimplifiedRAGResult(
@@ -1454,7 +1438,7 @@ class SimplifiedRAGEngine:
                                     completion_tokens=0,
                                     total_tokens=0,
                                     cost=0.0,
-                                    model="python_price_table_prematch",
+                                    model="python_price_list_short_circuit",
                                     thinking="",
                                 )
                     except Exception:
