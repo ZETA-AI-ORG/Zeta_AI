@@ -1398,10 +1398,23 @@ class SimplifiedRAGEngine:
                     order_tracker.set_custom_meta(user_id, "active_product_label", detected_name)
                     print(f"✅ [PYTHON_PREMATCH] product_id={detected_pid} product='{detected_name}'")
 
-                    # If this is a price intent and we have a clear variant, short-circuit the LLM and send price list.
-                    # This is a robustness fallback when the prompt doesn't emit <tool_call>.
+                    # ── Inject price table: on price intent OR first-time product+variant identification ──
+                    # Règle: dès que produit + variante identifiés → envoyer la grille tarifaire
+                    # (même si le client n'a pas demandé le prix explicitement)
                     try:
+                        _should_inject_price_table = False
                         if _is_price_intent(query):
+                            _should_inject_price_table = True
+                        elif detected_pid:
+                            # First-time identification → inject price table automatically
+                            _prev_pt_pid = str(order_tracker.get_custom_meta(user_id, "last_price_table_pid", default="") or "").strip()
+                            _prev_pt_var = str(order_tracker.get_custom_meta(user_id, "last_price_table_variant", default="") or "").strip()
+                            _check_var = str(detected_variant or "").strip().lower()
+                            if _prev_pt_pid != detected_pid or _prev_pt_var.lower() != _check_var:
+                                _should_inject_price_table = True
+
+                        if _should_inject_price_table:
+                            list_text, list_items = "", []
                             if detected_variant:
                                 list_text, list_items = _generate_price_list_for_tool_call(
                                     company_id_val=company_id,
@@ -1419,10 +1432,13 @@ class SimplifiedRAGEngine:
                                 try:
                                     order_tracker.set_custom_meta(user_id, "price_list_text", list_text)
                                     order_tracker.set_custom_meta(user_id, "price_list_items", list_items)
+                                    order_tracker.set_custom_meta(user_id, "last_price_table_pid", detected_pid)
+                                    order_tracker.set_custom_meta(user_id, "last_price_table_variant", str(detected_variant or "").strip())
                                     order_tracker.set_flag(user_id, "awaiting_price_choice", True)
                                 except Exception:
                                     pass
 
+                                print(f"💰 [PREMATCH_PRICE_TABLE] product={detected_pid} variant={detected_variant} → grille envoyée ({len(list_items)} items)")
                                 processing_time = (time.time() - start_time) * 1000
                                 checklist = self.prompt_system.get_checklist_state(user_id, company_id)
                                 return SimplifiedRAGResult(
@@ -1438,7 +1454,7 @@ class SimplifiedRAGEngine:
                                     completion_tokens=0,
                                     total_tokens=0,
                                     cost=0.0,
-                                    model="python_price_list_short_circuit",
+                                    model="python_price_table_prematch",
                                     thinking="",
                                 )
                     except Exception:
@@ -5372,6 +5388,13 @@ class SimplifiedRAGEngine:
                             subtotal_fcfa = str(_extract_tag(price_block, "product_subtotal_fcfa") or "").strip()
                             delivery_fcfa = str(_extract_tag(price_block, "delivery_fee_fcfa") or "").strip()
 
+                            # ── Template simplifié: "Noté, ça fera XX XXXF." au lieu du récap verbeux ──
+                            try:
+                                _total_int = int(total_fcfa) if total_fcfa and total_fcfa.isdigit() else 0
+                                _simple_price_txt = f"Noté, ça fera {_total_int:,}F.".replace(",", " ") if _total_int > 0 else ready_txt
+                            except Exception:
+                                _simple_price_txt = ready_txt
+
                             expected_amounts = {
                                 a
                                 for a in (
@@ -5430,7 +5453,7 @@ class SimplifiedRAGEngine:
 
                             if price_requested_now and allow_show_price and (not has_marker):
                                 follow_q = _next_question_after_price()
-                                response = (ready_txt + " " + str(follow_q or "").strip()).strip()
+                                response = (_simple_price_txt + " " + str(follow_q or "").strip()).strip()
                                 try:
                                     if current_sig:
                                         order_tracker.set_custom_meta(user_id, "last_price_signature_shown", current_sig)
@@ -5448,9 +5471,9 @@ class SimplifiedRAGEngine:
                                 if allow_show_price:
                                     if price_requested_now:
                                         follow_q = _next_question_after_price()
-                                        response = (ready_txt + " " + str(follow_q or "").strip()).strip()
+                                        response = (_simple_price_txt + " " + str(follow_q or "").strip()).strip()
                                     else:
-                                        response = (ready_txt + "\n" + _with_orientation_marker(tail)).strip()
+                                        response = (_simple_price_txt + "\n" + _with_orientation_marker(tail)).strip()
                                     try:
                                         if current_sig:
                                             order_tracker.set_custom_meta(user_id, "last_price_signature_shown", current_sig)
@@ -5463,7 +5486,7 @@ class SimplifiedRAGEngine:
                                 # Prix calculé pour la 1ère fois + produit complet → TOUJOURS annoncer le prix
                                 # même si le client n'a pas demandé explicitement le total
                                 follow_q = _next_question_after_price()
-                                response = (ready_txt + "\n" + str(follow_q or "").strip()).strip()
+                                response = (_simple_price_txt + "\n" + str(follow_q or "").strip()).strip()
                                 try:
                                     if current_sig:
                                         order_tracker.set_custom_meta(user_id, "last_price_signature_shown", current_sig)
@@ -6309,6 +6332,16 @@ async def get_simplified_rag_response(
                         )
 
             if ready_stored:
+                # ── Simplifier: extraire le total et utiliser le format court ──
+                _simple_sc = ready_stored
+                try:
+                    _total_tag = str(_extract_tag_local(_pc_fresh, "total_fcfa") or "").strip()
+                    if _total_tag and _total_tag.isdigit():
+                        _t_int = int(_total_tag)
+                        _simple_sc = f"Noté, ça fera {_t_int:,}F.".replace(",", " ")
+                except Exception:
+                    pass
+
                 # ── Follow-up intelligent: vérifier ce qui manque RÉELLEMENT ──
                 _st_sc2 = order_tracker.get_state(user_id)
                 _missing = sorted(list(_st_sc2.get_missing_fields())) if hasattr(_st_sc2, "get_missing_fields") else []
@@ -6319,24 +6352,21 @@ async def get_simplified_rag_response(
 
                 follow_up = ""
                 if _has_numero and _has_zone and _has_paiement:
-                    # Tout est complet → attendre capture
-                    follow_up = "\n\nEnvoyez-moi la capture du paiement dès que c'est fait 📸"
+                    follow_up = "\nEnvoyez-moi la capture du paiement dès que c'est fait 📸"
                 elif _has_numero and _has_zone and not _has_paiement:
-                    # Numéro + Zone OK, manque paiement
                     payment_phone_s = str(os.getenv("PAYMENT_PHONE", "+225 0787360757") or "+225 0787360757").strip()
                     expected_deposit = str(os.getenv("EXPECTED_DEPOSIT", "2000 FCFA") or "2000 FCFA").strip()
-                    follow_up = f"\n\nJ'aurais besoin d'un dépôt de validation de {expected_deposit} via Wave au {payment_phone_s} pour valider votre commande ; une fois fait envoyez-moi la capture svp 📸"
+                    follow_up = f"\nJ'aurais besoin d'un dépôt de validation de {expected_deposit} via Wave au {payment_phone_s} pour valider votre commande ; une fois fait envoyez-moi la capture svp 📸"
                 elif not _has_numero and _has_zone:
-                    follow_up = "\n\nSur quel numéro peut-on vous joindre pour la livraison ?"
+                    follow_up = "\nSur quel numéro peut-on vous joindre pour la livraison ?"
                 elif not _has_zone and _has_numero:
-                    follow_up = "\n\nC'est pour quelle zone de livraison ?"
+                    follow_up = "\nVous êtes dans quelle commune/quartier pour la livraison ?"
                 elif not _has_zone and not _has_numero:
-                    # Demander zone en premier, numéro viendra au tour suivant
-                    follow_up = "\n\nVous êtes dans quelle commune/quartier pour la livraison ?"
+                    follow_up = "\nVous êtes dans quelle commune/quartier pour la livraison ?"
 
-                print(f"⚡ [SHORT_CIRCUIT_PRICE] ready_to_send from CartManager | items={len(_cart_items)} | len={len(ready_stored)} | missing={_missing}")
+                print(f"⚡ [SHORT_CIRCUIT_PRICE] simplified | items={len(_cart_items)} | missing={_missing}")
                 return {
-                    "response": ready_stored + follow_up,
+                    "response": _simple_sc + follow_up,
                     "confidence": 1.0,
                     "documents_found": True,
                     "processing_time_ms": 0,
