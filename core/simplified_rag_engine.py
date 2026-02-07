@@ -3150,6 +3150,27 @@ class SimplifiedRAGEngine:
             try:
                 # Hint 1: Prix produit — si price_calculation_block contient un ready_to_send, le LLM DOIT l'annoncer
                 _pc_block_str = str(price_calculation_block or "").strip()
+
+                # OPT-1/3: Vérifier si le prix a DÉJÀ été annoncé dans l'historique récent
+                _conv_hist = str(dynamic_context.get('conversation_history') or '').lower()
+                _price_already_announced = False
+                try:
+                    if _pc_block_str:
+                        _m_total = re.search(r"<total_fcfa>(\d+)</total_fcfa>", _pc_block_str)
+                        if _m_total:
+                            _total_str = _m_total.group(1)
+                            # Vérifier si ce montant exact apparaît dans l'historique (IA l'a déjà dit)
+                            _total_formatted = f"{int(_total_str):,}".replace(",", " ").replace("\u202f", " ")
+                            _total_plain = str(int(_total_str))
+                            if (f"{_total_plain}f" in _conv_hist.replace(" ", "")
+                                or f"{_total_plain} f" in _conv_hist
+                                or _total_formatted.lower() in _conv_hist
+                                or f"total fait {_total_plain}" in _conv_hist.replace(" ", "").replace("\u00a0", "")
+                                or f"{_total_plain}f ✅" in _conv_hist.replace(" ", "")):
+                                _price_already_announced = True
+                except Exception:
+                    _price_already_announced = False
+
                 if _pc_block_str:
                     _ready_hint = ""
                     try:
@@ -3159,23 +3180,38 @@ class SimplifiedRAGEngine:
                     except Exception:
                         pass
                     if _ready_hint:
-                        proactive_hints.append(
-                            f"<proactive_price>\n"
-                            f"  Python a calculé le prix. Tu DOIS annoncer ce montant au client dans ta réponse.\n"
-                            f"  Copie-colle ce récapitulatif tel quel :\n"
-                            f"  {_ready_hint}\n"
-                            f"  Puis enchaîne naturellement (ex: demander zone, paiement, numéro selon ce qui manque).\n"
-                            f"</proactive_price>"
-                        )
+                        if _price_already_announced:
+                            # OPT-1/3: Prix déjà annoncé → NE PAS répéter le récap complet
+                            proactive_hints.append(
+                                f"<proactive_price_already_shown>\n"
+                                f"  ⚠️ Le prix total a DÉJÀ été annoncé au client dans un message précédent.\n"
+                                f"  NE RÉPÈTE PAS le récapitulatif de prix. Réponds UNIQUEMENT à la question actuelle du client\n"
+                                f"  (zone, numéro, paiement, etc.) de manière concise.\n"
+                                f"  Si le client demande explicitement le total/prix, tu peux le redonner.\n"
+                                f"</proactive_price_already_shown>"
+                            )
+                        else:
+                            proactive_hints.append(
+                                f"<proactive_price>\n"
+                                f"  Python a calculé le prix. Tu DOIS annoncer ce montant au client dans ta réponse.\n"
+                                f"  Copie-colle ce récapitulatif tel quel :\n"
+                                f"  {_ready_hint}\n"
+                                f"  Puis enchaîne naturellement (ex: demander zone, paiement, numéro selon ce qui manque).\n"
+                                f"</proactive_price>"
+                            )
 
                 # Hint 2: Frais de livraison — si zone connue + fee calculé, le LLM DOIT annoncer les frais
                 if delivery_fee_fcfa and isinstance(delivery_fee_fcfa, int) and delivery_fee_fcfa > 0 and zone_val:
-                    proactive_hints.append(
-                        f"<proactive_delivery>\n"
-                        f"  La livraison à {zone_val} coûte {delivery_fee_fcfa} FCFA.\n"
-                        f"  Tu DOIS informer le client de ce montant dans ta réponse si ce n'est pas déjà fait.\n"
-                        f"</proactive_delivery>"
-                    )
+                    # OPT-1/3: Ne pas annoncer les frais si déjà dans l'historique
+                    _fee_str = str(delivery_fee_fcfa)
+                    _fee_already = bool(f"{_fee_str}f" in _conv_hist.replace(" ", "") or f"livraison" in _conv_hist and _fee_str in _conv_hist)
+                    if not _fee_already:
+                        proactive_hints.append(
+                            f"<proactive_delivery>\n"
+                            f"  La livraison à {zone_val} coûte {delivery_fee_fcfa} FCFA.\n"
+                            f"  Tu DOIS informer le client de ce montant dans ta réponse si ce n'est pas déjà fait.\n"
+                            f"</proactive_delivery>"
+                        )
             except Exception as _ph_e:
                 print(f"⚠️ [PROACTIVE_HINTS] error: {type(_ph_e).__name__}: {_ph_e}")
 
@@ -6374,6 +6410,59 @@ async def get_simplified_rag_response(
         already_waiting = bool(str(order_tracker.get_custom_meta(user_id, "awaiting_confirmation_code", default="") or "").strip())
         already_confirmed = bool(str(order_tracker.get_custom_meta(user_id, "order_confirmed_code", default="") or "").strip())
         if is_complete and (not already_waiting) and (not already_confirmed):
+            # ── OPT-2: Auto-clôture si paiement validé ──
+            # Si le paiement est déjà validé (validé_XXXF), pas besoin de demander confirmation.
+            # On clôture directement → économie d'1 tour complet.
+            _paiement_now = ""
+            try:
+                _st_cloture = order_tracker.get_state(user_id)
+                _paiement_now = str(getattr(_st_cloture, "paiement", "") or "").strip()
+            except Exception:
+                _paiement_now = ""
+
+            _payment_is_validated = _paiement_now.lower().startswith("validé_") or _paiement_now.lower().startswith("valide_")
+
+            if _payment_is_validated:
+                # Paiement validé + commande complète → clôture directe (0 tour supplémentaire)
+                _auto_code = uuid.uuid4().hex[:8]
+                order_tracker.set_custom_meta(user_id, "order_confirmed_code", _auto_code)
+                order_tracker.set_custom_meta(user_id, "awaiting_confirmation_code", "")
+
+                # Construire le recap depuis CartManager (source de vérité)
+                _auto_recap = ""
+                try:
+                    _pc_auto = str(order_tracker.get_custom_meta(user_id, "price_calculation_block", default="") or "").strip()
+                    _auto_recap = str(_extract_tag_local(_pc_auto, "ready_to_send") or "").strip()
+                except Exception:
+                    pass
+
+                _cloture_msg = "Commande confirmée ✅\nL'équipe vous rappelera pour procéder à votre livraison.\nMerci pour votre confiance 🙏"
+                if _auto_recap:
+                    _cloture_msg = f"Paiement reçu ✅\n\n{_auto_recap}\n\nCommande confirmée ! L'équipe vous rappelera pour la livraison 🙏"
+
+                print(f"⚡ [AUTO_CLOTURE] payment={_paiement_now} → clôture directe (skip confirmation) | code={_auto_code}")
+                return {
+                    "response": _cloture_msg,
+                    "confidence": 1.0,
+                    "documents_found": True,
+                    "processing_time_ms": result.processing_time_ms,
+                    "search_method": "python_auto_cloture",
+                    "context_used": "payment_validated_complete",
+                    "thinking": result.thinking,
+                    "validation": None,
+                    "usage": result.usage,
+                    "prompt_tokens": result.prompt_tokens,
+                    "completion_tokens": result.completion_tokens,
+                    "total_tokens": result.total_tokens,
+                    "cost": result.cost,
+                    "model": result.model,
+                    "checklist_state": "CONFIRMED",
+                    "next_step": "STOP",
+                    "detected_location": result.detected_location,
+                    "shipping_fee": result.shipping_fee,
+                }
+
+            # Paiement non validé → flow normal avec confirmation
             code = uuid.uuid4().hex[:8]
             order_tracker.set_custom_meta(user_id, "awaiting_confirmation_code", code)
 
