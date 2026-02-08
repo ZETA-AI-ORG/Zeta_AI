@@ -2107,7 +2107,7 @@ class SimplifiedRAGEngine:
                     raise RuntimeError("INSTRUCTION_MODE_OFF")
 
                 st_now = order_tracker.get_state(user_id)
-                next_field = order_tracker.get_next_required_field(user_id, current_turn=current_turn)
+                next_field = order_tracker.get_next_required_field(user_id, current_turn=current_turn, company_id=company_id)
 
                 slot_meta_bundle = None
                 try:
@@ -2305,6 +2305,26 @@ class SimplifiedRAGEngine:
                     if f == "PRODUIT":
                         return "Tu veux quel produit exactement (marque/modèle) stp ?"
                     if f == "SPECS":
+                        # Try to build a catalogue-aware specs question
+                        try:
+                            _st_q = order_tracker.get_state(user_id)
+                            _pid_q = str(getattr(_st_q, "produit", "") or "").strip()
+                            _det_q = str(getattr(_st_q, "produit_details", "") or "").strip()
+                            if _pid_q and company_id:
+                                from core.company_catalog_v2_loader import get_company_product_catalog_v2
+                                _cat_q = get_company_product_catalog_v2(company_id, _pid_q)
+                                if isinstance(_cat_q, dict):
+                                    _vt_q = _cat_q.get("v") if isinstance(_cat_q.get("v"), dict) else None
+                                    if isinstance(_vt_q, dict):
+                                        for _vk_q, _vn_q in _vt_q.items():
+                                            if str(_vk_q or "").strip().lower() in _det_q.lower():
+                                                _s_q = _vn_q.get("s") if isinstance(_vn_q, dict) else None
+                                                if isinstance(_s_q, dict) and _s_q:
+                                                    _spec_keys = [str(sk).strip() for sk in _s_q.keys() if str(sk).strip()]
+                                                    if _spec_keys:
+                                                        return f"Quelle taille ? ({', '.join(_spec_keys)})"
+                        except Exception:
+                            pass
                         return "Tu veux quelle taille et quel type exactement (ex: T3, T4 / pants ou adhésive) ?"
                     if f == "QUANTITÉ":
                         return "Tu veux combien (1 carton, 2 cartons, ou combien de paquets) ?"
@@ -2381,7 +2401,7 @@ class SimplifiedRAGEngine:
                     # Simplified: only intention_client, no priorite_reponse or historique_compact
 
                     try:
-                        missing_now = sorted(list(st_now.get_missing_fields()))
+                        missing_now = sorted(list(st_now.get_missing_fields(company_id=company_id)))
                     except Exception:
                         missing_now = []
                     missing_set = set([str(m).upper().strip() for m in (missing_now or [])])
@@ -4619,7 +4639,7 @@ class SimplifiedRAGEngine:
             # Afficher l'avancement OrderStateTracker
             try:
                 st = order_tracker.get_state(user_id)
-                missing = sorted(list(st.get_missing_fields()))
+                missing = sorted(list(st.get_missing_fields(company_id=company_id)))
                 missing_str = ", ".join(missing) if missing else "Aucun"
                 completion = st.get_completion_rate() if hasattr(st, "get_completion_rate") else 0.0
                 print(f"{C_YELLOW}📊 [ORDER_STATUS] completion={completion:.2f} | missing={C_RED}{missing_str}{C_YELLOW}{C_RESET}")
@@ -5459,7 +5479,7 @@ class SimplifiedRAGEngine:
                             def _next_question_after_price() -> str:
                                 try:
                                     stp = order_tracker.get_state(user_id)
-                                    missing2 = sorted(list(stp.get_missing_fields())) if stp else []
+                                    missing2 = sorted(list(stp.get_missing_fields(company_id=company_id))) if stp else []
                                 except Exception:
                                     missing2 = []
 
@@ -5595,7 +5615,7 @@ class SimplifiedRAGEngine:
 
                             # Si on est au stade 'tout sauf paiement' mais items non confirmés -> on force une recap courte.
                             st_now = order_tracker.get_state(user_id)
-                            missing_now = sorted(list(st_now.get_missing_fields()))
+                            missing_now = sorted(list(st_now.get_missing_fields(company_id=company_id)))
 
                             if (not already_clarified) and (not _is_packsize_question(str(query or ""))) and ("unconfirmed_items" in (validation.get("reasons") or []) or "invalid_items" in (validation.get("reasons") or [])):
                                 recap_gate = (missing_now == ["PAIEMENT"]) or (missing_now == ["PAIEMENT"])
@@ -5671,7 +5691,7 @@ class SimplifiedRAGEngine:
             # Si des slots obligatoires manquent, on interdit les formulations de validation/confirmation.
             try:
                 st_chk = order_tracker.get_state(user_id)
-                missing_now = sorted(list(st_chk.get_missing_fields()))
+                missing_now = sorted(list(st_chk.get_missing_fields(company_id=company_id)))
                 if missing_now:
                     resp_low = str(response or "").lower()
                     # Gardes: ne jamais écraser une vraie clarification/question en cours.
@@ -6423,7 +6443,7 @@ async def get_simplified_rag_response(
 
                 # ── Follow-up intelligent: vérifier ce qui manque RÉELLEMENT ──
                 _st_sc2 = order_tracker.get_state(user_id)
-                _missing = sorted(list(_st_sc2.get_missing_fields())) if hasattr(_st_sc2, "get_missing_fields") else []
+                _missing = sorted(list(_st_sc2.get_missing_fields(company_id=company_id))) if hasattr(_st_sc2, "get_missing_fields") else []
 
                 _has_numero = "NUMÉRO" not in _missing and "NUMERO" not in _missing
                 _has_zone = "ZONE" not in _missing

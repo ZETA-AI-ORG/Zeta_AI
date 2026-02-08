@@ -20,6 +20,81 @@ logger = logging.getLogger(__name__)
 # 📊 DATA CLASSES
 # ═══════════════════════════════════════════════════════════════════════════════
 
+def _details_contain_real_spec(
+    produit_details: str,
+    product_id: Optional[str],
+    company_id: Optional[str],
+) -> bool:
+    """Check if produit_details contains a real spec (e.g. 'Culotte T4') vs just a variant name ('Culotte').
+    
+    Uses the catalogue vtree to determine if the variant has specs defined.
+    If specs exist for the variant but none is found in produit_details → False (spec missing).
+    If the variant has NO specs in catalogue → True (no spec needed).
+    If catalogue is unavailable → True (trust produit_details as-is).
+    """
+    details = str(produit_details or "").strip()
+    if not details:
+        return False
+
+    try:
+        from core.company_catalog_v2_loader import get_company_product_catalog_v2, get_company_catalog_v2
+
+        # Load catalogue for this product
+        cat = None
+        if product_id and company_id:
+            cat = get_company_product_catalog_v2(company_id, product_id)
+        if not isinstance(cat, dict) and company_id:
+            cat = get_company_catalog_v2(company_id)
+        if not isinstance(cat, dict):
+            return True  # No catalogue → trust details
+
+        vtree = cat.get("v") if isinstance(cat.get("v"), dict) else None
+        if not isinstance(vtree, dict) or not vtree:
+            return True  # No vtree → trust details
+
+        # Check each variant in vtree
+        details_lower = details.lower()
+        for vk, vnode in vtree.items():
+            vk_s = str(vk or "").strip()
+            vk_lower = vk_s.lower()
+            if not vk_lower:
+                continue
+
+            # Does produit_details mention this variant?
+            if vk_lower not in details_lower:
+                continue
+
+            # This variant is mentioned. Does it have specs defined?
+            if not isinstance(vnode, dict):
+                continue
+            specs_dict = vnode.get("s")
+            if not isinstance(specs_dict, dict) or not specs_dict:
+                # Variant has NO specs → no spec needed → details are sufficient
+                return True
+
+            # Variant HAS specs. Check if any spec key appears in produit_details.
+            # e.g. details="Culotte T4" should match spec key "T4"
+            remaining = details_lower.replace(vk_lower, "").strip()
+            if not remaining:
+                # Only variant name, no spec → MISSING
+                return False
+
+            for sk in specs_dict.keys():
+                sk_s = str(sk or "").strip()
+                if sk_s and sk_s.lower() in details_lower:
+                    return True  # Found a real spec
+
+            # Variant mentioned + has specs but no spec key found in details
+            return False
+
+        # No variant matched in details — could be a product name or other format
+        # Trust it as-is
+        return True
+
+    except Exception:
+        return True  # On error, trust details
+
+
 @dataclass
 class OrderState:
     """État de collecte d'une commande"""
@@ -55,26 +130,35 @@ class OrderState:
         except Exception:
             return False
     
-    def get_missing_fields(self) -> Set[str]:
-        """Retourne les champs manquants"""
+    def get_missing_fields(self, company_id: Optional[str] = None) -> Set[str]:
+        """Retourne les champs manquants.
+        
+        SPECS est manquant si:
+        - produit_details est vide, OU
+        - produit_details contient UNIQUEMENT un nom de variante mais le catalogue
+          définit des specs (tailles) pour cette variante.
+        Scalable: utilise le catalogue vtree au lieu de hardcoder des noms de produit.
+        """
         missing = set()
         if not self.produit:
             missing.add("PRODUIT")
-        # SPECS: pour certaines catégories (ex: culottes), on peut avancer sans specs.
-        # Pour pressions (taille T1..T7) et autres produits, specs restent obligatoires.
-        try:
-            prod_l = str(self.produit or "").lower()
-            details_l = str(self.produit_details or "").lower()
-            ctx_l = (prod_l + " " + details_l).strip()
-        except Exception:
-            prod_l = ""
-            details_l = ""
-            ctx_l = ""
-        specs_required = True
-        if "culott" in ctx_l:
-            specs_required = False
-        if specs_required and (not self.produit_details):
+
+        # SPECS: vérifier si le catalogue définit des specs pour la variante courante
+        details_raw = str(self.produit_details or "").strip()
+        if not details_raw:
             missing.add("SPECS")
+        else:
+            # Check if produit_details is ONLY a variant name (no actual spec)
+            # by looking up the catalogue vtree
+            try:
+                _has_real_spec = _details_contain_real_spec(
+                    details_raw, self.produit, company_id
+                )
+                if not _has_real_spec:
+                    missing.add("SPECS")
+            except Exception:
+                pass  # If catalogue unavailable, trust produit_details as-is
+
         if not self.quantite:
             missing.add("QUANTITÉ")
         if not self._is_paiement_valid():
@@ -495,10 +579,10 @@ class OrderStateTracker:
         state = self.get_state(user_id)
         return state.is_complete()
     
-    def get_next_required_field(self, user_id: str, current_turn: Optional[int] = None) -> Optional[str]:
+    def get_next_required_field(self, user_id: str, current_turn: Optional[int] = None, company_id: Optional[str] = None) -> Optional[str]:
         """Retourne le prochain champ requis (ou None si complet)"""
         state = self.get_state(user_id)
-        missing = state.get_missing_fields()
+        missing = state.get_missing_fields(company_id=company_id)
         
         if not missing:
             return None
