@@ -6625,6 +6625,13 @@ async def get_simplified_rag_response(
                 except Exception:
                     pass
 
+                # ── BOT OFF: mission accomplie, désactiver Jessica pour cet utilisateur ──
+                try:
+                    order_tracker.set_flag(user_id, "bot_disabled", True)
+                    print(f"🔇 [BOT_OFF] Jessica désactivée pour {user_id} (commande validée + payée)")
+                except Exception:
+                    pass
+
                 print(f"⚡ [AUTO_CLOTURE] payment={_paiement_now} → clôture directe (skip confirmation) | code={_auto_code}")
                 return {
                     "response": _cloture_msg,

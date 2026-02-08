@@ -2217,6 +2217,71 @@ async def chat_endpoint(req: ChatRequest, request: Request):
     print(f"🔍 [CHAT_ENDPOINT] User: {req.user_id}")
     print()
 
+    # ══════════════════════════════════════════════════════════════
+    # 🔇 BOT_DISABLED CHECK — Jessica OFF après commande validée
+    # Tout message post-validation → notif opérateur, 0 token LLM
+    # ══════════════════════════════════════════════════════════════
+    try:
+        from core.order_state_tracker import order_tracker as _ot_check
+        _bot_disabled = _ot_check.get_flag(req.user_id, "bot_disabled")
+        if _bot_disabled:
+            print(f"🔇 [BOT_OFF] Jessica désactivée pour {req.user_id} — message routé vers opérateur")
+
+            # Save user message to conversation history
+            try:
+                user_content = {"text": req.message or "", "images": req.images or []}
+                await save_message_supabase(req.company_id, req.user_id, "user", user_content)
+            except Exception:
+                pass
+
+            # Save notification for operator
+            try:
+                from core.operator_notifications import save_operator_notification, get_order_summary_for_notification
+                _order_summary = get_order_summary_for_notification(req.user_id)
+                save_operator_notification(
+                    company_id=req.company_id,
+                    user_id=req.user_id,
+                    message=req.message or "",
+                    message_type="post_order",
+                    order_summary=_order_summary,
+                )
+            except Exception as _notif_err:
+                print(f"⚠️ [BOT_OFF] Notification error: {_notif_err}")
+
+            # Short Python response — no LLM call
+            _bot_off_response = "Un conseiller va vous répondre sous peu. Merci de patienter 🙏"
+
+            # Save assistant response
+            try:
+                await save_message_supabase(req.company_id, req.user_id, "assistant", {"text": _bot_off_response})
+            except Exception:
+                pass
+
+            return {
+                "response": _bot_off_response,
+                "confidence": 1.0,
+                "documents_found": True,
+                "processing_time_ms": (time.time() - start_time) * 1000,
+                "search_method": "bot_disabled",
+                "context_used": "operator_handoff",
+                "thinking": "",
+                "validation": None,
+                "usage": {},
+                "prompt_tokens": 0,
+                "completion_tokens": 0,
+                "total_tokens": 0,
+                "cost": 0.0,
+                "model": "none",
+                "checklist_state": "CONFIRMED",
+                "next_step": "OPERATOR",
+                "detected_location": None,
+                "shipping_fee": None,
+                "bot_disabled": True,
+                "operator_notified": True,
+            }
+    except Exception as _bot_off_err:
+        print(f"⚠️ [BOT_OFF] Check error (continuing normally): {_bot_off_err}")
+
     # === OPTIMISATION: PARALLÉLISER HYDE + CACHE + PROMPT ===
     # Gain attendu: 6.7s → 3.5s (-47%)
     import asyncio
@@ -3196,6 +3261,78 @@ async def get_faq_suggestions(company_id: str, min_occurrences: int = 5):
             "error": str(e),
             "company_id": company_id
         }
+
+# --- Operator Notifications API (bot_disabled flow) ---
+
+class NotificationReadRequest(BaseModel):
+    notification_id: Optional[str] = None
+    user_id: Optional[str] = None
+
+class BotReactivateRequest(BaseModel):
+    company_id: str
+    user_id: str
+
+@app.get("/api/notifications/{company_id}")
+async def get_notifications_endpoint(company_id: str, unread_only: bool = True, limit: int = 50):
+    """
+    🔔 Fetch operator notifications for a company.
+    Frontend polls this to show new messages from clients whose bot is OFF.
+    """
+    try:
+        from core.operator_notifications import get_notifications
+        notifs = get_notifications(company_id, unread_only=unread_only, limit=limit)
+        return {"notifications": notifs, "count": len(notifs)}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.patch("/api/notifications/read")
+async def mark_notifications_read_endpoint(req: NotificationReadRequest):
+    """
+    ✅ Mark notification(s) as read.
+    - notification_id: mark single notification
+    - user_id: mark all notifications for that user
+    """
+    try:
+        from core.operator_notifications import mark_notification_read, mark_all_read
+        if req.notification_id:
+            ok = mark_notification_read(req.notification_id)
+            return {"success": ok}
+        elif req.user_id:
+            # Need company_id — extract from notification or pass separately
+            # For now, mark_all_read needs company_id, so caller must provide it
+            return {"error": "Use notification_id or call with company_id+user_id"}
+        else:
+            return {"error": "Provide notification_id or user_id"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/notifications/{company_id}/read_all")
+async def mark_all_notifications_read_endpoint(company_id: str, req: NotificationReadRequest):
+    """✅ Mark all notifications for a user as read (operator opened conversation)."""
+    try:
+        from core.operator_notifications import mark_all_read
+        if not req.user_id:
+            return {"error": "user_id required"}
+        ok = mark_all_read(company_id, req.user_id)
+        return {"success": ok}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/bot/reactivate")
+async def reactivate_bot_endpoint(req: BotReactivateRequest):
+    """
+    🔄 Réactiver Jessica pour un utilisateur (nouvelle commande, retour client, etc.)
+    L'opérateur clique "Réactiver le bot" dans la PWA.
+    """
+    try:
+        from core.order_state_tracker import order_tracker
+        order_tracker.set_flag(req.user_id, "bot_disabled", False)
+        # Also clear the confirmed code so Jessica starts fresh
+        order_tracker.set_custom_meta(req.user_id, "order_confirmed_code", "")
+        print(f"🔄 [BOT_REACTIVATE] Jessica réactivée pour {req.user_id}")
+        return {"success": True, "user_id": req.user_id, "bot_disabled": False}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 # --- Endpoint d'onboarding d'entreprise ---
 from database.supabase_client import onboard_company_to_supabase
