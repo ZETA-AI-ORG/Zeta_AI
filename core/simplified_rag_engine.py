@@ -392,6 +392,7 @@ class SimplifiedRAGEngine:
                 product_id_val: str,
                 variant_val: str,
                 spec_val: Optional[str] = None,
+                detected_unit_val: Optional[str] = None,
             ) -> Tuple[str, List[Dict[str, Any]]]:
                 try:
                     pid = str(product_id_val or "").strip()
@@ -428,7 +429,6 @@ class SimplifiedRAGEngine:
                     if str(selected_catalog.get("pricing_strategy") or "").upper() != "UNIT_AS_ATOMIC":
                         return "", []
 
-                    product_name = str(selected_catalog.get("product_name") or selected_catalog.get("name") or "").strip()
                     ui_state = selected_catalog.get("ui_state") if isinstance(selected_catalog.get("ui_state"), dict) else {}
                     custom_formats = ui_state.get("customFormats") if isinstance(ui_state.get("customFormats"), list) else []
                     vtree = selected_catalog.get("v") if isinstance(selected_catalog.get("v"), dict) else {}
@@ -442,130 +442,15 @@ class SimplifiedRAGEngine:
                     if not isinstance(node, dict):
                         return "", []
 
-                    u_map = node.get("u") if isinstance(node.get("u"), dict) else None
-                    items: List[Dict[str, Any]] = []
-                    if isinstance(u_map, dict) and u_map:
-                        for unit_key, raw_price in u_map.items():
-                            p = _parse_price_value(raw_price)
-                            if p is None:
-                                continue
-                            uk = str(unit_key or "").strip()
-                            if not uk:
-                                continue
-                            label = _format_unit_label(uk, custom_formats)
-                            items.append(
-                                {
-                                    "product_id": pid,
-                                    "variant": variant_key,
-                                    "spec": str(spec_val).strip() if spec_val else None,
-                                    "unit": uk,
-                                    "label": label,
-                                    "price_fcfa": int(p),
-                                }
-                            )
-                    else:
-                        # Fallback: certains catalogues stockent les prix sous s->u (prix par spec)
-                        s_map = node.get("s") if isinstance(node.get("s"), dict) else None
-                        if not isinstance(s_map, dict) or not s_map:
-                            return "", []
-
-                        spec_keys = [str(k) for k in s_map.keys() if str(k).strip()]
-                        spec_keys = sorted(spec_keys)
-                        for sk in spec_keys[:12]:
-                            snode = s_map.get(sk)
-                            if not isinstance(snode, dict):
-                                continue
-                            u2 = snode.get("u") if isinstance(snode.get("u"), dict) else None
-                            if not isinstance(u2, dict) or not u2:
-                                continue
-                            for unit_key, raw_price in u2.items():
-                                p = _parse_price_value(raw_price)
-                                if p is None:
-                                    continue
-                                uk = str(unit_key or "").strip()
-                                if not uk:
-                                    continue
-                                label = _format_unit_label(uk, custom_formats)
-                                items.append(
-                                    {
-                                        "product_id": pid,
-                                        "variant": variant_key,
-                                        "spec": str(sk).strip(),
-                                        "unit": uk,
-                                        "label": label,
-                                        "price_fcfa": int(p),
-                                    }
-                                )
-
-                    if not items:
-                        return "", []
-
-                    items = sorted(items, key=lambda x: int(x.get("price_fcfa") or 0))
-                    if len(items) > 12:
-                        items = items[:12]
-
-                    lines: List[str] = []
-                    head = (product_name if product_name else "Catalogue").strip()
-
-                    def _num_emoji(n: int) -> str:
-                        try:
-                            mp = {
-                                1: "1️⃣",
-                                2: "2️⃣",
-                                3: "3️⃣",
-                                4: "4️⃣",
-                                5: "5️⃣",
-                                6: "6️⃣",
-                                7: "7️⃣",
-                                8: "8️⃣",
-                                9: "9️⃣",
-                                10: "🔟",
-                            }
-                            return mp.get(int(n), f"{n}.")
-                        except Exception:
-                            return f"{n}."
-
-                    # Détecter si toutes les options partagent le même unit → factoriser en header
-                    _all_units = [str(it.get("label") or it.get("unit") or "").strip() for it in items]
-                    _unique_units = set(u for u in _all_units if u)
-                    _common_unit = list(_unique_units)[0] if len(_unique_units) == 1 else None
-                    _has_specs = any(str(it.get("spec") or "").strip() for it in items)
-
-                    # Header avec format commun si applicable
-                    _variant_display = str(variant_key).strip().lower()
-                    if _common_unit and _has_specs:
-                        lines.append(f"Bien reçu 😊 Voici les options pour {_variant_display} :")
-                        lines.append("")
-                        lines.append(f"🔹 {str(variant_key).strip()} ({_common_unit} uniquement)")
-                        lines.append("")
-                    else:
-                        lines.append(f"Bien reçu 😊 Voici les options pour {_variant_display} :")
-                        lines.append("")
-
-                    for i, it in enumerate(items, 1):
-                        lbl = str(it.get("label") or "").strip() or str(it.get("unit") or "").strip()
-                        sp = str(it.get("spec") or "").strip()
-                        price_i = int(it.get("price_fcfa") or 0)
-                        if lbl.lower() in {"pièces", "pieces", "piece", "pcs", "pc"}:
-                            lbl = _format_unit_label(str(it.get("unit") or "").strip(), custom_formats)
-                        price_str = f"{UniversalPriceCalculator._fmt_fcfa(price_i)} F"
-
-                        if sp and (not spec_val) and _common_unit:
-                            # Specs + common unit → spec : price (unit already in header)
-                            lines.append(f"{_num_emoji(i)} {sp} : {price_str}")
-                        elif sp and (not spec_val):
-                            left = f"{_num_emoji(i)} {sp} - {lbl}".strip()
-                            lines.append(f"{left} — {price_str}")
-                        else:
-                            left = f"{_num_emoji(i)} {lbl}".strip()
-                            lines.append(f"{left} — {price_str}")
-                    lines.append("")
-                    lines.append("👉 Dites-moi simplement le numéro de votre choix.")
-
-                    for i, it in enumerate(items, 1):
-                        it["index"] = i
-
-                    return "\n".join([ln for ln in lines if ln is not None]), items
+                    from core.catalog_formatter import format_price_list
+                    return format_price_list(
+                        product_id=pid,
+                        variant_key=variant_key,
+                        variant_node=node,
+                        detected_spec=spec_val,
+                        detected_unit=detected_unit_val,
+                        custom_formats=custom_formats,
+                    )
                 except Exception:
                     return "", []
 
@@ -967,7 +852,8 @@ class SimplifiedRAGEngine:
                         try:
                             v = str(picked.get("variant") or "").strip()
                             sp = str(picked.get("spec") or "").strip()
-                            details = (v + (" " + sp if sp else "")).strip()
+                            # Only store variant+spec when spec is present (variant alone is NOT a spec)
+                            details = (v + " " + sp).strip() if sp else ""
                             if details:
                                 order_tracker.update_produit_details(user_id, details, source="PRICE_LIST_CHOICE", confidence=0.9)
                         except Exception:
@@ -1105,7 +991,8 @@ class SimplifiedRAGEngine:
                             it0 = pending_items[0] if pending_items else {}
                             v0 = str(it0.get("variant") or "").strip()
                             sp0 = str(it0.get("spec") or "").strip()
-                            details0 = (v0 + (" " + sp0 if sp0 else "")).strip()
+                            # Only store variant+spec when spec is present (variant alone is NOT a spec)
+                            details0 = (v0 + " " + sp0).strip() if sp0 else ""
                             if details0:
                                 order_tracker.update_produit_details(user_id, details0, source="CART_MODIFY", confidence=0.85)
                         except Exception:
@@ -2305,27 +2192,7 @@ class SimplifiedRAGEngine:
                     if f == "PRODUIT":
                         return "Tu veux quel produit exactement (marque/modèle) stp ?"
                     if f == "SPECS":
-                        # Try to build a catalogue-aware specs question
-                        try:
-                            _st_q = order_tracker.get_state(user_id)
-                            _pid_q = str(getattr(_st_q, "produit", "") or "").strip()
-                            _det_q = str(getattr(_st_q, "produit_details", "") or "").strip()
-                            if _pid_q and company_id:
-                                from core.company_catalog_v2_loader import get_company_product_catalog_v2
-                                _cat_q = get_company_product_catalog_v2(company_id, _pid_q)
-                                if isinstance(_cat_q, dict):
-                                    _vt_q = _cat_q.get("v") if isinstance(_cat_q.get("v"), dict) else None
-                                    if isinstance(_vt_q, dict):
-                                        for _vk_q, _vn_q in _vt_q.items():
-                                            if str(_vk_q or "").strip().lower() in _det_q.lower():
-                                                _s_q = _vn_q.get("s") if isinstance(_vn_q, dict) else None
-                                                if isinstance(_s_q, dict) and _s_q:
-                                                    _spec_keys = [str(sk).strip() for sk in _s_q.keys() if str(sk).strip()]
-                                                    if _spec_keys:
-                                                        return f"Quelle taille ? ({', '.join(_spec_keys)})"
-                        except Exception:
-                            pass
-                        return "Tu veux quelle taille et quel type exactement (ex: T3, T4 / pants ou adhésive) ?"
+                        return "Récolte la taille/specs du produit selon le catalogue."
                     if f == "QUANTITÉ":
                         return "Tu veux combien (1 carton, 2 cartons, ou combien de paquets) ?"
                     if f == "ZONE":
@@ -2970,18 +2837,11 @@ class SimplifiedRAGEngine:
                         except Exception:
                             pass
 
-                    if specs_val and str(getattr(st_pre, "produit_details", "") or "").strip() != specs_val:
+                    # Only persist specs_val to produit_details if it contains a real spec (not just variant_hint).
+                    # variant_hint alone is used for price_calc resolution but must NOT populate produit_details.
+                    _specs_has_real = specs_val and (not variant_hint or specs_val.strip().lower() != variant_hint.strip().lower())
+                    if _specs_has_real and str(getattr(st_pre, "produit_details", "") or "").strip() != specs_val:
                         order_tracker.update_produit_details(user_id, specs_val, source="CONTEXT_INFERRED", confidence=0.8)
-
-                    # Si on a détecté une variante (culotte/pression) mais pas de specs, on la stocke en details.
-                    # (On évite de polluer produit.)
-                    try:
-                        if variant_hint and (not specs_val):
-                            cur_details = str(getattr(st_pre, "produit_details", "") or "").strip()
-                            if not cur_details:
-                                order_tracker.update_produit_details(user_id, variant_hint, source="CONTEXT_INFERRED", confidence=0.75)
-                    except Exception:
-                        pass
 
                     # Quantité: si détectée dans le message, elle doit remplacer l'ancienne (sinon on recycle une
                     # quantité obsolète sur un nouveau produit et le price_calc part sur INVALID_QUANTITY).
@@ -3032,6 +2892,14 @@ class SimplifiedRAGEngine:
 
                 # Injection prix: ne dépend pas d'un company_id hardcodé.
                 # Si produit+quantité sont détectés, on calcule avec les règles du catalogue/tiers actif.
+                # GATE: bloquer le prix si SPECS manquant (produit_details vide = taille non collectée).
+                try:
+                    _st_price_gate = order_tracker.get_state(user_id)
+                    if not str(getattr(_st_price_gate, "produit_details", "") or "").strip():
+                        pre_llm_price_calc_allowed = False
+                        print("🛑 [PRICE_GATE] Prix bloqué: SPECS manquant (taille non collectée)")
+                except Exception:
+                    pass
                 if pre_llm_price_calc_allowed:
                     price_calculation_block = UniversalPriceCalculator.build_price_calculation_block_for_rue_du_grossiste(
                         company_id=company_id,
@@ -3710,6 +3578,12 @@ class SimplifiedRAGEngine:
                         pass
 
                 def _is_price_list_request(*, thinking_text: str, tool_req: Any) -> bool:
+                    # If Python skipped the price list (partial info detected), treat as non-price-probe
+                    try:
+                        if isinstance(tool_req, dict) and tool_req.get("_skipped_price_list"):
+                            return False
+                    except Exception:
+                        pass
                     try:
                         if isinstance(tool_req, dict):
                             act = str(tool_req.get("action") or "").strip().upper()
@@ -4037,7 +3911,7 @@ class SimplifiedRAGEngine:
 
                                         # ── FIX: Après DELETE/UPDATE, synchroniser OrderStateTracker depuis CartManager ──
                                         # CartManager = source de vérité. OrderStateTracker doit refléter le panier réel.
-                                        if maj_action_now in ("DELETE", "UPDATE"):
+                                        if maj_action_now in ("DELETE", "UPDATE", "REPLACE"):
                                             try:
                                                 _real_cart = self.cart_manager.get_cart(user_id)
                                                 _real_items = _real_cart.get("items", []) if isinstance(_real_cart, dict) else []
@@ -4054,7 +3928,10 @@ class SimplifiedRAGEngine:
                                                         _rp = str(_ri.get("product_id") or "").strip()
                                                         if _rp:
                                                             _pids.add(_rp)
-                                                        _label = (_rv + (" " + _rs if _rs else "")).strip()
+                                                        # Only include variant+spec when spec is present.
+                                                        # Variant alone is NOT a spec — produit_details must stay empty
+                                                        # so get_missing_fields correctly flags SPECS as missing.
+                                                        _label = (_rv + " " + _rs).strip() if _rs else ""
                                                         if _label:
                                                             _specs_parts.append(_label)
                                                     _new_specs = ", ".join(_specs_parts)
@@ -4193,7 +4070,8 @@ class SimplifiedRAGEngine:
                                         items_summary["produit"] = pid0 if re.fullmatch(r"prod_[a-z0-9_\-]{6,80}", pid0, flags=re.IGNORECASE) else ""
                                         variant0 = _norm(it0.get("variant")).strip()
                                         base_specs0 = _norm(it0.get("spec")).upper() or _norm(it0.get("specs")).upper()
-                                        items_summary["specs"] = (variant0 + (" " + base_specs0 if base_specs0 else "")).strip() if variant0 else base_specs0
+                                        # Only store variant+spec when spec is present. Variant alone is NOT a spec.
+                                        items_summary["specs"] = (variant0 + " " + base_specs0).strip() if (variant0 and base_specs0) else (base_specs0 or "")
                                         q = it0.get("qty")
                                         u = _norm(it0.get("unit")).lower()
                                         if isinstance(q, int) and q > 0 and u:
@@ -4206,7 +4084,8 @@ class SimplifiedRAGEngine:
                                             p = pid_i if re.fullmatch(r"prod_[a-z0-9_\-]{6,80}", pid_i, flags=re.IGNORECASE) else ""
                                             v = _norm(it.get("variant")).strip()
                                             s0 = _norm(it.get("spec")).upper() or _norm(it.get("specs")).upper()
-                                            s = (v + (" " + s0 if s0 else "")).strip() if v else s0
+                                            # Only store variant+spec when spec is present. Variant alone is NOT a spec.
+                                            s = (v + " " + s0).strip() if (v and s0) else (s0 or "")
                                             if p:
                                                 prods.append(p)
                                             if s:
@@ -4582,8 +4461,28 @@ class SimplifiedRAGEngine:
                             
                             if parts_filtered:
                                 specs_final = ", ".join(parts_filtered)
+                                # GUARD: reject specs_final if it's just a variant name (not a real spec).
+                                # Variant names come from vtree keys and must NEVER be stored as produit_details.
+                                _is_variant_only = False
+                                try:
+                                    _sf_low = specs_final.strip().lower()
+                                    _cat_guard = None
+                                    try:
+                                        _cat_guard = get_company_catalog_v2(company_id)
+                                    except Exception:
+                                        pass
+                                    _vt_guard = _cat_guard.get("v") if isinstance(_cat_guard, dict) and isinstance(_cat_guard.get("v"), dict) else None
+                                    if isinstance(_vt_guard, dict):
+                                        for _vgk in _vt_guard.keys():
+                                            if str(_vgk or "").strip().lower() == _sf_low:
+                                                _is_variant_only = True
+                                                break
+                                except Exception:
+                                    pass
+                                if _is_variant_only:
+                                    print(f"🛡️ [ORDER_STATE] SPECS rejected (variant-only): '{specs_final}'")
                                 # Éviter doublons: ne pas re-sauvegarder si identique
-                                if specs_final != current_state.produit_details:
+                                elif specs_final != current_state.produit_details:
                                     order_tracker.update_produit_details(user_id, specs_final, source="LLM_INFERRED", confidence=0.6)
                         
                         # ZONE: fallback depuis thinking si le tracker ne l'a pas persistée
@@ -5872,13 +5771,77 @@ class SimplifiedRAGEngine:
                     variant = str(tool_call_req.get("variant") or "").strip()
                     spec = tool_call_req.get("spec")
                     spec_s = str(spec).strip() if spec is not None and str(spec).strip() else None
-                    if pid:
+
+                    # ── Extract detected_unit + detected_spec from parsed_items or thinking ──
+                    _detected_unit = None
+                    _detected_spec = spec_s  # Start with tool_call spec
+                    try:
+                        # Try parsed_items first
+                        if isinstance(parsed_items, list) and parsed_items and isinstance(parsed_items[0], dict):
+                            _detected_unit = str(parsed_items[0].get("unit") or "").strip() or None
+                            if not _detected_spec:
+                                _detected_spec = str(parsed_items[0].get("spec") or "").strip() or None
+                    except Exception:
+                        pass
+                    # Fallback: parse from thinking
+                    if not _detected_unit or not _detected_spec:
+                        try:
+                            _m_items = re.search(
+                                r"<detected_items_json>\s*(\[.*?\])\s*</detected_items_json>",
+                                str(thinking or ""), flags=re.DOTALL | re.IGNORECASE,
+                            )
+                            if _m_items:
+                                import json as _json_tc
+                                _det_list = _json_tc.loads(_m_items.group(1))
+                                if isinstance(_det_list, list) and _det_list and isinstance(_det_list[0], dict):
+                                    if not _detected_unit:
+                                        _detected_unit = str(_det_list[0].get("unit") or "").strip() or None
+                                    if not _detected_spec:
+                                        _detected_spec = str(_det_list[0].get("spec") or "").strip() or None
+                        except Exception:
+                            pass
+
+                    # ── Auto-fill: if only 1 option exists for a missing field, fill it ──
+                    _auto_reason = None
+                    if pid and variant:
+                        try:
+                            from core.catalog_formatter import auto_fill_single_options
+                            _sel_cat = None
+                            try:
+                                _sel_cat = get_company_product_catalog_v2(company_id, pid)
+                            except Exception:
+                                pass
+                            if isinstance(_sel_cat, dict):
+                                _vtree_af = _sel_cat.get("v") if isinstance(_sel_cat.get("v"), dict) else {}
+                                _vk_af = _match_key_case_insensitive([str(k) for k in _vtree_af.keys()], variant)
+                                if _vk_af and isinstance(_vtree_af.get(_vk_af), dict):
+                                    _af = auto_fill_single_options(
+                                        variant_node=_vtree_af[_vk_af],
+                                        detected_spec=_detected_spec,
+                                        detected_unit=_detected_unit,
+                                    )
+                                    if _af.get("filled_unit") and not _detected_unit:
+                                        _detected_unit = _af["filled_unit"]
+                                        print(f"🔧 [AUTO_FILL] unit={_detected_unit} ({_af.get('reason')})")
+                                    if _af.get("filled_spec") and not _detected_spec:
+                                        _detected_spec = _af["filled_spec"]
+                                        print(f"🔧 [AUTO_FILL] spec={_detected_spec} ({_af.get('reason')})")
+                                    _auto_reason = _af.get("reason")
+                        except Exception:
+                            pass
+
+                    # ── Decision: send price list ONLY when just variant is known ──
+                    _has_partial = bool(_detected_unit or _detected_spec)
+
+                    if pid and not _has_partial:
+                        # Only variant known → send price list
                         if variant:
                             list_text, list_items = _generate_price_list_for_tool_call(
                                 company_id_val=company_id,
                                 product_id_val=pid,
                                 variant_val=variant,
-                                spec_val=spec_s,
+                                spec_val=_detected_spec,
+                                detected_unit_val=_detected_unit,
                             )
                         else:
                             list_text, list_items = _generate_price_table_for_product(
@@ -5890,6 +5853,16 @@ class SimplifiedRAGEngine:
                             order_tracker.set_custom_meta(user_id, "price_list_items", list_items)
                             order_tracker.set_flag(user_id, "awaiting_price_choice", True)
                             response = list_text
+                            print(f"📋 [SEND_PRICE_LIST] Sent full list (only variant known)")
+                    elif pid and _has_partial:
+                        # Partial info → skip price list, LLM asks directly
+                        # Mark tool_call as NONE so upstream doesn't treat this as a price probe
+                        if isinstance(tool_call_req, dict):
+                            tool_call_req["action"] = "NONE"
+                            tool_call_req["_skipped_price_list"] = True
+                        print(f"🛡️ [SEND_PRICE_LIST] Skipped (partial: unit={_detected_unit} spec={_detected_spec}) → LLM asks directly")
+                        if _auto_reason:
+                            print(f"🔧 [AUTO_FILL] {_auto_reason}")
             except Exception:
                 pass
             
