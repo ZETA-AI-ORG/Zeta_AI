@@ -217,7 +217,8 @@ def test_full_short_circuit():
         def __init__(self):
             self._state = type("S", (), {
                 "zone": "",
-                "telephone": "",
+                "numero": "",
+                "paiement": "",
             })()
             self._meta = {}
 
@@ -230,8 +231,8 @@ def test_full_short_circuit():
         def set_custom_meta(self, user_id, key, value):
             self._meta[key] = value
 
-        def update_telephone(self, user_id, phone, source="", confidence=0.0):
-            self._state.telephone = phone
+        def update_numero(self, user_id, phone, source="", confidence=0.0):
+            self._state.numero = phone
 
         def update_zone(self, user_id, zone, source="", confidence=0.0):
             self._state.zone = zone
