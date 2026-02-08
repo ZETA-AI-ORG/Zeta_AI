@@ -266,9 +266,9 @@ def _format_phone_display(phone: str) -> str:
 def _extract_zone_simple(message: str) -> Optional[Dict[str, Any]]:
     """Détecte une zone si le message est COURT et contient uniquement une zone."""
     raw = str(message or "").strip()
-    # Max 4 mots (ex: "à Cocody", "Yopougon", "port bouet", "livraison cocody")
+    # Max 8 mots (ex: "à Cocody", "Yopougon", "je suis a angre appelz moi au")
     words = raw.split()
-    if len(words) > 5:
+    if len(words) > 8:
         return None
     try:
         from core.delivery_zone_extractor import extract_delivery_zone_and_cost
@@ -456,7 +456,7 @@ def check_short_circuit(
         try:
             st = order_tracker.get_state(user_id)
             zone_current = str(getattr(st, "zone", "") or "").strip()
-            phone_current = str(getattr(st, "telephone", "") or "").strip()
+            phone_current = str(getattr(st, "numero", "") or "").strip()
             paiement_current = str(getattr(st, "paiement", "") or "").strip()
         except Exception:
             pass
@@ -496,9 +496,13 @@ def check_short_circuit(
     delivery_fee_found = None
 
     # Chercher une zone dans le texte restant (après extraction du numéro)
-    text_for_zone = text_after_phone if phone_found else raw
-    if not zone_current and word_count <= 8:
+    # Puis fallback sur le message complet si non trouvé
+    if not zone_current and word_count <= 15:
+        text_for_zone = text_after_phone if phone_found else raw
         zone_info_found = _extract_zone_simple(text_for_zone)
+        # Fallback: essayer le message complet si pas trouvé dans le reste
+        if not zone_info_found and phone_found and text_after_phone != raw:
+            zone_info_found = _extract_zone_simple(raw)
         if zone_info_found and zone_info_found.get("cost"):
             zone_name_found = zone_info_found.get("name", text_for_zone)
             delivery_fee_found = int(zone_info_found["cost"])
@@ -510,7 +514,7 @@ def check_short_circuit(
     # ── Persister ce qu'on a trouvé ──
     if phone_found and order_tracker:
         try:
-            order_tracker.update_telephone(user_id, phone_found, source="SHORT_CIRCUIT", confidence=0.95)
+            order_tracker.update_numero(user_id, phone_found, source="SHORT_CIRCUIT", confidence=0.95)
         except Exception:
             pass
 
