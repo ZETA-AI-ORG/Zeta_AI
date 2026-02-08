@@ -310,7 +310,7 @@ async def analyze_product_with_gemini(
     # For protected URLs (Facebook CDN etc.), download server-side and send as base64
     effective_image_url = image_url
     if _is_protected_url(image_url):
-        print(f"\ud83d\udce5 [VISION] Protected URL detected, downloading server-side...")
+        print(f"[VISION] Protected URL detected, downloading server-side...")
         data_uri = _download_image_robust(image_url)
         if data_uri:
             effective_image_url = data_uri
