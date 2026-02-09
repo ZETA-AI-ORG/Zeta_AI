@@ -252,4 +252,12 @@ async def botlive_test():
         "note": "Botlive uses Vision AI, no RAG needed"
     }
 
+# Étape 4 : Notifications + Push
+try:
+    from routes.notifications import router as notifications_router
+    app.include_router(notifications_router, tags=["Notifications"])
+    logger.info("✅ Routes Notifications + Push chargées")
+except Exception as e:
+    logger.warning(f"⚠️ Erreur chargement Notifications routes: {e}")
+
 logger.info("✅ App minimal initialisée avec succès")
