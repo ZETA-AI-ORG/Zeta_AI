@@ -2248,17 +2248,12 @@ async def chat_endpoint(req: ChatRequest, request: Request):
             except Exception as _notif_err:
                 print(f"⚠️ [BOT_OFF] Notification error: {_notif_err}")
 
-            # Short Python response — no LLM call
-            _bot_off_response = "Un instant, je vous reviens 😊"
-
-            # Save assistant response
-            try:
-                await save_message_supabase(req.company_id, req.user_id, "assistant", {"text": _bot_off_response})
-            except Exception:
-                pass
+            # 🔇 SILENT MODE: Aucun message envoyé au client après clôture.
+            # Le message est routé vers l'opérateur, le bot ne répond RIEN.
+            # Pas de save assistant, pas de réponse prédéfinie.
 
             return {
-                "response": _bot_off_response,
+                "response": "",
                 "confidence": 1.0,
                 "documents_found": True,
                 "processing_time_ms": (time.time() - start_time) * 1000,
@@ -2278,6 +2273,7 @@ async def chat_endpoint(req: ChatRequest, request: Request):
                 "shipping_fee": None,
                 "bot_disabled": True,
                 "operator_notified": True,
+                "silent": True,
             }
     except Exception as _bot_off_err:
         print(f"⚠️ [BOT_OFF] Check error (continuing normally): {_bot_off_err}")
