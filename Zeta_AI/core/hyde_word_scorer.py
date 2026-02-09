@@ -519,6 +519,10 @@ async def clarify_request_with_hyde(question: str, last_user_message: str = "") 
     import os
     from groq import Groq
     
+    # ⚡ OPTIM: Fast-fail si GROQ_API_KEY absent (évite exception coûteuse)
+    if not os.getenv("GROQ_API_KEY"):
+        return None
+    
     try:
         # Initialiser le client Groq avec le modèle Hyde
         groq_client = Groq(api_key=os.getenv("GROQ_API_KEY"))

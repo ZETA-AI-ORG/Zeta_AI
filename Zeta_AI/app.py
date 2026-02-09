@@ -2249,7 +2249,7 @@ async def chat_endpoint(req: ChatRequest, request: Request):
                 print(f"⚠️ [BOT_OFF] Notification error: {_notif_err}")
 
             # Short Python response — no LLM call
-            _bot_off_response = "Un conseiller va vous répondre sous peu. Merci de patienter 🙏"
+            _bot_off_response = "Un instant, je vous reviens 😊"
 
             # Save assistant response
             try:
@@ -2464,29 +2464,31 @@ async def chat_endpoint(req: ChatRequest, request: Request):
         # Fallback: continuer avec validation basique
         security_check = type('SecurityCheck', (), {'is_safe': True, 'risk_level': 0})()
     
-    # 🔍 RÉCUPÉRATION AUTOMATIQUE DE L'HISTORIQUE
-    print(f"🔍 [CHAT_ENDPOINT] RÉCUPÉRATION HISTORIQUE AUTOMATIQUE:")
-    try:
-        conversation_history = await get_history(req.company_id, req.user_id)
-        print(f"🔍 [CHAT_ENDPOINT] Historique récupéré: {len(conversation_history)} chars")
-        print(f"🔍 [CHAT_ENDPOINT] Contient Cocody: {'Cocody' in conversation_history}")
-    except Exception as e:
-        print(f"🔍 [CHAT_ENDPOINT] Erreur récupération historique: {e}")
-        conversation_history = ""
+    # ⚡ OPTIM: Paralléliser get_history + save_message_user (indépendants)
+    async def _fetch_history():
+        try:
+            h = await get_history(req.company_id, req.user_id)
+            print(f"🔍 [CHAT_ENDPOINT] Historique récupéré: {len(h)} chars")
+            return h
+        except Exception as e:
+            print(f"🔍 [CHAT_ENDPOINT] Erreur récupération historique: {e}")
+            return ""
+
+    async def _save_user_msg():
+        try:
+            user_content = {"text": req.message or "", "images": req.images or []}
+            await save_message_supabase(req.company_id, req.user_id, "user", user_content)
+            print(f"🔍 [CHAT_ENDPOINT] Message utilisateur sauvegardé")
+        except Exception as e:
+            print(f"🔍 [CHAT_ENDPOINT] Erreur sauvegarde message: {e}")
+
+    print(f"⚡ [PARALLEL] Lancement get_history + save_user_msg...")
+    conversation_history, _ = await asyncio.gather(
+        _fetch_history(),
+        _save_user_msg(),
+    )
     
-    # 🔍 SAUVEGARDE MESSAGE UTILISATEUR (incluant images)
-    print(f"🔍 [CHAT_ENDPOINT] SAUVEGARDE MESSAGE UTILISATEUR:")
-    try:
-        user_content = {"text": req.message or "", "images": req.images or []}
-        await save_message_supabase(req.company_id, req.user_id, "user", user_content)
-        print(f"🔍 [CHAT_ENDPOINT] Message utilisateur sauvegardé")
-    except Exception as e:
-        print(f"🔍 [CHAT_ENDPOINT] Erreur sauvegarde message: {e}")
-    
-    # 🔍 LOGS MÉMOIRE - TRANSMISSION AU RAG
-    print(f"🔍 [CHAT_ENDPOINT] TRANSMISSION AU RAG:")
     print(f"🔍 [CHAT_ENDPOINT] conversation_history transmis: '{conversation_history[:100]}...'")
-    print()
     
     # ROUTAGE INTELLIGENT: Botlive vs RAG
     # ⚠️ CORRECTION CRITIQUE: Si botlive_enabled=True, TOUJOURS utiliser Botlive

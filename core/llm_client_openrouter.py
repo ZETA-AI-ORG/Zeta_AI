@@ -1,11 +1,26 @@
 import os
-import requests
+import httpx
 import json
 import re
 from typing import Any, Dict, Optional
 
 
 OPENROUTER_API_URL = os.getenv("OPENROUTER_API_URL", "https://openrouter.ai/api/v1/chat/completions")
+
+# ── Global async HTTP client with connection pooling (reused across all LLM calls) ──
+_openrouter_client: httpx.AsyncClient | None = None
+
+
+def _get_openrouter_client() -> httpx.AsyncClient:
+    """Lazy-init a long-lived async HTTP client with keep-alive pooling."""
+    global _openrouter_client
+    if _openrouter_client is None or _openrouter_client.is_closed:
+        _openrouter_client = httpx.AsyncClient(
+            timeout=httpx.Timeout(65.0, connect=10.0),
+            limits=httpx.Limits(max_connections=20, max_keepalive_connections=10),
+            http2=False,
+        )
+    return _openrouter_client
 
 
 class OpenRouterLLMError(Exception):
@@ -151,15 +166,10 @@ async def complete(
                 if response_format is not None:
                     body["response_format"] = response_format
 
-                resp = requests.post(OPENROUTER_API_URL, json=body, headers=headers, timeout=60)
-                # Force UTF-8 to avoid mojibake in error bodies and JSON parsing.
-                # (Some providers may omit/alter charset headers, and requests can guess latin-1.)
-                try:
-                    resp.encoding = "utf-8"
-                except Exception:
-                    pass
+                client = _get_openrouter_client()
+                resp = await client.post(OPENROUTER_API_URL, json=body, headers=headers)
                 if resp.status_code != 200:
-                    err_txt_full = (resp.text or "")
+                    err_txt_full = resp.text or ""
                     err_txt = err_txt_full[:300]
                     last_error = f"OpenRouter API HTTP {resp.status_code}: {err_txt}"
 
@@ -189,6 +199,8 @@ async def complete(
                     data = json.loads((resp.content or b"").decode("utf-8", errors="replace"))
                 except Exception as e:
                     raise OpenRouterLLMError(f"Réponse OpenRouter invalide (JSON decode): {e}")
+            if not data:
+                raise OpenRouterLLMError("Réponse OpenRouter vide")
             choices = data.get("choices") or []
             if not choices:
                 raise OpenRouterLLMError("Réponse OpenRouter sans choices")
@@ -223,5 +235,5 @@ async def complete(
             return content, token_info
 
         raise OpenRouterLLMError(last_error or "OpenRouter: aucun modèle valide (tous refusés)")
-    except requests.RequestException as e:
+    except httpx.HTTPError as e:
         raise OpenRouterLLMError(f"Erreur requête OpenRouter: {e}")

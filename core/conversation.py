@@ -9,6 +9,20 @@ import os
 from datetime import datetime
 from config import SUPABASE_URL, SUPABASE_KEY
 
+# ── Global async HTTP client pool for Supabase (reused across all conversation calls) ──
+_supabase_conversation_client: httpx.AsyncClient | None = None
+
+
+def _get_supabase_client() -> httpx.AsyncClient:
+    """Lazy-init a long-lived async HTTP client for Supabase conversation ops."""
+    global _supabase_conversation_client
+    if _supabase_conversation_client is None or _supabase_conversation_client.is_closed:
+        _supabase_conversation_client = httpx.AsyncClient(
+            timeout=httpx.Timeout(10.0, connect=5.0),
+            limits=httpx.Limits(max_connections=15, max_keepalive_connections=8),
+        )
+    return _supabase_conversation_client
+
 # ✅ FIX 401: Utiliser SERVICE_KEY pour bypass RLS sur les INSERT
 def _get_supabase_write_key():
     """Retourne la clé Supabase pour les opérations d'écriture (INSERT/UPDATE)"""
@@ -86,12 +100,12 @@ async def save_message(company_id: str, user_id: str, role: str, content: str):
     }
     
     try:
-        async with httpx.AsyncClient() as client:
-            resp = await client.post(url, json=payload, headers=headers)
-            if resp.status_code == 201:
-                print(f"[CONVERSATION] Message sauvegardé: {role}")
-            else:
-                print(f"[CONVERSATION] Erreur sauvegarde: {resp.status_code}")
+        client = _get_supabase_client()
+        resp = await client.post(url, json=payload, headers=headers)
+        if resp.status_code == 201:
+            print(f"[CONVERSATION] Message sauvegardé: {role}")
+        else:
+            print(f"[CONVERSATION] Erreur sauvegarde: {resp.status_code}")
     except Exception as e:
         print(f"[CONVERSATION] Erreur: {type(e).__name__}")
 
@@ -113,7 +127,8 @@ async def get_history(company_id: str, user_id: str) -> str:
         "order": "timestamp.desc",
         "limit": 15
     }
-    async with httpx.AsyncClient() as client:
+    client = _get_supabase_client()
+    try:
         resp = await client.get(url, headers=headers, params=params)
         if resp.status_code == 200:
             data = resp.json()
@@ -154,3 +169,6 @@ async def get_history(company_id: str, user_id: str) -> str:
         else:
             print(f"[SUPABASE] Erreur historique: {resp.status_code}")
             return ""
+    except Exception as e:
+        print(f"[SUPABASE] Erreur get_history: {type(e).__name__}")
+        return ""
