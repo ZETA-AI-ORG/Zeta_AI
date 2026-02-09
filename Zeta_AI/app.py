@@ -197,6 +197,13 @@ app.include_router(botlive_router)
 print("✅ [DEBUG] Botlive router ACTIVATED")
 print("✅ [DEBUG] All imports completed!")
 
+try:
+    from routes.notifications import router as notifications_router
+    app.include_router(notifications_router, prefix="/api", tags=["Notifications"])
+    logger.info("✅ Notifications router mounted")
+except Exception as e:
+    logger.warning(f"⚠️ Failed to mount notifications router: {e}")
+
 # --- Models for prompt admin ---
 class PromptUpdateRequest(BaseModel):
     prompt_template: str
