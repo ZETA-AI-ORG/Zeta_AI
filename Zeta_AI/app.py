@@ -199,7 +199,7 @@ print("✅ [DEBUG] All imports completed!")
 
 try:
     from routes.notifications import router as notifications_router
-    app.include_router(notifications_router, prefix="/api", tags=["Notifications"])
+    app.include_router(notifications_router, tags=["Notifications"])
     logger.info("✅ Notifications router mounted")
 except Exception as e:
     logger.warning(f"⚠️ Failed to mount notifications router: {e}")
