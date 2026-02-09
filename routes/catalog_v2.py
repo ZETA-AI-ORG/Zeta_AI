@@ -876,35 +876,25 @@ async def sync_local_and_upsert_botlive_catalogue_block_deepseek(
     if not catalogue_block or not catalogue_block.strip():
         raise HTTPException(status_code=400, detail="catalogue_block vide")
 
-    def _upsert_product_index_block(existing_prompt: str, product_name: str, product_id: str = "") -> str:
+    def _upsert_product_index_block(existing_prompt: str, product_name: str, product_id: str = "", variant_names: list[str] | None = None) -> str:
+        """Upsert a product entry (with optional variants) into the [[PRODUCT_INDEX]] block."""
         p = str(existing_prompt or "")
         pn = str(product_name or "").strip()
         if not pn:
             return p
 
-        def _norm_name_for_id(name: str) -> str:
-            try:
-                t = str(name or "").strip().lower()
-            except Exception:
-                t = ""
-            if not t:
-                return ""
-            try:
-                import unicodedata as _ud
-
-                t = _ud.normalize("NFKD", t)
-                t = "".join([c for c in t if not _ud.combining(c)])
-            except Exception:
-                pass
-            t = re.sub(r"[^a-z0-9\s-]+", " ", t)
-            t = t.replace("-", " ")
-            t = re.sub(r"\s+", " ", t).strip()
-            return t
-
         pid = str(product_id or "").strip()
         if not pid:
             pid = _product_id_hash(pn)
-        entry = f"{pn} [ID: {pid}]" if pid else pn
+
+        # Build the entry line + optional variants sub-line
+        entry_line = f"- {pn} [ID: {pid}]" if pid else f"- {pn}"
+        variants_line = ""
+        if variant_names and len(variant_names) > 0:
+            clean_variants = [str(v).strip() for v in variant_names if str(v).strip()]
+            if clean_variants:
+                variants_line = f"  - VARIANTS: {' | '.join(clean_variants)}"
+
         start_tag = "[[PRODUCT_INDEX_START]]"
         end_tag = "[[PRODUCT_INDEX_END]]"
         si = p.find(start_tag)
@@ -913,57 +903,77 @@ async def sync_local_and_upsert_botlive_catalogue_block_deepseek(
             block_start = si + len(start_tag)
             existing_block = p[block_start:ei]
             raw_lines = [ln.strip() for ln in str(existing_block or "").splitlines()]
-            items: list[tuple[str, str, str]] = []
-            # Keep existing entries but dedupe by prod_ id if present.
+
+            # Parse existing entries: each product is a "- NAME [ID: ...]" line
+            # optionally followed by "  - VARIANTS: ..." sub-line
+            items: list[dict] = []  # {name, pid, line, variants_line}
             seen_pids: set[str] = set()
-            for ln in raw_lines:
+            i = 0
+            while i < len(raw_lines):
+                ln = raw_lines[i]
                 if not ln:
+                    i += 1
+                    continue
+                # Skip variant sub-lines (they belong to previous product)
+                if ln.startswith("- VARIANTS:") or ln.startswith("-   VARIANTS:"):
+                    i += 1
                     continue
                 if ln.startswith("-"):
                     n = ln[1:].strip()
                 else:
                     n = ln
                 if not n:
+                    i += 1
                     continue
                 m_pid = re.search(r"\bprod_[a-z0-9_]{6,64}\b", n, flags=re.IGNORECASE)
                 existing_pid = str(m_pid.group(0)).lower() if m_pid else ""
                 name_only = re.sub(r"\s*\[ID:\s*prod_[a-z0-9_]{6,64}\s*\]\s*", "", n, flags=re.IGNORECASE).strip()
+                # Check for variants sub-line on next line
+                existing_variants_line = ""
+                if i + 1 < len(raw_lines):
+                    next_ln = raw_lines[i + 1].strip()
+                    if next_ln.startswith("- VARIANTS:"):
+                        existing_variants_line = next_ln
+                        i += 1  # skip it
                 if existing_pid:
                     if existing_pid in seen_pids:
+                        i += 1
                         continue
                     seen_pids.add(existing_pid)
-                items.append((name_only, existing_pid, n))
+                items.append({"name": name_only, "pid": existing_pid, "line": f"- {n}", "variants_line": existing_variants_line})
+                i += 1
 
             if pid:
                 if pid not in seen_pids:
-                    items.append((pn, pid, entry))
+                    items.append({"name": pn, "pid": pid, "line": entry_line, "variants_line": variants_line})
                     seen_pids.add(pid)
                 else:
-                    # Upgrade legacy name-only entry to include [ID: ...] if matching product name.
-                    upgraded: list[tuple[str, str, str]] = []
-                    for name_only, existing_pid, raw in items:
-                        if (not existing_pid) and name_only.strip().lower() == pn.strip().lower():
-                            upgraded.append((pn, pid, entry))
-                        else:
-                            upgraded.append((name_only, existing_pid, raw))
-                    items = upgraded
+                    # Update existing entry (same pid) with new name/variants
+                    for item in items:
+                        if item["pid"] == pid:
+                            item["line"] = entry_line
+                            item["variants_line"] = variants_line
+                            break
             else:
-                # If no pid, keep legacy behavior by name.
-                if pn.strip().lower() not in {it[0].strip().lower() for it in items if it[0]}:
-                    items.append((pn, "", pn))
+                if pn.strip().lower() not in {it["name"].strip().lower() for it in items if it["name"]}:
+                    items.append({"name": pn, "pid": "", "line": entry_line, "variants_line": variants_line})
 
-            items_sorted = sorted(items, key=lambda it: (it[0] or "").lower())
-            new_block = "\n" + "\n".join([f"- {it[2]}" for it in items_sorted if (it[2] or "").strip()]) + "\n"
+            items_sorted = sorted(items, key=lambda it: (it["name"] or "").lower())
+            block_lines = []
+            for it in items_sorted:
+                if (it["line"] or "").strip():
+                    block_lines.append(it["line"])
+                    if it.get("variants_line"):
+                        block_lines.append(it["variants_line"])
+            new_block = "\n" + "\n".join(block_lines) + "\n"
             return p[:block_start] + new_block + p[ei:]
 
-        insertion = "\n".join(
-            [
-                start_tag,
-                f"- {entry}",
-                end_tag,
-                "",
-            ]
-        )
+        # No existing block → create one
+        block_lines = [start_tag, entry_line]
+        if variants_line:
+            block_lines.append(variants_line)
+        block_lines.extend([end_tag, ""])
+        insertion = "\n".join(block_lines)
         return insertion + p
 
     def _clear_catalogue_markers(existing_prompt: str) -> str:
@@ -1009,10 +1019,14 @@ async def sync_local_and_upsert_botlive_catalogue_block_deepseek(
         # We keep the markers but force them empty.
         updated_prompt = _clear_catalogue_markers(existing_prompt)
         try:
+            # Extract variant names from catalog vtree keys
+            _vtree = payload.catalog.get("v") if isinstance(payload.catalog.get("v"), dict) else {}
+            _variant_names = [str(k).strip() for k in _vtree.keys() if str(k).strip()] if isinstance(_vtree, dict) else []
             updated_prompt = _upsert_product_index_block(
                 updated_prompt,
                 str(payload.catalog.get("product_name") or ""),
                 str(payload.product_id or payload.catalog.get("product_id") or ""),
+                variant_names=_variant_names if _variant_names else None,
             )
         except Exception:
             pass
