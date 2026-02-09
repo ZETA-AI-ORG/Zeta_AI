@@ -449,55 +449,55 @@ async def incoming_signal(req: IncomingSignalRequest):
     url, headers = _get_supabase_headers()
     rest_url = f"{url}/rest/v1/incoming_signals"
 
-    now = datetime.utcnow().isoformat()
-
-    # Upsert: increment unread_count, update last_message_at
-    # We use a simple approach: read current, then upsert with +1
     try:
-        # Read current
-        async with httpx.AsyncClient(timeout=8) as client:
-            resp = await client.get(
-                rest_url,
-                headers=headers,
-                params={
-                    "company_id": f"eq.{req.company_id}",
-                    "user_id": f"eq.{req.user_id}",
-                    "select": "unread_count",
-                },
-            )
-
-        current_count = 0
-        if resp.status_code == 200:
-            data = resp.json()
-            if data:
-                current_count = data[0].get("unread_count", 0)
-
-        new_count = current_count + 1
-
-        upsert_headers = {**headers, "Prefer": "resolution=merge-duplicates,return=representation"}
-        payload = {
-            "company_id": req.company_id,
-            "user_id": req.user_id,
-            "channel": req.channel or "messenger",
-            "display_name": req.display_name or "",
-            "message_preview": (req.message_preview or "")[:200],
-            "unread_count": new_count,
-            "last_message_at": now,
-            "is_typing": True,
+        # Preferred: atomic DB-side upsert (no race condition, scalable)
+        rpc_url = f"{url}/rest/v1/rpc/incoming_signal_upsert"
+        rpc_payload = {
+            "p_company_id": req.company_id,
+            "p_user_id": req.user_id,
+            "p_channel": req.channel or "messenger",
+            "p_display_name": req.display_name or "",
+            "p_message_preview": (req.message_preview or "")[:200],
         }
 
         async with httpx.AsyncClient(timeout=8) as client:
-            resp = await client.post(rest_url, headers=upsert_headers, json=payload)
+            rpc_resp = await client.post(rpc_url, headers=headers, json=rpc_payload)
 
-        if resp.status_code in (200, 201):
+        if rpc_resp.status_code in (200, 201):
+            data = rpc_resp.json() or []
+            unread = None
+            if isinstance(data, list) and data:
+                unread = data[0].get("unread_count")
+            elif isinstance(data, dict):
+                unread = data.get("unread_count")
+
             logger.info(
-                "[INCOMING] Signal stored: company=%s user=%s unread=%s",
-                req.company_id, req.user_id, new_count,
+                "[INCOMING] Signal upserted (rpc): company=%s user=%s unread=%s",
+                req.company_id,
+                req.user_id,
+                unread,
             )
-            return {"status": "ok", "unread_count": new_count}
-        else:
-            logger.error("[INCOMING] Supabase error %s: %s", resp.status_code, resp.text)
-            raise HTTPException(status_code=resp.status_code, detail=resp.text)
+            return {"status": "ok", "unread_count": unread}
+
+        # If RPC is missing/blocked, fallback to REST upsert (may still race but avoids 409)
+        if rpc_resp.status_code in (404, 400):
+            upsert_headers = {**headers, "Prefer": "resolution=merge-duplicates,return=representation"}
+            payload = {
+                "company_id": req.company_id,
+                "user_id": req.user_id,
+                "channel": req.channel or "messenger",
+                "display_name": req.display_name or "",
+                "message_preview": (req.message_preview or "")[:200],
+                "is_typing": True,
+                "last_message_at": datetime.utcnow().isoformat(),
+            }
+            async with httpx.AsyncClient(timeout=8) as client:
+                resp = await client.post(rest_url, headers=upsert_headers, json=payload)
+            if resp.status_code in (200, 201):
+                return {"status": "ok"}
+
+        logger.error("[INCOMING] Supabase RPC error %s: %s", rpc_resp.status_code, rpc_resp.text)
+        raise HTTPException(status_code=rpc_resp.status_code, detail=rpc_resp.text)
 
     except httpx.HTTPError as e:
         logger.exception("[INCOMING] HTTP error")
