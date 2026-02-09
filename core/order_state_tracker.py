@@ -9,12 +9,25 @@ import logging
 import sqlite3
 import json
 import os
+import threading
 from typing import Dict, Optional, Set
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
+
+# 🔒 AUDIT PRE-PROD: Lock par user_id pour éviter les race conditions SQLite
+_user_locks: Dict[str, threading.Lock] = {}
+_global_lock = threading.Lock()
+
+
+def _get_user_lock(user_id: str) -> threading.Lock:
+    """Retourne un lock dédié à un user_id (créé si inexistant)."""
+    with _global_lock:
+        if user_id not in _user_locks:
+            _user_locks[user_id] = threading.Lock()
+        return _user_locks[user_id]
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # 📊 DATA CLASSES
@@ -140,6 +153,11 @@ class OrderStateTracker:
         """Initialise la base de données SQLite"""
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
+        # 🔒 AUDIT PRE-PROD: WAL mode pour meilleure concurrence
+        try:
+            cursor.execute("PRAGMA journal_mode=WAL")
+        except Exception:
+            pass
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS order_states (
                 user_id TEXT PRIMARY KEY,
@@ -394,33 +412,41 @@ class OrderStateTracker:
     
     def update_produit(self, user_id: str, produit: str, source: str = "USER_TEXT", confidence: float = 1.0) -> OrderState:
         """Met à jour le produit"""
-        state = self.get_state(user_id)
-        state.produit = produit
-        self._save_state(state)
-        self.set_slot_meta(user_id, "PRODUIT", source=source, confidence=confidence)
-        logger.info(f"[{user_id}] PRODUIT collecté: {produit}")
-        return state
+        with _get_user_lock(user_id):
+            state = self.get_state(user_id)
+            state.produit = produit
+            self._save_state(state)
+            self.set_slot_meta(user_id, "PRODUIT", source=source, confidence=confidence)
+            logger.info(f"[{user_id}] PRODUIT collecté: {produit}")
+            return state
 
     def update_produit_details(self, user_id: str, produit_details: str, source: str = "USER_TEXT", confidence: float = 1.0) -> OrderState:
         """Met à jour les détails produit (sans valider le champ produit)"""
-        state = self.get_state(user_id)
-        state.produit_details = produit_details
-        self._save_state(state)
-        self.set_slot_meta(user_id, "SPECS", source=source, confidence=confidence)
-        logger.info(f"[{user_id}] PRODUIT_DETAILS mémorisés: {produit_details}")
-        return state
+        with _get_user_lock(user_id):
+            state = self.get_state(user_id)
+            state.produit_details = produit_details
+            self._save_state(state)
+            self.set_slot_meta(user_id, "SPECS", source=source, confidence=confidence)
+            logger.info(f"[{user_id}] PRODUIT_DETAILS mémorisés: {produit_details}")
+            return state
 
     def update_quantite(self, user_id: str, quantite: str, source: str = "USER_TEXT", confidence: float = 1.0) -> OrderState:
         """Met à jour la quantité"""
-        state = self.get_state(user_id)
-        state.quantite = quantite
-        self._save_state(state)
-        self.set_slot_meta(user_id, "QUANTITÉ", source=source, confidence=confidence)
-        logger.info(f"[{user_id}] QUANTITÉ collectée: {quantite}")
-        return state
+        with _get_user_lock(user_id):
+            state = self.get_state(user_id)
+            state.quantite = quantite
+            self._save_state(state)
+            self.set_slot_meta(user_id, "QUANTITÉ", source=source, confidence=confidence)
+            logger.info(f"[{user_id}] QUANTITÉ collectée: {quantite}")
+            return state
     
     def update_paiement(self, user_id: str, paiement: str, source: str = "USER_TEXT", confidence: float = 1.0) -> OrderState:
         """Met à jour le paiement"""
+        with _get_user_lock(user_id):
+            return self._update_paiement_locked(user_id, paiement, source, confidence)
+
+    def _update_paiement_locked(self, user_id: str, paiement: str, source: str, confidence: float) -> OrderState:
+        """Implémentation interne de update_paiement (appelée sous lock)."""
         state = self.get_state(user_id)
 
         new_p = str(paiement or "").strip()
@@ -466,21 +492,23 @@ class OrderStateTracker:
     
     def update_zone(self, user_id: str, zone: str, source: str = "USER_TEXT", confidence: float = 1.0) -> OrderState:
         """Met à jour la zone"""
-        state = self.get_state(user_id)
-        state.zone = zone
-        self._save_state(state)
-        self.set_slot_meta(user_id, "ZONE", source=source, confidence=confidence)
-        logger.info(f"[{user_id}] ZONE collectée: {zone}")
-        return state
+        with _get_user_lock(user_id):
+            state = self.get_state(user_id)
+            state.zone = zone
+            self._save_state(state)
+            self.set_slot_meta(user_id, "ZONE", source=source, confidence=confidence)
+            logger.info(f"[{user_id}] ZONE collectée: {zone}")
+            return state
     
     def update_numero(self, user_id: str, numero: str, source: str = "USER_TEXT", confidence: float = 1.0) -> OrderState:
         """Met à jour le numéro"""
-        state = self.get_state(user_id)
-        state.numero = numero
-        self._save_state(state)
-        self.set_slot_meta(user_id, "NUMÉRO", source=source, confidence=confidence)
-        logger.info(f"[{user_id}] NUMÉRO collecté: {numero}")
-        return state
+        with _get_user_lock(user_id):
+            state = self.get_state(user_id)
+            state.numero = numero
+            self._save_state(state)
+            self.set_slot_meta(user_id, "NUMÉRO", source=source, confidence=confidence)
+            logger.info(f"[{user_id}] NUMÉRO collecté: {numero}")
+            return state
     
     def can_finalize(self, user_id: str) -> bool:
         """Vérifie si la commande peut être finalisée"""

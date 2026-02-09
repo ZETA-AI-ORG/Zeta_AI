@@ -109,13 +109,15 @@ async def shutdown_event():
     except Exception as e:
         logger.warning(f"⚠️ Erreur flush logs: {e}")
 
-# --- SÉCURITÉ MINIMALE: CORS & API KEY ---
-# Configuration CORS OPTIMISÉE
+# --- SÉCURITÉ: CORS & API KEY ---
+# 🔒 AUDIT PRE-PROD: Restreindre aux origines connues (pas de wildcard "*")
+_cors_raw = os.getenv("CORS_ORIGINS", "https://zetaapp.xyz,https://www.zetaapp.xyz,http://localhost:5173,http://localhost:3000")
+ALLOWED_ORIGINS = [o.strip() for o in _cors_raw.split(",") if o.strip()]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
-    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_methods=["GET", "POST", "OPTIONS", "PATCH"],
     allow_headers=["*"],
     max_age=3600,
 )
@@ -418,9 +420,21 @@ else:
 
 from redis_cache import RedisCache
 redis_cache = RedisCache()
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
-admin_router = APIRouter()
+# 🔒 AUDIT PRE-PROD: Protéger les endpoints admin avec une clé API
+ADMIN_API_KEY = os.getenv("ADMIN_API_KEY", "")
+
+async def _verify_admin(request: Request):
+    """Vérifie la clé admin dans le header X-Admin-Key."""
+    if not ADMIN_API_KEY:
+        logger.warning("⚠️ [SECURITY] ADMIN_API_KEY non configurée — endpoints admin ouverts")
+        return
+    key = request.headers.get("X-Admin-Key", "")
+    if key != ADMIN_API_KEY:
+        raise HTTPException(status_code=403, detail="Forbidden: invalid admin key")
+
+admin_router = APIRouter(dependencies=[Depends(_verify_admin)])
 
 @admin_router.post("/admin/cache/flush")
 def flush_cache():
@@ -3030,7 +3044,8 @@ async def chat_endpoint(req: ChatRequest, request: Request):
             "hallucination_score": hallucination_check.confidence_score,
             "thinking": thinking_data,
             "validation": validation_data,
-            "debug_contexts": debug_contexts  # ✅ TOUS LES CONTEXTES SYSTÈME
+            # 🔒 AUDIT PRE-PROD: Ne pas exposer les contextes internes en production
+            **({"debug_contexts": debug_contexts} if os.getenv("DEBUG_CONTEXTS_IN_RESPONSE", "false").lower() == "true" else {})
         }
         
         # Sauvegarder la réponse en cache pour les requêtes futures identiques

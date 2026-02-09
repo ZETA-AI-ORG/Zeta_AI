@@ -1,3 +1,4 @@
+import asyncio
 import base64
 import json
 import os
@@ -7,9 +8,24 @@ from datetime import datetime, timedelta
 from io import BytesIO
 from typing import Any, Dict, List, Optional, Tuple
 
-import requests
+import httpx
 
 from core.llm_client_openrouter import complete
+
+# 🔒 AUDIT PRE-PROD: Async HTTP client pour téléchargement images (ne bloque plus l'event loop)
+_vision_http_client: httpx.AsyncClient | None = None
+_MAX_IMAGE_SIZE = 5 * 1024 * 1024  # 5 MB
+
+
+def _get_vision_http_client() -> httpx.AsyncClient:
+    global _vision_http_client
+    if _vision_http_client is None or _vision_http_client.is_closed:
+        _vision_http_client = httpx.AsyncClient(
+            timeout=httpx.Timeout(15.0, connect=8.0),
+            limits=httpx.Limits(max_connections=10, max_keepalive_connections=5),
+            follow_redirects=True,
+        )
+    return _vision_http_client
 
 
 _FB_HEADERS = {
@@ -25,9 +41,10 @@ def _is_protected_url(url: str) -> bool:
     return any(k in u for k in ["fbcdn.net", "facebook.com", "fb.com", "cdninstagram.com"])
 
 
-def _download_image_robust(url: str, max_retries: int = 3) -> Optional[str]:
+async def _download_image_robust(url: str, max_retries: int = 3) -> Optional[str]:
     """Download image from protected URL, return base64 data URI or None.
     
+    🔒 AUDIT PRE-PROD: Converti en async (ne bloque plus l'event loop).
     Tries multiple strategies:
     1. Direct download with Facebook-friendly headers
     2. Retry after short delay (CDN cache propagation)
@@ -45,11 +62,12 @@ def _download_image_robust(url: str, max_retries: int = 3) -> Optional[str]:
         alt_url = url.replace("/v/", "/vA/")
         attempts.append((alt_url, _FB_HEADERS, 0))
 
+    client = _get_vision_http_client()
     for attempt_url, headers, delay in attempts:
         try:
             if delay > 0:
-                time.sleep(delay)
-            resp = requests.get(attempt_url, headers=headers, timeout=15, stream=True)
+                await asyncio.sleep(delay)
+            resp = await client.get(attempt_url, headers=headers)
             if resp.status_code == 200:
                 content_type = resp.headers.get("Content-Type", "image/jpeg")
                 if ";" in content_type:
@@ -57,6 +75,9 @@ def _download_image_robust(url: str, max_retries: int = 3) -> Optional[str]:
                 img_bytes = resp.content
                 if len(img_bytes) < 100:
                     continue  # Too small, probably error page
+                if len(img_bytes) > _MAX_IMAGE_SIZE:
+                    print(f"\u26a0\ufe0f [VISION] Image too large ({len(img_bytes)} bytes > {_MAX_IMAGE_SIZE}), skipping")
+                    continue
                 b64 = base64.b64encode(img_bytes).decode("utf-8")
                 data_uri = f"data:{content_type};base64,{b64}"
                 print(f"\u2705 [VISION] Image downloaded OK | size={len(img_bytes)} bytes | content_type={content_type}")
@@ -311,7 +332,7 @@ async def analyze_product_with_gemini(
     effective_image_url = image_url
     if _is_protected_url(image_url):
         print(f"[VISION] Protected URL detected, downloading server-side...")
-        data_uri = _download_image_robust(image_url)
+        data_uri = await _download_image_robust(image_url)
         if data_uri:
             effective_image_url = data_uri
         else:
