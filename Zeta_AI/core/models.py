@@ -34,17 +34,43 @@ class ChatRequest(BaseModel):
 
     @validator('images', pre=True, always=True)
     def ensure_images_array(cls, v):
-        # Garantit un tableau
+        # Garantit un tableau d'URLs valides
         if v is None:
             return []
-        return v
+        # Si c'est une string (n8n envoie parfois "Voici la capture URL" au lieu de ["URL"])
+        if isinstance(v, str):
+            v = v.strip()
+            if not v:
+                return []
+            # Extraire toutes les URLs HTTP(S) de la string
+            urls = re.findall(r'https?://[^\s"\]\)]+', v)
+            return urls if urls else []
+        # Si c'est déjà une liste, filtrer les entrées valides
+        if isinstance(v, list):
+            cleaned = []
+            for item in v:
+                if isinstance(item, str):
+                    item = item.strip()
+                    # Si l'item est une URL directe, garder
+                    if item.startswith('http'):
+                        cleaned.append(item)
+                    else:
+                        # Extraire les URLs de l'item (cas "Voici la capture URL")
+                        urls = re.findall(r'https?://[^\s"\]\)]+', item)
+                        cleaned.extend(urls)
+            return cleaned
+        return []
 
     @validator('message', always=True)
     def ensure_message_rules(cls, v, values):
         # Assouplissement: on n'interdit plus message vide ici.
         # La logique de fallback/erreur est gérée dans l'endpoint /chat.
         if v is None:
-            return ""
+            v = ""
+        v = v.strip()
+        # Si message est vide mais images contient des URLs, créer un message par défaut
+        if not v and values.get('images'):
+            v = "Voici la capture"
         return v[:2000]
 
 class ChatResponse(BaseModel):
