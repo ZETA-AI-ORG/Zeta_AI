@@ -5830,11 +5830,20 @@ class SimplifiedRAGEngine:
                         except Exception:
                             pass
 
-                    # ── Decision: send price list ONLY when just variant is known ──
-                    _has_partial = bool(_detected_unit or _detected_spec)
+                    # ── Decision: send price list when unit is NOT yet chosen ──
+                    # Skip ONLY when both unit AND spec are known (single price → no table needed)
+                    _both_known = bool(_detected_unit and _detected_spec)
 
-                    if pid and not _has_partial:
-                        # Only variant known → send price list
+                    if pid and _both_known:
+                        # Both unit + spec known → single price, skip table
+                        if isinstance(tool_call_req, dict):
+                            tool_call_req["action"] = "NONE"
+                            tool_call_req["_skipped_price_list"] = True
+                        print(f"🛡️ [SEND_PRICE_LIST] Skipped (fully specified: unit={_detected_unit} spec={_detected_spec}) → LLM gives price directly")
+                        if _auto_reason:
+                            print(f"🔧 [AUTO_FILL] {_auto_reason}")
+                    elif pid:
+                        # Unit unknown (or variant-only) → send price table
                         if variant:
                             list_text, list_items = _generate_price_list_for_tool_call(
                                 company_id_val=company_id,
@@ -5853,16 +5862,9 @@ class SimplifiedRAGEngine:
                             order_tracker.set_custom_meta(user_id, "price_list_items", list_items)
                             order_tracker.set_flag(user_id, "awaiting_price_choice", True)
                             response = list_text
-                            print(f"📋 [SEND_PRICE_LIST] Sent full list (only variant known)")
-                    elif pid and _has_partial:
-                        # Partial info → skip price list, LLM asks directly
-                        # Mark tool_call as NONE so upstream doesn't treat this as a price probe
-                        if isinstance(tool_call_req, dict):
-                            tool_call_req["action"] = "NONE"
-                            tool_call_req["_skipped_price_list"] = True
-                        print(f"🛡️ [SEND_PRICE_LIST] Skipped (partial: unit={_detected_unit} spec={_detected_spec}) → LLM asks directly")
-                        if _auto_reason:
-                            print(f"🔧 [AUTO_FILL] {_auto_reason}")
+                            print(f"📋 [SEND_PRICE_LIST] Sent price table (unit={_detected_unit} spec={_detected_spec})")
+                        else:
+                            print(f"⚠️ [SEND_PRICE_LIST] No price data generated for pid={pid} variant={variant}")
             except Exception:
                 pass
             
