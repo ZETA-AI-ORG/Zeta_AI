@@ -471,6 +471,26 @@ async def incoming_signal(req: IncomingSignalRequest):
             elif isinstance(data, dict):
                 unread = data.get("unread_count")
 
+            # Best-effort: also create an operator notification so the operator UI
+            # can show a list of recent incoming messages.
+            async def _best_effort_create_operator_notification():
+                try:
+                    op_url = f"{url}/rest/v1/operator_notifications"
+                    msg = (req.message_preview or "Nouveau message").strip()[:500]
+                    payload = {
+                        "company_id": req.company_id,
+                        "user_id": req.user_id,
+                        "message": msg or "Nouveau message",
+                        "message_type": "incoming_message",
+                        "read": False,
+                    }
+                    async with httpx.AsyncClient(timeout=5) as client:
+                        await client.post(op_url, headers=headers, json=payload)
+                except Exception:
+                    return
+
+            asyncio.create_task(_best_effort_create_operator_notification())
+
             logger.info(
                 "[INCOMING] Signal upserted (rpc): company=%s user=%s unread=%s",
                 req.company_id,
