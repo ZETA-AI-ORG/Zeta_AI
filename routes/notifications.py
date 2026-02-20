@@ -497,6 +497,25 @@ async def incoming_signal(req: IncomingSignalRequest):
                 req.user_id,
                 unread,
             )
+
+            # ── Fire push notification to all subscribed devices ──────────
+            # This is what makes the OS banner appear when the app is closed.
+            display = req.display_name or f"Client {req.user_id[-4:]}"
+            preview = (req.message_preview or "Nouveau message").strip()[:200]
+            asyncio.create_task(
+                send_push_to_company(
+                    company_id=req.company_id,
+                    title=display,
+                    body=preview,
+                    data={
+                        "type": "incoming_message",
+                        "user_id": req.user_id,
+                        "channel": req.channel or "messenger",
+                        "category": "message",
+                    },
+                )
+            )
+
             return {"status": "ok", "unread_count": unread}
 
         # If RPC is missing/blocked, fallback to REST upsert (may still race but avoids 409)
@@ -514,6 +533,21 @@ async def incoming_signal(req: IncomingSignalRequest):
             async with httpx.AsyncClient(timeout=8) as client:
                 resp = await client.post(rest_url, headers=upsert_headers, json=payload)
             if resp.status_code in (200, 201):
+                display = req.display_name or f"Client {req.user_id[-4:]}"
+                preview = (req.message_preview or "Nouveau message").strip()[:200]
+                asyncio.create_task(
+                    send_push_to_company(
+                        company_id=req.company_id,
+                        title=display,
+                        body=preview,
+                        data={
+                            "type": "incoming_message",
+                            "user_id": req.user_id,
+                            "channel": req.channel or "messenger",
+                            "category": "message",
+                        },
+                    )
+                )
                 return {"status": "ok"}
 
         logger.error("[INCOMING] Supabase RPC error %s: %s", rpc_resp.status_code, rpc_resp.text)

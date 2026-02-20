@@ -42,6 +42,9 @@ pillow>=10.0.0
 # OCR for Botlive (payment verification)
 easyocr>=1.7.0
 
+# Web Push notifications (VAPID)
+pywebpush>=2.0.0
+
 # HTTP/Network dependencies
 aiohttp>=3.9.0
 httpx>=0.25.0
