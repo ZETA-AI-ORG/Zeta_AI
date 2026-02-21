@@ -435,6 +435,7 @@ class IncomingSignalRequest(BaseModel):
     channel: Optional[str] = "messenger"
     display_name: Optional[str] = None
     message_preview: Optional[str] = None
+    message_preview_image: Optional[str] = None
 
 
 @router.post("/api/incoming-signal")
@@ -449,6 +450,12 @@ async def incoming_signal(req: IncomingSignalRequest):
     url, headers = _get_supabase_headers()
     rest_url = f"{url}/rest/v1/incoming_signals"
 
+    preview = (req.message_preview or "").strip()
+    if not preview and (req.message_preview_image or "").strip():
+        preview = "📎 Image reçue"
+    if not preview:
+        preview = "Nouveau message"
+
     try:
         # Preferred: atomic DB-side upsert (no race condition, scalable)
         rpc_url = f"{url}/rest/v1/rpc/incoming_signal_upsert"
@@ -457,7 +464,7 @@ async def incoming_signal(req: IncomingSignalRequest):
             "p_user_id": req.user_id,
             "p_channel": req.channel or "messenger",
             "p_display_name": req.display_name or "",
-            "p_message_preview": (req.message_preview or "")[:200],
+            "p_message_preview": preview[:200],
         }
 
         async with httpx.AsyncClient(timeout=8) as client:
@@ -476,7 +483,7 @@ async def incoming_signal(req: IncomingSignalRequest):
             async def _best_effort_create_operator_notification():
                 try:
                     op_url = f"{url}/rest/v1/operator_notifications"
-                    msg = (req.message_preview or "Nouveau message").strip()[:500]
+                    msg = preview.strip()[:500]
                     payload = {
                         "company_id": req.company_id,
                         "user_id": req.user_id,
@@ -501,7 +508,6 @@ async def incoming_signal(req: IncomingSignalRequest):
             # ── Fire push notification to all subscribed devices ──────────
             # This is what makes the OS banner appear when the app is closed.
             display = req.display_name or f"Client {req.user_id[-4:]}"
-            preview = (req.message_preview or "Nouveau message").strip()[:200]
             asyncio.create_task(
                 send_push_to_company(
                     company_id=req.company_id,
@@ -526,7 +532,7 @@ async def incoming_signal(req: IncomingSignalRequest):
                 "user_id": req.user_id,
                 "channel": req.channel or "messenger",
                 "display_name": req.display_name or "",
-                "message_preview": (req.message_preview or "")[:200],
+                "message_preview": preview[:200],
                 "is_typing": True,
                 "last_message_at": datetime.utcnow().isoformat(),
             }
@@ -534,7 +540,6 @@ async def incoming_signal(req: IncomingSignalRequest):
                 resp = await client.post(rest_url, headers=upsert_headers, json=payload)
             if resp.status_code in (200, 201):
                 display = req.display_name or f"Client {req.user_id[-4:]}"
-                preview = (req.message_preview or "Nouveau message").strip()[:200]
                 asyncio.create_task(
                     send_push_to_company(
                         company_id=req.company_id,
