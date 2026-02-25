@@ -6627,6 +6627,104 @@ async def get_simplified_rag_response(
                 except Exception:
                     pass
 
+                # ── PERSIST ORDER TO SUPABASE ──
+                try:
+                    from database.supabase_client import get_supabase_client
+                    import asyncio
+                    
+                    supabase = get_supabase_client()
+                    
+                    # Get company_id UUID from company_mapping (column = company_id_text)
+                    company_uuid = None
+                    try:
+                        mapping_result = await asyncio.to_thread(
+                            lambda: supabase.table("company_mapping")
+                            .select("uuid, company_id_uuid")
+                            .eq("company_id_text", company_id)
+                            .execute()
+                        )
+                        if mapping_result.data and len(mapping_result.data) > 0:
+                            row = mapping_result.data[0]
+                            company_uuid = row.get("uuid") or row.get("company_id_uuid")
+                            print(f"✅ [AUTO_CLOTURE] company_id_text={company_id} → UUID={company_uuid}")
+                        else:
+                            print(f"⚠️ [AUTO_CLOTURE] No UUID mapping found for company_id_text={company_id}")
+                    except Exception as mapping_err:
+                        print(f"❌ [AUTO_CLOTURE] Mapping lookup failed: {mapping_err}")
+                    
+                    # Build order items from cart
+                    order_items = []
+                    try:
+                        _rag_eng = get_simplified_rag_engine()
+                        if _rag_eng and _rag_eng.cart_manager:
+                            _cart_data = _rag_eng.cart_manager.get_cart(user_id)
+                            _cart_items_list = _cart_data.get("items", []) if isinstance(_cart_data, dict) else []
+                            for _ci in _cart_items_list:
+                                order_items.append({
+                                    "name": str(_ci.get("variant") or "Produit").strip(),
+                                    "quantity": _ci.get("qty") or 1,
+                                    "price": int(_ci.get("price_fcfa") or _ci.get("unit_price") or 0),
+                                    "specs": str(_ci.get("spec") or _ci.get("specs") or "").strip(),
+                                    "unit": str(_ci.get("unit") or "").strip()
+                                })
+                    except Exception as cart_err:
+                        print(f"⚠️ [AUTO_CLOTURE] Cart extraction failed: {cart_err}")
+                    
+                    # Get customer name and delivery zone
+                    customer_name = ""
+                    delivery_zone = ""
+                    try:
+                        st_order = order_tracker.get_state(user_id)
+                        customer_name = str(getattr(st_order, "numero", "") or getattr(st_order, "telephone", "") or "").strip()
+                        delivery_zone = _zone_tag or ""
+                    except Exception:
+                        pass
+                    
+                    # Insert order into Supabase
+                    order_data = {
+                        "company_id": company_uuid,
+                        "customer_name": customer_name or "Client",
+                        "delivery_zone": delivery_zone,
+                        "items": order_items,
+                        "total_amount": _total_int,
+                        "status": "pending",
+                        "created_at": datetime.utcnow().isoformat()
+                    }
+                    
+                    insert_result = await asyncio.to_thread(
+                        lambda: supabase.table("orders").insert(order_data).execute()
+                    )
+                    
+                    if insert_result.data:
+                        order_id_inserted = insert_result.data[0].get("id") if insert_result.data else None
+                        print(f"✅ [AUTO_CLOTURE] Order persisted to Supabase: id={order_id_inserted}")
+                        
+                        # Create order_deliveries entry for partner visibility
+                        # Real schema: id, order_id, status, accepted_by_user_id, delivery_company_id,
+                        # driver_phone, scheduled_for, cancel_reason, accepted_at, delivered_at, created_at, updated_at
+                        try:
+                            delivery_data = {
+                                "order_id": order_id_inserted,
+                                "status": "open"
+                            }
+                            delivery_result = await asyncio.to_thread(
+                                lambda: supabase.table("order_deliveries").insert(delivery_data).execute()
+                            )
+                            if delivery_result.data:
+                                delivery_id = delivery_result.data[0].get("id") if delivery_result.data else None
+                                print(f"✅ [AUTO_CLOTURE] Delivery created: id={delivery_id} (status=open)")
+                            else:
+                                print(f"⚠️ [AUTO_CLOTURE] Delivery insert returned no data")
+                        except Exception as delivery_err:
+                            print(f"❌ [AUTO_CLOTURE] Delivery insert failed: {delivery_err}")
+                    else:
+                        print(f"⚠️ [AUTO_CLOTURE] Order insert returned no data")
+                        
+                except Exception as supabase_err:
+                    print(f"❌ [AUTO_CLOTURE] Supabase insert failed: {type(supabase_err).__name__}: {supabase_err}")
+                    import traceback
+                    print(f"Stack: {traceback.format_exc()}")
+                
                 # ── BOT OFF: mission accomplie, désactiver Jessica pour cet utilisateur ──
                 try:
                     order_tracker.set_flag(user_id, "bot_disabled", True)
