@@ -1,0 +1,61 @@
+# ========================================
+# RÈGLES DE DÉPLOIEMENT VPS - ZETA AI
+# ========================================
+
+## ARCHITECTURE
+- Backend : VPS Contabo (194.60.201.228) via Docker
+- Frontend : Vercel (déploiement automatique depuis dossier zeta-ai-vercel/)
+- Base de données : Supabase + Meilisearch
+
+## DÉPLOIEMENT BACKEND → VPS
+Pour déployer des modifications backend sur le VPS, utiliser UNIQUEMENT :
+```powershell
+.\deploy.ps1 "description de la modification"
+```
+Ce script fait automatiquement : git add + commit + push GitHub + git pull sur VPS.
+
+## ⛔ CE QUE L'IA NE DOIT JAMAIS FAIRE
+- NE JAMAIS modifier Dockerfile sans validation humaine explicite
+- NE JAMAIS modifier docker-compose.yml sans validation humaine explicite
+- NE JAMAIS lancer `docker compose build` sans autorisation explicite
+- NE JAMAIS lancer `docker compose down` sans autorisation explicite
+- NE JAMAIS faire `git push` direct sur le VPS
+- NE JAMAIS modifier les fichiers .env du VPS
+- NE JAMAIS supprimer des volumes Docker
+
+## ✅ CE QUE L'IA PEUT FAIRE
+- Modifier les fichiers Python du backend (.py)
+- Modifier requirements.txt MAIS signaler que rebuild Docker sera nécessaire
+- Modifier les fichiers de config non-Docker
+- Lancer .\deploy.ps1 pour déployer
+
+## REBUILD DOCKER (manuel uniquement)
+Uniquement si requirements.txt ou Dockerfile modifiés :
+```bash
+# Sur le VPS uniquement
+docker compose build zeta-backend
+docker compose up -d
+docker compose ps
+curl http://localhost:8002/ingestion/health
+```
+
+## VÉRIFICATION AVANT TOUT DÉPLOIEMENT
+```bash
+# Comparer VPS vs GitHub sans risque
+git fetch origin
+git diff HEAD origin/main -- Dockerfile
+git diff HEAD origin/main -- docker-compose.yml
+```
+
+## STRUCTURE DES DOSSIERS
+- Backend (VPS + GitHub) : tout sauf les dossiers ci-dessous
+- Frontend Vercel : zeta-ai-vercel/ (NE PAS inclure dans commits backend)
+- Archive frontend : frontend/ (NE PAS inclure dans commits backend)
+- Ignorés : results/, tests/reports/, .venv/, *.tar.gz, *.pt, *.pkl
+
+## RÉFÉRENCE ABSOLUE
+Le VPS qui tourne = la vérité. En cas de doute, toujours vérifier :
+```bash
+docker inspect zeta-backend | grep -A5 "Cmd"
+docker compose ps
+curl http://localhost:8002/ingestion/health
