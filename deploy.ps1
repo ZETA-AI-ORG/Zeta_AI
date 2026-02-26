@@ -5,14 +5,8 @@ git add .
 git commit -m $message
 git push origin main
 
-Write-Host "🚀 Déploiement sur VPS..." -ForegroundColor Cyan
-ssh -i "$HOME\.ssh\deploy_key" zetaadmin@194.60.201.228 @"
-cd ~/CHATBOT2.0/app
-git pull origin main
-docker compose build zeta-backend
-docker compose up -d
-docker compose ps
-echo '✅ Backend déployé !'
-"@
+Write-Host "🔄 Mise à jour du code sur VPS (git pull uniquement)..." -ForegroundColor Yellow
+ssh -i "$HOME\.ssh\deploy_key" zetaadmin@194.60.201.228 "cd ~/CHATBOT2.0/app && git pull origin main && echo '✅ Code mis à jour ! Docker NON rebuilé.'"
 
-Write-Host "✅ Déploiement terminé !" -ForegroundColor Green
+Write-Host "✅ Code déployé sur VPS !" -ForegroundColor Green
+Write-Host "⚠️  Si tu as modifié requirements.txt ou Dockerfile → rebuild manuel requis" -ForegroundColor Yellow
