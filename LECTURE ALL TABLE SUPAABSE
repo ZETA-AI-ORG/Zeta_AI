@@ -1,0 +1,37 @@
+SELECT 
+    n.nspname AS "Schéma",
+    c.relname AS "Table",
+    CASE c.relkind 
+        WHEN 'r' THEN 'BASE TABLE' 
+        WHEN 'v' THEN 'VIEW' 
+    END AS "Type",
+    a.attnum AS "Pos",
+    a.attname AS "Colonne",
+    format_type(a.atttypid, a.atttypmod) AS "Type Donnée",
+    CASE WHEN a.attnotnull THEN 'NO' ELSE 'YES' END AS "Nullable",
+    pg_get_expr(d.adbin, d.adrelid) AS "Valeur Défaut",
+    CASE WHEN pk.contype = 'p' THEN '🔑 PK' ELSE '' END AS "Clé Primaire",
+    CASE WHEN fk.contype = 'f' THEN '🔗 → ' || rf.relname || '.' || ra.attname ELSE '' END AS "Clé Étrangère"
+FROM 
+    pg_catalog.pg_attribute a
+JOIN 
+    pg_catalog.pg_class c ON a.attrelid = c.oid
+JOIN 
+    pg_catalog.pg_namespace n ON c.relnamespace = n.oid
+LEFT JOIN 
+    pg_catalog.pg_attrdef d ON (a.attrelid = d.adrelid AND a.attnum = d.adnum)
+LEFT JOIN 
+    pg_catalog.pg_constraint pk ON (a.attrelid = pk.conrelid AND a.attnum = ANY(pk.conkey) AND pk.contype = 'p')
+LEFT JOIN 
+    pg_catalog.pg_constraint fk ON (a.attrelid = fk.conrelid AND a.attnum = ANY(fk.conkey) AND fk.contype = 'f')
+LEFT JOIN 
+    pg_catalog.pg_class rf ON fk.confrelid = rf.oid
+LEFT JOIN 
+    pg_catalog.pg_attribute ra ON (fk.confrelid = ra.attrelid AND ra.attnum = ANY(fk.confkey))
+WHERE 
+    a.attnum > 0 
+    AND NOT a.attisdropped
+    AND n.nspname NOT IN ('pg_catalog', 'information_schema', 'pg_toast')
+    AND c.relname NOT IN ('company_rag_configs')
+ORDER BY 
+    "Schéma", "Table", "Pos";

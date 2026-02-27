@@ -83,7 +83,7 @@ async def create_order(
             "conversation_id": conversation_id,
             "customer_name": customer_name,
             "total_amount": total_amount,
-            "status": "pending",
+            "status": "open",  # ✅ Alignement Partner App (filtre sur "open")
             "items": items,
         }
 
