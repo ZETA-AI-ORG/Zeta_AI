@@ -174,3 +174,6 @@ Zeta_AI_git_backup/
 
 frontend/
 zeta-ai-vercel/
+
+# ===== CATALOGUE JS CONFIG (CREDENTIALS) =====
+config.js
