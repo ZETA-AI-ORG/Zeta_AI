@@ -3,6 +3,31 @@ param(
     [switch]$rollback
 )
 
+$excludedPatterns = @(
+    "zeta-ai-vercel/*",
+    "zeta-ai-vercel-deploy/*",
+    "frontend/*",
+    "results/*",
+    "tests/reports/*",
+    ".venv/*",
+    "*.tar.gz",
+    "*.pt",
+    "*.pkl",
+    "config.js"
+)
+
+function Test-IsExcluded {
+    param([string]$path)
+
+    foreach ($pattern in $excludedPatterns) {
+        if ($path -like $pattern) {
+            return $true
+        }
+    }
+
+    return $false
+}
+
 # ========================================
 # ROLLBACK
 # ========================================
@@ -28,9 +53,10 @@ $modified = git diff --name-only HEAD
 $staged = git diff --cached --name-only
 
 $allModified = ($modified + $staged) | Sort-Object -Unique
+$deployableFiles = @($allModified | Where-Object { $_ -and -not (Test-IsExcluded $_) })
 
 $warnings = @()
-foreach ($file in $allModified) {
+foreach ($file in $deployableFiles) {
     foreach ($d in $dangerous) {
         if ($file -like "*$d*") {
             $warnings += $file
@@ -57,12 +83,18 @@ if ($warnings.Count -gt 0) {
 # ========================================
 Write-Host ""
 Write-Host "📦 Fichiers qui seront déployés :" -ForegroundColor Cyan
-git diff --name-only HEAD
-git diff --cached --name-only
+foreach ($file in $deployableFiles) {
+    Write-Host $file
+}
 Write-Host ""
 
+if ($deployableFiles.Count -eq 0) {
+    Write-Host "❌ Aucun fichier backend déployable détecté." -ForegroundColor Red
+    exit
+}
+
 Write-Host "📦 Push backend vers GitHub..." -ForegroundColor Cyan
-git add .
+git add -- $deployableFiles
 git commit -m $message
 git push origin main
 
