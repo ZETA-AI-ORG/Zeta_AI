@@ -51,8 +51,9 @@ Write-Host "🔍 Vérification des fichiers modifiés..." -ForegroundColor Yello
 $dangerous = @("Dockerfile", "docker-compose.yml", "requirements.txt", ".env")
 $modified = git diff --name-only HEAD
 $staged = git diff --cached --name-only
+$untracked = git ls-files --others --exclude-standard
 
-$allModified = ($modified + $staged) | Sort-Object -Unique
+$allModified = ($modified + $staged + $untracked) | Sort-Object -Unique
 $deployableFiles = @($allModified | Where-Object { $_ -and -not (Test-IsExcluded $_) })
 
 $warnings = @()
@@ -95,6 +96,10 @@ if ($deployableFiles.Count -eq 0) {
 
 Write-Host "📦 Push backend vers GitHub..." -ForegroundColor Cyan
 git add -- $deployableFiles
+if ((git diff --cached --name-only).Count -eq 0) {
+    Write-Host "❌ Aucun fichier n'a pu être ajouté à l'index pour le déploiement." -ForegroundColor Red
+    exit
+}
 git commit -m $message
 git push origin main
 
