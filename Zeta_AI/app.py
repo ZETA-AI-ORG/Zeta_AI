@@ -111,7 +111,7 @@ async def shutdown_event():
 
 # --- SÉCURITÉ: CORS & API KEY ---
 # 🔒 AUDIT PRE-PROD: Restreindre aux origines connues (pas de wildcard "*")
-_cors_raw = os.getenv("CORS_ORIGINS", "https://zetaapp.xyz,https://www.zetaapp.xyz,http://localhost:5173,http://localhost:3000")
+_cors_raw = os.getenv("CORS_ORIGINS", "https://zetaapp.xyz,https://www.zetaapp.xyz,https://myzeta.xyz,https://www.myzeta.xyz,http://localhost:5173,http://localhost:3000")
 ALLOWED_ORIGINS = [o.strip() for o in _cors_raw.split(",") if o.strip()]
 app.add_middleware(
     CORSMiddleware,
