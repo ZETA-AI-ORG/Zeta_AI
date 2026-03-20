@@ -165,7 +165,7 @@ else:
 print("🔍 [DEBUG] Importing auth router...")
 from routes.auth import router as auth_router
 print("🔍 [DEBUG] Importing routes...")
-from routes import auth, messenger
+from routes import auth, messenger, whatsapp
 print("🔍 [DEBUG] Importing meili_ingest_api...")
 from meili_ingest_api import router as meili_router
 # from routes.rag import router as rag_router  # SUPPRIMÉ - fichier obsolète
@@ -369,6 +369,7 @@ Instrumentator().instrument(app).expose(app)
 
 app.include_router(auth.router)
 app.include_router(messenger.router)
+app.include_router(whatsapp.router)
 app.include_router(meili_router)
 # NOTE: Removed duplicate include of meili_explorer_router; it is already mounted at prefix /meili above
 

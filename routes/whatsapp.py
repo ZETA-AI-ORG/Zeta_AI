@@ -1,15 +1,26 @@
 from fastapi import APIRouter, Request, HTTPException
 from typing import Dict, Any, Optional
 import logging
+import httpx
 
 from config import (
     WHATSAPP_VERIFY_TOKEN,
     WHATSAPP_DEFAULT_COMPANY_ID,
     WHATSAPP_AUTO_REPLY_ENABLED,
+    N8N_API_KEY,
+    N8N_DEBUG_MODE,
+    N8N_PRODUCTION_WEBHOOK_URL_FIXE,
+    N8N_TEST_WEBHOOK_URL_FIXE,
 )
 
 router = APIRouter(prefix="/whatsapp", tags=["whatsapp"])
 logger = logging.getLogger(__name__)
+
+
+def _get_n8n_inbound_webhook_url() -> Optional[str]:
+    if N8N_DEBUG_MODE and N8N_TEST_WEBHOOK_URL_FIXE:
+        return N8N_TEST_WEBHOOK_URL_FIXE
+    return N8N_PRODUCTION_WEBHOOK_URL_FIXE or N8N_TEST_WEBHOOK_URL_FIXE
 
 
 @router.get("/webhook")
@@ -114,6 +125,45 @@ async def whatsapp_webhook(request: Request):
                     )
                 except Exception as clog_err:
                     logger.warning(f"[WHATSAPP] conversation_logs insert failed: {clog_err}")
+
+                # Forward inbound WhatsApp event to n8n workflow if configured
+                try:
+                    n8n_webhook_url = _get_n8n_inbound_webhook_url()
+                    if n8n_webhook_url:
+                        n8n_payload: Dict[str, Any] = {
+                            "merchant_id": company_id,
+                            "clientId": client_id,
+                            "phone_number_id": phone_number_id,
+                            "from": user_id,
+                            "name": user_display_name or "Client",
+                            "body": text,
+                            "timestamp": m.get("timestamp"),
+                            "message_id": m.get("id"),
+                            "type": m.get("type") or "text",
+                            "raw": m,
+                        }
+
+                        headers: Dict[str, str] = {}
+                        if N8N_API_KEY:
+                            headers["X-N8N-API-KEY"] = N8N_API_KEY
+
+                        async with httpx.AsyncClient(timeout=10.0) as client:
+                            n8n_response = await client.post(
+                                n8n_webhook_url,
+                                json=n8n_payload,
+                                headers=headers,
+                            )
+
+                        if n8n_response.status_code not in (200, 201, 202, 204):
+                            logger.warning(
+                                "[WHATSAPP] n8n inbound webhook returned status=%s body=%s",
+                                n8n_response.status_code,
+                                n8n_response.text[:500],
+                            )
+                    else:
+                        logger.info("[WHATSAPP] n8n inbound webhook not configured; skipping forward")
+                except Exception as n8n_err:
+                    logger.warning(f"[WHATSAPP] n8n forward failed: {n8n_err}")
 
                 # Auto-reply optionnel
                 if WHATSAPP_AUTO_REPLY_ENABLED and text:
