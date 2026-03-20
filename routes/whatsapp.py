@@ -16,11 +16,16 @@ from config import (
 router = APIRouter(prefix="/whatsapp", tags=["whatsapp"])
 logger = logging.getLogger(__name__)
 
+DEFAULT_N8N_PRODUCTION_WEBHOOK_URL = "https://n8n.zetaapp.xyz/webhook/whatsapp-inbound"
+DEFAULT_N8N_TEST_WEBHOOK_URL = "https://n8n.zetaapp.xyz/webhook-test/whatsapp-inbound"
+
 
 def _get_n8n_inbound_webhook_url() -> Optional[str]:
-    if N8N_DEBUG_MODE and N8N_TEST_WEBHOOK_URL_FIXE:
-        return N8N_TEST_WEBHOOK_URL_FIXE
-    return N8N_PRODUCTION_WEBHOOK_URL_FIXE or N8N_TEST_WEBHOOK_URL_FIXE
+    test_url = N8N_TEST_WEBHOOK_URL_FIXE or DEFAULT_N8N_TEST_WEBHOOK_URL
+    prod_url = N8N_PRODUCTION_WEBHOOK_URL_FIXE or DEFAULT_N8N_PRODUCTION_WEBHOOK_URL
+    if N8N_DEBUG_MODE:
+        return test_url
+    return prod_url or test_url
 
 
 @router.get("/webhook")
