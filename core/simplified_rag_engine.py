@@ -3125,35 +3125,68 @@ class SimplifiedRAGEngine:
                 print(f"⚠️ [CART_SUMMARY] injection error: {type(_cart_e).__name__}: {_cart_e}")
 
             # ── Catalogue URL + Cart deep link pour redirection intelligente ──
+            # Gating: n'injecter que si l'intention du client touche au catalogue/site/finalisation
+            # Anti-répétition: ne pas ré-injecter le même type de lien si envoyé récemment
             try:
-                from database.supabase_client import get_company_context as _gcc
-                _cc = await _gcc(company_id)
-                _shop_slug = str(_cc.get("shop_slug") or "").strip()
-                _catalogue_url = CartManager.get_catalogue_url(_shop_slug)
-                _cart_link = self.cart_manager.create_cart_link(user_id, _shop_slug) if _shop_slug else ""
+                _q_low = str(query or "").lower()
+                _EXPLORE_KW = re.compile(
+                    r"\b(catalogue|boutique|produit|site|voir|parcourir|explorer|d[eé]couvrir|mod[eè]le|article|gamme)\b",
+                    re.IGNORECASE,
+                )
+                _FINALIZE_KW = re.compile(
+                    r"\b(finaliser|commander|payer|terminer|valider|site|panier|acheter|checkout)\b",
+                    re.IGNORECASE,
+                )
+                _wants_explore = bool(_EXPLORE_KW.search(_q_low))
+                _has_cart_items = self.cart_manager.get_items_count(user_id) > 0
+                _wants_finalize = _has_cart_items and bool(_FINALIZE_KW.search(_q_low))
 
-                if _catalogue_url:
-                    _redir_block = (
-                        "<website_redirect>\n"
-                        f"  <catalogue_url>{_catalogue_url}</catalogue_url>\n"
-                    )
-                    if _cart_link:
-                        _redir_block += f"  <cart_link>{_cart_link}</cart_link>\n"
-                    _redir_block += (
-                        "  <rules>\n"
-                        "    - Si le client demande à voir les produits, le catalogue ou la boutique, "
-                        "envoie-lui le lien catalogue_url.\n"
-                        "    - Si le client a un panier rempli et veut finaliser sur le site, "
-                        "envoie-lui le cart_link (panier pré-rempli).\n"
-                        "    - Tu peux proposer le lien catalogue quand c'est pertinent "
-                        "(ex: client hésite, veut explorer, ou tu as fini de répondre à ses questions).\n"
-                        "    - N'envoie PAS les liens de manière forcée à chaque message. "
-                        "Sois naturel et contextuel.\n"
-                        "  </rules>\n"
-                        "</website_redirect>"
-                    )
-                    instruction_block += "\n" + _redir_block + "\n"
-                    print(f"🔗 [REDIRECT] catalogue={_catalogue_url} | cart_link={'YES' if _cart_link else 'NO'}")
+                # Inject only if relevant intent detected or cart has items
+                _should_inject = _wants_explore or _wants_finalize or _has_cart_items
+
+                if _should_inject:
+                    from database.supabase_client import get_company_context as _gcc
+                    _cc = await _gcc(company_id)
+                    _shop_slug = str(_cc.get("shop_slug") or "").strip()
+                    _catalogue_url = CartManager.get_catalogue_url(_shop_slug)
+                    _cart_link = self.cart_manager.create_cart_link(user_id, _shop_slug) if _shop_slug and _has_cart_items else ""
+
+                    if _catalogue_url:
+                        # Anti-répétition: vérifier si le même type de lien a été envoyé récemment
+                        _redir_type = "cart" if _cart_link else "catalogue"
+                        _last_redir_type = ""
+                        _last_redir_turn = 0
+                        try:
+                            _last_redir_type = str(order_tracker.get_custom_meta(user_id, "last_redirect_type", default="") or "")
+                            _last_redir_turn = int(order_tracker.get_custom_meta(user_id, "last_redirect_turn", default=0) or 0)
+                        except Exception:
+                            pass
+
+                        _turn_gap = int(current_turn or 0) - _last_redir_turn
+                        _same_type_recent = (_last_redir_type == _redir_type and _turn_gap < 3)
+
+                        if _same_type_recent:
+                            # Lien déjà envoyé récemment → ne pas réinjecter
+                            print(f"🔇 [REDIRECT] skipped (same type '{_redir_type}' sent {_turn_gap} turn(s) ago)")
+                        else:
+                            _redir_block = (
+                                "<website_redirect>\n"
+                                f"  <catalogue_url>{_catalogue_url}</catalogue_url>\n"
+                            )
+                            if _cart_link:
+                                _redir_block += f"  <cart_link>{_cart_link}</cart_link>\n"
+                            _redir_block += "</website_redirect>"
+                            instruction_block += "\n" + _redir_block + "\n"
+
+                            # Persister pour anti-répétition
+                            try:
+                                order_tracker.set_custom_meta(user_id, "last_redirect_type", _redir_type)
+                                order_tracker.set_custom_meta(user_id, "last_redirect_turn", int(current_turn or 0))
+                            except Exception:
+                                pass
+                            print(f"🔗 [REDIRECT] injected type={_redir_type} | catalogue={_catalogue_url} | cart_link={'YES' if _cart_link else 'NO'}")
+                else:
+                    print(f"🔇 [REDIRECT] skipped (no relevant intent detected)")
             except Exception as _redir_e:
                 print(f"⚠️ [REDIRECT] injection error: {type(_redir_e).__name__}: {_redir_e}")
 
