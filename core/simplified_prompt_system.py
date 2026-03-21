@@ -587,39 +587,25 @@ Fais confiance à ton jugement. Tu es Jessica, pas un robot."""
             if not isinstance(catalog_v2, dict):
                 return ""
 
-            def _norm_pid(s: str) -> str:
-                try:
-                    import unicodedata
-
-                    t = str(s or "").strip()
-                    t = unicodedata.normalize("NFKD", t)
-                    t = "".join(ch for ch in t if not unicodedata.combining(ch))
-                    t = re.sub(r"\s+", " ", t).strip()
-                    return t.upper()
-                except Exception:
-                    return str(s or "").strip().upper()
-
             products: List[str] = []
 
             # Preferred: explicit products list
             plist = catalog_v2.get("products")
             if isinstance(plist, list):
                 for p in plist:
-                    if isinstance(p, str) and p.strip():
-                        products.append(p.strip())
-                    elif isinstance(p, dict):
-                        name = str(p.get("name") or p.get("product_name") or p.get("label") or "").strip()
-                        if name:
-                            products.append(name)
+                    if not isinstance(p, dict):
+                        continue
+                    pid = str(p.get("product_id") or "").strip()
+                    if pid:
+                        products.append(pid)
 
-            # Fallback: single product_name
+            # Fallback: mono-product catalog
             if not products:
-                pn = str(catalog_v2.get("product_name") or catalog_v2.get("name") or "").strip()
-                if pn:
-                    products.append(pn)
+                pid = str(catalog_v2.get("product_id") or "").strip()
+                if pid:
+                    products.append(pid)
 
-            products = [_norm_pid(x) for x in products if str(x).strip()]
-            products = sorted(set([x for x in products if x]))
+            products = sorted(set([str(x).strip() for x in products if str(x).strip()]), key=lambda x: x.lower())
             if not products:
                 return ""
 
