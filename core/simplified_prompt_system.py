@@ -635,7 +635,7 @@ Fais confiance à ton jugement. Tu es Jessica, pas un robot."""
         """Inject content only inside [CATALOGUE_START]...[CATALOGUE_END] markers.
 
         If markers are missing (common with older Supabase prompts), we append a
-        marker section at the end so runtime injection always works.
+        fresh catalogue section at the end so runtime product context is never lost.
         """
         try:
             import re
@@ -661,6 +661,31 @@ Fais confiance à ton jugement. Tu es Jessica, pas un robot."""
             m = matches[-1]
             out = base[: m.start()] + replacement + base[m.end() :]
             return str(out)
+        except Exception:
+            return str(prompt or "")
+
+    @staticmethod
+    def _inject_between_product_index_markers(prompt: str, content: str) -> str:
+        """Inject content inside [[PRODUCT_INDEX_START]]...[[PRODUCT_INDEX_END]] markers.
+
+        Keeps compatibility with prompts that still use explicit START/END markers
+        instead of the [[PRODUCT_INDEX]] placeholder.
+        """
+        try:
+            base = str(prompt or "")
+            block = str(content or "").strip()
+            if not base.strip() or not block:
+                return base
+
+            start_tag = "[[PRODUCT_INDEX_START]]"
+            end_tag = "[[PRODUCT_INDEX_END]]"
+            si = base.find(start_tag)
+            ei = base.find(end_tag)
+            if si != -1 and ei != -1 and ei > si:
+                block_start = si + len(start_tag)
+                replacement = "\n" + block + "\n"
+                return base[:block_start] + replacement + base[ei:]
+            return base
         except Exception:
             return str(prompt or "")
 
@@ -1643,11 +1668,14 @@ Fais confiance à ton jugement. Tu es Jessica, pas un robot."""
         # Récupérer le prompt statique (Supabase ou fallback)
         static_prompt = await self.get_static_prompt(company_id)
 
-        # Inject PRODUCT_INDEX placeholder (prompt must contain [[PRODUCT_INDEX]] where you want it).
+        # Inject PRODUCT_INDEX at runtime.
         try:
             idx_block = self._build_product_index_block(catalog_v2)
-            if idx_block and "[[PRODUCT_INDEX]]" in str(static_prompt or ""):
-                static_prompt = str(static_prompt).replace("[[PRODUCT_INDEX]]", idx_block)
+            if idx_block:
+                if "[[PRODUCT_INDEX]]" in str(static_prompt or ""):
+                    static_prompt = str(static_prompt).replace("[[PRODUCT_INDEX]]", idx_block)
+                else:
+                    static_prompt = self._inject_between_product_index_markers(static_prompt, idx_block)
         except Exception:
             pass
 

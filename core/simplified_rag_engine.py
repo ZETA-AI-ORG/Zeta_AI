@@ -717,6 +717,12 @@ class SimplifiedRAGEngine:
             except Exception:
                 prev_product_before_llm = ""
 
+            prev_active_product_id = ""
+            try:
+                prev_active_product_id = str(order_tracker.get_custom_meta(user_id, "active_product_id", default="") or "").strip()
+            except Exception:
+                prev_active_product_id = ""
+
             def _is_price_intent(msg: str) -> bool:
                 try:
                     s = str(msg or "").lower()
@@ -1304,6 +1310,30 @@ class SimplifiedRAGEngine:
                             pass
 
                 if detected_pid:
+                    if prev_active_product_id and detected_variant and (str(prev_active_product_id).strip() != str(detected_pid).strip()):
+                        try:
+                            container_prev = get_company_catalog_v2(company_id)
+                        except Exception:
+                            container_prev = None
+
+                        keep_previous_pid = False
+                        try:
+                            prev_catalog = get_company_product_catalog_v2(company_id, prev_active_product_id)
+                        except Exception:
+                            prev_catalog = None
+
+                        try:
+                            if isinstance(prev_catalog, dict):
+                                prev_vtree = prev_catalog.get("v") if isinstance(prev_catalog.get("v"), dict) else {}
+                                prev_keys = [str(k or "").strip() for k in list(prev_vtree.keys())]
+                                det_var_norm = _norm_name_for_id(detected_variant)
+                                keep_previous_pid = any(_norm_name_for_id(k) == det_var_norm for k in prev_keys if str(k).strip())
+                        except Exception:
+                            keep_previous_pid = False
+
+                        if keep_previous_pid:
+                            detected_pid = str(prev_active_product_id).strip()
+
                     if prev_product_before_llm and (str(prev_product_before_llm).strip() != detected_pid):
                         try:
                             order_tracker.update_produit_details(user_id, "", source="PYTHON_PREMATCH_RESET", confidence=0.9)

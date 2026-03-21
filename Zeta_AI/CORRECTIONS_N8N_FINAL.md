@@ -227,3 +227,107 @@ TOTAL: 9 documents
 | Total documents | 8 | 10 (+2) |
 
 **Amélioration globale : +150% en pertinence ! 🚀**
+
+---
+
+## 🧩 POST-MORTEM (PROBLÈMES RENCONTRÉS + CORRECTIONS)
+
+### 1) CORS bloqué entre frontend (myzeta.xyz) et backend (api.zetaapp.xyz)
+
+- **Symptôme**
+  - Preflight/OPTIONS vers `https://api.zetaapp.xyz/...` depuis `https://myzeta.xyz` bloqué.
+- **Cause racine**
+  - `CORS_ORIGINS` au runtime Docker du backend ne contenait que :
+    - `https://zetaapp.xyz,https://www.zetaapp.xyz`
+  - La source effective était dans le `.env` du VPS (injecté au conteneur).
+- **Correctif appliqué (VPS)**
+  - Mise à jour `.env` sur le VPS pour inclure :
+    - `https://myzeta.xyz` et `https://www.myzeta.xyz`
+  - Restart du service backend.
+
+### 2) `502 Bad Gateway` après redémarrage
+
+- **Symptôme**
+  - `curl -i -X OPTIONS https://api.zetaapp.xyz/...` renvoyait `502` côté Nginx.
+- **Diagnostic**
+  - Conteneur backend `healthy`.
+  - Health check local OK : `http://127.0.0.1:8002/ingestion/health`.
+- **Conclusion**
+  - Le `502` était transitoire (Nginx/temps de remontée ou timing de la requête). Une fois le backend stabilisé, le CORS était OK.
+
+### 3) Frontend : `PulseDot is not defined` sur myzeta.xyz
+
+- **Symptôme**
+  - Erreur runtime sur la page intégrations/dev.
+- **Cause racine**
+  - Le domaine `myzeta.xyz` servait un build Vercel **pas promu en prod** (le dernier commit était en preview).
+- **Correctif appliqué**
+  - Promotion du deployment preview vers prod sur Vercel.
+
+---
+
+## 🔁 SWITCH N8N : URL TEST → URL PROD (WA-BRIDGE / INBOUND)
+
+### Où se fait le choix TEST vs PROD
+
+Dans le backend, l’URL n8n utilisée pour forwarder les événements WhatsApp entrants est déterminée dans :
+
+- `routes/whatsapp.py`
+  - Fonction : `_get_n8n_inbound_webhook_url()`
+  - Logique :
+    - si `N8N_DEBUG_MODE=true` → utilise l’URL **test**
+    - sinon → utilise l’URL **prod**
+
+Les variables viennent de :
+
+- `config.py` (chargé depuis `.env` à la racine du projet)
+  - `N8N_DEBUG_MODE`
+  - `N8N_PRODUCTION_WEBHOOK_URL_FIXE`
+  - `N8N_TEST_WEBHOOK_URL_FIXE`
+  - (optionnel) `N8N_API_KEY` (header `X-N8N-API-KEY`)
+
+### Valeurs par défaut (si aucune variable n’est fournie)
+
+Dans `routes/whatsapp.py` :
+
+- PROD : `https://n8n.zetaapp.xyz/webhook/whatsapp-inbound`
+- TEST : `https://n8n.zetaapp.xyz/webhook-test/whatsapp-inbound`
+
+### Comment passer en PROD
+
+Dans le `.env` du backend (VPS / Docker runtime), mettre :
+
+```bash
+N8N_DEBUG_MODE=false
+N8N_PRODUCTION_WEBHOOK_URL_FIXE=https://n8n.zetaapp.xyz/webhook/whatsapp-inbound
+```
+
+Optionnel : forcer aussi explicitement l’URL test (utile si vous alternez) :
+
+```bash
+N8N_TEST_WEBHOOK_URL_FIXE=https://n8n.zetaapp.xyz/webhook-test/whatsapp-inbound
+```
+
+Puis redémarrer le backend (Docker) pour recharger les env vars.
+
+### Comment passer en TEST
+
+Dans le `.env` du backend :
+
+```bash
+N8N_DEBUG_MODE=true
+N8N_TEST_WEBHOOK_URL_FIXE=https://n8n.zetaapp.xyz/webhook-test/whatsapp-inbound
+```
+
+Puis redémarrer le backend.
+
+### Vérifications rapides (sans risque)
+
+- Vérifier la valeur effective dans le conteneur (runtime) :
+  - `docker exec zeta-backend printenv N8N_DEBUG_MODE`
+  - `docker exec zeta-backend printenv N8N_PRODUCTION_WEBHOOK_URL_FIXE`
+  - `docker exec zeta-backend printenv N8N_TEST_WEBHOOK_URL_FIXE`
+
+### Point d’attention
+
+- `N8N_OUTBOUND_WEBHOOK_URL` (utilisé par les routes Botlive pour des webhooks sortants) est une variable différente. Pour l’inbound WhatsApp → n8n, c’est `routes/whatsapp.py` qui choisit entre `N8N_TEST_WEBHOOK_URL_FIXE` et `N8N_PRODUCTION_WEBHOOK_URL_FIXE`.
