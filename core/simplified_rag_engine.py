@@ -3124,6 +3124,39 @@ class SimplifiedRAGEngine:
             except Exception as _cart_e:
                 print(f"⚠️ [CART_SUMMARY] injection error: {type(_cart_e).__name__}: {_cart_e}")
 
+            # ── Catalogue URL + Cart deep link pour redirection intelligente ──
+            try:
+                from database.supabase_client import get_company_context as _gcc
+                _cc = await _gcc(company_id)
+                _shop_slug = str(_cc.get("shop_slug") or "").strip()
+                _catalogue_url = CartManager.get_catalogue_url(_shop_slug)
+                _cart_link = self.cart_manager.create_cart_link(user_id, _shop_slug) if _shop_slug else ""
+
+                if _catalogue_url:
+                    _redir_block = (
+                        "<website_redirect>\n"
+                        f"  <catalogue_url>{_catalogue_url}</catalogue_url>\n"
+                    )
+                    if _cart_link:
+                        _redir_block += f"  <cart_link>{_cart_link}</cart_link>\n"
+                    _redir_block += (
+                        "  <rules>\n"
+                        "    - Si le client demande à voir les produits, le catalogue ou la boutique, "
+                        "envoie-lui le lien catalogue_url.\n"
+                        "    - Si le client a un panier rempli et veut finaliser sur le site, "
+                        "envoie-lui le cart_link (panier pré-rempli).\n"
+                        "    - Tu peux proposer le lien catalogue quand c'est pertinent "
+                        "(ex: client hésite, veut explorer, ou tu as fini de répondre à ses questions).\n"
+                        "    - N'envoie PAS les liens de manière forcée à chaque message. "
+                        "Sois naturel et contextuel.\n"
+                        "  </rules>\n"
+                        "</website_redirect>"
+                    )
+                    instruction_block += "\n" + _redir_block + "\n"
+                    print(f"🔗 [REDIRECT] catalogue={_catalogue_url} | cart_link={'YES' if _cart_link else 'NO'}")
+            except Exception as _redir_e:
+                print(f"⚠️ [REDIRECT] injection error: {type(_redir_e).__name__}: {_redir_e}")
+
             # ── PATCH D: Hints proactifs — Python injecte les montants connus pour que Jessica les annonce ──
             proactive_hints = []
             try:

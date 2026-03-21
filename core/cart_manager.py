@@ -323,3 +323,47 @@ class CartManager:
     def has_pending_pivot(self, user_id: str) -> bool:
         pp = self.get_pending_pivot(user_id)
         return bool(pp and isinstance(pp, dict) and pp.get("item"))
+
+    # ── Deep-link generation ──────────────────────
+
+    @staticmethod
+    def get_catalogue_url(shop_slug: str) -> str:
+        """Retourne l'URL publique du catalogue pour un shop_slug donné."""
+        base = os.getenv("PUBLIC_SITE_URL", "https://zetaapp.xyz").rstrip("/")
+        if shop_slug:
+            return f"{base}/shop/{shop_slug}"
+        return ""
+
+    def create_cart_link(self, user_id: str, shop_slug: str) -> str:
+        """
+        Génère un lien profond vers le catalogue public avec le panier pré-rempli.
+        Format: https://zetaapp.xyz/shop/{slug}?cart={base64_json}
+        Retourne '' si le panier est vide ou le slug absent.
+        """
+        import base64 as _b64
+
+        if not shop_slug:
+            return ""
+
+        items = self.get_items(user_id)
+        if not items:
+            return ""
+
+        # Garder uniquement les champs utiles pour le lien (léger)
+        compact = []
+        for it in items:
+            entry: Dict[str, Any] = {}
+            for k in ("product_id", "variant", "spec", "specs", "unit", "qty"):
+                v = it.get(k)
+                if v is not None and str(v).strip():
+                    entry[k] = v
+            if entry:
+                compact.append(entry)
+
+        if not compact:
+            return ""
+
+        payload = json.dumps(compact, ensure_ascii=False, separators=(",", ":"))
+        encoded = _b64.urlsafe_b64encode(payload.encode()).decode()
+        base_url = self.get_catalogue_url(shop_slug)
+        return f"{base_url}?cart={encoded}"
