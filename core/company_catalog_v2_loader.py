@@ -243,13 +243,52 @@ def get_company_catalog_v2(company_id: str) -> Optional[Dict[str, Any]]:
             .eq("company_id", cid)
             .eq("is_active", True)
             .order("updated_at", desc=True)
-            .limit(1)
             .execute()
         )
         data = getattr(resp, "data", None) or []
         if data:
-            catalog = data[0].get("catalog")
-            supabase_result = catalog if isinstance(catalog, dict) else None
+            if len(data) == 1:
+                catalog = data[0].get("catalog")
+                supabase_result = catalog if isinstance(catalog, dict) else None
+            else:
+                products = []
+                for row in data:
+                    catalog = row.get("catalog")
+                    if not isinstance(catalog, dict):
+                        continue
+                    try:
+                        catalog = _unwrap_catalog_shape(catalog)
+                    except Exception:
+                        pass
+                    if not isinstance(catalog, dict):
+                        continue
+                    if isinstance(catalog.get("products"), list):
+                        for p in catalog.get("products") or []:
+                            if not isinstance(p, dict):
+                                continue
+                            cat = p.get("catalog_v2") if isinstance(p.get("catalog_v2"), dict) else p
+                            if not isinstance(cat, dict):
+                                continue
+                            pid = str(p.get("product_id") or cat.get("product_id") or "").strip()
+                            pname = str(p.get("product_name") or cat.get("product_name") or cat.get("name") or "").strip()
+                            products.append({"product_id": pid, "product_name": pname, "catalog_v2": cat})
+                    else:
+                        pid = str(catalog.get("product_id") or "").strip()
+                        pname = str(catalog.get("product_name") or catalog.get("name") or "").strip()
+                        products.append({"product_id": pid, "product_name": pname, "catalog_v2": catalog})
+                deduped_products = []
+                seen_product_ids = set()
+                for product in products:
+                    pid = str(product.get("product_id") or "").strip().lower()
+                    if pid:
+                        if pid in seen_product_ids:
+                            continue
+                        seen_product_ids.add(pid)
+                    deduped_products.append(product)
+                if len(deduped_products) == 1 and isinstance(deduped_products[0].get("catalog_v2"), dict):
+                    supabase_result = deduped_products[0].get("catalog_v2")
+                elif deduped_products:
+                    supabase_result = {"products": deduped_products}
             try:
                 supabase_result = _unwrap_catalog_shape(supabase_result)
             except Exception:
@@ -262,6 +301,43 @@ def get_company_catalog_v2(company_id: str) -> Optional[Dict[str, Any]]:
                 pass
 
     if isinstance(supabase_result, dict):
+        try:
+            has_vtree = bool(isinstance(supabase_result.get("v"), dict) and supabase_result.get("v"))
+            if not has_vtree:
+                plist_sup = supabase_result.get("products") if isinstance(supabase_result.get("products"), list) else []
+                has_vtree = any(
+                    isinstance(((p.get("catalog_v2") if isinstance(p.get("catalog_v2"), dict) else p).get("v")), dict)
+                    and ((p.get("catalog_v2") if isinstance(p.get("catalog_v2"), dict) else p).get("v"))
+                    for p in plist_sup
+                    if isinstance(p, dict)
+                )
+            if not has_vtree:
+                local_candidate = _load_catalog_from_local_file(cid)
+                if isinstance(local_candidate, dict):
+                    try:
+                        local_candidate = _unwrap_catalog_shape(local_candidate)
+                    except Exception:
+                        pass
+                    local_has_vtree = bool(isinstance(local_candidate.get("v"), dict) and local_candidate.get("v"))
+                    if not local_has_vtree:
+                        plist_local = local_candidate.get("products") if isinstance(local_candidate.get("products"), list) else []
+                        local_has_vtree = any(
+                            isinstance(((p.get("catalog_v2") if isinstance(p.get("catalog_v2"), dict) else p).get("v")), dict)
+                            and ((p.get("catalog_v2") if isinstance(p.get("catalog_v2"), dict) else p).get("v"))
+                            for p in plist_local
+                            if isinstance(p, dict)
+                        )
+                    if local_has_vtree:
+                        if debug_logs:
+                            try:
+                                logger.info(f"[CATALOG_LOAD] company={cid} source=local_override_missing_vtree")
+                            except Exception:
+                                pass
+                        _CACHE[cid] = (now + ttl_s, local_candidate)
+                        return local_candidate
+        except Exception:
+            pass
+
         if debug_logs:
             try:
                 logger.info(f"[CATALOG_LOAD] company={cid} source=supabase")
