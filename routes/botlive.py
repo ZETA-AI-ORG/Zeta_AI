@@ -1318,7 +1318,7 @@ async def check_shared_intervention(req: SharedInterventionCheckRequest):
                 "guardian_confidence": result.get("confidence"),
             },
             channel=req.channel or "whatsapp",
-            direction="system",
+            direction="assistant",
             source=req.source or "botliveandrag_check",
         )
     return JSONResponse(content=result)
