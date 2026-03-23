@@ -17,7 +17,7 @@ import httpx
 import re
 
 from config import N8N_OUTBOUND_WEBHOOK_URL, N8N_API_KEY, N8N_DEBUG_MODE
-from core.intervention_logger import log_intervention_in_conversation_logs, log_message_in_conversation_logs
+from core.intervention_logger import log_intervention_in_conversation_logs, log_message_in_conversation_logs, upsert_required_intervention
 from core.intervention_guardian import get_intervention_guardian
 from core.production_pipeline import ProductionPipeline
 from core.rule_overrides import RuleOverrides
@@ -1303,6 +1303,27 @@ async def check_shared_intervention(req: SharedInterventionCheckRequest):
 
     # --- Log si intervention détectée ---
     if req.log_intervention and result.get("requires_intervention"):
+        # 1) Écrire dans required_interventions (table métier)
+        await upsert_required_intervention(
+            company_id=req.company_id,
+            user_id=req.user_id,
+            channel=req.channel or "whatsapp",
+            intervention_type=result.get("category") or "explicit_handoff",
+            priority=result.get("priority") or "normal",
+            detected_by=result.get("detected_by") or "rule_based",
+            source_bot=req.source or "botliveandrag",
+            confidence=result.get("confidence"),
+            reason=result.get("reason") or "",
+            signals={
+                "caps_ratio": result.get("caps_ratio"),
+                "explicit_handoff": result.get("explicit_handoff"),
+                "is_frustrated": result.get("is_frustrated"),
+            },
+            user_message=req.user_message or "",
+            bot_response=req.bot_response or "",
+            order_state=req.order_state or {},
+        )
+        # 2) Écrire aussi dans conversation_logs (historique + push notification)
         await log_intervention_in_conversation_logs(
             company_id_text=req.company_id,
             user_id=req.user_id,

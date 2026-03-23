@@ -109,6 +109,78 @@ async def log_intervention_in_conversation_logs(
         return False
 
 
+async def upsert_required_intervention(
+    company_id: str,
+    user_id: str,
+    *,
+    channel: str = "whatsapp",
+    intervention_type: str = "explicit_handoff",
+    priority: str = "normal",
+    detected_by: str = "rule_based",
+    source_bot: str = "botlive",
+    confidence: float = None,
+    reason: str = "",
+    signals: dict = None,
+    user_message: str = "",
+    bot_response: str = "",
+    conversation_snippet: str = "",
+    order_state: dict = None,
+) -> bool:
+    """Insert or update an intervention in the required_interventions table via Supabase RPC."""
+    if not SUPABASE_URL or not SUPABASE_KEY:
+        logger.error("[INTERVENTION_LOGGER] Missing Supabase config for upsert_required_intervention")
+        return False
+
+    # Map detected_by to valid DB enum values
+    valid_detected_by = {
+        "rule_based", "intervention_guardian_v1", "cooperative_mode",
+        "post_recap", "system", "manual",
+    }
+    if detected_by not in valid_detected_by:
+        detected_by = "rule_based"  # fallback for context_rules etc.
+
+    # Map source_bot to valid DB enum
+    valid_source_bot = {"botlive", "ragbot", "botliveandrag"}
+    if source_bot not in valid_source_bot:
+        source_bot = "botliveandrag"
+
+    url = f"{SUPABASE_URL}/rest/v1/rpc/upsert_required_intervention"
+    payload = {
+        "p_company_id": company_id,
+        "p_user_id": user_id,
+        "p_channel": channel or "whatsapp",
+        "p_type": intervention_type,
+        "p_priority": priority or "normal",
+        "p_detected_by": detected_by,
+        "p_source_bot": source_bot,
+        "p_confidence": confidence,
+        "p_reason": (reason or "")[:2000],
+        "p_signals": signals or {},
+        "p_user_message": (user_message or "")[:2000],
+        "p_bot_response": (bot_response or "")[:2000],
+        "p_conversation_snippet": (conversation_snippet or "")[:2000],
+        "p_order_state": order_state or {},
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            resp = await client.post(url, headers=HEADERS, json=payload)
+        if resp.status_code not in (200, 201):
+            logger.error(
+                "[INTERVENTION_LOGGER] upsert_required_intervention failed: %s %s",
+                resp.status_code, resp.text[:500],
+            )
+            return False
+        logger.info(
+            "[INTERVENTION_LOGGER] ✅ required_intervention upserted | company=%s user=%s type=%s priority=%s",
+            company_id, user_id, intervention_type, priority,
+        )
+        return True
+    except Exception as e:
+        logger.error("[INTERVENTION_LOGGER] Exception in upsert_required_intervention: %s", e)
+        return False
+
+
 async def log_message_in_conversation_logs(
     company_id_text: str,
     user_id: str,
