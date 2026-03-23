@@ -192,8 +192,9 @@ print("⚠️ [DEBUG] Image search router SKIPPED (debugging)")
 
 # --- Botlive API Routes ---
 print("🔍 [DEBUG] Importing botlive router...")
-from routes.botlive import router as botlive_router
+from routes.botlive import router as botlive_router, shared_router as botliveandrag_router
 app.include_router(botlive_router)
+app.include_router(botliveandrag_router)
 print("✅ [DEBUG] Botlive router ACTIVATED")
 print("✅ [DEBUG] All imports completed!")
 

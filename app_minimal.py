@@ -9,7 +9,7 @@ load_dotenv()
 import logging
 import os
 import time
-from fastapi import FastAPI
+from fastapi import FastAPI, BackgroundTasks
 from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
 from typing import List
@@ -82,8 +82,44 @@ class RagBotEnabledRequest(BaseModel):
     enabled: bool
 
 
+async def _bg_intervention_check(
+    company_id: str, user_id: str, user_message: str, bot_response: str,
+) -> None:
+    """Background task: check intervention after RAGBot response."""
+    try:
+        from routes.botlive import _compute_rule_based_intervention
+        from core.intervention_logger import log_intervention_in_conversation_logs
+
+        rule = _compute_rule_based_intervention(user_message)
+        if not rule.get("requires_intervention"):
+            return
+        await log_intervention_in_conversation_logs(
+            company_id_text=company_id,
+            user_id=user_id,
+            message=rule.get("reason") or user_message,
+            metadata={
+                "needs_intervention": True,
+                "reason": rule.get("reason"),
+                "priority": "critical" if rule.get("reason") == "explicit_handoff" else "high",
+                "caps_ratio": rule.get("caps_ratio"),
+                "source": "ragbot",
+                "detected_by": "rule_based",
+                "source_bot": "ragbot",
+            },
+            channel="whatsapp",
+            direction="system",
+            source="ragbot_bg_check",
+        )
+        logger.info(
+            "[RAGBOT][INTERVENTION] Detected %s for user=%s company=%s",
+            rule.get("reason"), user_id, company_id,
+        )
+    except Exception as exc:
+        logger.warning("[RAGBOT][INTERVENTION] bg check failed: %s", exc)
+
+
 @app.post("/chat")
-async def chat(chat_request: ChatRequest):
+async def chat(chat_request: ChatRequest, background_tasks: BackgroundTasks):
     """Endpoint principal pour le chat"""
     try:
         from core.simplified_rag_engine import get_simplified_rag_response
@@ -150,6 +186,13 @@ async def chat(chat_request: ChatRequest):
                 pass
 
         _ = time.time() - start_ts
+        background_tasks.add_task(
+            _bg_intervention_check,
+            company_id=chat_request.company_id,
+            user_id=chat_request.user_id,
+            user_message=chat_request.message,
+            bot_response=response if isinstance(response, str) else str(response),
+        )
         return {"status": "success", "response": response}
     except Exception as e:
         logger.exception("/chat failed")
@@ -229,9 +272,10 @@ async def auth_test():
 BOTLIVE_ENABLED = os.getenv("BOTLIVE_ENABLED", "true").lower() == "true"
 if BOTLIVE_ENABLED:
     try:
-        from routes.botlive import router as botlive_router
+        from routes.botlive import router as botlive_router, shared_router as botliveandrag_router
 
         app.include_router(botlive_router, tags=["Botlive"])  # Pas de prefix, déjà dans le router
+        app.include_router(botliveandrag_router, tags=["BotliveAndRag"])  # Pas de prefix, déjà dans le router
         logger.info("✅ Routes Botlive chargées")
     except Exception as e:
         logger.warning(f"⚠️ Erreur chargement Botlive routes: {e}")

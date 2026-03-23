@@ -174,6 +174,7 @@ def _pending_key(company_id: str, user_id: str) -> str:
 ENABLE_POST_RECAP_STOP_FLOW = False
 
 router = APIRouter(prefix="/botlive", tags=["botlive"])
+shared_router = APIRouter(prefix="/botliveandrag", tags=["botliveandrag"])
 
 DISABLE_VISION_MODELS = os.getenv("DISABLE_VISION_MODELS", "false").lower() == "true"
 
@@ -223,6 +224,18 @@ class HumanReplyRequest(BaseModel):
         description="ID de la page (ex: page Facebook Messenger)",
     )
 
+class SharedInterventionCheckRequest(BaseModel):
+    company_id: str = Field(..., description="ID texte de l'entreprise")
+    user_id: str = Field(..., description="ID utilisateur")
+    user_message: str = Field(default="", description="Dernier message client")
+    bot_response: str = Field(default="", description="Dernière réponse bot")
+    conversation_history: str = Field(default="", description="Historique conversationnel sérialisé")
+    order_state: Dict[str, Any] = Field(default_factory=dict, description="État commande courant")
+    next_step: str = Field(default="", description="Étape courante")
+    source: str = Field(default="shared", description="Source appelante")
+    log_intervention: bool = Field(default=True, description="Persister ou non l'intervention")
+    channel: str = Field(default="whatsapp", description="Canal conversationnel")
+
 class WebhookConfig(BaseModel):
     """Configuration webhook N8N"""
     webhook_url: str = Field(..., description="URL webhook N8N")
@@ -246,6 +259,123 @@ class BotPauseRequest(BaseModel):
     company_id: str
     user_id: str
     enabled: bool
+
+def _compute_rule_based_intervention(msg_text: str) -> Dict[str, Any]:
+    msg_text = msg_text or ""
+    msg_lower = msg_text.lower()
+
+    # --- 1. Explicit handoff ---
+    explicit_handoff_keywords = [
+        "parler a un humain", "parler à un humain", "parler a quelqu'un",
+        "parler à quelqu'un", "parler a un conseiller", "parler à un conseiller",
+        "parler a un agent", "parler à un agent", "parler a quelquun",
+        "parler à quelquun", "un humain", "un agent", "service client",
+        "conseiller", "un humain stp", "un humain svp",
+        "un humain s'il vous plait", "un humain s il vous plait",
+    ]
+    explicit_handoff = any(kw in msg_lower for kw in explicit_handoff_keywords)
+
+    # --- 2. Frustration ---
+    caps_ratio = 0.0
+    letters = [c for c in msg_text if c.isalpha()]
+    if letters:
+        caps = [c for c in letters if c.isupper()]
+        if caps:
+            caps_ratio = len(caps) / len(letters)
+    negative_keywords = [
+        "service de merde", "arnaque", "scandale", "nul", "nulle", "honte",
+        "rembourse", "remboursement", "pas content", "mécontent", "mecontent",
+        "insatisfait", "insatisfaite", "catastrophe", "pourri", "inadmissible",
+        "voleur", "voleurs", "escroc", "escrocs", "je vais porter plainte",
+        "porter plainte", "tribunal", "inacceptable",
+    ]
+    is_frustrated = caps_ratio > 0.7 or any(kw in msg_lower for kw in negative_keywords)
+
+    # --- 3. SAV / réclamation ---
+    sav_keywords = [
+        "ma commande", "mon colis", "pas reçu", "pas recu", "pas livré",
+        "pas livre", "en retard", "retard livraison", "mauvais produit",
+        "produit cassé", "produit casse", "erreur commande", "commande erronée",
+        "commande erronee", "je veux un remboursement", "j'ai pas reçu",
+        "j ai pas recu", "ou est ma commande", "où est ma commande",
+        "suivi commande", "suivi de commande", "numéro de suivi",
+        "numero de suivi", "quand est-ce que je recois", "quand est ce que je recois",
+    ]
+    is_sav = any(kw in msg_lower for kw in sav_keywords)
+
+    # --- 4. Payment mention ---
+    payment_keywords = [
+        "j'ai payé", "j ai paye", "j'ai envoyé", "j ai envoye",
+        "j'ai fait le paiement", "j ai fait le paiement",
+        "wave ne marche pas", "paiement refusé", "paiement refuse",
+        "problème paiement", "probleme paiement", "erreur paiement",
+        "montant incorrect", "mauvais montant",
+    ]
+    is_payment_issue = any(kw in msg_lower for kw in payment_keywords)
+
+    # --- Priority: explicit_handoff > frustration > sav > payment ---
+    reason = None
+    if explicit_handoff:
+        reason = "explicit_handoff"
+    elif is_frustrated:
+        reason = "customer_frustration"
+    elif is_sav:
+        reason = "sav_issue"
+    elif is_payment_issue:
+        reason = "payment_issue"
+
+    return {
+        "explicit_handoff": explicit_handoff,
+        "is_frustrated": is_frustrated,
+        "is_sav": is_sav,
+        "is_payment_issue": is_payment_issue,
+        "caps_ratio": caps_ratio,
+        "reason": reason,
+        "requires_intervention": bool(reason),
+    }
+
+
+def _compute_context_based_intervention(
+    order_state: Dict[str, Any],
+    next_step: str,
+    bot_response: str,
+    source: str,
+) -> Optional[Dict[str, Any]]:
+    """Détection d'intervention basée sur le contexte commande/conversation.
+
+    Retourne un dict {reason, priority} si intervention détectée, None sinon.
+    """
+    order_state = order_state or {}
+    next_step = (next_step or "").lower().strip()
+    bot_response = (bot_response or "").lower()
+
+    # --- order_blocked: commande en cours mais bloquée ---
+    completion = order_state.get("completion_rate")
+    try:
+        completion = float(completion) if completion is not None else None
+    except (ValueError, TypeError):
+        completion = None
+    if completion is not None and 0 < completion < 1.0:
+        stale_turns = order_state.get("stale_turns") or 0
+        try:
+            stale_turns = int(stale_turns)
+        except (ValueError, TypeError):
+            stale_turns = 0
+        if stale_turns >= 4:
+            return {"reason": "order_blocked", "priority": "high"}
+
+    # --- post_order_followup: message après commande complétée ---
+    is_complete = order_state.get("is_complete") or order_state.get("completed") or False
+    if is_complete and source in ("botlive", "ragbot", "shared"):
+        return {"reason": "post_order_followup", "priority": "normal"}
+
+    # --- payment_issue: paiement en cours mais OCR échoué ---
+    if next_step in ("paiement", "request_wave"):
+        pay_err = order_state.get("payment_error") or order_state.get("ocr_error")
+        if pay_err:
+            return {"reason": "payment_issue", "priority": "high"}
+
+    return None
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # 🔥 ENDPOINTS PRINCIPAUX
@@ -320,51 +450,25 @@ async def process_botlive_message(req: BotliveMessageRequest, background_tasks: 
                 media_type="application/json; charset=utf-8",
             )
 
-        explicit_handoff_keywords = [
-            "parler a un humain",
-            "parler à un humain",
-            "parler a quelqu'un",
-            "parler à quelqu'un",
-            "parler a un conseiller",
-            "parler à un conseiller",
-            "parler a un agent",
-            "parler à un agent",
-            "parler a quelquun",
-            "parler à quelquun",
-            "un humain s'il vous plait",
-            "un humain s il vous plait",
-        ]
-        explicit_handoff = any(kw in msg_lower for kw in explicit_handoff_keywords)
-
-        caps_ratio = 0.0
-        if msg_text:
-            letters = [c for c in msg_text if c.isalpha()]
-            if letters:
-                caps = [c for c in letters if c.isupper()]
-                if caps:
-                    caps_ratio = len(caps) / len(letters)
-
-        negative_keywords = [
-            "service de merde",
-            "nul",
-            "pourri",
-            "inadmissible",
-        ]
-        is_frustrated = caps_ratio > 0.7 or any(kw in msg_lower for kw in negative_keywords)
+        # Utiliser le moteur partagé de détection rule-based
+        rule_result = _compute_rule_based_intervention(msg_text)
+        explicit_handoff = rule_result.get("explicit_handoff", False)
+        is_frustrated = rule_result.get("is_frustrated", False)
+        caps_ratio = rule_result.get("caps_ratio", 0.0)
 
         logger.info(
-            "[BOTLIVE][%s] Intervention signals | explicit_handoff=%s is_frustrated=%s caps_ratio=%.2f",
+            "[BOTLIVE][%s] Intervention signals (shared engine) | explicit_handoff=%s is_frustrated=%s caps_ratio=%.2f",
             request_id,
             explicit_handoff,
             is_frustrated,
             caps_ratio,
         )
 
-        if explicit_handoff or is_frustrated:
-            reason = "explicit_handoff" if explicit_handoff else "customer_frustration"
+        if rule_result.get("requires_intervention"):
+            reason = rule_result.get("reason", "explicit_handoff")
             try:
                 logger.info(
-                    "[BOTLIVE][%s] Intervention (rule-based) triggered | reason=%s message=%s",
+                    "[BOTLIVE][%s] Intervention (rule-based, shared engine) triggered | reason=%s message=%s",
                     request_id,
                     reason,
                     msg_text,
@@ -378,6 +482,8 @@ async def process_botlive_message(req: BotliveMessageRequest, background_tasks: 
                         "reason": reason,
                         "priority": "high",
                         "caps_ratio": caps_ratio,
+                        "detected_by": "rule_based",
+                        "source_bot": "botlive",
                     },
                     channel="botlive",
                     direction="user",
@@ -974,6 +1080,8 @@ async def process_botlive_message(req: BotliveMessageRequest, background_tasks: 
                             "guardian_confidence": guardian_decision.get("confidence"),
                             "guardian_reason": guardian_decision.get("reason"),
                             "detected_by": "intervention_guardian_v1",
+                            "source_bot": "botlive",
+                            "caps_ratio": caps_ratio,
                         }
                         suggested = guardian_decision.get("suggested_handoff_message")
                         if suggested:
@@ -1118,6 +1226,102 @@ async def process_botlive_message(req: BotliveMessageRequest, background_tasks: 
         raise HTTPException(status_code=500, detail=f"Erreur traitement message: {str(e)}")
 
     logger.warning(f"[BOTLIVE][{request_id}] ZETA-AI v6.5 active | RequestID: {request_id}")
+
+@shared_router.post("/check-intervention")
+async def check_shared_intervention(req: SharedInterventionCheckRequest):
+    # --- Couche 1 : règles textuelles ---
+    rule_result = _compute_rule_based_intervention(req.user_message)
+    result: Dict[str, Any] = {
+        "requires_intervention": False,
+        "priority": "normal",
+        "category": None,
+        "reason": None,
+        "detected_by": None,
+        "confidence": None,
+        "caps_ratio": rule_result.get("caps_ratio", 0.0),
+        "explicit_handoff": rule_result.get("explicit_handoff", False),
+        "is_frustrated": rule_result.get("is_frustrated", False),
+        "source": req.source,
+    }
+
+    if rule_result.get("requires_intervention"):
+        prio = "critical" if rule_result.get("reason") == "explicit_handoff" else "high"
+        result.update({
+            "requires_intervention": True,
+            "priority": prio,
+            "category": rule_result.get("reason"),
+            "reason": rule_result.get("reason"),
+            "detected_by": "rule_based",
+        })
+    else:
+        # --- Couche 2 : règles contextuelles (order_state, next_step) ---
+        ctx_result = _compute_context_based_intervention(
+            order_state=req.order_state or {},
+            next_step=req.next_step or "",
+            bot_response=req.bot_response or "",
+            source=req.source or "shared",
+        )
+        if ctx_result:
+            result.update({
+                "requires_intervention": True,
+                "priority": ctx_result.get("priority", "normal"),
+                "category": ctx_result.get("reason"),
+                "reason": ctx_result.get("reason"),
+                "detected_by": "context_rules",
+            })
+        else:
+            # --- Couche 3 : Guardian LLM (cas ambigus) ---
+            guardian = get_intervention_guardian()
+            if guardian:
+                hard_signals = {
+                    "explicit_handoff": rule_result.get("explicit_handoff", False),
+                    "customer_frustration": rule_result.get("is_frustrated", False),
+                    "is_sav": rule_result.get("is_sav", False),
+                    "is_payment_issue": rule_result.get("is_payment_issue", False),
+                    "next_step": req.next_step or "",
+                    "order_is_complete": bool((req.order_state or {}).get("is_complete")),
+                    "completion_rate": (req.order_state or {}).get("completion_rate"),
+                }
+                decision = await guardian.analyze(
+                    conversation_history=req.conversation_history or "",
+                    user_message=req.user_message or "",
+                    bot_response=req.bot_response or "",
+                    order_state=req.order_state or {},
+                    next_step=req.next_step or "",
+                    hard_signals=hard_signals,
+                )
+                if decision.get("requires_intervention"):
+                    result.update({
+                        "requires_intervention": True,
+                        "priority": decision.get("priority") or "normal",
+                        "category": decision.get("category") or "guardian_intervention",
+                        "reason": decision.get("reason") or "guardian_intervention",
+                        "detected_by": "intervention_guardian_v1",
+                        "confidence": decision.get("confidence"),
+                        "suggested_handoff_message": decision.get("suggested_handoff_message") or "",
+                    })
+
+    # --- Log si intervention détectée ---
+    if req.log_intervention and result.get("requires_intervention"):
+        await log_intervention_in_conversation_logs(
+            company_id_text=req.company_id,
+            user_id=req.user_id,
+            message=result.get("reason") or (req.user_message or "[Shared Intervention]"),
+            metadata={
+                "needs_intervention": True,
+                "reason": result.get("category") or result.get("reason"),
+                "priority": result.get("priority") or "normal",
+                "caps_ratio": result.get("caps_ratio"),
+                "source": req.source,
+                "detected_by": result.get("detected_by"),
+                "source_bot": req.source or "shared",
+                "guardian_confidence": result.get("confidence"),
+            },
+            channel=req.channel or "whatsapp",
+            direction="system",
+            source=req.source or "botliveandrag_check",
+        )
+    return JSONResponse(content=result)
 
 @router.post("/human-reply")
 async def send_human_reply(req: HumanReplyRequest):
