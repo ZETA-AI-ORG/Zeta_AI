@@ -19,9 +19,11 @@ from dataclasses import dataclass
 import re
 
 from config import LLM_TRANSMISSION_TOKEN
+from core.intervention_logger import upsert_required_intervention as _upsert_intervention
 
 
 CONFIDENCE_THRESHOLD = 0.8
+AUTO_REACTIVATE_AFTER_DAYS = 7
 
 from core.order_state_tracker import order_tracker
 from core.payment_validator import validate_payment_cumulative, format_payment_for_prompt
@@ -109,6 +111,38 @@ class SimplifiedRAGEngine:
         # (Le frontend/humain peut reprendre la conversation via un autre canal.)
         try:
             if order_tracker.get_flag(user_id, "bot_paused"):
+                paused_at_raw = order_tracker.get_custom_meta(user_id, "bot_paused_at", default="")
+                if paused_at_raw:
+                    try:
+                        paused_at = datetime.fromisoformat(str(paused_at_raw))
+                        paused_for_days = (datetime.now() - paused_at).total_seconds() / 86400.0
+                        if paused_for_days >= AUTO_REACTIVATE_AFTER_DAYS:
+                            order_tracker.set_flag(user_id, "bot_paused", False)
+                            order_tracker.set_custom_meta(user_id, "bot_paused_auto_resumed_at", datetime.now().isoformat())
+                            print(f"♻️ [SIMPLIFIED RAG] auto-resume after {paused_for_days:.1f} days for user={user_id}")
+                        else:
+                            paused_msg = (os.getenv("SIMPLIFIED_RAG_PAUSED_MESSAGE") or "Je t'ai passé le responsable, il revient vers toi.").strip()
+                            processing_time = (time.time() - start_time) * 1000
+                            checklist = self.prompt_system.get_checklist_state(user_id, company_id)
+                            print("⏸️ [SIMPLIFIED RAG] bot_paused=True -> short-circuit")
+                            return SimplifiedRAGResult(
+                                response=paused_msg,
+                                confidence=1.0,
+                                processing_time_ms=processing_time,
+                                checklist_state=checklist.to_string(),
+                                next_step=checklist.get_next_step(),
+                                detected_location=None,
+                                shipping_fee=None,
+                                usage=None,
+                                prompt_tokens=0,
+                                completion_tokens=0,
+                                total_tokens=0,
+                                cost=0.0,
+                                model="python_paused_short_circuit",
+                                thinking="",
+                            )
+                    except Exception:
+                        pass
                 paused_msg = (os.getenv("SIMPLIFIED_RAG_PAUSED_MESSAGE") or "Je t'ai passé le responsable, il revient vers toi.").strip()
                 processing_time = (time.time() - start_time) * 1000
                 checklist = self.prompt_system.get_checklist_state(user_id, company_id)
@@ -4746,14 +4780,18 @@ class SimplifiedRAGEngine:
                     response = _fallback_question(nf)
                     print(f"🛡️ [RESPONSE_FALLBACK] xml_leak_detected | next={nf}")
 
-            # 6.0 SAV/HUMAN HANDOFF (RAG): si le LLM sort le token de transmission, on notifie et on stoppe.
+            # 6.0 SAV/HUMAN HANDOFF (RAG): si le LLM sort le token de transmission OU <handoff>true</handoff>
+            # dans le thinking, on notifie et on stoppe.
             # IMPORTANT: déclenché AVANT toute post-transformation (pricing, guards) pour éviter de polluer le message.
             try:
-                token = (LLM_TRANSMISSION_TOKEN or "TRANSMISSIONXXX").strip()
+                token = (LLM_TRANSMISSION_TOKEN or "##HANDOFF##").strip()
                 resp_text = str(response or "")
                 raw_text = str(raw_llm_output or "")
                 has_token = bool(token) and (token.lower() in resp_text.lower() or token.lower() in raw_text.lower())
-                if has_token:
+                # Détection <handoff>true</handoff> dans le bloc thinking
+                _thinking_text = str(raw_llm_output or "")
+                _handoff_from_thinking = bool(re.search(r'<handoff>\s*true\s*</handoff>', _thinking_text, re.IGNORECASE))
+                if has_token or _handoff_from_thinking:
                     from core.human_notification_service import HumanNotificationService
 
                     # Permettre un message client optionnel avant le token (séparateur §§).
@@ -4772,6 +4810,8 @@ class SimplifiedRAGEngine:
 
                     try:
                         order_tracker.set_flag(user_id, "bot_paused", True)
+                        order_tracker.set_custom_meta(user_id, "bot_paused_at", datetime.now().isoformat())
+                        order_tracker.set_custom_meta(user_id, "bot_paused_by", "explicit_handoff")
                         order_tracker.set_custom_meta(user_id, "handoff_reason", "SAV")
                         order_tracker.set_custom_meta(user_id, "handoff_trigger", token)
                     except Exception:
@@ -4801,9 +4841,89 @@ class SimplifiedRAGEngine:
                     except Exception as _hn_e:
                         print(f"⚠️ [SAV_HANDOFF] notify failed: {type(_hn_e).__name__}: {_hn_e}")
 
+                    # --- Écriture dans required_interventions (bot_losing_client = explicit_handoff) ---
+                    try:
+                        import asyncio as _asyncio
+                        _asyncio.ensure_future(_upsert_intervention(
+                            company_id=company_id,
+                            user_id=user_id,
+                            channel="whatsapp",
+                            intervention_type="explicit_handoff",
+                            priority="critical",
+                            detected_by="rule_based",
+                            source_bot="ragbot",
+                            confidence=1.0,
+                            reason="Handoff LLM déclenché (" + ("thinking" if _handoff_from_thinking else "token") + ")",
+                            user_message=str(query or "")[:500],
+                            bot_response=str(cleaned or "")[:500],
+                        ))
+                        print("✅ [SAV_HANDOFF] required_intervention upserted (ragbot/explicit_handoff)")
+                    except Exception as _ui_e:
+                        print(f"⚠️ [SAV_HANDOFF] upsert_intervention failed: {_ui_e}")
+
                     response = cleaned
             except Exception as _handoff_e:
                 print(f"⚠️ [SAV_HANDOFF] error: {type(_handoff_e).__name__}: {_handoff_e}")
+
+            # --- 6.1 TRIGGER order_blocked (RAGBot) : commande en cours mais bloquée ---
+            try:
+                _st_bl = order_tracker.get_state(user_id)
+                _cr_bl = float(_st_bl.get_completion_rate()) if _st_bl else 0.0
+                if 0 < _cr_bl < 1.0 and not order_tracker.get_flag(user_id, "bot_paused"):
+                    _mins = order_tracker.get_minutes_since_last_progress(user_id)
+                    _relances = order_tracker.get_bot_relance_count(user_id)
+                    if _mins >= 30 and _relances >= 2:
+                        try:
+                            order_tracker.set_flag(user_id, "bot_paused", True)
+                            order_tracker.set_custom_meta(user_id, "bot_paused_at", datetime.now().isoformat())
+                            order_tracker.set_custom_meta(user_id, "bot_paused_by", "order_blocked")
+                        except Exception:
+                            pass
+                        import asyncio as _asyncio
+                        _asyncio.ensure_future(_upsert_intervention(
+                            company_id=company_id,
+                            user_id=user_id,
+                            channel="whatsapp",
+                            intervention_type="order_blocked",
+                            priority="high",
+                            detected_by="rule_based",
+                            source_bot="ragbot",
+                            reason=f"Commande bloquée à {int(_cr_bl*100)}% depuis {int(_mins)} min | relances={_relances}",
+                            user_message=str(query or "")[:500],
+                        ))
+                        print(f"🚨 [ORDER_BLOCKED] triggered ragbot | cr={_cr_bl:.2f} mins={_mins:.0f} relances={_relances}")
+            except Exception as _ob_e:
+                print(f"⚠️ [ORDER_BLOCKED] check error: {_ob_e}")
+
+            # --- 6.2 TRIGGER payment_issue (RAGBot) : OCR échoué plusieurs fois ---
+            try:
+                _ocr_fails = order_tracker.get_ocr_fail_count(user_id)
+                if _ocr_fails >= 2 and not order_tracker.get_flag(user_id, "bot_paused"):
+                    _st_pay = order_tracker.get_state(user_id)
+                    _pay_val = str(getattr(_st_pay, "paiement", "") or "").upper()
+                    _pay_mismatch = _pay_val.startswith("INSUFFISANT") or _pay_val.startswith("REFUS")
+                    try:
+                        order_tracker.set_flag(user_id, "bot_paused", True)
+                        order_tracker.set_custom_meta(user_id, "bot_paused_at", datetime.now().isoformat())
+                        order_tracker.set_custom_meta(user_id, "bot_paused_by", "payment_issue")
+                    except Exception:
+                        pass
+                    import asyncio as _asyncio
+                    _asyncio.ensure_future(_upsert_intervention(
+                        company_id=company_id,
+                        user_id=user_id,
+                        channel="whatsapp",
+                        intervention_type="payment_issue",
+                        priority="high",
+                        detected_by="rule_based",
+                        source_bot="ragbot",
+                        reason=f"OCR échoué {_ocr_fails}x | mismatch={_pay_mismatch}",
+                        user_message=str(query or "")[:500],
+                        order_state={"ocr_fail_count": _ocr_fails, "payment_status": _pay_val},
+                    ))
+                    print(f"🚨 [PAYMENT_ISSUE] triggered ragbot | ocr_fails={_ocr_fails} mismatch={_pay_mismatch}")
+            except Exception as _pi_e:
+                print(f"⚠️ [PAYMENT_ISSUE] check error: {_pi_e}")
 
             try:
                 st_now = order_tracker.get_state(user_id)

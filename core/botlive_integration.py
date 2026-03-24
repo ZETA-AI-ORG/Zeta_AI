@@ -73,20 +73,36 @@ async def analyze_image_with_botlive(
         if payment_result and payment_result.get("amount"):
             # C'est un paiement!
             print(f"💰 [BOTLIVE_INTEGRATION] Paiement détecté: {payment_result['amount']} {payment_result.get('currency', 'FCFA')}")
-            
+            # OCR succès → reset compteur d'échecs
+            try:
+                from core.order_state_tracker import order_tracker as _ot
+                _ot.reset_ocr_fail_count(user_id)
+            except Exception:
+                pass
+
             analysis_text = f"Paiement Wave détecté. Montant: {payment_result['amount']} {payment_result.get('currency', 'FCFA')}. "
             if payment_result.get("phone"):
                 analysis_text += f"Numéro: {payment_result['phone']}. "
             if payment_result.get("reference"):
                 analysis_text += f"Référence: {payment_result['reference']}."
-            
+
             result = {
                 "analysis": analysis_text,
                 "confidence": 0.90,
                 "raw_data": payment_result
             }
-        
+
         else:
+            # OCR échoué ou aucun paiement détecté → incrémenter compteur
+            _ocr_error = payment_result.get("error") if payment_result else "NO_RESULT"
+            if _ocr_error:
+                try:
+                    from core.order_state_tracker import order_tracker as _ot
+                    _fail_count = _ot.increment_ocr_fail_count(user_id)
+                    print(f"⚠️ [BOTLIVE_INTEGRATION] OCR fail #{_fail_count} pour user={user_id} | error={_ocr_error}")
+                except Exception:
+                    pass
+
             # Pas de paiement détecté → Essayer produit
             print(f"📦 [BOTLIVE_INTEGRATION] Tentative détection produit...")
             

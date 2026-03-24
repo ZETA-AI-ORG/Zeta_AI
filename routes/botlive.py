@@ -350,12 +350,24 @@ def _compute_context_based_intervention(
     bot_response = (bot_response or "").lower()
 
     # --- order_blocked: commande en cours mais bloquée ---
+    # Détection robuste : temps réel depuis last_progress + nombre de relances bot
     completion = order_state.get("completion_rate")
     try:
         completion = float(completion) if completion is not None else None
     except (ValueError, TypeError):
         completion = None
     if completion is not None and 0 < completion < 1.0:
+        user_id_ctx = order_state.get("user_id") or order_state.get("_user_id", "")
+        if user_id_ctx:
+            try:
+                from core.order_state_tracker import order_tracker as _ot
+                _mins = _ot.get_minutes_since_last_progress(user_id_ctx)
+                _relances = _ot.get_bot_relance_count(user_id_ctx)
+                if _mins >= 30 and _relances >= 2:
+                    return {"reason": "order_blocked", "priority": "high"}
+            except Exception:
+                pass
+        # Fallback legacy si user_id non disponible dans order_state
         stale_turns = order_state.get("stale_turns") or 0
         try:
             stale_turns = int(stale_turns)
@@ -364,16 +376,26 @@ def _compute_context_based_intervention(
         if stale_turns >= 4:
             return {"reason": "order_blocked", "priority": "high"}
 
-    # --- post_order_followup: message après commande complétée ---
-    is_complete = order_state.get("is_complete") or order_state.get("completed") or False
-    if is_complete and source in ("botlive", "ragbot", "shared"):
-        return {"reason": "post_order_followup", "priority": "normal"}
+    # --- post_order_followup: désactivé (off) — non-critique, éviter spam opérateur ---
+    # is_complete = order_state.get("is_complete") or order_state.get("completed") or False
+    # if is_complete and source in ("botlive", "ragbot", "shared"):
+    #     return {"reason": "post_order_followup", "priority": "normal"}
 
-    # --- payment_issue: paiement en cours mais OCR échoué ---
-    if next_step in ("paiement", "request_wave"):
-        pay_err = order_state.get("payment_error") or order_state.get("ocr_error")
-        if pay_err:
-            return {"reason": "payment_issue", "priority": "high"}
+    # --- payment_issue: OCR échoué plusieurs fois OU paiement non confirmé ---
+    user_id_pay = order_state.get("user_id") or order_state.get("_user_id", "")
+    ocr_fail_count = 0
+    if user_id_pay:
+        try:
+            from core.order_state_tracker import order_tracker as _ot
+            ocr_fail_count = _ot.get_ocr_fail_count(user_id_pay)
+        except Exception:
+            pass
+    # Fallback: flag binaire legacy
+    pay_err = order_state.get("payment_error") or order_state.get("ocr_error")
+    payment_mismatch = str(order_state.get("paiement") or "").upper()
+    payment_mismatch_flag = payment_mismatch.startswith("INSUFFISANT") or payment_mismatch.startswith("REFUS")
+    if ocr_fail_count >= 2 or (pay_err and next_step in ("paiement", "request_wave")) or (payment_mismatch_flag and next_step in ("paiement", "request_wave")):
+        return {"reason": "payment_issue", "priority": "high"}
 
     return None
 
@@ -466,6 +488,8 @@ async def process_botlive_message(req: BotliveMessageRequest, background_tasks: 
 
         if rule_result.get("requires_intervention"):
             reason = rule_result.get("reason", "explicit_handoff")
+            # Actifs : seulement les 3 triggers infaillibles
+            _ACTIVE_TRIGGERS = {"explicit_handoff", "order_blocked", "payment_issue"}
             try:
                 logger.info(
                     "[BOTLIVE][%s] Intervention (rule-based, shared engine) triggered | reason=%s message=%s",
@@ -489,6 +513,26 @@ async def process_botlive_message(req: BotliveMessageRequest, background_tasks: 
                     direction="user",
                     source="botlive_gateway",
                 )
+                # Écrire dans required_interventions uniquement pour les 3 types actifs
+                if reason in _ACTIVE_TRIGGERS:
+                    try:
+                        order_tracker.set_flag(req.user_id, "bot_paused", True)
+                        order_tracker.set_custom_meta(req.user_id, "bot_paused_at", datetime.now().isoformat())
+                        order_tracker.set_custom_meta(req.user_id, "bot_paused_by", reason)
+                    except Exception:
+                        pass
+                    await upsert_required_intervention(
+                        company_id=req.company_id,
+                        user_id=req.user_id,
+                        channel="whatsapp",
+                        intervention_type=reason,
+                        priority="critical" if reason == "explicit_handoff" else "high",
+                        detected_by="rule_based",
+                        source_bot="botlive",
+                        reason=f"Détecté par règles dures | caps_ratio={caps_ratio:.2f}",
+                        user_message=msg_text[:500],
+                    )
+                    logger.info("[BOTLIVE][%s] ✅ upsert_required_intervention OK | type=%s", request_id, reason)
             except Exception as log_err:
                 logger.error("[BOTLIVE][%s] Failed to log explicit/frustration intervention: %s", request_id, log_err)
 
@@ -1171,6 +1215,49 @@ async def process_botlive_message(req: BotliveMessageRequest, background_tasks: 
             else:
                 response = "Désolé, je n'ai pas pu générer une réponse. Peux-tu reformuler ta demande ?"
 
+        # --- Strip ##HANDOFF## de la réponse BotLive avant envoi client ---
+        try:
+            from config import LLM_TRANSMISSION_TOKEN as _TOKEN
+            _tok = (_TOKEN or "##HANDOFF##").strip()
+            _resp_str = str(response or "")
+            _raw_thinking = (hybrid_result.get("thinking") or "") if isinstance(hybrid_result, dict) else ""
+            _has_token = bool(_tok) and (
+                _tok.lower() in _resp_str.lower()
+                or (isinstance(_raw_thinking, str) and re.search(r'<handoff>\s*true\s*</handoff>', _raw_thinking, re.IGNORECASE))
+            )
+            if _has_token:
+                # Nettoyer le token + séparateur §§ de la réponse
+                if _tok.lower() in _resp_str.lower():
+                    _parts = re.split(re.escape(_tok), _resp_str, flags=re.IGNORECASE)
+                    response = (_parts[0] or "").replace("§§", "").strip()
+                if not response:
+                    response = "Un instant, je vous passe le responsable."
+                # Écrire dans required_interventions
+                try:
+                    try:
+                        order_tracker.set_flag(req.user_id, "bot_paused", True)
+                        order_tracker.set_custom_meta(req.user_id, "bot_paused_at", datetime.now().isoformat())
+                        order_tracker.set_custom_meta(req.user_id, "bot_paused_by", "explicit_handoff")
+                    except Exception:
+                        pass
+                    await upsert_required_intervention(
+                        company_id=req.company_id,
+                        user_id=req.user_id,
+                        channel="whatsapp",
+                        intervention_type="explicit_handoff",
+                        priority="critical",
+                        detected_by="rule_based",
+                        source_bot="botlive",
+                        reason="##HANDOFF## dans réponse BotLive",
+                        user_message=(req.message or "")[:500],
+                        bot_response=response[:500],
+                    )
+                    logger.info("[BOTLIVE][%s] ✅ ##HANDOFF## strippé + upsert_required_intervention OK", request_id)
+                except Exception as _uh_e:
+                    logger.warning("[BOTLIVE][%s] upsert handoff failed (non-blocking): %s", request_id, _uh_e)
+        except Exception as _strip_e:
+            logger.warning("[BOTLIVE][%s] ##HANDOFF## strip error (non-blocking): %s", request_id, _strip_e)
+
         return JSONResponse(content={
             "success": True,
             "response": response,
@@ -1512,6 +1599,11 @@ async def set_bot_enabled(req: BotPauseRequest):
     """
     try:
         order_tracker.set_flag(req.user_id, "bot_paused", (not bool(req.enabled)))
+        if bool(req.enabled):
+            order_tracker.set_custom_meta(req.user_id, "bot_paused_auto_resumed_at", datetime.now().isoformat())
+        else:
+            order_tracker.set_custom_meta(req.user_id, "bot_paused_at", datetime.now().isoformat())
+            order_tracker.set_custom_meta(req.user_id, "bot_paused_by", "manual_toggle")
         return {
             "success": True,
             "company_id": req.company_id,
