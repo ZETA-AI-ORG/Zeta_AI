@@ -377,6 +377,7 @@ async def create_notification_and_push(
     """
     Insert a new operator_notification in Supabase AND send a push notification.
     Call this from botlive or any backend code that needs to alert operators.
+    Uses Supabase send-push Edge Function (same path as SQL trigger, uses Supabase VAPID secrets).
     """
     import httpx
     import uuid
@@ -400,23 +401,38 @@ async def create_notification_and_push(
             resp = await client.post(rest_url, headers=headers, json=notification)
 
         if resp.status_code in (200, 201):
-            logger.info(f"[NOTIF] Created notification for company={company_id} user={user_id}")
+            logger.info(f"[NOTIF] Created operator_notification for company={company_id} user={user_id}")
         else:
-            logger.error(f"[NOTIF] Failed to create notification: {resp.status_code} {resp.text}")
+            logger.error(f"[NOTIF] Failed to create operator_notification: {resp.status_code} {resp.text[:400]}")
 
-        # Fire push notification in background
-        asyncio.create_task(
-            send_push_to_company(
-                company_id=company_id,
-                title="Nouvelle intervention requise",
-                body=message[:200],
-                data={
-                    "type": "operator_needed",
-                    "user_id": user_id,
-                    "notification_id": notification["id"],
-                },
-            )
-        )
+        # Fire push via Supabase Edge Function (uses Supabase VAPID secrets — proven reliable)
+        edge_url = f"{url}/functions/v1/send-push"
+        supabase_key = os.getenv("SUPABASE_SERVICE_KEY") or os.getenv("SUPABASE_KEY", "")
+        push_payload = {
+            "company_id": company_id,
+            "title": "🚨 Intervention requise",
+            "body": message[:200],
+            "data": {
+                "type": "intervention",
+                "category": "intervention",
+                "user_id": user_id,
+                "notification_id": notification["id"],
+                "tag": f"intervention-{user_id}",
+            },
+        }
+        try:
+            async with httpx.AsyncClient(timeout=10) as client:
+                push_resp = await client.post(
+                    edge_url,
+                    headers={
+                        "Content-Type": "application/json",
+                        "Authorization": f"Bearer {supabase_key}",
+                    },
+                    json=push_payload,
+                )
+            logger.info(f"[NOTIF] send-push edge function: {push_resp.status_code} {push_resp.text[:300]}")
+        except Exception as push_err:
+            logger.warning(f"[NOTIF] send-push edge function call failed: {push_err}")
 
         return notification
 
