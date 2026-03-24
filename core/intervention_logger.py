@@ -88,17 +88,14 @@ async def log_intervention_in_conversation_logs(
         # Fire push notification to operator(s)
         try:
             from routes.notifications import create_notification_and_push
-            import asyncio
 
             reason = (metadata or {}).get("reason", "intervention")
             push_message = truncated_message[:200]
-            asyncio.ensure_future(
-                create_notification_and_push(
-                    company_id=company_id_text,
-                    user_id=user_id,
-                    message=push_message,
-                    message_type=reason,
-                )
+            await create_notification_and_push(
+                company_id=company_id_text,
+                user_id=user_id,
+                message=push_message,
+                message_type=reason,
             )
         except Exception as push_err:
             logger.warning("[INTERVENTION_LOGGER] Push notification failed (non-blocking): %s", push_err)
