@@ -1431,6 +1431,117 @@ async def check_shared_intervention(req: SharedInterventionCheckRequest):
         )
     return JSONResponse(content=result)
 
+
+class OperatorHandledRequest(BaseModel):
+    company_id: str = Field(..., description="ID texte de l'entreprise")
+    user_id: str = Field(..., description="ID utilisateur WhatsApp (numéro normalisé)")
+    channel: str = Field(default="whatsapp")
+    human_takeover_hours: float = Field(default=4.0, description="Durée de blocage bot en heures")
+
+
+@shared_router.post("/operator-handled")
+async def operator_handled(req: OperatorHandledRequest):
+    """Appelé quand l'opérateur répond directement depuis WhatsApp (hors app).
+
+    Actions atomiques :
+    1. Ferme toutes les interventions ouvertes pour ce user_id
+    2. Écrit un log conversation avec human_takeover=True (bloque bot N heures)
+    3. Met à jour order_tracker (bot_paused en mémoire)
+    """
+    from datetime import timedelta
+
+    supabase_url = os.getenv("SUPABASE_URL")
+    supabase_key = os.getenv("SUPABASE_SERVICE_KEY") or os.getenv("SUPABASE_KEY")
+    headers_sb = {
+        "apikey": supabase_key,
+        "Authorization": f"Bearer {supabase_key}",
+        "Content-Type": "application/json",
+        "Prefer": "return=minimal",
+    }
+
+    resolved_at = datetime.utcnow().isoformat() + "Z"
+    takeover_until = (datetime.utcnow() + timedelta(hours=req.human_takeover_hours)).isoformat() + "Z"
+
+    errors: list = []
+
+    # 1. Fermer les interventions ouvertes dans required_interventions
+    try:
+        patch_url = (
+            f"{supabase_url}/rest/v1/required_interventions"
+            f"?company_id=eq.{req.company_id}"
+            f"&user_id=eq.{req.user_id}"
+            f"&status=in.(open,acknowledged,in_progress,reopened)"
+        )
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            resp = await client.patch(
+                patch_url,
+                headers=headers_sb,
+                json={
+                    "status": "resolved",
+                    "resolved_by": "operator_whatsapp",
+                    "resolved_at": resolved_at,
+                    "resolution_note": "Opérateur a répondu directement depuis WhatsApp",
+                },
+            )
+        if resp.status_code not in (200, 201, 204):
+            errors.append(f"ri_close={resp.status_code}")
+            logger.warning("[OPERATOR_HANDLED] required_interventions patch failed: %s %s", resp.status_code, resp.text[:200])
+        else:
+            logger.info("[OPERATOR_HANDLED] ✅ interventions fermées | company=%s user=%s", req.company_id, req.user_id)
+    except Exception as e:
+        errors.append(f"ri_close_exc={e}")
+        logger.error("[OPERATOR_HANDLED] Exception closing interventions: %s", e)
+
+    # 2. Écrire conversation_log avec human_takeover (bloque le bot dans N8N / If7)
+    try:
+        log_url = f"{supabase_url}/rest/v1/conversation_logs"
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            resp2 = await client.post(
+                log_url,
+                headers=headers_sb,
+                json={
+                    "company_id_text": req.company_id,
+                    "user_id": req.user_id,
+                    "channel": req.channel,
+                    "direction": "assistant",
+                    "message": "[Opérateur a pris en charge depuis WhatsApp]",
+                    "content": "[Opérateur a pris en charge depuis WhatsApp]",
+                    "source": "operator_whatsapp",
+                    "status": "active",
+                    "metadata": {
+                        "human_takeover": True,
+                        "human_takeover_until": takeover_until,
+                        "trigger": "operator_whatsapp_direct",
+                        "resolved_intervention": True,
+                    },
+                },
+            )
+        if resp2.status_code not in (200, 201):
+            errors.append(f"conv_log={resp2.status_code}")
+            logger.warning("[OPERATOR_HANDLED] conversation_log insert failed: %s", resp2.status_code)
+        else:
+            logger.info("[OPERATOR_HANDLED] ✅ human_takeover log écrit jusqu'à %s", takeover_until)
+    except Exception as e:
+        errors.append(f"conv_log_exc={e}")
+        logger.error("[OPERATOR_HANDLED] Exception writing conv log: %s", e)
+
+    # 3. Mettre à jour order_tracker en mémoire
+    try:
+        order_tracker.set_flag(req.user_id, "bot_paused", True)
+        order_tracker.set_custom_meta(req.user_id, "bot_paused_at", resolved_at)
+        order_tracker.set_custom_meta(req.user_id, "bot_paused_by", "operator_whatsapp")
+    except Exception as e:
+        logger.warning("[OPERATOR_HANDLED] order_tracker update failed (non-blocking): %s", e)
+
+    return JSONResponse(content={
+        "success": len(errors) == 0,
+        "company_id": req.company_id,
+        "user_id": req.user_id,
+        "human_takeover_until": takeover_until,
+        "errors": errors,
+    })
+
+
 @router.post("/human-reply")
 async def send_human_reply(req: HumanReplyRequest):
     """Relaye une réponse humaine depuis le frontend vers N8N.
