@@ -49,6 +49,7 @@ pywebpush>=2.0.0
 aiohttp>=3.9.0
 httpx>=0.25.0
 requests>=2.31.0
+python-multipart>=0.0.9
 
 # Monitoring dependencies
 prometheus-fastapi-instrumentator>=6.1.0

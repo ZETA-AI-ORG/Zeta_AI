@@ -195,6 +195,10 @@ print("🔍 [DEBUG] Importing botlive router...")
 from routes.botlive import router as botlive_router
 app.include_router(botlive_router)
 print("✅ [DEBUG] Botlive router ACTIVATED")
+print("🔍 [DEBUG] Importing upload product image router...")
+from routes.upload_product_image import router as upload_product_image_router
+app.include_router(upload_product_image_router)
+print("✅ [DEBUG] Upload product image router ACTIVATED")
 print("✅ [DEBUG] All imports completed!")
 
 try:
