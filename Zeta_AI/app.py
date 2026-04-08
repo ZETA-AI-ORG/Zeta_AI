@@ -427,6 +427,14 @@ if not ZETA_BOTLIVE_ONLY:
 else:
     logger.info("ZETA_BOTLIVE_ONLY=true: Enhanced Ingestion router not mounted")
 
+# 💰 NOUVEAU: Payment Verification (Gemini multimodal + OCR)
+try:
+    from routes.payment_verify import router as payment_verify_router
+    app.include_router(payment_verify_router, tags=["Payment Verification"])
+    logger.info("💰 Payment Verification router intégré avec succès")
+except Exception as e:
+    logger.warning(f"⚠️ Erreur intégration Payment Verification router: {e}")
+
 from redis_cache import RedisCache
 redis_cache = RedisCache()
 from fastapi import APIRouter, Depends
