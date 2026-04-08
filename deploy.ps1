@@ -33,13 +33,7 @@ function Test-IsExcluded {
 # ========================================
 if ($rollback) {
     Write-Host "⏪ ROLLBACK en cours..." -ForegroundColor Red
-    ssh -i "$HOME\.ssh\deploy_key" zetaadmin@194.60.201.228 @"
-cd ~/CHATBOT2.0/app
-git log --oneline -5
-git revert HEAD --no-edit
-git push origin main 2>/dev/null || true
-echo '✅ Rollback effectué !'
-"@
+    ssh -i "$HOME\.ssh\deploy_key" zetaadmin@194.60.201.228 "cd ~/CHATBOT2.0/app && git log --oneline -5 && git revert HEAD --no-edit && git push origin main 2>/dev/null || true && echo '✅ Rollback effectué !'"
     exit
 }
 
@@ -104,16 +98,7 @@ git commit -m $message
 git push origin main
 
 Write-Host "🔄 Mise à jour du code sur VPS..." -ForegroundColor Yellow
-ssh -i "$HOME\.ssh\deploy_key" zetaadmin@194.60.201.228 @"
-cd ~/CHATBOT2.0/app
-git pull origin main
-
-echo ''
-echo '📊 ÉTAT DU VPS :'
-docker compose ps
-curl -s http://localhost:8002/ingestion/health
-echo ''
-"@
+ssh -i "$HOME\.ssh\deploy_key" zetaadmin@194.60.201.228 "cd ~/CHATBOT2.0/app && git pull origin main && echo '' && echo '📊 ÉTAT DU VPS :' && docker compose ps && curl -s http://localhost:8002/ingestion/health && echo ''"
 
 Write-Host ""
 Write-Host "✅ Déploiement terminé !" -ForegroundColor Green
