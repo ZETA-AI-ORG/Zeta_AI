@@ -60,7 +60,11 @@ slowapi>=0.1.8
 # Load testing
 locust>=2.24.0
 
-# Google auth
-google-auth>=2.0.0
+# Google Auth & API
+google-auth>=2.15.0
 google-auth-oauthlib>=1.0.0
-google-auth-httplib2>=0.1.0
+google-auth-httplib2>=0.2.0
+
+# Gemini AI (Jessica)
+google-generativeai==0.8.6
+protobuf==5.29.6

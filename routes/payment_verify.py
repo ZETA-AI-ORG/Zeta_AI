@@ -14,11 +14,13 @@ Returns: { decision: approved|manual_review|rejected, ... }
 """
 
 import os
+import base64
 import hashlib
 import logging
 import json
 from datetime import datetime, timezone, timedelta
 from typing import Optional, List
+import httpx
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException
 from pydantic import BaseModel
 
@@ -27,8 +29,8 @@ logger = logging.getLogger("payment_verify")
 router = APIRouter(prefix="/api/payment", tags=["Payment Verification"])
 
 # ── Config ──
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
-GEMINI_MODEL = os.getenv("GEMINI_VISION_MODEL", "gemini-1.5-flash")
+OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
+OPENROUTER_MODEL = os.getenv("OPENROUTER_BOTLIVE_MODEL", "google/gemini-2.5-flash")
 SUPABASE_URL = os.getenv("SUPABASE_URL", "")
 SUPABASE_SERVICE_KEY = os.getenv("SUPABASE_SERVICE_KEY") or os.getenv("SUPABASE_KEY", "")
 MAX_DELAY_SECONDS = 600  # 10 minutes
@@ -160,29 +162,42 @@ async def store_verification(record: dict):
         logger.error(f"[PAYMENT_VERIFY] Store exception: {e}")
 
 
-# ── Gemini call ──
+# ── OpenRouter vision call ──
 async def verify_with_gemini(image_bytes: bytes, mime_type: str) -> dict:
-    """Send image to Gemini for multimodal verification."""
+    """Send image to Gemini via OpenRouter for multimodal verification."""
     try:
-        import google.generativeai as genai
+        if not OPENROUTER_API_KEY:
+            raise ValueError("OPENROUTER_API_KEY not configured")
 
-        if not GEMINI_API_KEY:
-            raise ValueError("GEMINI_API_KEY not configured")
+        image_b64 = base64.b64encode(image_bytes).decode()
 
-        genai.configure(api_key=GEMINI_API_KEY)
-        model = genai.GenerativeModel(GEMINI_MODEL)
+        async with httpx.AsyncClient(timeout=45.0) as client:
+            resp = await client.post(
+                "https://openrouter.ai/api/v1/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+                    "Content-Type": "application/json",
+                    "HTTP-Referer": "https://api.zetaapp.xyz",
+                    "X-Title": "Zeta AI Payment Verify",
+                },
+                json={
+                    "model": OPENROUTER_MODEL,
+                    "messages": [{
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": VERIFICATION_PROMPT},
+                            {"type": "image_url", "image_url": {"url": f"data:{mime_type};base64,{image_b64}"}},
+                        ],
+                    }],
+                    "temperature": 0.1,
+                    "max_tokens": 800,
+                },
+            )
 
-        image_part = {"mime_type": mime_type, "data": image_bytes}
+        resp.raise_for_status()
+        data = resp.json()
+        text = data["choices"][0]["message"]["content"].strip()
 
-        response = model.generate_content(
-            [VERIFICATION_PROMPT, image_part],
-            generation_config=genai.types.GenerationConfig(
-                temperature=0.1,
-                max_output_tokens=800,
-            ),
-        )
-
-        text = response.text.strip()
         if text.startswith("```"):
             text = text.split("\n", 1)[1] if "\n" in text else text[3:]
         if text.endswith("```"):
@@ -192,10 +207,10 @@ async def verify_with_gemini(image_bytes: bytes, mime_type: str) -> dict:
         return json.loads(text)
 
     except json.JSONDecodeError as e:
-        logger.error(f"[PAYMENT_VERIFY] Gemini returned non-JSON: {e}")
-        return {"is_wave_receipt": False, "reason": "Réponse Gemini invalide", "confidence": 0}
+        logger.error(f"[PAYMENT_VERIFY] OpenRouter non-JSON: {e}")
+        return {"is_wave_receipt": False, "reason": "Réponse IA invalide", "confidence": 0}
     except Exception as e:
-        logger.error(f"[PAYMENT_VERIFY] Gemini error: {e}")
+        logger.error(f"[PAYMENT_VERIFY] OpenRouter error: {e}")
         return {"is_wave_receipt": False, "reason": f"Erreur vérification: {str(e)}", "confidence": 0}
 
 
