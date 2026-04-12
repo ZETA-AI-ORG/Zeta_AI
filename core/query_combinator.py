@@ -71,3 +71,4 @@ if __name__ == "__main__":
     result_empty = generate_query_combinations(test_query_empty)
     print(f"Requête originale filtrée: \'{test_query_empty}\'")
     print(f"Combinasons générées: {result_empty}")
+
