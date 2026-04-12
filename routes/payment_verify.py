@@ -14,6 +14,7 @@ Returns: { decision: approved|manual_review|rejected, ... }
 """
 
 import os
+import re
 import base64
 import hashlib
 import logging
@@ -147,10 +148,16 @@ async def check_anti_replay(tx_id: Optional[str], image_hash: str, tx_suffix: Op
     return reasons
 
 
+_UUID_RE = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", re.I)
+
 async def store_verification(record: dict):
     """Store verification attempt in payment_verifications table."""
     if not SUPABASE_URL:
         logger.warning("[PAYMENT_VERIFY] SUPABASE_URL not set, skipping store")
+        return
+    company_id = record.get("company_id", "") or ""
+    if not _UUID_RE.match(str(company_id)):
+        logger.info(f"[PAYMENT_VERIFY] Store skipped: company_id not UUID ({company_id})")
         return
     try:
         res = await _supabase_query("payment_verifications", {}, method="POST", body=record)
