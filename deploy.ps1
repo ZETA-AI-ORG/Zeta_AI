@@ -102,17 +102,7 @@ git commit -m $message
 git push origin main
 
 Write-Host "🔄 Mise à jour du code sur VPS..." -ForegroundColor Yellow
-$remoteCommand = @'
-set -e
-cd ~/CHATBOT2.0/app
-git pull origin main
-echo ''
-echo '📊 ÉTAT DU VPS :'
-docker compose ps
-curl -fsS http://localhost:8002/ingestion/health
-echo ''
-'@
-ssh -i "$HOME\.ssh\deploy_key" zetaadmin@194.60.201.228 $remoteCommand
+ssh -i "$HOME\.ssh\deploy_key" zetaadmin@194.60.201.228 "set -e; cd ~/CHATBOT2.0/app; git pull origin main; echo ''; echo 'ETAT DU VPS :'; docker compose ps; curl -fsS http://localhost:8002/ingestion/health; echo ''"
 if ($LASTEXITCODE -ne 0) {
     Write-Host "❌ Échec de mise à jour sur le VPS. Le déploiement n'est pas valide." -ForegroundColor Red
     exit 1
