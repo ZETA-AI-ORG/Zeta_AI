@@ -7,12 +7,16 @@ $excludedPatterns = @(
     "zeta-ai-vercel/*",
     "zeta-ai-vercel-deploy/*",
     "frontend/*",
+    ".windsurf/*",
+    "scratch/*",
     "results/*",
     "tests/reports/*",
     ".venv/*",
     "*.tar.gz",
     "*.pt",
     "*.pkl",
+    "*.txt",
+    "prompt_universel*.md",
     "config.js"
 )
 
@@ -98,7 +102,21 @@ git commit -m $message
 git push origin main
 
 Write-Host "🔄 Mise à jour du code sur VPS..." -ForegroundColor Yellow
-ssh -i "$HOME\.ssh\deploy_key" zetaadmin@194.60.201.228 "cd ~/CHATBOT2.0/app && git pull origin main && echo '' && echo '📊 ÉTAT DU VPS :' && docker compose ps && curl -s http://localhost:8002/ingestion/health && echo ''"
+$remoteCommand = @'
+set -e
+cd ~/CHATBOT2.0/app
+git pull origin main
+echo ''
+echo '📊 ÉTAT DU VPS :'
+docker compose ps
+curl -fsS http://localhost:8002/ingestion/health
+echo ''
+'@
+ssh -i "$HOME\.ssh\deploy_key" zetaadmin@194.60.201.228 $remoteCommand
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "❌ Échec de mise à jour sur le VPS. Le déploiement n'est pas valide." -ForegroundColor Red
+    exit 1
+}
 
 Write-Host ""
 Write-Host "✅ Déploiement terminé !" -ForegroundColor Green
