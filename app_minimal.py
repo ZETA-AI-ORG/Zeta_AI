@@ -9,6 +9,7 @@ load_dotenv()
 import logging
 import os
 import time
+import asyncio
 from fastapi import FastAPI, BackgroundTasks
 from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
@@ -20,6 +21,18 @@ logger = logging.getLogger("app")
 
 # FastAPI app
 app = FastAPI(title="ZETA AI Backend - Minimal")
+
+
+@app.on_event("startup")
+async def _startup_prompt_listener():
+    """Lance le listener pg_notify pour invalider le cache prompt en temps réel."""
+    try:
+        from core.prompt_cache_listener import start_prompt_cache_listener
+        asyncio.create_task(start_prompt_cache_listener())
+        logger.info("✅ [STARTUP] Listener pg_notify 'prompt_cache_invalidate' lancé")
+    except Exception as _e:
+        logger.warning("⚠️ [STARTUP] Listener pg_notify non lancé: %s", _e)
+
 
 
 _redis_cache_instance = None
@@ -220,6 +233,27 @@ async def set_rag_bot_enabled(req: RagBotEnabledRequest):
     except Exception as e:
         logger.exception("/rag/bot/enabled failed")
         return {"status": "error", "error": str(e), "type": type(e).__name__}
+
+@app.post("/api/cache/invalidate-prompt")
+async def invalidate_prompt_cache(company_id: str = None):
+    """
+    🧹 INVALIDE LE CACHE DES PROMPTS
+    Appelé par Supabase Trigger via HTTP POST.
+    """
+    try:
+        from core.simplified_prompt_system import get_simplified_prompt_system
+        prompt_system = get_simplified_prompt_system()
+        prompt_system.invalidate_cache(company_id=company_id)
+        
+        return {
+            "status": "success",
+            "message": f"Cache prompt invalidé pour {'tous' if not company_id else company_id}",
+            "company_id": company_id,
+            "timestamp": time.time()
+        }
+    except Exception as e:
+        logger.error(f"[CACHE_INVALIDATE] Erreur: {e}")
+        return {"status": "error", "message": str(e)}
 
 @app.get("/db-test")
 async def db_test():

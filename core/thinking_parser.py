@@ -5,6 +5,7 @@ Objectif: Parser le YAML généré par le LLM pour extraire les données collect
 Architecture: Robuste avec fallbacks multiples (regex, notepad, memory)
 """
 
+import json as _json
 import re
 import yaml
 from typing import Dict, List, Optional, Any, Tuple
@@ -435,9 +436,154 @@ Returns:
             "technique": "clarification"
         }
     
+    # ══════════════════════════════════════════════════════════════════════════
+    # V2 XML-TAG PARSER  (q_exact / catalogue_match / detected_items_json /
+    #                      tool_call / maj / detection / priority / handoff)
+    # ══════════════════════════════════════════════════════════════════════════
+
+    def _is_v2_thinking(self, thinking_content: str) -> bool:
+        """Return True when thinking uses V2 XML-tag structure."""
+        if not thinking_content:
+            return False
+        v2_markers = ("<q_exact>", "<detected_items_json>", "<catalogue_match>", "<priority>")
+        return any(m in thinking_content for m in v2_markers)
+
+    def _parse_detection_slots(self, detection_text: str) -> Dict[str, Optional[str]]:
+        """Parse the <detection> block to extract RÉSUMÉ/ZONE/TÉLÉPHONE/PAIEMENT."""
+        slots: Dict[str, Optional[str]] = {
+            "resume": None, "zone": None, "telephone": None, "paiement": None,
+        }
+        if not detection_text:
+            return slots
+        for line in detection_text.splitlines():
+            line = line.strip().lstrip("- ").strip()
+            if not line:
+                continue
+            lc = line.lower()
+            if lc.startswith("résumé:") or lc.startswith("resume:"):
+                val = line.split(":", 1)[1].strip()
+                slots["resume"] = val if val and val not in {"∅", "Ø", "null"} else None
+            elif lc.startswith("zone:"):
+                val = line.split(":", 1)[1].strip()
+                slots["zone"] = val if val and val not in {"∅", "Ø", "null"} else None
+            elif lc.startswith("téléphone:") or lc.startswith("telephone:"):
+                val = line.split(":", 1)[1].strip()
+                slots["telephone"] = val if val and val not in {"∅", "Ø", "null"} else None
+            elif lc.startswith("paiement:"):
+                val = line.split(":", 1)[1].strip()
+                slots["paiement"] = val if val and val not in {"∅", "Ø", "null"} else None
+        return slots
+
+    def parse_full_thinking_v2(self, thinking_content: str) -> Dict[str, Any]:
+        """Parse V2 XML-tag thinking. Returns backward-compatible dict."""
+        self.parsing_errors = []
+
+        q_exact = self.extract_tag_text(thinking_content, "q_exact") or ""
+        catalogue_match = self.extract_tag_text(thinking_content, "catalogue_match") or ""
+        detected_product = self.extract_tag_text(thinking_content, "detected_product") or ""
+
+        # detected_items_json → list[dict]
+        items_raw = self.extract_tag_text(thinking_content, "detected_items_json") or ""
+        detected_items: List[Dict[str, Any]] = []
+        try:
+            parsed = _json.loads(items_raw)
+            if isinstance(parsed, list):
+                detected_items = [i for i in parsed if isinstance(i, dict)]
+        except Exception:
+            if items_raw.strip():
+                self.parsing_errors.append(f"detected_items_json parse error: {items_raw[:120]}")
+
+        # tool_call → dict
+        tool_call_raw = self.extract_tag_text(thinking_content, "tool_call") or ""
+        tool_call: Dict[str, Any] = {"action": "NONE"}
+        try:
+            tc = _json.loads(tool_call_raw.strip())
+            if isinstance(tc, dict):
+                tool_call = tc
+        except Exception:
+            pass
+
+        # <maj> → action + reason
+        maj_raw = self.extract_tag_text(thinking_content, "maj") or ""
+        maj_action = (self.extract_tag_text(maj_raw, "action") or "NONE").strip().upper()
+        maj_reason = self.extract_tag_text(maj_raw, "reason") or ""
+
+        # <detection>
+        detection_raw = self.extract_tag_text(thinking_content, "detection") or ""
+        slots = self._parse_detection_slots(detection_raw)
+
+        # <priority> / <handoff>
+        priority = (self.extract_tag_text(thinking_content, "priority") or "FOLLOW_NEXT").strip()
+        handoff_raw = (self.extract_tag_text(thinking_content, "handoff") or "false").strip().lower()
+        handoff = handoff_raw in {"true", "1", "yes", "oui"}
+
+        # Confidence heuristic from catalogue_match
+        conf_score = 80
+        conf_raison = "V2 XML parse"
+        cm_lower = catalogue_match.lower()
+        if "incompatible" in cm_lower:
+            conf_score = 30
+            conf_raison = "catalogue_match INCOMPATIBLE"
+        elif "ambigu" in cm_lower:
+            conf_score = 55
+            conf_raison = "catalogue_match AMBIGU"
+        elif "compatible" in cm_lower:
+            conf_score = 90
+            conf_raison = "catalogue_match COMPATIBLE"
+
+        # Completude heuristic: count non-null slots
+        filled = sum(1 for v in [slots["zone"], slots["telephone"], slots["paiement"]] if v)
+        total_slots = 5
+        completude = f"{filled + (2 if detected_items else 0)}/{total_slots}"
+
+        result: Dict[str, Any] = {
+            "success": True,
+            "deja_collecte": {
+                "type_produit": slots.get("resume"),
+                "quantite": None,
+                "zone": slots.get("zone"),
+                "telephone": slots.get("telephone"),
+                "paiement": slots.get("paiement"),
+            },
+            "nouvelles_donnees": detected_items,
+            "confiance": {"score": conf_score, "raison": conf_raison},
+            "progression": {
+                "completude": completude,
+                "prochaine_etape": {"type": "collecte", "action": priority},
+            },
+            "strategie_qualification": {
+                "phase": "v2_xml",
+                "objectif": q_exact[:80] if q_exact else "",
+                "technique": priority,
+            },
+            "parsing_errors": self.parsing_errors,
+            # V2-specific extras (callers can optionally use)
+            "v2": {
+                "q_exact": q_exact,
+                "catalogue_match": catalogue_match,
+                "detected_product": detected_product,
+                "detected_items": detected_items,
+                "tool_call": tool_call,
+                "maj_action": maj_action,
+                "maj_reason": maj_reason,
+                "detection_slots": slots,
+                "priority": priority,
+                "handoff": handoff,
+            },
+        }
+
+        self.last_parsed_data = result
+        log3("[THINKING_PARSER]", f"✅ V2 parse OK | items={len(detected_items)} action={maj_action} priority={priority} handoff={handoff}")
+        return result
+
+    # ══════════════════════════════════════════════════════════════════════════
+    # MAIN ENTRY POINT (auto-detects V1 YAML vs V2 XML)
+    # ══════════════════════════════════════════════════════════════════════════
+
     def parse_full_thinking(self, llm_response: str) -> Dict[str, Any]:
         """
-        🎯 Parse complet du thinking avec toutes les données
+        🎯 Parse complet du thinking avec toutes les données.
+        Auto-détecte V2 XML tags et délègue si approprié.
         
         Args:
             llm_response: Réponse complète du LLM
@@ -445,15 +591,17 @@ Returns:
         Returns:
             Dict avec toutes les données extraites
         """
-        # Réinitialiser les erreurs
         self.parsing_errors = []
         
-        # Extraire le bloc thinking
         thinking_content = self.extract_thinking_block(llm_response)
         
         if not thinking_content:
             log3("[THINKING_PARSER]", "❌ Impossible de parser: pas de bloc <thinking>")
             return self._get_empty_result()
+
+        # V2 auto-detection: XML tags present → delegate to V2 parser
+        if self._is_v2_thinking(thinking_content):
+            return self.parse_full_thinking_v2(thinking_content)
 
         # Mode minimal: ne pas tenter les extractions PHASE* (évite warnings)
         minimal = self._parse_minimal_thinking(thinking_content)
@@ -489,7 +637,7 @@ Returns:
             self.last_parsed_data = result
             return result
         
-        # Extraire toutes les données
+        # V1 YAML PHASE-based parsing (legacy)
         try:
             deja_collecte = self.extract_deja_collecte(thinking_content)
             nouvelles_donnees = self.extract_nouvelles_donnees(thinking_content)
@@ -514,10 +662,9 @@ Returns:
                 "parsing_errors": self.parsing_errors
             }
             
-            # Sauvegarder pour debug
             self.last_parsed_data = result
             
-            log3("[THINKING_PARSER]", f"✅ Parsing complet réussi: {len(self.parsing_errors)} erreurs")
+            log3("[THINKING_PARSER]", f"✅ V1 Parsing complet réussi: {len(self.parsing_errors)} erreurs")
             return result
             
         except Exception as e:

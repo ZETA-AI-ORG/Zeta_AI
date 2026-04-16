@@ -1,6 +1,13 @@
 #!/usr/bin/env python3
 """
-🔧 PROMPT TEMPLATE FILLER - Remplissage automatique des templates Botlive
+⚠️ DEPRECATED — Ce fichier est obsolète depuis Mega Prompt V2.0 (avril 2026).
+La source de vérité pour la construction du prompt est maintenant :
+  - Frontend : zeta-ai-vercel/src/utils/promptTemplate.ts (buildEnrichedPrompt)
+  - Supabase : company_rag_configs.prompt_botlive_deepseek_v3
+Le prompt est construit côté frontend à l'onboarding et sauvegardé directement.
+Ce fichier est conservé uniquement pour backward-compat si d'anciens scripts l'importent.
+
+🔧 PROMPT TEMPLATE FILLER - Remplissage automatique des templates Botlive (LEGACY)
 Remplace les placeholders par les données d'onboarding de l'entreprise
 """
 

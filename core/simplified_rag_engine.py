@@ -1408,17 +1408,44 @@ class SimplifiedRAGEngine:
                                 )
 
                             if list_text and list_items:
-                                try:
-                                    order_tracker.set_custom_meta(user_id, "price_list_text", list_text)
-                                    order_tracker.set_custom_meta(user_id, "price_list_items", list_items)
-                                    order_tracker.set_flag(user_id, "awaiting_price_choice", True)
-                                except Exception:
-                                    pass
+                                _final_text = list_text
+                                if len(list_items) == 1:
+                                    # Single product → human format
+                                    _si = list_items[0]
+                                    _sv = str(_si.get("variant") or "").strip()
+                                    _ss = str(_si.get("spec") or "").strip()
+                                    _sl = str(_si.get("label") or _si.get("unit") or "").strip()
+                                    _sp = int(_si.get("price_fcfa") or 0)
+                                    _spf = f"{_sp:,} F".replace(",", " ") if _sp else ""
+                                    _pd = " ".join(p for p in [_sv, _ss, f"en {_sl}" if _sl else ""] if p)
+                                    _nq = ""
+                                    try:
+                                        _stx = order_tracker.get_state(user_id)
+                                        _mx = sorted(list(_stx.get_missing_fields(company_id=company_id)))
+                                        _sq = {"zone": "vous êtes situé(e) où pour la livraison ?", "numero": "c'est pour quel numéro de téléphone pour le livreur ?", "quantite": "vous en souhaitez combien ?", "paiement": "comment souhaitez-vous payer ?"}
+                                        for _k in ["zone", "numero", "quantite", "paiement"]:
+                                            if _k in _mx:
+                                                _nq = _sq[_k]
+                                                break
+                                    except Exception:
+                                        pass
+                                    if _spf and _pd:
+                                        _final_text = f"{_pd} est à {_spf} 👍"
+                                        if _nq:
+                                            _final_text += f"\nSi ça vous convient, {_nq}"
+                                        print(f"💬 [PREMATCH_PRICE] Single product human: {_pd} → {_spf}")
+                                else:
+                                    try:
+                                        order_tracker.set_custom_meta(user_id, "price_list_text", list_text)
+                                        order_tracker.set_custom_meta(user_id, "price_list_items", list_items)
+                                        order_tracker.set_flag(user_id, "awaiting_price_choice", True)
+                                    except Exception:
+                                        pass
 
                                 processing_time = (time.time() - start_time) * 1000
                                 checklist = self.prompt_system.get_checklist_state(user_id, company_id)
                                 return SimplifiedRAGResult(
-                                    response=list_text,
+                                    response=_final_text,
                                     confidence=1.0,
                                     processing_time_ms=processing_time,
                                     checklist_state=checklist.to_string(),
@@ -4143,17 +4170,43 @@ class SimplifiedRAGEngine:
                                                 spec_val=None,
                                             )
                                             if list_text and list_items:
-                                                try:
-                                                    order_tracker.set_custom_meta(user_id, "price_list_text", list_text)
-                                                    order_tracker.set_custom_meta(user_id, "price_list_items", list_items)
-                                                    order_tracker.set_flag(user_id, "awaiting_price_choice", True)
-                                                except Exception:
-                                                    pass
+                                                _ft3 = list_text
+                                                if len(list_items) == 1:
+                                                    _si3 = list_items[0]
+                                                    _sv3 = str(_si3.get("variant") or "").strip()
+                                                    _ss3 = str(_si3.get("spec") or "").strip()
+                                                    _sl3 = str(_si3.get("label") or _si3.get("unit") or "").strip()
+                                                    _sp3 = int(_si3.get("price_fcfa") or 0)
+                                                    _spf3 = f"{_sp3:,} F".replace(",", " ") if _sp3 else ""
+                                                    _pd3 = " ".join(p for p in [_sv3, _ss3, f"en {_sl3}" if _sl3 else ""] if p)
+                                                    _nq3 = ""
+                                                    try:
+                                                        _stx3 = order_tracker.get_state(user_id)
+                                                        _mx3 = sorted(list(_stx3.get_missing_fields(company_id=company_id)))
+                                                        _sq3 = {"zone": "vous êtes situé(e) où pour la livraison ?", "numero": "c'est pour quel numéro de téléphone pour le livreur ?", "quantite": "vous en souhaitez combien ?", "paiement": "comment souhaitez-vous payer ?"}
+                                                        for _k3 in ["zone", "numero", "quantite", "paiement"]:
+                                                            if _k3 in _mx3:
+                                                                _nq3 = _sq3[_k3]
+                                                                break
+                                                    except Exception:
+                                                        pass
+                                                    if _spf3 and _pd3:
+                                                        _ft3 = f"{_pd3} est à {_spf3} 👍"
+                                                        if _nq3:
+                                                            _ft3 += f"\nSi ça vous convient, {_nq3}"
+                                                        print(f"💬 [ITEMS_PRICE] Single product human: {_pd3} → {_spf3}")
+                                                else:
+                                                    try:
+                                                        order_tracker.set_custom_meta(user_id, "price_list_text", list_text)
+                                                        order_tracker.set_custom_meta(user_id, "price_list_items", list_items)
+                                                        order_tracker.set_flag(user_id, "awaiting_price_choice", True)
+                                                    except Exception:
+                                                        pass
 
                                                 processing_time = (time.time() - start_time) * 1000
                                                 checklist = self.prompt_system.get_checklist_state(user_id, company_id)
                                                 return SimplifiedRAGResult(
-                                                    response=list_text,
+                                                    response=_ft3,
                                                     confidence=0.95,
                                                     processing_time_ms=processing_time,
                                                     checklist_state=checklist.to_string(),
@@ -6074,11 +6127,54 @@ class SimplifiedRAGEngine:
                                 product_id_val=pid,
                             )
                         if list_text and list_items:
-                            order_tracker.set_custom_meta(user_id, "price_list_text", list_text)
-                            order_tracker.set_custom_meta(user_id, "price_list_items", list_items)
-                            order_tracker.set_flag(user_id, "awaiting_price_choice", True)
-                            response = list_text
-                            print(f"📋 [SEND_PRICE_LIST] Sent price table (unit={_detected_unit} spec={_detected_spec})")
+                            if len(list_items) == 1:
+                                # Single product → human-friendly message instead of table
+                                _single = list_items[0]
+                                _s_variant = str(_single.get("variant") or "").strip()
+                                _s_spec = str(_single.get("spec") or "").strip()
+                                _s_label = str(_single.get("label") or _single.get("unit") or "").strip()
+                                _s_price = int(_single.get("price_fcfa") or 0)
+                                _s_price_fmt = f"{_s_price:,} F".replace(",", " ") if _s_price else ""
+
+                                # Build product description
+                                _parts = [p for p in [_s_variant, _s_spec, f"en {_s_label}" if _s_label else ""] if p]
+                                _product_desc = " ".join(_parts)
+
+                                # Find next missing slot for proactive question
+                                _next_q = ""
+                                try:
+                                    _st_single = order_tracker.get_state(user_id)
+                                    _missing = sorted(list(_st_single.get_missing_fields(company_id=company_id)))
+                                    _slot_questions = {
+                                        "zone": "vous êtes situé(e) où pour la livraison ?",
+                                        "numero": "c'est pour quel numéro de téléphone pour le livreur ?",
+                                        "quantite": "vous en souhaitez combien ?",
+                                        "paiement": "comment souhaitez-vous payer ?",
+                                    }
+                                    for _sk in ["zone", "numero", "quantite", "paiement"]:
+                                        if _sk in _missing:
+                                            _next_q = _slot_questions[_sk]
+                                            break
+                                except Exception:
+                                    pass
+
+                                if _s_price_fmt and _product_desc:
+                                    _human_msg = f"{_product_desc} est à {_s_price_fmt} 👍"
+                                    if _next_q:
+                                        _human_msg += f"\nSi ça vous convient, {_next_q}"
+                                    response = _human_msg
+                                    print(f"💬 [SEND_PRICE_LIST] Single product human format: {_product_desc} → {_s_price_fmt}")
+                                else:
+                                    if isinstance(tool_call_req, dict):
+                                        tool_call_req["action"] = "NONE"
+                                        tool_call_req["_skipped_price_list"] = True
+                                    print(f"🛡️ [SEND_PRICE_LIST] Skipped (only 1 option, no price: unit={_single.get('unit')} spec={_single.get('spec')})")
+                            else:
+                                order_tracker.set_custom_meta(user_id, "price_list_text", list_text)
+                                order_tracker.set_custom_meta(user_id, "price_list_items", list_items)
+                                order_tracker.set_flag(user_id, "awaiting_price_choice", True)
+                                response = list_text
+                                print(f"📋 [SEND_PRICE_LIST] Sent price table (items={len(list_items)})")
                         else:
                             print(f"⚠️ [SEND_PRICE_LIST] No price data generated for pid={pid} variant={variant}")
             except Exception:

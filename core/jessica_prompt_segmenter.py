@@ -892,6 +892,8 @@ def build_jessica_prompt_segment(
     format_vars.setdefault("technique", "")
     # Et parfois {info_ref}
     format_vars.setdefault("info_ref", "")
+    # Backward compat: old prompts may still contain {shop_url} (now injected at onboarding)
+    format_vars.setdefault("shop_url", "")
     if "{context_text}" in reduced_template:
         format_vars.setdefault("context_text", "")
 

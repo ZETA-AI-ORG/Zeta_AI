@@ -1,0 +1,52 @@
+CONTEXTE / nous avons mis en place un systeme d enrichiseement de prompt qui apres onboarding suite a la base de donnees un prompt specifique a la boutiques va dans supabase table rag confis chaps deepseek... suaf que maintenant nous avons un tout nouveau prompt nomme prompt_universel_v2.md soit la version plus optimser pour le cche prompt et autre de la version basique prompt_universel.md // sauf que le backend a ete concu autours de structure differentes dans le v2 donc lui aussi faut le mettre a jours voici lla suite : ✅ OUI — Mode strict obligatoire
+Raison : le V2 est conçu autour des tags XML/JSON
+Un fallback legacy = dette technique permanente
+Si le modèle ne suit pas → log d'erreur + alerte, pas de silencing /// Frais d'expédition y a un bouton pour activer si c est activer le champs n est jamais vide et force une donnees mais tu vas ameliorer le chaps fourchette avec deux chaps de ... a ... et tu t assure qu il soit en numerique uniquement et si pas rempli apres avoir cocher et bien le bouton continuer en bas reste off aussi suivant les regles actuel du bouton /// ET CONCERANT  Migration Scope EN RELAITE L APPLI EST EN TEST DONC TOUTE LES BOUTQUE EXISTANTE SONT LES MIENNES  Parfait. Contexte clarifié.
+
+Ce que ça change
+Pas de rollout progressif nécessaire
+Pas de flag V1/V2 en DB
+Pas de fallback legacy
+
+→ Migration directe V2 sur toutes les boutiques
+→ Tu contrôles 100% des données de test
+→ Si ça casse, tu fixes sans impact client réel
+
+Ordre d'exécution simplifié
+1. thinking_parser.py        ← refactor XML/JSON
+2. botlive_rag_hybrid.py     ← fix hallucination index
+3. prompt_template_filler.py ← chargement V2
+4. ingestion_api.py          ← upsert V2
+5. Régénérer les prompts     ← toutes tes boutiques test
+6. Test conversation complète
+
+Une seule précaution
+sql-- Backup avant migration
+-- Simple, 30 secondes, zéro regret
+pg_dump companies > backup_pre_v2_$(date +%Y%m%d).sql  /// 
+ the 
+implementation_plan.md
+ NE CONTIENT RIEN 
+Désolé pour ce malentendu. J'ai réécrit le plan d'implémentation pour m'assurer qu'il soit bien visible et complet. Voici un résumé direct de ce que je m'apprête à faire :
+
+📋 Résumé du Plan d'Migration V2.0
+Refonte du ThinkingParser (core/thinking_parser.py) :
+
+Passage d'un parsing YAML (Phases 1-5) à un parsing de balises XML/JSON (<thinking>, <response>, <detected_items_json>).
+Extraction stricte des données pour alimenter le backend de calcul.
+Correction du PRODUCT_INDEX (core/botlive_rag_hybrid.py) :
+
+Correction du bug d'hallucination : je vais garantir que le Nom du Produit est toujours inclus dans l'index envoyé à l'IA (actuellement, il manque souvent, forçant l'IA à inventer des noms).
+Mise à jour de l'Onboarding (prompt_template_filler.py) :
+
+Utilisation de prompt_universel_v2.md comme base pour les nouvelles boutiques.
+Mapping des variables {bot_name}, {wave_number}, {depot_amount}, etc., pour que le prompt soit enrichi correctement dès la création du compte sur /company-setup.
+Synchronisation Supabase :
+
+Mise à jour du script de déploiement pour pousser la structure V2 dans la colonne prompt_botlive_deepseek_v3.
+❓ Questions Ouvertes
+Frais d'expédition : Je vais mettre par défaut 2500 FCFA pour la variable {expedition_base_fee} si l'info manque dans la base. Ça vous va ?
+Mode Strict : Pour la V2, je propose que le bot ignore les réponses qui ne respectent pas les balises XML pour garantir la fiabilité. On valide ?
+Vous pouvez consulter le détail complet ici : 
+implementation_plan.md
+. /// TON BUT ANALYSE TOUT LES PARITE EN CASUE FRONTEND COMME BACKEND LIEE AU PROMPT ET TOUT MAJ PARFAITEMENT SUIVANT UNE TODO LISTE SEQUENTIEL ET NON GLOBAL ? AUDIT LIS LE SYSTEME ACTUEL ET FAIS CE QU IL FAUT

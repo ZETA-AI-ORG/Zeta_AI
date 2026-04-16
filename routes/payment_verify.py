@@ -35,6 +35,8 @@ OPENROUTER_MODEL = os.getenv("OPENROUTER_BOTLIVE_MODEL", "google/gemini-2.5-flas
 SUPABASE_URL = os.getenv("SUPABASE_URL", "")
 SUPABASE_SERVICE_KEY = os.getenv("SUPABASE_SERVICE_KEY") or os.getenv("SUPABASE_KEY", "")
 MAX_DELAY_SECONDS = 600  # 10 minutes
+RATE_LIMIT_MAX = 3       # max attempts per window
+RATE_LIMIT_WINDOW = 30   # minutes
 
 # ── Response model ──
 class VerifyResponse(BaseModel):
@@ -253,6 +255,55 @@ async def verify_payment(
         f"company={company_id} expected={expected_amount} session={payment_session_id}"
     )
 
+    # ── PRE-CHECK: Rate limiting (3 attempts / 30 min per company_id) ──
+    if company_id and SUPABASE_URL:
+        try:
+            window_start = (uploaded_at - timedelta(minutes=RATE_LIMIT_WINDOW)).isoformat()
+            rl_res = await _supabase_query("payment_attempts", {
+                "company_id": f"eq.{company_id}",
+                "created_at": f"gte.{window_start}",
+                "select": "id",
+            })
+            recent_count = len(rl_res.get("data") or []) if rl_res.get("data") else 0
+            if recent_count >= RATE_LIMIT_MAX:
+                logger.warning(f"[PAYMENT_VERIFY] Rate limited: {company_id} ({recent_count} attempts in {RATE_LIMIT_WINDOW}min)")
+                # Log the blocked attempt
+                await _log_payment_attempt(company_id, image_hash, file.filename, len(image_bytes), file.content_type, "rate_limited")
+                return VerifyResponse(
+                    decision="rejected",
+                    decision_reasons=["TOO_MANY_ATTEMPTS"],
+                    risk_score=2.0,
+                    verified=False,
+                    error="Trop de tentatives. Réessayez dans 30 minutes.",
+                )
+        except Exception as e:
+            logger.warning(f"[PAYMENT_VERIFY] Rate limit check failed (non-blocking): {e}")
+
+    # ── PRE-CHECK: Duplicate file hash ──
+    if SUPABASE_URL:
+        try:
+            dup_res = await _supabase_query("payment_attempts", {
+                "file_hash": f"eq.{image_hash}",
+                "status": f"neq.rate_limited",
+                "select": "id",
+                "limit": "1",
+            })
+            if dup_res.get("data") and len(dup_res["data"]) > 0:
+                logger.warning(f"[PAYMENT_VERIFY] Duplicate hash detected: {image_hash[:16]}...")
+                await _log_payment_attempt(company_id or "unknown", image_hash, file.filename, len(image_bytes), file.content_type, "duplicate")
+                return VerifyResponse(
+                    decision="rejected",
+                    decision_reasons=["DUPLICATE_FILE"],
+                    risk_score=2.0,
+                    verified=False,
+                    error="Ce reçu a déjà été soumis.",
+                )
+        except Exception as e:
+            logger.warning(f"[PAYMENT_VERIFY] Duplicate check failed (non-blocking): {e}")
+
+    # ── Log attempt as processing ──
+    await _log_payment_attempt(company_id or "unknown", image_hash, file.filename, len(image_bytes), file.content_type, "processing")
+
     # ── Call Gemini ──
     gemini = await verify_with_gemini(image_bytes, file.content_type)
 
@@ -380,6 +431,20 @@ async def verify_payment(
     )
 
     # ── Store in payment_verifications ──
+    # ── Update payment_attempt status ──
+    try:
+        if SUPABASE_URL:
+            await _supabase_query("payment_attempts", {
+                "file_hash": f"eq.{image_hash}",
+                "status": f"eq.processing",
+            }, method="PATCH", body={
+                "status": "ocr_success" if verified else "ocr_failed",
+                "decision": decision,
+                "raw_ocr_result": gemini,
+            })
+    except Exception as e:
+        logger.warning(f"[PAYMENT_VERIFY] Failed to update payment_attempt: {e}")
+
     try:
         await store_verification({
             "company_id": company_id,
@@ -424,11 +489,28 @@ async def verify_payment(
     )
 
 
+async def _log_payment_attempt(company_id: str, file_hash: str, file_name: str, file_size: int, mime_type: str, status: str):
+    """Log a payment attempt in the payment_attempts table."""
+    if not SUPABASE_URL:
+        return
+    try:
+        await _supabase_query("payment_attempts", {}, method="POST", body={
+            "company_id": company_id,
+            "file_hash": file_hash,
+            "file_name": file_name,
+            "file_size": file_size,
+            "mime_type": mime_type,
+            "status": status,
+        })
+    except Exception as e:
+        logger.warning(f"[PAYMENT_VERIFY] Failed to log attempt: {e}")
+
+
 @router.get("/health")
 async def payment_health():
     """Health check for payment verification service."""
     return {
         "status": "ok",
-        "gemini_configured": bool(GEMINI_API_KEY),
-        "model": GEMINI_MODEL,
+        "gemini_configured": bool(OPENROUTER_API_KEY),
+        "model": OPENROUTER_MODEL,
     }

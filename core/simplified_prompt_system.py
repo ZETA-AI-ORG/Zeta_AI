@@ -11,7 +11,7 @@ Philosophie : Prompt statique enrichi avec SEULEMENT les infos dynamiques essent
 """
 
 import re
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, Set
 from dataclasses import dataclass
 import json
 import os
@@ -19,6 +19,7 @@ from pathlib import Path
 
 from core.order_state_tracker import order_tracker
 from core.company_catalog_v2_loader import get_company_catalog_v2, get_company_product_catalog_v2
+from database.supabase_client import get_supabase_client
 
 @dataclass
 class OrderChecklistState:
@@ -947,11 +948,81 @@ Fais confiance à ton jugement. Tu es Jessica, pas un robot."""
             return "CLOSER"
         return "HOTESSE"
 
+    # Redis TTL pour le cache prompt (5 min = filet de sécurité si pg_notify rate)
+    _PROMPT_CACHE_TTL: int = 300
+    _REDIS_KEY_PREFIX: str = "zeta:prompt:"
+
     def __init__(self):
         """Initialise le système de prompt simplifié"""
         self.checklist_states: Dict[str, OrderChecklistState] = {}
-        self._prompt_cache: Dict[str, str] = {}  # Cache des prompts par company_id
+        # Fallback in-memory si Redis indisponible (ne supprime pas la compat)
+        self._prompt_cache: Dict[str, str] = {}
         self._prompt_cache_meta: Dict[str, Dict[str, Any]] = {}
+        self._redis = self._init_redis()
+
+    @staticmethod
+    def _init_redis():
+        """Initialise la connexion Redis (optionnelle — pas de crash si absent)."""
+        try:
+            import redis as _redis_lib
+            url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+            r = _redis_lib.from_url(url, decode_responses=True, socket_connect_timeout=2)
+            r.ping()
+            print("✅ [PROMPT CACHE] Redis connecté")
+            return r
+        except Exception as _e:
+            print(f"⚠️ [PROMPT CACHE] Redis indisponible → fallback in-memory: {_e}")
+            return None
+
+    def _redis_key(self, company_id: str) -> str:
+        return f"{self._REDIS_KEY_PREFIX}{company_id}"
+
+    def _cache_get(self, company_id: str) -> Optional[str]:
+        """Lit le prompt depuis Redis, puis fallback in-memory."""
+        if self._redis:
+            try:
+                val = self._redis.get(self._redis_key(company_id))
+                if val:
+                    print(f"📦 [PROMPT CACHE] Redis HIT pour {company_id}")
+                    return val
+            except Exception as _e:
+                print(f"⚠️ [PROMPT CACHE] Redis read error: {_e}")
+        # Fallback in-memory
+        return self._prompt_cache.get(company_id)
+
+    def _cache_set(self, company_id: str, prompt: str, meta: Dict[str, Any]) -> None:
+        """Stocke le prompt dans Redis (avec TTL) ET in-memory."""
+        self._prompt_cache[company_id] = prompt
+        self._prompt_cache_meta[company_id] = meta
+        if self._redis:
+            try:
+                self._redis.setex(self._redis_key(company_id), self._PROMPT_CACHE_TTL, prompt)
+            except Exception as _e:
+                print(f"⚠️ [PROMPT CACHE] Redis write error: {_e}")
+
+    def invalidate_cache(self, company_id: Optional[str] = None) -> None:
+        """Invalide le cache des prompts (appelé via pg_notify ou HTTP)."""
+        if company_id:
+            cid = str(company_id).strip()
+            self._prompt_cache.pop(cid, None)
+            self._prompt_cache_meta.pop(cid, None)
+            if self._redis:
+                try:
+                    self._redis.delete(self._redis_key(cid))
+                except Exception:
+                    pass
+            print(f"🧹 [PROMPT CACHE] Invalidé pour {cid}")
+        else:
+            self._prompt_cache.clear()
+            self._prompt_cache_meta.clear()
+            if self._redis:
+                try:
+                    keys = self._redis.keys(f"{self._REDIS_KEY_PREFIX}*")
+                    if keys:
+                        self._redis.delete(*keys)
+                except Exception:
+                    pass
+            print(f"🧹 [PROMPT CACHE] Invalidé GLOBAL")
     
     async def get_static_prompt(self, company_id: str) -> str:
         """
@@ -963,34 +1034,29 @@ Fais confiance à ton jugement. Tu es Jessica, pas un robot."""
         Returns:
             Prompt statique (depuis Supabase ou fallback hardcodé)
         """
-        # Vérifier cache
-        if company_id in self._prompt_cache:
+        # Vérifier cache (Redis puis in-memory)
+        cached = self._cache_get(company_id)
+        if cached:
             meta = self._prompt_cache_meta.get(company_id) or {}
-            src = str(meta.get("source") or "unknown").strip() or "unknown"
-            chars = meta.get("chars")
-            try:
-                chars_i = int(chars) if chars is not None else len(self._prompt_cache[company_id])
-            except Exception:
-                chars_i = len(self._prompt_cache[company_id])
-            print(f"📦 [PROMPT CACHE] Hit pour {company_id} | source={src} | chars={chars_i}")
-            return self._prompt_cache[company_id]
+            src = str(meta.get("source") or "redis").strip() or "redis"
+            print(f"📦 [PROMPT CACHE] Hit pour {company_id} | source={src} | chars={len(cached)}")
+            return cached
 
         # Charger depuis fichier local (RAG) si activé.
         # IMPORTANT: c'est le prompt attendu pour /chat (pas Botlive).
         try:
-            use_local_raw = (os.getenv("SIMPLIFIED_RAG_USE_LOCAL_PROMPT", "true") or "true").strip().lower()
-            use_local = use_local_raw in {"1", "true", "yes", "y", "on"}
+            # Forcer l'appel Supabase directement (plus d'appel prompt local)
+            use_local = False
             if use_local:
                 rel_path = (os.getenv("SIMPLIFIED_RAG_LOCAL_PROMPT_PATH") or "prompts/JESSICA_SIMPLIFIED_COMPASS.md").strip()
                 p = Path(__file__).resolve().parent.parent / rel_path
                 if p.exists() and p.is_file():
                     local_prompt = p.read_text(encoding="utf-8")
                     if local_prompt and len(local_prompt) > 50:
-                        self._prompt_cache[company_id] = local_prompt
-                        self._prompt_cache_meta[company_id] = {
+                        self._cache_set(company_id, local_prompt, {
                             "source": f"local_file:{rel_path}",
-                            "chars": int(len(local_prompt)),
-                        }
+                            "chars": len(local_prompt),
+                        })
                         print(f"✅ [PROMPT] Chargé depuis fichier local: {rel_path} ({len(local_prompt)} chars)")
                         return local_prompt
         except Exception as _local_e:
@@ -1015,41 +1081,37 @@ Fais confiance à ton jugement. Tu es Jessica, pas un robot."""
                         real_prompt = get_prompt_for_llm("deepseek-v3")
                         if real_prompt and len(real_prompt) > 200:
                             print(f"✅ [PROMPT] Placeholder Supabase détecté → prompt hardcodé chargé: {len(real_prompt)} chars")
-                            self._prompt_cache[company_id] = real_prompt
-                            self._prompt_cache_meta[company_id] = {
+                            self._cache_set(company_id, real_prompt, {
                                 "source": "placeholder_hardcoded",
-                                "chars": int(len(real_prompt)),
-                            }
+                                "chars": len(real_prompt),
+                            })
                             return real_prompt
                     except Exception as _hp_e:
                         print(f"⚠️ [PROMPT] Fallback hardcoded failed: {type(_hp_e).__name__}: {_hp_e}")
 
                 print(f"✅ [SUPABASE] Prompt chargé: {len(p_str)} chars")
-                self._prompt_cache[company_id] = p_str
-                self._prompt_cache_meta[company_id] = {
+                self._cache_set(company_id, p_str, {
                     "source": "supabase",
-                    "chars": int(len(p_str)),
-                }
+                    "chars": len(p_str),
+                })
                 return p_str
             else:
                 print(f"⚠️ [SUPABASE] Prompt vide ou trop court, fallback hardcodé")
                 fb = self.FALLBACK_STATIC_PROMPT
-                self._prompt_cache[company_id] = fb
-                self._prompt_cache_meta[company_id] = {
+                self._cache_set(company_id, fb, {
                     "source": "fallback_static_supabase_empty",
-                    "chars": int(len(fb)),
-                }
+                    "chars": len(fb),
+                })
                 return fb
         
         except Exception as e:
             print(f"❌ [SUPABASE] Erreur chargement prompt: {e}")
             print(f"🔄 [FALLBACK] Utilisation prompt hardcodé")
             fb = self.FALLBACK_STATIC_PROMPT
-            self._prompt_cache[company_id] = fb
-            self._prompt_cache_meta[company_id] = {
+            self._cache_set(company_id, fb, {
                 "source": f"fallback_static_supabase_error:{type(e).__name__}",
-                "chars": int(len(fb)),
-            }
+                "chars": len(fb),
+            })
             return fb
     
     def get_checklist_state(self, user_id: str, company_id: str) -> OrderChecklistState:
@@ -1150,6 +1212,16 @@ Fais confiance à ton jugement. Tu es Jessica, pas un robot."""
             user_id, company_id, query, has_image
         )
 
+        # 2026-04-15: Récupération du Top 5 (featured_product_ids) depuis Supabase
+        featured_ids = []
+        try:
+            supabase = get_supabase_client()
+            res = supabase.table("companies").select("featured_product_ids").eq("company_id_text", company_id).execute()
+            if res.data and res.data[0].get("featured_product_ids"):
+                featured_ids = res.data[0]["featured_product_ids"]
+        except Exception as e:
+            print(f"⚠️ [PROMPT] Erreur fetch featured_ids: {e}")
+
         # Load catalog_v2 from backend cache/local file (token-safe multi-product runtime).
         try:
             catalog_v2 = get_company_catalog_v2(company_id)
@@ -1200,105 +1272,9 @@ Fais confiance à ton jugement. Tu es Jessica, pas un robot."""
                     except Exception:
                         mono = None
 
-                # First-turn best-effort: if we still don't have a mono product (because active_product_id
-                # isn't persisted yet), try to select by matching the current query against product_name.
-                if mono is None:
-                    try:
-                        def _norm_text(s: str) -> str:
-                            try:
-                                import unicodedata
-
-                                t = str(s or "").strip().lower()
-                                t = unicodedata.normalize("NFKD", t)
-                                t = "".join(ch for ch in t if not unicodedata.combining(ch))
-                            except Exception:
-                                t = str(s or "").strip().lower()
-                            t = re.sub(r"[^a-z0-9\s-]+", " ", t)
-                            t = t.replace("-", " ")
-                            t = re.sub(r"\s+", " ", t).strip()
-                            return t
-
-                        qn = _norm_text(query)
-                        best = None
-                        best_pid = ""
-                        best_name = ""
-
-                        for p in [pp for pp in (catalog_v2.get("products") or []) if isinstance(pp, dict)]:
-                            cat = p.get("catalog_v2") if isinstance(p.get("catalog_v2"), dict) else None
-                            if not isinstance(cat, dict) or not cat:
-                                continue
-                            pname = str(p.get("product_name") or cat.get("product_name") or cat.get("name") or "").strip()
-                            pid = str(p.get("product_id") or cat.get("product_id") or "").strip()
-                            pn = _norm_text(pname)
-                            if not qn:
-                                continue
-
-                            matched = False
-                            # 1) Match on product name tokens (existing logic)
-                            if pn and (pn in qn or any(tok in qn for tok in pn.split() if len(tok) >= 4)):
-                                matched = True
-
-                            # 2) Match on variant names from vtree (e.g. "Pression", "Culotte")
-                            if not matched:
-                                vtree = cat.get("v")
-                                if isinstance(vtree, dict):
-                                    for vk in vtree.keys():
-                                        vk_n = _norm_text(str(vk))
-                                        if vk_n and len(vk_n) >= 3 and vk_n in qn:
-                                            matched = True
-                                            break
-                                    # 3) Match on spec keywords inside vtree nodes (e.g. "T1", "T5")
-                                    if not matched:
-                                        for vk, node in vtree.items():
-                                            if not isinstance(node, dict):
-                                                continue
-                                            s_map = node.get("s")
-                                            if isinstance(s_map, dict):
-                                                for sk in s_map.keys():
-                                                    sk_n = _norm_text(str(sk))
-                                                    if sk_n and len(sk_n) >= 2 and sk_n in qn:
-                                                        matched = True
-                                                        break
-                                            if matched:
-                                                break
-
-                            # 4) Match on sales_constraints / technical_specs keywords
-                            if not matched:
-                                for field in ("sales_constraints", "technical_specs"):
-                                    raw = str(cat.get(field) or "").strip()
-                                    if not raw:
-                                        continue
-                                    for tok in _norm_text(raw).split():
-                                        if len(tok) >= 5 and tok in qn:
-                                            matched = True
-                                            break
-                                    if matched:
-                                        break
-
-                            if matched:
-                                best = cat
-                                best_pid = pid
-                                best_name = pname
-                                print(f"🎯 [PRE_LLM_MATCH] product matched: pid={pid} name='{pname}' from query")
-                                break
-
-                        if isinstance(best, dict) and best:
-                            mono = best
-                            if not active_pid and best_pid:
-                                try:
-                                    order_tracker.set_custom_meta(user_id, "active_product_id", str(best_pid).strip())
-                                except Exception:
-                                    pass
-                            if not active_label and best_name:
-                                try:
-                                    order_tracker.set_custom_meta(user_id, "active_product_label", str(best_name).strip())
-                                except Exception:
-                                    pass
-                    except Exception:
-                        mono = None
-
-                if isinstance(mono, dict) and mono:
-                    catalog_v2 = mono
+                # 2026-04-15: PRE_LLM_MATCH v1 désactivé pour éviter les biais d'injection.
+                # On laisse le LLM décider via le PRODUCT_INDEX et son thinking.
+                matched = False
         except Exception:
             pass
 
@@ -1315,6 +1291,16 @@ Fais confiance à ton jugement. Tu es Jessica, pas un robot."""
         company_phone_s = str(os.getenv("COMPANY_PHONE", "+225 0160924560") or "+225 0160924560").strip()
         payment_phone_s = str(os.getenv("PAYMENT_PHONE", "+225 0787360757") or "+225 0787360757").strip()
         payment_methods_s = str(os.getenv("PAYMENT_METHODS", "Wave") or "Wave").strip()
+
+        # Shop URL: priority from catalogue or env
+        shop_url_s = ""
+        try:
+            if isinstance(catalog_v2, dict):
+                shop_url_s = str(catalog_v2.get("shop_url") or "").strip()
+            if not shop_url_s:
+                shop_url_s = str(os.getenv("SHOP_URL", "") or "").strip()
+        except Exception:
+            shop_url_s = ""
 
         def _mask_phone(s: str) -> str:
             s = str(s or "").strip()
@@ -1656,7 +1642,9 @@ Fais confiance à ton jugement. Tu es Jessica, pas un robot."""
 
         # Inject PRODUCT_INDEX at runtime.
         try:
-            idx_block = self._build_product_index_block(catalog_v2)
+                # 2026-04-15: PRODUCT_INDEX est maintenant basé sur le Top 5 permanent.
+            # Stabilisation du prompt = meilleur cache LLM.
+            idx_block = self._build_product_index_block(catalog_v2, featured_ids=featured_ids)
             if idx_block:
                 if "[[PRODUCT_INDEX]]" in str(static_prompt or ""):
                     static_prompt = str(static_prompt).replace("[[PRODUCT_INDEX]]", idx_block)
@@ -1709,6 +1697,7 @@ Fais confiance à ton jugement. Tu es Jessica, pas un robot."""
             detected_location=detected_location_s,
             conversation_history=conversation_history_s,
             completion_rate=completion_rate,
+            shop_url=shop_url_s,
         )
 
         # Règle runtime (appliquée même si le prompt vient de Supabase):
