@@ -372,6 +372,28 @@ def process_llm_response(llm_output: str, user_id: str = None, company_id: str =
                     
                 except Exception as e:
                     logger.warning(f"⚠️ [DATA_TRACKER] Erreur tracking: {e}")
+                # 🎯 PHASE B/C LINKAGE: Injecter le catalogue complet (vtree) si un produit est détecté
+                # Cela permet au LLM de voir les variantes au tour suivant sans attendre une recherche manuelle.
+                try:
+                    v2_data = thinking_data.get("v2", {})
+                    detected_pid = v2_data.get("detected_product")
+                    
+                    if detected_pid and user_id and company_id:
+                        from core.company_catalog_v2_loader import get_company_product_catalog_v2
+                        from core.order_state_tracker import order_tracker
+                        
+                        catalog = get_company_product_catalog_v2(company_id, detected_pid)
+                        if catalog:
+                            # Tenter d'extraire le vtree (variantes)
+                            vtree = catalog.get("vtree") or catalog.get("v") or {}
+                            if vtree:
+                                vtree_str = json.dumps(vtree, ensure_ascii=False)
+                                # Mettre à jour l'ordre avec le vtree pour que Jessica le voie au prochain tour
+                                order_tracker.update_produit_details(user_id, vtree_str, source="IA_DETECTION_LINK", confidence=0.95)
+                                logger.info(f"🔗 [LINKAGE] Produit '{detected_pid}' détecté -> vtree injecté dans OrderState")
+                except Exception as link_e:
+                    logger.warning(f"⚠️ [LINKAGE] Erreur injection vtree: {link_e}")
+
             else:
                 logger.warning(f"⚠️ [THINKING_PARSER] Parse échoué: {len(thinking_data.get('parsing_errors', []))} erreurs")
                 

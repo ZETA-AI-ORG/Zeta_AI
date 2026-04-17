@@ -6,10 +6,12 @@ Remplace les prompts hardcodés par des prompts stockés en base de données
 
 import os
 import re
+import json
 import logging
 from typing import Dict, Any, Optional
 from supabase import create_client, Client
 import time
+import redis
 
 # Chemin vers le prompt universel V2.0 (BLOC 1 statique)
 _PROMPT_UNIVERSEL_V2_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "prompt_universel_v2.md")
@@ -34,6 +36,16 @@ class BotlivePromptsManager:
         self.supabase: Client = create_client(supabase_url, supabase_key)
         self._cache = {}  # Cache en mémoire pour performance
         self._cache_timestamps = {}  # Timestamps pour TTL
+
+        # Connexion Redis pour identité persistante
+        redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+        try:
+            self.redis = redis.from_url(redis_url, decode_responses=True)
+            self.redis.ping()
+            logger.info(f"✅ Redis connecté: {redis_url}")
+        except Exception as e:
+            logger.warning(f"⚠️ Redis indisponible, fallback in-memory seulement: {e}")
+            self.redis = None
 
         enabled_raw = (os.getenv("PROMPT_LOCAL_CACHE_ENABLED", "true") or "true").strip().lower()
         self._cache_enabled = enabled_raw in {"1", "true", "yes", "y", "on"}
@@ -386,15 +398,22 @@ class BotlivePromptsManager:
         """
         Récupère les informations de l'entreprise (nom, IA, plan, etc.)
         Jointure avec subscriptions pour le routage élastique.
-        
-        Args:
-            company_id: Identifiant entreprise
-        
-        Returns:
-            Dict: Informations entreprise (name, ai_name, plan_name, has_boost, etc.)
+        CACHE REDIS pour persistance de l'identité.
         """
+        redis_key = f"zeta:company_info:{company_id}"
+        
+        # 1. Tenter Cache Redis
+        if self.redis:
+            try:
+                cached = self.redis.get(redis_key)
+                if cached:
+                    logger.info(f"💾 [IDENTITY_CACHE] HIT Redis pour {company_id}")
+                    return json.loads(cached)
+            except Exception as e:
+                logger.warning(f"⚠️ Erreur lecture Redis identity: {e}")
+
         try:
-            # 1. Récupérer les infos de la boutique
+            # 2. Récupérer les infos de la boutique (Supabase)
             response = self.supabase.table("company_rag_configs") \
                 .select("company_name, ai_name, secteur_activite, whatsapp_phone, boutique_type, rag_behavior, description, botlive_prompts_version") \
                 .eq("company_id", company_id) \
@@ -410,14 +429,13 @@ class BotlivePromptsManager:
             rag_behavior = data.get("rag_behavior")
             if isinstance(rag_behavior, str):
                 try:
-                    import json
                     rag_behavior = json.loads(rag_behavior)
                 except Exception:
                     rag_behavior = {}
             elif not isinstance(rag_behavior, dict):
                 rag_behavior = {}
 
-            # 2. Récupérer le plan d'abonnement séparément
+            # 3. Récupérer le plan d'abonnement
             plan_name = "none"
             try:
                 sub_res = self.supabase.table("subscriptions") \
@@ -430,7 +448,7 @@ class BotlivePromptsManager:
             except Exception as sub_e:
                 logger.warning(f"⚠️ Impossible de récupérer le plan pour {company_id}: {sub_e}")
             
-            return {
+            info = {
                 "company_name": data.get("company_name"),
                 "ai_name": data.get("ai_name"),
                 "secteur_activite": data.get("secteur_activite"),
@@ -438,9 +456,19 @@ class BotlivePromptsManager:
                 "boutique_type": data.get("boutique_type"),
                 "rag_behavior": rag_behavior,
                 "description": data.get("description"),
-                "has_boost": False, # Temporairement désactivé pour éviter les erreurs de schéma
+                "has_boost": False,
                 "plan_name": plan_name
             }
+
+            # 4. Stocker en Cache Redis (TTL 1 heure)
+            if self.redis and info.get("company_name"):
+                try:
+                    self.redis.setex(redis_key, 3600, json.dumps(info))
+                    logger.info(f"💾 [IDENTITY_CACHE] SET Redis pour {company_id}")
+                except Exception as e:
+                    logger.warning(f"⚠️ Erreur écriture Redis identity: {e}")
+
+            return info
             
         except Exception as e:
             logger.error(f"❌ Erreur récupération info entreprise {company_id}: {e}")
@@ -462,8 +490,16 @@ class BotlivePromptsManager:
         if _ZETA_CORE_CACHE:
             return _ZETA_CORE_CACHE
         try:
-            with open(_PROMPT_UNIVERSEL_V2_PATH, "r", encoding="utf-8") as f:
-                raw = f.read()
+            # Priorité 1: LOCAL_PROMPT_PATH (VPS / Dev local)
+            local_path = os.getenv("LOCAL_PROMPT_PATH")
+            if local_path and os.path.exists(local_path):
+                logger.info(f"💾 [V2] Chargement prompt prioritaires depuis LOCAL_PROMPT_PATH: {local_path}")
+                with open(local_path, "r", encoding="utf-8") as f:
+                    raw = f.read()
+            else:
+                # Priorité 2: Chemin par défaut
+                with open(_PROMPT_UNIVERSEL_V2_PATH, "r", encoding="utf-8") as f:
+                    raw = f.read()
             m1 = re.search(r"\[\[ZETA_CORE_START\]\](.*?)\[\[ZETA_CORE_END\]\]", raw, re.DOTALL)
             bloc1 = m1.group(1).strip() if m1 else raw
 

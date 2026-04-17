@@ -57,8 +57,15 @@ except Exception:
     pass
 try:
     ru = (os.getenv("REDIS_URL") or "").strip()
-    if ru.startswith("redis://redis:"):
+    if not ru or ru.startswith("redis://redis:"):
         os.environ["REDIS_URL"] = "redis://localhost:6379/0"
+    
+    # 🎯 SYSTEM C: Forcer LOCAL_PROMPT_PATH pour tester Jessica V2.0
+    if not os.getenv("LOCAL_PROMPT_PATH"):
+        v2_path = os.path.join(project_root, "prompt_universel_v2.md")
+        if os.path.exists(v2_path):
+            os.environ["LOCAL_PROMPT_PATH"] = v2_path
+            print(f"🎯 [SIMULATOR] LOCAL_PROMPT_PATH auto-set to: {v2_path}")
 except Exception:
     pass
 
@@ -408,8 +415,8 @@ class RAGSimulator:
             "user_id": TEST_USER_ID,
             "message": message,
             "images": images,
-            "botlive_enabled": False,
-            # conversation_history n'est plus attendu côté API, mais on le garde si présent
+            "botlive_enabled": True,  # 🎯 ACTIVÉ POUR SYSTEM C
+            "is_new_session": self.turn_number == 1,  # 🔄 Persistance session
             "conversation_history": self.conversation_history,
             "user_display_name": TEST_COMPANY_NAME,
         }
