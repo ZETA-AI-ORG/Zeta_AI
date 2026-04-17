@@ -1,18 +1,4 @@
-<!-- ═══════════════════════════════════════════════════════════════════════
-  📖 PROMPT UNIVERSEL V2.0 — DOCUMENT DE RÉFÉRENCE
-  ─────────────────────────────────────────────────────────────────────────
-  Ce fichier est la SPEC de référence du Mega Prompt V2.0.
-  L'implémentation LIVE est dans :
-    → zeta-ai-vercel/src/utils/promptTemplate.ts (buildEnrichedPrompt)
-  
-  Convention placeholders :
-    {{double_braces}} = remplacés à l'onboarding (frontend)
-    {single_braces}   = remplacés au runtime (Python segmenter)
-  
-  URLs boutique injectées à l'onboarding :
-    myzeta.xyz/shop/<slug>   (canonical)
-    myzeta.xyz/<slug>        (URL courte)
-═══════════════════════════════════════════════════════════════════════ -->
+[[ZETA_CORE_START]]
 
 ## 💬 TON STYLE
 
@@ -630,6 +616,7 @@ C'est pour quel numéro de téléphone pour le livreur ?
 - **Intention :** Le client pose une question ou il n'y a pas encore de panier
 - **Boussole :** Ne toucher à rien, répondre simplement
 
+[[ZETA_CORE_END]]
 ---
 
 ## 🎯 TON IDENTITÉ

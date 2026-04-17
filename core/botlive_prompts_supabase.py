@@ -5,10 +5,16 @@ Remplace les prompts hardcodés par des prompts stockés en base de données
 """
 
 import os
+import re
 import logging
 from typing import Dict, Any, Optional
 from supabase import create_client, Client
 import time
+
+# Chemin vers le prompt universel V2.0 (BLOC 1 statique)
+_PROMPT_UNIVERSEL_V2_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "prompt_universel_v2.md")
+# Cache global BLOC 1 / BLOC 2 template (partagé entre toutes les instances)
+_ZETA_CORE_CACHE: Dict[str, str] = {}
 
 logger = logging.getLogger(__name__)
 
@@ -326,6 +332,33 @@ class BotlivePromptsManager:
             'filtered_transactions': filtered_transactions,
             'expected_deposit': expected_deposit
         }
+
+        # --- ENRICHISSEMENT DYNAMIQUE (V2.0 SCALABLE) ---
+        try:
+            info = self.get_company_info(company_id)
+            rag = info.get("rag_behavior", {}) or {}
+            
+            # Mapping des variables de base
+            format_vars['shop_name'] = info.get("company_name") or "Notre Boutique"
+            format_vars['bot_name'] = info.get("ai_name") or "Jessica"
+            
+            # Mapping récursif du rag_behavior
+            # On aplatit les champs essentiels pour le prompt
+            payment = rag.get("payment", {}) or {}
+            support = rag.get("support", {}) or {}
+            expedition = rag.get("expedition", {}) or {}
+            
+            format_vars['wave_number'] = payment.get("wave_number") or info.get("whatsapp_phone") or "à demander"
+            format_vars['depot_amount'] = payment.get("deposit_amount") or expected_deposit or "2000 FCFA"
+            format_vars['expedition_base_fee'] = expedition.get("base_fee") or "3000-5000 FCFA"
+            format_vars['whatsapp_number'] = support.get("whatsapp") or info.get("whatsapp_phone") or ""
+            format_vars['sav_number'] = support.get("sav_number") or support.get("phone") or ""
+            format_vars['support_hours'] = rag.get("support_hours") or "08:00 - 20:00"
+            format_vars['return_policy'] = rag.get("return_policy") or "Échange possible sous 48h (voir conditions)"
+            format_vars['delai_message'] = rag.get("delai_message") or "" # Souvent vide, géré par fallback dans le prompt
+            
+        except Exception as e:
+            logger.warning(f"⚠️ Erreur lors de l'enrichissement dynamique pour {company_id}: {e}")
         
         # Ajouter l'état de la commande si fourni (MÉMOIRE CONTEXTE)
         if order_state:
@@ -351,27 +384,117 @@ class BotlivePromptsManager:
     
     def get_company_info(self, company_id: str) -> Dict[str, Any]:
         """
-        Récupère les informations de l'entreprise
+        Récupère les informations de l'entreprise (nom, IA, plan, etc.)
+        Jointure avec subscriptions pour le routage élastique.
         
         Args:
             company_id: Identifiant entreprise
         
         Returns:
-            Dict: Informations entreprise (name, ai_name, etc.)
+            Dict: Informations entreprise (name, ai_name, plan_name, has_boost, etc.)
         """
         try:
+            # Récupérer les infos de base + le plan + le comportement RAG
             response = self.supabase.table("company_rag_configs") \
-                .select("company_name, ai_name, secteur_activite, botlive_prompts_version") \
+                .select("company_name, ai_name, secteur_activite, whatsapp_phone, boutique_type, rag_behavior, description, botlive_prompts_version, has_boost, subscriptions(plan_name)") \
                 .eq("company_id", company_id) \
-                .single() \
+                .maybeSingle() \
                 .execute()
             
-            return response.data if response.data else {}
+            if not response.data:
+                return {}
+            
+            data = response.data
+            # Aplatir la réponse de la jointure
+            subscription = data.get("subscriptions", {})
+            if isinstance(subscription, list) and len(subscription) > 0:
+                subscription = subscription[0]
+            
+            return {
+                "company_name": data.get("company_name"),
+                "ai_name": data.get("ai_name"),
+                "secteur_activite": data.get("secteur_activite"),
+                "whatsapp_phone": data.get("whatsapp_phone"),
+                "boutique_type": data.get("boutique_type"),
+                "rag_behavior": data.get("rag_behavior"),
+                "description": data.get("description"),
+                "has_boost": data.get("has_boost", False),
+                "plan_name": subscription.get("plan_name", "none") if isinstance(subscription, dict) else "none"
+            }
             
         except Exception as e:
             logger.error(f"❌ Erreur récupération info entreprise {company_id}: {e}")
             return {}
     
+    # ══════════════════════════════════════════════
+    # V2.0 — PROMPT UNIVERSEL (PREFIX CACHING)
+    # ══════════════════════════════════════════════
+
+    def _load_zeta_core(self) -> Dict[str, str]:
+        """Charge et met en cache BLOC 1 (statique) et BLOC 2 template depuis prompt_universel_v2.md."""
+        global _ZETA_CORE_CACHE
+        if _ZETA_CORE_CACHE:
+            return _ZETA_CORE_CACHE
+        try:
+            with open(_PROMPT_UNIVERSEL_V2_PATH, "r", encoding="utf-8") as f:
+                raw = f.read()
+            m1 = re.search(r"\[\[ZETA_CORE_START\]\](.*?)\[\[ZETA_CORE_END\]\]", raw, re.DOTALL)
+            bloc1 = m1.group(1).strip() if m1 else raw
+            m2 = re.search(r"\[\[ZETA_CORE_END\]\](.*?)$", raw, re.DOTALL)
+            bloc2 = m2.group(1).strip() if m2 else ""
+            _ZETA_CORE_CACHE = {"bloc1": bloc1, "bloc2_template": bloc2}
+            logger.info(f"✅ [V2] Zeta Core chargé: BLOC1={len(bloc1)} chars, BLOC2={len(bloc2)} chars")
+        except Exception as e:
+            logger.error(f"❌ [V2] Erreur chargement prompt_universel_v2.md: {e}")
+            _ZETA_CORE_CACHE = {"bloc1": "", "bloc2_template": ""}
+        return _ZETA_CORE_CACHE
+
+    def get_v2_base_prompt(self, company_id: str, company_info: Optional[Dict[str, Any]] = None) -> str:
+        """
+        Construit le prompt V2.0 unifié pour OpenRouter (prefix caching).
+        BLOC 1 identique pour toutes les boutiques → cache hit maximal.
+        BLOC 2 rempli avec les variables boutique (wave_number, shop_name, etc.).
+        Retourne: BLOC1 + '# 📊 DONNÉES DYNAMIQUES' + BLOC2_rempli
+        """
+        core = self._load_zeta_core()
+        bloc1 = core.get("bloc1", "")
+        bloc2_template = core.get("bloc2_template", "")
+        if not bloc1:
+            return ""
+
+        info = company_info if isinstance(company_info, dict) and company_info else {}
+        if not info and company_id:
+            try:
+                info = self.get_company_info(company_id)
+            except Exception:
+                info = {}
+
+        rag = (info.get("rag_behavior") or {}) if isinstance(info, dict) else {}
+        payment = (rag.get("payment") or {}) if isinstance(rag, dict) else {}
+        support = (rag.get("support") or {}) if isinstance(rag, dict) else {}
+        expedition = (rag.get("expedition") or {}) if isinstance(rag, dict) else {}
+
+        bloc2_vars = {
+            "bot_name": info.get("ai_name") or "Jessica",
+            "shop_name": info.get("company_name") or "Notre Boutique",
+            "wave_number": payment.get("wave_number") or info.get("whatsapp_phone") or "\u00e0 demander",
+            "depot_amount": payment.get("deposit_amount") or "2000 FCFA",
+            "delai_message": rag.get("delai_message") or "",
+            "expedition_base_fee": expedition.get("base_fee") or "3000-5000 FCFA",
+            "sav_number": support.get("sav_number") or support.get("phone") or "",
+            "whatsapp_number": support.get("whatsapp") or info.get("whatsapp_phone") or "",
+            "support_hours": rag.get("support_hours") or "08:00 - 20:00",
+            "return_policy": rag.get("return_policy") or "\u00c9change possible sous 48h",
+        }
+
+        bloc2_filled = bloc2_template
+        for k, v in bloc2_vars.items():
+            bloc2_filled = bloc2_filled.replace(f"{{{k}}}", str(v or ""))
+
+        full_prompt = f"{bloc1}\n\n# \U0001f4ca DONN\u00c9ES DYNAMIQUES\n\n{bloc2_filled}"
+        logger.info(f"\u2705 [V2] Prompt V2 construit pour company={company_id}: {len(full_prompt)} chars")
+        return full_prompt
+
     def clear_cache(self, company_id: Optional[str] = None):
         """
         Vide le cache des prompts

@@ -157,6 +157,7 @@ def build_jessica_prompt_segment(
     enriched_checklist: str,
     routing: Optional[Dict[str, Any]] = None,
     delai_message: str = "",
+    company_info: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """Construit un prompt Jessica RÉDUIT en utilisant les nouveaux tags A/B/C/D.
 
@@ -601,6 +602,12 @@ def build_jessica_prompt_segment(
 
     unique_block = _extract_block(base_prompt_template, "JESSICA_PROMPT_UNIQUE")
     unique_light_block = _extract_block(base_prompt_template, "JESSICA_PROMPT_LIGHT_UNIQUE")
+    
+    # [V2.0] Cache Optimization: Static prefix separator
+    CACHE_JUNCTION = "\n\n### [BOUTIQUE_CONTEXT] ###\n\n"
+    
+    # [V2.0] Extract ZETA CORE (Static Instructions for Cache Hit)
+    zeta_core_block = _extract_block(base_prompt_template, "ZETA_CORE")
 
     # Si le template ne contient aucun tag de segmentation, on le traite comme un prompt UNIQUE implicite.
     # Ça évite des logs trompeurs (ex: prompt_used_key=JESSICA_PROMPT_C) et évite le fallback "erreur".
@@ -723,6 +730,12 @@ def build_jessica_prompt_segment(
 
             reduced_template = "\n\n".join(fragments)
 
+    # 3) [V2.0] OPTIMISATION CACHE: Prepend ZETA CORE si présent et non déjà dans le template réduit
+    if zeta_core_block and zeta_core_block[:100] not in (reduced_template or ""):
+        logger.info("⚡ [SEGMENTER] Injection ZETA_CORE en préfixe (Optimisation Cache)")
+        # Assemblage STRICT avec jonction constante
+        reduced_template = zeta_core_block.strip() + CACHE_JUNCTION + (reduced_template or "").strip()
+
     # 2) Construire un état/checklist ultra-compact (économie tokens)
     def _flag(ok: bool) -> str:
         return "✅" if ok else "❌"
@@ -844,7 +857,6 @@ def build_jessica_prompt_segment(
         )
     except Exception:
         routing_conf = float(hyde_result.get("confidence") or 0.0)
-
     format_vars = {
         "question": question_text,
         "conversation_history": history_text,
@@ -863,6 +875,37 @@ def build_jessica_prompt_segment(
         "routing_confidence": f"{routing_conf:.2f}",
         "routing_group": selected_letter or "",
     }
+
+    # --- ENRICHISSEMENT DYNAMIQUE (V2.0 SCALABLE) ---
+    if company_info:
+        rag = company_info.get("rag_behavior", {}) or {}
+        payment = rag.get("payment", {}) or {}
+        support = rag.get("support", {}) or {}
+        expedition = rag.get("expedition", {}) or {}
+
+        # Placeholders V2.0 officiels
+        format_vars['shop_name'] = company_info.get("company_name") or "Notre Boutique"
+        format_vars['bot_name'] = company_info.get("ai_name") or "Jessica"
+        format_vars['wave_number'] = payment.get("wave_number") or company_info.get("whatsapp_phone") or "à demander"
+        format_vars['depot_amount'] = payment.get("deposit_amount") or expected_deposit_str or "2000 FCFA"
+        format_vars['expedition_base_fee'] = expedition.get("base_fee") or "3000-5000 FCFA"
+        format_vars['whatsapp_number'] = support.get("whatsapp") or company_info.get("whatsapp_phone") or ""
+        format_vars['sav_number'] = support.get("sav_number") or support.get("phone") or ""
+        format_vars['support_hours'] = rag.get("support_hours") or "08:00 - 20:00"
+        format_vars['return_policy'] = rag.get("return_policy") or "Échange possible sous 48h (voir conditions)"
+        if "delai_message" not in format_vars or not format_vars["delai_message"]:
+             format_vars['delai_message'] = delai_message or rag.get("delai_message") or ""
+    else:
+        # Fallbacks si company_info absent
+        format_vars.setdefault('shop_name', "Notre Boutique")
+        format_vars.setdefault('bot_name', "Jessica")
+        format_vars.setdefault('wave_number', "")
+        format_vars.setdefault('depot_amount', expected_deposit_str or "2000 FCFA")
+        format_vars.setdefault('expedition_base_fee', "")
+        format_vars.setdefault('whatsapp_number', "")
+        format_vars.setdefault('sav_number', "")
+        format_vars.setdefault('support_hours', "")
+        format_vars.setdefault('return_policy', "")
     try:
         m = re.search(r"(\d+)", str(expected_deposit_str or ""))
         format_vars["expected_deposit_amount"] = m.group(1) if m else ""

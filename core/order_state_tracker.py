@@ -633,6 +633,38 @@ class OrderStateTracker:
         except Exception:
             pass
 
+    # ══════════════════════════════════════════════════════════════
+    # 🚦 BARRIÈRE DE CONVERSION — Compteur de messages par session
+    # Protège le marchand contre les "pousseurs de cailloux" (clients
+    # qui posent 40 questions sans jamais acheter).
+    # Configurable via rag_behavior.max_bot_messages (défaut 15, max 25)
+    # ══════════════════════════════════════════════════════════════
+
+    def get_session_msg_count(self, user_id: str) -> int:
+        """Retourne le nombre de messages traités dans la session courante."""
+        try:
+            v = self.get_custom_meta(user_id, "session_msg_count", default=0)
+            return int(v or 0)
+        except Exception:
+            return 0
+
+    def increment_session_msg_count(self, user_id: str) -> int:
+        """Incrémente le compteur de session et retourne la nouvelle valeur."""
+        try:
+            current = self.get_session_msg_count(user_id)
+            new_val = current + 1
+            self.set_custom_meta(user_id, "session_msg_count", new_val)
+            return new_val
+        except Exception:
+            return 0
+
+    def reset_session_msg_count(self, user_id: str) -> None:
+        """Remet le compteur de session à 0 (après commande confirmée ou nouvelle session)."""
+        try:
+            self.set_custom_meta(user_id, "session_msg_count", 0)
+        except Exception:
+            pass
+
     def get_progress_message(self, user_id: str) -> str:
         """Génère un message de progression"""
         state = self.get_state(user_id)

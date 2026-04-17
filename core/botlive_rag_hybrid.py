@@ -45,6 +45,13 @@ logger = logging.getLogger(__name__)
 # Activation du court-circuit Python (forcé à True pour Botlive)
 ENABLE_PYTHON_DIRECT = False
 
+# 🏆 MODEL IDS (OPENROUTER)
+# Basé sur le plan de tarification et d'intelligence
+MODEL_STARTER_CLOSING = "google/gemma-4-26b-a4b-it"   # Le Casseur de Prix - Utilisé pour Starter et Closing (completion=1.0)
+MODEL_PRO_ELITE = "google/gemma-4-31b-it"            # Le Poids Lourd - Intelligence Standard pour Pro/Elite
+MODEL_TURBO_BOOST = "google/gemini-3-flash-preview"   # La Formule 1 - Vitesse et raisonnement supérieur
+MODEL_ZETA_INSIGHT = "google/gemini-3.1-pro-preview" # L'Analyste - Bilans stratégiques
+
 class BotliveRAGHybrid:
     """
     Système RAG hybride pour Botlive avec routage intelligent
@@ -213,6 +220,25 @@ class BotliveRAGHybrid:
             logger.info(f"[INJECT_CATALOG] Markers found in prompt: True")
             logger.info(f"[INJECT_CATALOG] Added {added} chars")
         return out
+
+    def _clean_prompt_for_ai(self, raw_prompt: str) -> str:
+        """
+        🧹 NETTOYAGE LEAN (PROD)
+        Supprime les commentaires HTML/XML <!-- ... --> et les lignes vides inutiles
+        pour optimiser les tokens et la stabilité du cache.
+        """
+        if not raw_prompt:
+            return ""
+        
+        # 1. Supprime les commentaires <!-- ... -->
+        cleaned = regex.sub(r'<!--[\s\S]*?-->', '', raw_prompt)
+        
+        # 2. Consolidate les sauts de ligne (max 2) pour stabilité du cache
+        # Cela empêche les variations de \n vs \n\n d'invalider le préfixe
+        cleaned = regex.sub(r'\n{3,}', '\n\n', cleaned)
+        
+        # 3. Trim final
+        return cleaned.strip()
 
     def _build_flash_constraint(self, mono_catalog_v2: Dict[str, Any]) -> str:
         try:
@@ -2077,9 +2103,61 @@ class BotliveRAGHybrid:
                 from core.hyde_secour_x import run_hyde_secour_x
                 from core.company_catalog_v2_loader import get_company_catalog_v2_container
 
+                # 0) Fetch company_info une seule fois (réutilisé pour V2, enrichissement, routage)
+                company_info = None
+                try:
+                    company_info = self.prompts_manager.get_company_info(active_company_id)
+                except Exception as _ci_err:
+                    logger.warning(f"⚠️ Erreur récupération company_info: {_ci_err}")
+
+                # 🚦 BARRIÈRE DE CONVERSION — Limite de patience de l'IA
+                # Protège le marchand contre les sessions trop longues sans achat.
+                # Configurable via rag_behavior.max_bot_messages (défaut: 15, plage: 5-25)
+                try:
+                    _rag_beh_barrier = (company_info.get("rag_behavior") or {}) if isinstance(company_info, dict) else {}
+                    _max_msgs = max(5, min(25, int(_rag_beh_barrier.get("max_bot_messages") or 15)))
+                    _session_count = order_tracker.increment_session_msg_count(user_id)
+                    if _session_count > _max_msgs:
+                        _handoff_resp = (
+                            "Vous avez eu de nombreux échanges avec moi 😊 "
+                            "Je passe la main à notre équipe pour vous aider à conclure. "
+                            "À très vite ! 🙏 ##HANDOFF##"
+                        )
+                        logger.warning(
+                            f"🚦 [BARRIÈRE] {user_id} — limite {_max_msgs} msgs atteinte "
+                            f"({_session_count}) → HANDOFF automatique"
+                        )
+                        return {
+                            "response": _handoff_resp,
+                            "status": "PENDING_HUMAN",
+                            "human_required": True,
+                            "bypass_llm": True,
+                            "routing_reason": "session_limit_reached",
+                            "session_msg_count": _session_count,
+                            "max_bot_messages": _max_msgs,
+                            "processing_time": 0.0,
+                            "timings": {},
+                            "router_metrics": {"human_required": True, "session_limit": True},
+                        }
+                    logger.info(f"📊 [SESSION] {user_id} msg {_session_count}/{_max_msgs}")
+                except Exception as _barrier_err:
+                    logger.warning(f"⚠️ [BARRIÈRE] Erreur vérification limite: {_barrier_err}")
+
                 # 1) Template brut Supabase pour Jessica (sans formatage global)
                 # llm_choice="groq-70b" → lit prompt_botlive_groq_70b dans company_rag_configs
                 base_prompt_template = self.prompts_manager.get_prompt(active_company_id, prompt_llm_choice)
+
+                # 🟢 V2.0 OVERRIDE: Pour OpenRouter, utiliser prompt_universel_v2.md (prefix caching)
+                # BLOC 1 identique pour toutes les boutiques → cache hit maximal
+                if llm_choice == "openrouter":
+                    try:
+                        _v2_prompt = self.prompts_manager.get_v2_base_prompt(active_company_id, company_info=company_info)
+                        if _v2_prompt:
+                            base_prompt_template = _v2_prompt
+                            logger.info(f"✅ [V2] Prompt universel V2.0 activé ({len(_v2_prompt)} chars) - prefix caching")
+                    except Exception as _v2_err:
+                        logger.warning(f"⚠️ [V2] Erreur chargement prompt V2: {_v2_err} — fallback Supabase")
+
                 # 2) Construire state_compact pour le router embeddings
                 state_compact = {
                     "photo_collected": bool(state.produit),
@@ -2349,6 +2427,8 @@ class BotliveRAGHybrid:
                 except Exception:
                     pass
 
+                # 4) Infos boutique pour l'enrichissement (déjà fetché en step 0, réutilisé)
+
                 segment = build_jessica_prompt_segment(
                     base_prompt_template=base_prompt_template,
                     hyde_result=hyde_result,
@@ -2361,6 +2441,7 @@ class BotliveRAGHybrid:
                     enriched_checklist=self._format_minimalist_checklist_for_prompt(context),
                     routing=routing,
                     delai_message=context.get("delai_message", ""),
+                    company_info=company_info,
                 )
 
                 # Exposer prompt utilisé (clé logique, pas le texte)
@@ -2868,12 +2949,62 @@ class BotliveRAGHybrid:
             
             # ═══ ÉTAPE 3: APPEL LLM ═══
             step_start = datetime.now()
+            
+            # 🧹 NETTOYAGE LEAN (PROD)
+            prompt_clean = self._clean_prompt_for_ai(prompt)
+            
+            # 🧭 ROUTAGE ÉLASTIQUE (V2.0)
+            target_model = os.getenv("OPENROUTER_BOTLIVE_MODEL", MODEL_PRO_ELITE)
+            
+            try:
+                # 1. Récupération du Plan et de l'état Boost
+                # Réutilise company_info déjà fetché pour l'enrichissement (avoid double Supabase query)
+                _ci_routing = company_info if isinstance(company_info, dict) and company_info else (
+                    self.prompts_manager.get_company_info(active_company_id) if self.prompts_manager else {})
+                shop_plan = _ci_routing.get("plan_name", "starter")
+                has_boost = _ci_routing.get("has_boost", False)
+
+                # 2. Détermination du modèle de base (Négociation)
+                if shop_plan == "starter":
+                    base_model = MODEL_STARTER_CLOSING
+                elif has_boost:
+                    base_model = MODEL_TURBO_BOOST  # Rank S/SS with Boost
+                else:
+                    base_model = MODEL_PRO_ELITE     # Rank S/SS Base
+
+                # 3. Calcul du taux de complétude
+                from core.order_state_tracker import order_tracker
+                state = order_tracker.get_state(user_id)
+                completion_rate = state.get_completion_rate() if hasattr(state, 'get_completion_rate') else 0.0
+                
+                # 4. Détection du pivot (Modification après closing)
+                last_maj_action = str((context or {}).get("last_maj_action", "")).strip().upper()
+                is_pivot = last_maj_action in {"UPDATE", "ADD", "CLARIFY_PIVOT"}
+                
+                # 5. Logique finale de routage
+                if completion_rate >= 1.0 and not is_pivot:
+                    # Bascule vers le modèle économique pour le closing (sauf si on est déjà sur le starter)
+                    target_model = MODEL_STARTER_CLOSING
+                    logger.info(f"⚡ [ROUTAGE] Mode CLOSING (completion={completion_rate}) -> Switched to {target_model}")
+                elif is_pivot:
+                    # PIVOT INVERSE : On remonte sur le modèle puissant pour traiter la modification proprement
+                    target_model = base_model
+                    logger.info(f"🔄 [ROUTAGE] PIVOT INVERSE detected ({last_maj_action}) -> Returning to {target_model}")
+                else:
+                    # Mode normal (Négociation)
+                    target_model = base_model
+                    logger.info(f"🎯 [ROUTAGE] Phase NÉGOCIATION (Plan={shop_plan}, Boost={has_boost}) -> Using {target_model}")
+                
+            except Exception as routing_err:
+                logger.error(f"⚠️ [ROUTAGE] Erreur calcul routage élastique: {routing_err}")
+                target_model = os.getenv("OPENROUTER_BOTLIVE_MODEL", MODEL_PRO_ELITE)
+
             if llm_choice == "openrouter":
-                # Mode prompt UNIQUE: on utilise le modèle OpenRouter par défaut (env OPENROUTER_BOTLIVE_MODEL / LLM_MODEL)
+                # Mode prompt UNIQUE: on utilise le modèle cible calculé
                 response_data = await self._call_openrouter(
-                    prompt,
+                    prompt_clean,
                     user_id,
-                    model_name=None,
+                    model_name=target_model,
                     segment_letter=prompt_segment_letter,
                 )
             else:
@@ -2881,7 +3012,7 @@ class BotliveRAGHybrid:
                     "🧭 [BOTLIVE][LLM_CALL] selected_llm=groq-70b reason="
                     f"{routing_reason} openrouter_key_present={bool((os.getenv('OPENROUTER_API_KEY') or '').strip())}"
                 )
-                response_data = await self._call_groq(prompt, user_id)
+                response_data = await self._call_groq(prompt_clean, user_id)
             self.stats['primary_llm_requests'] += 1
             timings['llm_call'] = (datetime.now() - step_start).total_seconds()
             
@@ -2999,11 +3130,22 @@ class BotliveRAGHybrid:
                 from core.order_state_tracker import order_tracker
 
                 tp = get_thinking_parser()
+                
+                # V2 Support: Extract the full parsed dict
+                thinking_v2 = tp.parse_full_thinking(response_data.get('response', ''))
+                
+                # Capture maj_action for Elastic Routing in NEXT turn
+                if thinking_v2 and "v2" in thinking_v2:
+                    current_maj_action = thinking_v2["v2"].get("maj_action", "NONE")
+                    if isinstance(context, dict):
+                        context["last_maj_action"] = current_maj_action
+                        logger.info(f"🔄 [ROUTAGE] Last MAJ action stored: {current_maj_action}")
+                
                 extracted_details = tp.extract_extracted_details(thinking or "")
                 if extracted_details:
                     order_tracker.update_produit_details(user_id, extracted_details)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.error(f"⚠️ [THINKING_PARSER] Erreur d'extraction: {e}")
 
             extracted_response = None
             if response_match:
