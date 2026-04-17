@@ -1159,7 +1159,60 @@ class BotliveRAGHybrid:
             return "SILENCE"
 
         return "AUTRE"
-        
+
+    # ══════════════════════════════════════════════════════════
+    # 🎯 SYSTÈME C — Phase Detection (Lazy Loading Phase-Driven)
+    # ══════════════════════════════════════════════════════════
+    def _compute_phase(self, state, forced_phase: Optional[str] = None) -> str:
+        """
+        Calcule la phase actuelle de la conversation selon l'état de collecte.
+
+        Phase A — RECRUTEMENT : PRODUIT ou SPECS manquant
+        Phase B — COORDINATION : PRODUIT+SPECS OK, manque ZONE/NUMÉRO/QUANTITÉ
+        Phase C — CLOSING : tout OK sauf PAIEMENT
+
+        Args:
+            state: OrderState du tracker
+            forced_phase: Override demandé par le LLM via <maj>next_phase:X</maj>
+
+        Returns:
+            "A" | "B" | "C"
+        """
+        try:
+            missing = state.get_missing_fields() if state else []
+        except Exception:
+            missing = []
+        missing_set = {str(f).upper().strip() for f in (missing or [])}
+
+        # Phase réelle selon l'état
+        if "PRODUIT" in missing_set or "SPECS" in missing_set:
+            real_phase = "A"
+        elif "ZONE" in missing_set or "NUMÉRO" in missing_set or "NUMERO" in missing_set or "QUANTITÉ" in missing_set or "QUANTITE" in missing_set:
+            real_phase = "B"
+        else:
+            real_phase = "C"
+
+        # Override LLM (via <maj>next_phase:X</maj>)
+        if forced_phase:
+            forced_up = str(forced_phase).strip().upper()
+            if forced_up in {"A", "B", "C"}:
+                # Garde-fou : ne jamais passer en C si produit manquant
+                if forced_up == "C" and real_phase == "A":
+                    logger.warning(
+                        f"⚠️ [PHASE] forced_phase=C ignoré, state réel=A "
+                        f"(produit/specs manquants: {missing_set})"
+                    )
+                    return real_phase
+                # Garde-fou : ne jamais passer en B/C si produit manquant
+                if forced_up in {"B", "C"} and "PRODUIT" in missing_set:
+                    logger.warning(
+                        f"⚠️ [PHASE] forced_phase={forced_up} ignoré, PRODUIT manquant"
+                    )
+                    return real_phase
+                return forced_up
+
+        return real_phase
+
     async def process_request(self, 
                             user_id: str,
                             message: str, 
@@ -2103,6 +2156,9 @@ class BotliveRAGHybrid:
                 from core.hyde_secour_x import run_hyde_secour_x
                 from core.company_catalog_v2_loader import get_company_catalog_v2_container
 
+                # 🎯 SYSTÈME C — init précoce pour garantir le scope (utilisé ligne ~3088)
+                current_phase = None
+
                 # 0) Fetch company_info une seule fois (réutilisé pour V2, enrichissement, routage)
                 company_info = None
                 try:
@@ -2149,12 +2205,36 @@ class BotliveRAGHybrid:
 
                 # 🟢 V2.0 OVERRIDE: Pour OpenRouter, utiliser prompt_universel_v2.md (prefix caching)
                 # BLOC 1 identique pour toutes les boutiques → cache hit maximal
+                # 🎯 SYSTÈME C : calcul de la phase (A/B/C) + injection dans get_v2_base_prompt
                 if llm_choice == "openrouter":
                     try:
-                        _v2_prompt = self.prompts_manager.get_v2_base_prompt(active_company_id, company_info=company_info)
+                        # Lazy Loading Phase-Driven (activable via env)
+                        _phase_loading_enabled = os.getenv("PHASE_LOADING_ENABLED", "true").lower() == "true"
+                        _phase_param = None
+                        if _phase_loading_enabled:
+                            try:
+                                _forced = order_tracker.get_custom_meta(user_id, "forced_phase", default=None)
+                                _phase_param = self._compute_phase(state, forced_phase=_forced)
+                                current_phase = _phase_param
+                                # Clear forced_phase après usage (one-shot)
+                                if _forced:
+                                    order_tracker.set_custom_meta(user_id, "forced_phase", None)
+                                logger.info(f"🎯 [PHASE] {user_id} → Phase {_phase_param} (forced={_forced or 'none'})")
+                            except Exception as _phase_err:
+                                logger.warning(f"⚠️ [PHASE] Erreur calcul phase: {_phase_err} — phase=None")
+                                _phase_param = None
+
+                        _v2_prompt = self.prompts_manager.get_v2_base_prompt(
+                            active_company_id,
+                            company_info=company_info,
+                            phase=_phase_param,
+                        )
                         if _v2_prompt:
                             base_prompt_template = _v2_prompt
-                            logger.info(f"✅ [V2] Prompt universel V2.0 activé ({len(_v2_prompt)} chars) - prefix caching")
+                            logger.info(
+                                f"✅ [V2] Prompt universel V2.0 activé phase={_phase_param or 'none'} "
+                                f"({len(_v2_prompt)} chars) - prefix caching"
+                            )
                     except Exception as _v2_err:
                         logger.warning(f"⚠️ [V2] Erreur chargement prompt V2: {_v2_err} — fallback Supabase")
 
@@ -3001,11 +3081,13 @@ class BotliveRAGHybrid:
 
             if llm_choice == "openrouter":
                 # Mode prompt UNIQUE: on utilise le modèle cible calculé
+                # 🎯 SYSTÈME C : on passe current_phase pour budgets adaptatifs
                 response_data = await self._call_openrouter(
                     prompt_clean,
                     user_id,
                     model_name=target_model,
                     segment_letter=prompt_segment_letter,
+                    phase=current_phase,
                 )
             else:
                 logger.info(
@@ -3101,6 +3183,31 @@ class BotliveRAGHybrid:
             raw_response = response_data.get('response', '')
             thinking = response_data.get('thinking', '')
             final_response = raw_response
+
+            # 🎯 SYSTÈME C — Parser <maj>next_phase:X</maj> (LLM-driven phase override)
+            # Si la LLM détecte un signal d'achat fort, elle peut forcer le passage à une phase plus avancée
+            try:
+                _next_phase_match = regex.search(
+                    r"<maj>\s*next_phase\s*:\s*([ABC])\s*</maj>",
+                    raw_response or "",
+                    regex.IGNORECASE,
+                )
+                if _next_phase_match:
+                    _forced_next = _next_phase_match.group(1).upper()
+                    try:
+                        order_tracker.set_custom_meta(user_id, "forced_phase", _forced_next)
+                        logger.info(
+                            f"🔄 [PHASE] Override demandé par LLM pour {user_id}: "
+                            f"next_phase={_forced_next} (sera appliqué au prochain tour)"
+                        )
+                    except Exception as _set_err:
+                        logger.warning(f"⚠️ [PHASE] Erreur set forced_phase: {_set_err}")
+                    # Retirer la balise pour éviter fuite en WhatsApp
+                    _maj_pattern = r"<maj>\s*next_phase\s*:\s*[ABC]\s*</maj>"
+                    raw_response = regex.sub(_maj_pattern, "", raw_response or "", flags=regex.IGNORECASE).strip()
+                    final_response = regex.sub(_maj_pattern, "", final_response or "", flags=regex.IGNORECASE).strip()
+            except Exception as _parse_err:
+                logger.warning(f"⚠️ [PHASE] Erreur parsing <maj>next_phase: {_parse_err}")
 
             # Extraire thinking et response si format structuré
             meta_match = None
@@ -3886,6 +3993,7 @@ class BotliveRAGHybrid:
         user_id: str,
         model_name: Optional[str] = None,
         segment_letter: str = "",
+        phase: Optional[str] = None,
     ) -> Dict[str, Any]:
         try:
             from core.llm_client_openrouter import complete
@@ -3897,11 +4005,37 @@ class BotliveRAGHybrid:
                 )
 
             seg = (segment_letter or "").strip().upper()
+            phase_norm = (phase or "").strip().upper() if phase else ""
             try:
                 max_tokens_default = int(os.getenv("BOTLIVE_MAX_TOKENS", "900"))
             except Exception:
                 max_tokens_default = 900
-            if seg == "A":
+
+            # 🎯 SYSTÈME C — Budgets adaptatifs par phase (priorité sur segment_letter)
+            if phase_norm in {"A", "B", "C"}:
+                if phase_norm == "A":
+                    # Recrutement : conseil, possible questionnement produit
+                    max_tokens = int(os.getenv("BOTLIVE_PHASE_A_MAX_TOKENS", "800"))
+                    temperature = float(os.getenv("BOTLIVE_PHASE_A_TEMP", "0.5"))
+                    top_p = 0.9
+                    frequency_penalty = 0.2
+                elif phase_norm == "B":
+                    # Coordination : logistique concise
+                    max_tokens = int(os.getenv("BOTLIVE_PHASE_B_MAX_TOKENS", "500"))
+                    temperature = float(os.getenv("BOTLIVE_PHASE_B_TEMP", "0.3"))
+                    top_p = 0.9
+                    frequency_penalty = 0.1
+                else:  # phase_norm == "C"
+                    # Closing : paiement, ultra-concis
+                    max_tokens = int(os.getenv("BOTLIVE_PHASE_C_MAX_TOKENS", "350"))
+                    temperature = float(os.getenv("BOTLIVE_PHASE_C_TEMP", "0.1"))
+                    top_p = 0.9
+                    frequency_penalty = 0.2
+                logger.info(
+                    f"🎯 [PHASE-TUNING] {user_id} phase={phase_norm} "
+                    f"max_tokens={max_tokens} temp={temperature} freq_pen={frequency_penalty}"
+                )
+            elif seg == "A":
                 max_tokens = max_tokens_default
                 temperature = 0.55
                 top_p = 0.9

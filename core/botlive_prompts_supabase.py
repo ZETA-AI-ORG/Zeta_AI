@@ -431,7 +431,13 @@ class BotlivePromptsManager:
     # ══════════════════════════════════════════════
 
     def _load_zeta_core(self) -> Dict[str, str]:
-        """Charge et met en cache BLOC 1 (statique) et BLOC 2 template depuis prompt_universel_v2.md."""
+        """Charge et met en cache BLOC 1 (statique), PHASE_A/B/C et BLOC 2 template depuis prompt_universel_v2.md.
+
+        Système C — Lazy Loading Phase-Driven :
+        - BLOC 1 (CORE) : immuable, cache HIT permanent
+        - PHASE_A/B/C : modules variables selon état de la commande
+        - BLOC 2 : données dynamiques (wave_number, shop_name...)
+        """
         global _ZETA_CORE_CACHE
         if _ZETA_CORE_CACHE:
             return _ZETA_CORE_CACHE
@@ -440,21 +446,65 @@ class BotlivePromptsManager:
                 raw = f.read()
             m1 = re.search(r"\[\[ZETA_CORE_START\]\](.*?)\[\[ZETA_CORE_END\]\]", raw, re.DOTALL)
             bloc1 = m1.group(1).strip() if m1 else raw
-            m2 = re.search(r"\[\[ZETA_CORE_END\]\](.*?)$", raw, re.DOTALL)
-            bloc2 = m2.group(1).strip() if m2 else ""
-            _ZETA_CORE_CACHE = {"bloc1": bloc1, "bloc2_template": bloc2}
-            logger.info(f"✅ [V2] Zeta Core chargé: BLOC1={len(bloc1)} chars, BLOC2={len(bloc2)} chars")
+
+            # Extraction des phases A/B/C (Système C)
+            def _extract_phase(letter: str) -> str:
+                pattern = rf"\[\[PHASE_{letter}_START\]\](.*?)\[\[PHASE_{letter}_END\]\]"
+                match = re.search(pattern, raw, re.DOTALL)
+                return match.group(1).strip() if match else ""
+
+            phase_a = _extract_phase("A")
+            phase_b = _extract_phase("B")
+            phase_c = _extract_phase("C")
+
+            # BLOC 2 : priorité au marker [[BLOC2_START]]...[[BLOC2_END]]
+            # Fallback : tout ce qui est après le dernier [[PHASE_C_END]] ou [[ZETA_CORE_END]]
+            m_bloc2 = re.search(r"\[\[BLOC2_START\]\](.*?)\[\[BLOC2_END\]\]", raw, re.DOTALL)
+            if m_bloc2:
+                bloc2 = m_bloc2.group(1).strip()
+            else:
+                m_fallback = re.search(r"\[\[PHASE_C_END\]\](.*?)$", raw, re.DOTALL)
+                if not m_fallback:
+                    m_fallback = re.search(r"\[\[ZETA_CORE_END\]\](.*?)$", raw, re.DOTALL)
+                bloc2 = m_fallback.group(1).strip() if m_fallback else ""
+
+            _ZETA_CORE_CACHE = {
+                "bloc1": bloc1,
+                "phase_a": phase_a,
+                "phase_b": phase_b,
+                "phase_c": phase_c,
+                "bloc2_template": bloc2,
+            }
+            logger.info(
+                f"✅ [V2] Zeta Core chargé: BLOC1={len(bloc1)} chars, "
+                f"PHASE_A={len(phase_a)}, PHASE_B={len(phase_b)}, PHASE_C={len(phase_c)}, "
+                f"BLOC2={len(bloc2)} chars"
+            )
         except Exception as e:
             logger.error(f"❌ [V2] Erreur chargement prompt_universel_v2.md: {e}")
-            _ZETA_CORE_CACHE = {"bloc1": "", "bloc2_template": ""}
+            _ZETA_CORE_CACHE = {
+                "bloc1": "",
+                "phase_a": "",
+                "phase_b": "",
+                "phase_c": "",
+                "bloc2_template": "",
+            }
         return _ZETA_CORE_CACHE
 
-    def get_v2_base_prompt(self, company_id: str, company_info: Optional[Dict[str, Any]] = None) -> str:
+    def get_v2_base_prompt(
+        self,
+        company_id: str,
+        company_info: Optional[Dict[str, Any]] = None,
+        phase: Optional[str] = None,
+    ) -> str:
         """
         Construit le prompt V2.0 unifié pour OpenRouter (prefix caching).
         BLOC 1 identique pour toutes les boutiques → cache hit maximal.
+        Si `phase` in {"A","B","C"} : injecte le PHASE_MODULE correspondant entre BLOC1 et BLOC2.
         BLOC 2 rempli avec les variables boutique (wave_number, shop_name, etc.).
-        Retourne: BLOC1 + '# 📊 DONNÉES DYNAMIQUES' + BLOC2_rempli
+
+        Structure retournée (Système C) :
+          BLOC1 + PHASE_MODULE (si phase fournie) + '# 📊 DONNÉES DYNAMIQUES' + BLOC2_rempli
         """
         core = self._load_zeta_core()
         bloc1 = core.get("bloc1", "")
@@ -491,8 +541,32 @@ class BotlivePromptsManager:
         for k, v in bloc2_vars.items():
             bloc2_filled = bloc2_filled.replace(f"{{{k}}}", str(v or ""))
 
-        full_prompt = f"{bloc1}\n\n# \U0001f4ca DONN\u00c9ES DYNAMIQUES\n\n{bloc2_filled}"
-        logger.info(f"\u2705 [V2] Prompt V2 construit pour company={company_id}: {len(full_prompt)} chars")
+        # Système C — Injection du PHASE_MODULE entre BLOC 1 et BLOC 2
+        phase_module = ""
+        phase_normalized = (phase or "").strip().upper() if phase else ""
+        if phase_normalized in {"A", "B", "C"}:
+            phase_key = f"phase_{phase_normalized.lower()}"
+            phase_module = core.get(phase_key, "") or ""
+            # Remplacer aussi les variables dans le phase module (ex: {wave_number})
+            if phase_module:
+                for k, v in bloc2_vars.items():
+                    phase_module = phase_module.replace(f"{{{k}}}", str(v or ""))
+
+        if phase_module:
+            full_prompt = (
+                f"{bloc1}\n\n"
+                f"{phase_module}\n\n"
+                f"# \U0001f4ca DONN\u00c9ES DYNAMIQUES\n\n"
+                f"{bloc2_filled}"
+            )
+            logger.info(
+                f"\u2705 [V2] Prompt V2 construit pour company={company_id} "
+                f"phase={phase_normalized}: {len(full_prompt)} chars "
+                f"(phase_module={len(phase_module)} chars)"
+            )
+        else:
+            full_prompt = f"{bloc1}\n\n# \U0001f4ca DONN\u00c9ES DYNAMIQUES\n\n{bloc2_filled}"
+            logger.info(f"\u2705 [V2] Prompt V2 construit pour company={company_id} (no phase): {len(full_prompt)} chars")
         return full_prompt
 
     def clear_cache(self, company_id: Optional[str] = None):
