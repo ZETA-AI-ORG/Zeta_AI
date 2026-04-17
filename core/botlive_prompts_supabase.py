@@ -6,12 +6,10 @@ Remplace les prompts hardcodés par des prompts stockés en base de données
 
 import os
 import re
-import json
 import logging
 from typing import Dict, Any, Optional
 from supabase import create_client, Client
 import time
-import redis
 
 # Chemin vers le prompt universel V2.0 (BLOC 1 statique)
 _PROMPT_UNIVERSEL_V2_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "prompt_universel_v2.md")
@@ -36,16 +34,6 @@ class BotlivePromptsManager:
         self.supabase: Client = create_client(supabase_url, supabase_key)
         self._cache = {}  # Cache en mémoire pour performance
         self._cache_timestamps = {}  # Timestamps pour TTL
-
-        # Connexion Redis pour identité persistante
-        redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
-        try:
-            self.redis = redis.from_url(redis_url, decode_responses=True)
-            self.redis.ping()
-            logger.info(f"✅ Redis connecté: {redis_url}")
-        except Exception as e:
-            logger.warning(f"⚠️ Redis indisponible, fallback in-memory seulement: {e}")
-            self.redis = None
 
         enabled_raw = (os.getenv("PROMPT_LOCAL_CACHE_ENABLED", "true") or "true").strip().lower()
         self._cache_enabled = enabled_raw in {"1", "true", "yes", "y", "on"}
@@ -398,77 +386,41 @@ class BotlivePromptsManager:
         """
         Récupère les informations de l'entreprise (nom, IA, plan, etc.)
         Jointure avec subscriptions pour le routage élastique.
-        CACHE REDIS pour persistance de l'identité.
-        """
-        redis_key = f"zeta:company_info:{company_id}"
         
-        # 1. Tenter Cache Redis
-        if self.redis:
-            try:
-                cached = self.redis.get(redis_key)
-                if cached:
-                    logger.info(f"💾 [IDENTITY_CACHE] HIT Redis pour {company_id}")
-                    return json.loads(cached)
-            except Exception as e:
-                logger.warning(f"⚠️ Erreur lecture Redis identity: {e}")
-
+        Args:
+            company_id: Identifiant entreprise
+        
+        Returns:
+            Dict: Informations entreprise (name, ai_name, plan_name, has_boost, etc.)
+        """
         try:
-            # 2. Récupérer les infos de la boutique (Supabase)
+            # Récupérer les infos de base + le plan + le comportement RAG
             response = self.supabase.table("company_rag_configs") \
-                .select("company_name, ai_name, secteur_activite, whatsapp_phone, boutique_type, rag_behavior, description, botlive_prompts_version") \
+                .select("company_name, ai_name, secteur_activite, whatsapp_phone, boutique_type, rag_behavior, description, botlive_prompts_version, has_boost, subscriptions(plan_name)") \
                 .eq("company_id", company_id) \
-                .limit(1) \
+                .maybeSingle() \
                 .execute()
             
-            if not response.data or len(response.data) == 0:
+            if not response.data:
                 return {}
             
-            data = response.data[0]
+            data = response.data
+            # Aplatir la réponse de la jointure
+            subscription = data.get("subscriptions", {})
+            if isinstance(subscription, list) and len(subscription) > 0:
+                subscription = subscription[0]
             
-            # Parsing safe du JSON rag_behavior
-            rag_behavior = data.get("rag_behavior")
-            if isinstance(rag_behavior, str):
-                try:
-                    rag_behavior = json.loads(rag_behavior)
-                except Exception:
-                    rag_behavior = {}
-            elif not isinstance(rag_behavior, dict):
-                rag_behavior = {}
-
-            # 3. Récupérer le plan d'abonnement
-            plan_name = "none"
-            try:
-                sub_res = self.supabase.table("subscriptions") \
-                    .select("plan_name") \
-                    .eq("company_id", company_id) \
-                    .limit(1) \
-                    .execute()
-                if sub_res.data and len(sub_res.data) > 0:
-                    plan_name = sub_res.data[0].get("plan_name", "none")
-            except Exception as sub_e:
-                logger.warning(f"⚠️ Impossible de récupérer le plan pour {company_id}: {sub_e}")
-            
-            info = {
+            return {
                 "company_name": data.get("company_name"),
                 "ai_name": data.get("ai_name"),
                 "secteur_activite": data.get("secteur_activite"),
                 "whatsapp_phone": data.get("whatsapp_phone"),
                 "boutique_type": data.get("boutique_type"),
-                "rag_behavior": rag_behavior,
+                "rag_behavior": data.get("rag_behavior"),
                 "description": data.get("description"),
-                "has_boost": False,
-                "plan_name": plan_name
+                "has_boost": data.get("has_boost", False),
+                "plan_name": subscription.get("plan_name", "none") if isinstance(subscription, dict) else "none"
             }
-
-            # 4. Stocker en Cache Redis (TTL 1 heure)
-            if self.redis and info.get("company_name"):
-                try:
-                    self.redis.setex(redis_key, 3600, json.dumps(info))
-                    logger.info(f"💾 [IDENTITY_CACHE] SET Redis pour {company_id}")
-                except Exception as e:
-                    logger.warning(f"⚠️ Erreur écriture Redis identity: {e}")
-
-            return info
             
         except Exception as e:
             logger.error(f"❌ Erreur récupération info entreprise {company_id}: {e}")
@@ -490,16 +442,8 @@ class BotlivePromptsManager:
         if _ZETA_CORE_CACHE:
             return _ZETA_CORE_CACHE
         try:
-            # Priorité 1: LOCAL_PROMPT_PATH (VPS / Dev local)
-            local_path = os.getenv("LOCAL_PROMPT_PATH")
-            if local_path and os.path.exists(local_path):
-                logger.info(f"💾 [V2] Chargement prompt prioritaires depuis LOCAL_PROMPT_PATH: {local_path}")
-                with open(local_path, "r", encoding="utf-8") as f:
-                    raw = f.read()
-            else:
-                # Priorité 2: Chemin par défaut
-                with open(_PROMPT_UNIVERSEL_V2_PATH, "r", encoding="utf-8") as f:
-                    raw = f.read()
+            with open(_PROMPT_UNIVERSEL_V2_PATH, "r", encoding="utf-8") as f:
+                raw = f.read()
             m1 = re.search(r"\[\[ZETA_CORE_START\]\](.*?)\[\[ZETA_CORE_END\]\]", raw, re.DOTALL)
             bloc1 = m1.group(1).strip() if m1 else raw
 

@@ -57,15 +57,8 @@ except Exception:
     pass
 try:
     ru = (os.getenv("REDIS_URL") or "").strip()
-    if not ru or ru.startswith("redis://redis:"):
+    if ru.startswith("redis://redis:"):
         os.environ["REDIS_URL"] = "redis://localhost:6379/0"
-    
-    # 🎯 SYSTEM C: Forcer LOCAL_PROMPT_PATH pour tester Jessica V2.0
-    if not os.getenv("LOCAL_PROMPT_PATH"):
-        v2_path = os.path.join(project_root, "prompt_universel_v2.md")
-        if os.path.exists(v2_path):
-            os.environ["LOCAL_PROMPT_PATH"] = v2_path
-            print(f"🎯 [SIMULATOR] LOCAL_PROMPT_PATH auto-set to: {v2_path}")
 except Exception:
     pass
 
@@ -415,8 +408,8 @@ class RAGSimulator:
             "user_id": TEST_USER_ID,
             "message": message,
             "images": images,
-            "botlive_enabled": True,  # 🎯 ACTIVÉ POUR SYSTEM C
-            "is_new_session": self.turn_number == 1,  # 🔄 Persistance session
+            "botlive_enabled": False,
+            # conversation_history n'est plus attendu côté API, mais on le garde si présent
             "conversation_history": self.conversation_history,
             "user_display_name": TEST_COMPANY_NAME,
         }
@@ -809,6 +802,15 @@ async def main() -> None:
     # Scénario: supporter n'importe quel ordre d'arguments (ex: --http --scenario)
     if any(a.startswith("--scenario") or a in {"--whatsapp58", "--whatsapp120", "--scenario-validation", "--scenario_validation"} for a in sys.argv[1:]):
         await simulator.run_scenario()
+    else:
+        await simulator.run_interactive()
+
+
+if __name__ == "__main__":
+    try:
+        asyncio.run(main())
+    except (KeyboardInterrupt, asyncio.CancelledError):
+        pass
     else:
         await simulator.run_interactive()
 

@@ -86,3 +86,4 @@ class ChatResponse(BaseModel):
     company_id: str
     user_id: str
     status: str = "success"
+    status: str = "success"

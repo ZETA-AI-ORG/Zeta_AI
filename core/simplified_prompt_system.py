@@ -611,30 +611,8 @@ Fais confiance à ton jugement. Tu es Jessica, pas un robot."""
                 return ""
 
             lines = ["PRODUCT_INDEX:"]
-            # Récupérer les infos complètes pour chaque produit
-            from core.company_catalog_v2_loader import get_company_product_catalog_v2
-            
             for pid in products:
-                # Enrichir avec nom et variantes si possible
-                try:
-                    p_info = catalog_v2  # Si mono-product
-                    if "products" in catalog_v2:
-                        # On ne peut pas facilement fetcher par ID ici sans company_id
-                        # Mais on peut chercher dans plist déjà chargé
-                        p_info = next((p for p in catalog_v2["products"] if str(p.get("product_id")) == pid), {})
-                    
-                    p_name = p_info.get("product_name") or p_info.get("name") or pid
-                    vtree = p_info.get("vtree") or p_info.get("v") or {}
-                    
-                    v_summary = ""
-                    if vtree and isinstance(vtree, dict):
-                        # Lister les clés de premier niveau (ex: T1, T2...)
-                        v_summary = f" | VARIANTS: {', '.join(vtree.keys())}"
-                    
-                    lines.append(f"- {p_name} [ID: {pid}]{v_summary}")
-                except Exception:
-                    lines.append(f"- product_id={pid}")
-
+                lines.append(f"- product_id={pid}")
             return "\n".join(lines).strip()
         except Exception:
             return ""
@@ -1814,4 +1792,5 @@ def get_simplified_prompt_system() -> SimplifiedPromptSystem:
     global _simplified_prompt_system
     if _simplified_prompt_system is None:
         _simplified_prompt_system = SimplifiedPromptSystem()
+    return _simplified_prompt_system
     return _simplified_prompt_system
