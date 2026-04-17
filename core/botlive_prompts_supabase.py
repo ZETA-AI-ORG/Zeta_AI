@@ -398,13 +398,13 @@ class BotlivePromptsManager:
             response = self.supabase.table("company_rag_configs") \
                 .select("company_name, ai_name, secteur_activite, whatsapp_phone, boutique_type, rag_behavior, description, botlive_prompts_version, has_boost, subscriptions(plan_name)") \
                 .eq("company_id", company_id) \
-                .maybeSingle() \
+                .limit(1) \
                 .execute()
             
-            if not response.data:
+            if not response.data or len(response.data) == 0:
                 return {}
             
-            data = response.data
+            data = response.data[0] if isinstance(response.data, list) else response.data
             # Aplatir la réponse de la jointure
             subscription = data.get("subscriptions", {})
             if isinstance(subscription, list) and len(subscription) > 0:
