@@ -396,7 +396,7 @@ class BotlivePromptsManager:
         try:
             # 1. Récupérer les infos de la boutique
             response = self.supabase.table("company_rag_configs") \
-                .select("company_name, ai_name, secteur_activite, whatsapp_phone, boutique_type, rag_behavior, description, botlive_prompts_version, has_boost") \
+                .select("company_name, ai_name, secteur_activite, whatsapp_phone, boutique_type, rag_behavior, description, botlive_prompts_version") \
                 .eq("company_id", company_id) \
                 .limit(1) \
                 .execute()
@@ -406,16 +406,18 @@ class BotlivePromptsManager:
             
             data = response.data[0]
             
-            # 2. Récupérer le plan d'abonnement séparément (pour éviter l'erreur de jointure)
+            # 2. Récupérer le plan d'abonnement et le flag boost séparément
             plan_name = "none"
+            has_boost = False
             try:
                 sub_res = self.supabase.table("subscriptions") \
-                    .select("plan_name") \
+                    .select("plan_name, has_boost") \
                     .eq("company_id", company_id) \
                     .limit(1) \
                     .execute()
                 if sub_res.data and len(sub_res.data) > 0:
                     plan_name = sub_res.data[0].get("plan_name", "none")
+                    has_boost = sub_res.data[0].get("has_boost", False)
             except Exception as sub_e:
                 logger.warning(f"⚠️ Impossible de récupérer le plan pour {company_id}: {sub_e}")
             
@@ -427,8 +429,8 @@ class BotlivePromptsManager:
                 "boutique_type": data.get("boutique_type"),
                 "rag_behavior": data.get("rag_behavior"),
                 "description": data.get("description"),
-                "has_boost": data.get("has_boost", False),
-                "plan_name": subscription.get("plan_name", "none") if isinstance(subscription, dict) else "none"
+                "has_boost": has_boost,
+                "plan_name": plan_name
             }
             
         except Exception as e:
