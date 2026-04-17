@@ -394,9 +394,9 @@ class BotlivePromptsManager:
             Dict: Informations entreprise (name, ai_name, plan_name, has_boost, etc.)
         """
         try:
-            # Récupérer les infos de base + le plan + le comportement RAG
+            # 1. Récupérer les infos de la boutique
             response = self.supabase.table("company_rag_configs") \
-                .select("company_name, ai_name, secteur_activite, whatsapp_phone, boutique_type, rag_behavior, description, botlive_prompts_version, has_boost, subscriptions(plan_name)") \
+                .select("company_name, ai_name, secteur_activite, whatsapp_phone, boutique_type, rag_behavior, description, botlive_prompts_version, has_boost") \
                 .eq("company_id", company_id) \
                 .limit(1) \
                 .execute()
@@ -404,11 +404,20 @@ class BotlivePromptsManager:
             if not response.data or len(response.data) == 0:
                 return {}
             
-            data = response.data[0] if isinstance(response.data, list) else response.data
-            # Aplatir la réponse de la jointure
-            subscription = data.get("subscriptions", {})
-            if isinstance(subscription, list) and len(subscription) > 0:
-                subscription = subscription[0]
+            data = response.data[0]
+            
+            # 2. Récupérer le plan d'abonnement séparément (pour éviter l'erreur de jointure)
+            plan_name = "none"
+            try:
+                sub_res = self.supabase.table("subscriptions") \
+                    .select("plan_name") \
+                    .eq("company_id", company_id) \
+                    .limit(1) \
+                    .execute()
+                if sub_res.data and len(sub_res.data) > 0:
+                    plan_name = sub_res.data[0].get("plan_name", "none")
+            except Exception as sub_e:
+                logger.warning(f"⚠️ Impossible de récupérer le plan pour {company_id}: {sub_e}")
             
             return {
                 "company_name": data.get("company_name"),
