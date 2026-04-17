@@ -406,18 +406,27 @@ class BotlivePromptsManager:
             
             data = response.data[0]
             
-            # 2. Récupérer le plan d'abonnement et le flag boost séparément
+            # Parsing safe du JSON rag_behavior
+            rag_behavior = data.get("rag_behavior")
+            if isinstance(rag_behavior, str):
+                try:
+                    import json
+                    rag_behavior = json.loads(rag_behavior)
+                except Exception:
+                    rag_behavior = {}
+            elif not isinstance(rag_behavior, dict):
+                rag_behavior = {}
+
+            # 2. Récupérer le plan d'abonnement séparément
             plan_name = "none"
-            has_boost = False
             try:
                 sub_res = self.supabase.table("subscriptions") \
-                    .select("plan_name, has_boost") \
+                    .select("plan_name") \
                     .eq("company_id", company_id) \
                     .limit(1) \
                     .execute()
                 if sub_res.data and len(sub_res.data) > 0:
                     plan_name = sub_res.data[0].get("plan_name", "none")
-                    has_boost = sub_res.data[0].get("has_boost", False)
             except Exception as sub_e:
                 logger.warning(f"⚠️ Impossible de récupérer le plan pour {company_id}: {sub_e}")
             
@@ -427,9 +436,9 @@ class BotlivePromptsManager:
                 "secteur_activite": data.get("secteur_activite"),
                 "whatsapp_phone": data.get("whatsapp_phone"),
                 "boutique_type": data.get("boutique_type"),
-                "rag_behavior": data.get("rag_behavior"),
+                "rag_behavior": rag_behavior,
                 "description": data.get("description"),
-                "has_boost": has_boost,
+                "has_boost": False, # Temporairement désactivé pour éviter les erreurs de schéma
                 "plan_name": plan_name
             }
             
