@@ -4264,7 +4264,7 @@ class BotliveRAGHybrid:
             raise
 
     async def _call_llm(self, prompt: str, user_id: str) -> Dict[str, Any]:
-        """[V2] Appel LLM via OpenRouter (famille Gemma/Gemini uniquement)."
+        """[V2] Appel LLM via OpenRouter (famille Gemma/Gemini uniquement)."""
         try:
             # V2.0 : OpenRouter uniquement
             from core.llm_client_openrouter import complete

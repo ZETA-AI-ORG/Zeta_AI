@@ -99,7 +99,7 @@ async def _resolve_chat_url() -> str:
     """
 
     env_url = os.getenv("RAG_CHAT_URL") or os.getenv("CHAT_URL")
-    candidates = [u for u in [env_url, "http://127.0.0.1:8001/chat", "http://127.0.0.1:8002/chat"] if u]
+    candidates = [u for u in [env_url, "http://127.0.0.1:8002/chat"] if u]
 
     # Preflight: attempt a quick POST with empty payload is not possible,
     # so we just check TCP reachability via GET /docs or /openapi.json.
@@ -119,7 +119,7 @@ async def _resolve_chat_url() -> str:
                 continue
 
     # Fallback: keep first candidate for error reporting
-    return candidates[0] if candidates else "http://127.0.0.1:8001/chat"
+    return candidates[0] if candidates else "http://127.0.0.1:8002/chat"
 
 
 CHAT_URL = "http://127.0.0.1:8001/chat"  # resolved at runtime in main()

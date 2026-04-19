@@ -10,14 +10,14 @@ Matrice d'intelligence officielle (validée 19/04/2026) :
 ┌──────────┬────────────────────────────────────────┬───────────────────────────────┐
 │ NIVEAU   │ MODÈLE OPENROUTER (SLUG)               │ CONTEXTE D'UTILISATION        │
 ├──────────┼────────────────────────────────────────┼───────────────────────────────┤
-│ RANG A   │ google/gemma-4-26b-a4b-it              │ Découverte, Starter (Amanda)  │
+│ RANG A   │ google/gemma-4-26b-a4b-it              │ Découverte, Starter (Jessica) │
 │ RANG S   │ google/gemma-4-31b-it                  │ Pro/Elite défaut (Jessica)    │
 │ RANG SS  │ google/gemini-3.1-flash-lite-preview   │ Option BOOST (Jessica Boost)  │
 │ INSIGHT  │ google/gemini-3.1-pro-preview          │ Zeta Insight (bilans)         │
 └──────────┴────────────────────────────────────────┴───────────────────────────────┘
 
 Correspondance Bot → Plan → Modèle :
-- Amanda          → Découverte / Starter           → RANG A   (gemma-4-26b-a4b-it)
+- Jessica         → Découverte / Starter           → RANG A   (gemma-4-26b-a4b-it)
 - Jessica         → Pro / Elite (sans BOOST)       → RANG S   (gemma-4-31b-it)
 - Jessica Boost   → Pro / Elite (avec BOOST)       → RANG SS  (gemini-3.1-flash-lite-preview)
 - Zeta Insight    → Analytics / Bilans stratégiques→ INSIGHT  (gemini-3.1-pro-preview)
