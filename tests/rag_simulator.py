@@ -62,6 +62,29 @@ try:
 except Exception:
     pass
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# 🔧 CONFIGURATION MODELE TEST (forcer des modèles spécifiques)
+# ═══════════════════════════════════════════════════════════════════════════════
+# Pour tester avec DeepSeek V3.2 ou Qwen 235B, définir:
+#   export TEST_FORCE_MODEL="deepseek/deepseek-v3.2"
+#   export TEST_FORCE_MODEL="qwen/qwen3-235b-a22b-2507"
+#   export TEST_ALLOW_MODELS="deepseek/deepseek-v3.2,qwen/qwen3-235b-a22b-2507"
+#
+# Puis lancer: python tests/rag_simulator.py
+# ═══════════════════════════════════════════════════════════════════════════════
+TEST_FORCE_MODEL = os.getenv("TEST_FORCE_MODEL", "")
+if TEST_FORCE_MODEL:
+    # Forcer le modèle dans toutes les routes LLM
+    os.environ["MODEL_DEFAULT"] = TEST_FORCE_MODEL
+    os.environ["MODEL_RANG_S"] = TEST_FORCE_MODEL
+    os.environ["MODEL_RANG_A"] = TEST_FORCE_MODEL
+    # Autoriser explicitement ce modèle (bypass le garde-fou)
+    _current_allow = os.getenv("TEST_ALLOW_MODELS", "")
+    if TEST_FORCE_MODEL not in _current_allow:
+        os.environ["TEST_ALLOW_MODELS"] = f"{TEST_FORCE_MODEL},{_current_allow}".strip(",")
+    print(f"🧪 [TEST MODE] Modèle forcé: {TEST_FORCE_MODEL}")
+    print(f"🧪 [TEST MODE] TEST_ALLOW_MODELS={os.environ.get('TEST_ALLOW_MODELS')}")
+
 DEFAULT_COMPANY_ID = "W27PwOPiblP8TlOrhPcjOtxd0cza"
 DEFAULT_COMPANY_NAME = "Test Company"
 
@@ -374,6 +397,8 @@ class RAGSimulator:
 
                 has_idx_markers = ("[[PRODUCT_INDEX_START]]" in p_s) and ("[[PRODUCT_INDEX_END]]" in p_s)
                 idx_inner = _extract_between(p_s, "[[PRODUCT_INDEX_START]]", "[[PRODUCT_INDEX_END]]")
+            except Exception:
+                pass
             # ✅ DESACTIVE car trop imprécis par rapport au moteur hybride Botlive (Système C)
             # Se fier uniquement aux logs [BOTLIVE_PROMPT_FULL] dans la console SSH.
             return

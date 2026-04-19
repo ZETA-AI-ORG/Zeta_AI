@@ -65,10 +65,22 @@ _BANNED_PATTERNS = (
 
 
 def is_model_allowed(model_name: Optional[str]) -> bool:
-    """True si le modèle appartient à la famille Gemma/Gemini autorisée."""
+    """True si le modèle appartient à la famille Gemma/Gemini autorisée.
+    
+    Mode test: définir TEST_ALLOW_MODELS="model1,model2" pour autoriser temporairement
+    des modèles spécifiques (ex: deepseek/deepseek-v3.2,qwen/qwen3-235b-a22b-2507).
+    """
     if not model_name:
         return False
     m = str(model_name).strip().lower()
+    
+    # Mode test: allowlist explicite via env (ne pas utiliser en production)
+    _test_allow = os.getenv("TEST_ALLOW_MODELS", "")
+    if _test_allow:
+        _allowed_test_models = [x.strip().lower() for x in _test_allow.split(",") if x.strip()]
+        if any(m == allowed or model_name == allowed for allowed in _test_allow.split(",") if allowed.strip()):
+            return True
+    
     if any(bad in m for bad in _BANNED_PATTERNS):
         return False
     return any(m.startswith(p) for p in _ALLOWED_PREFIXES)
