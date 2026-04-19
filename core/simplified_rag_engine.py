@@ -35,6 +35,7 @@ from core.llm_client import get_llm_client
 from core.company_catalog_v2_loader import get_company_catalog_v2, get_company_product_catalog_v2
 from core.catalog_v2_item_normalizer import normalize_detected_items
 from core.cart_manager import CartManager
+from .message_registry import get_system_response, get_company_tone
 
 
 @dataclass
@@ -587,26 +588,24 @@ class SimplifiedRAGEngine:
                     if len(items) > 18:
                         items = items[:18]
 
+                    tone = get_company_tone(company_id_val)
                     lines: List[str] = []
-                    head = (product_name if product_name else "Catalogue").strip()
-
-                    def _num_emoji(n: int) -> str:
-                        try:
-                            mp = {
-                                1: "1️⃣",
-                                2: "2️⃣",
-                                3: "3️⃣",
-                                4: "4️⃣",
-                                5: "5️⃣",
-                                6: "6️⃣",
-                                7: "7️⃣",
-                                8: "8️⃣",
-                                9: "9️⃣",
-                                10: "🔟",
-                            }
-                            return mp.get(int(n), f"{n}.")
-                        except Exception:
-                            return f"{n}."
+                    
+                    if len(items) == 1:
+                        # --- Cas Produit Unique (UX Optimisée) ---
+                        it = items[0]
+                        variant = str(it.get("variant") or "").strip()
+                        label = str(it.get("label") or "").strip() or str(it.get("unit") or "").strip()
+                        price_i = int(it.get("price_fcfa") or 0)
+                        price_str = f"{UniversalPriceCalculator._fmt_fcfa(price_i)} F"
+                        
+                        desc = f"{variant} ({label})" if variant and label != variant else (label or variant)
+                        lines.append(f"C'est noté ! Voici notre tarif pour le {product_name} ({desc}) : *{price_str}*")
+                        
+                        # Injection de contexte invisible pour le LLM
+                        lines.append(f"\n[PRODUIT_UNIQUE_PROPOSÉ: {product_name} - {desc}]")
+                        
+                        return "\n".join(lines), items
 
                     # ── Regrouper par variante pour une meilleure lisibilité WhatsApp ──
                     from collections import OrderedDict
@@ -617,33 +616,39 @@ class SimplifiedRAGEngine:
                             grouped[vk] = []
                         grouped[vk].append(it)
 
-                    lines.append("Bien reçu 😊 Voici nos formats disponibles :")
+                    # --- Cas Multiple Produits (Spinning + Sobriété) ---
+                    lines.append(get_system_response("price_list_intro", tone=tone))
                     lines.append("")
+                    
                     global_idx = 1
                     for variant_name, variant_items in grouped.items():
                         # Sous-titre par variante
                         has_specs = any(str(it.get("spec") or "").strip() for it in variant_items)
-                        # Déterminer le format unique si tous les items ont le même unit
                         unique_units = set(str(it.get("label") or it.get("unit") or "").strip() for it in variant_items)
                         unit_suffix = ""
                         if has_specs and len(unique_units) == 1:
                             unit_suffix = f" ({list(unique_units)[0]} uniquement)"
+                        
                         lines.append(f"🔹 {variant_name}{unit_suffix}")
                         for it in variant_items:
                             sp = str(it.get("spec") or "").strip()
                             lbl = str(it.get("label") or "").strip() or str(it.get("unit") or "").strip()
                             price_i = int(it.get("price_fcfa") or 0)
                             price_str = f"{UniversalPriceCalculator._fmt_fcfa(price_i)} F"
+                            
+                            # Numérotation sobre (retrait des emojis 1️⃣)
+                            prefix = f"{global_idx}. "
+                            
                             if has_specs:
-                                # Variante avec specs (ex: Pression T1-T6) → "Taille X : prix"
-                                lines.append(f"{_num_emoji(global_idx)} {sp} : {price_str}")
+                                lines.append(f"{prefix}{sp} : *{price_str}*")
                             else:
-                                # Variante sans specs, formats multiples (ex: Culotte paquet/lot) → "format : prix"
-                                lines.append(f"{_num_emoji(global_idx)} {lbl} : {price_str}")
+                                lines.append(f"{prefix}{lbl} : *{price_str}*")
+                            
                             it["index"] = global_idx
                             global_idx += 1
                         lines.append("")
-                    lines.append("👉 Dites-moi simplement le numéro de votre choix.")
+                        
+                    lines.append(get_system_response("price_list_outro", tone=tone))
 
                     return "\n".join([ln for ln in lines if ln is not None]), items
                 except Exception:

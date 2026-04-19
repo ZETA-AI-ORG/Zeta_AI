@@ -3,6 +3,7 @@ import easyocr
 from transformers import BlipProcessor, BlipForConditionalGeneration
 from PIL import Image
 import threading
+from .message_registry import get_system_response, get_company_tone
 
 
 class BotliveEngine:
@@ -706,15 +707,18 @@ class BotliveEngine:
         currency = payment.get('currency', '') or 'FCFA'
         ref = payment.get('reference', '')
 
+        tone = get_company_tone()
         parts = []
-        parts.append(f"🛒 Produit détecté: {label} ({conf*100:.1f}%).")
+        
+        # Humanisation de la détection produit
+        parts.append(get_system_response("ocr_product", tone=tone, name=label, confidence=conf*100))
+        
+        # Humanisation du paiement
         if amount:
-            parts.append(f"💳 Paiement: {amount} {currency}.")
+            parts.append(get_system_response("ocr_payment", tone=tone, amount=amount, currency=currency, ref=ref or "N/A"))
         else:
-            parts.append("💳 Paiement détecté: montant non lisible.")
-        if ref:
-            parts.append(f"Référence: {ref}.")
-
+            parts.append(get_system_response("error_tech", tone=tone))
+            
         return " ".join(parts)
 
 # ═══════════════════════════════════════════════════════════════════════════════

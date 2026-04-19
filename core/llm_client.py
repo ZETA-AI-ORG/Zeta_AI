@@ -225,19 +225,19 @@ class GroqLLMClient:
 
 
 def get_llm_client() -> Any:
-    """Retourne un singleton LLM client pour les modules utilitaires (ex: InterventionGuardian).
+    """Retourne un singleton LLM client.
 
-    Si Groq n'est pas configuré (pas de GROQ_API_KEY), on bascule sur OpenRouter.
+    V2.0 : priorité absolue à OpenRouter (famille Gemma/Gemini).
+    Le client Groq reste disponible comme artefact legacy mais n'est plus sélectionné
+    automatiquement (seule une config explicite LLM_PROVIDER=groq le rebranchera).
     """
     global _global_llm_client
     if _global_llm_client is None:
         forced_provider = (os.getenv("LLM_PROVIDER") or "").strip().lower()
-        groq_key_present = bool((os.getenv("GROQ_API_KEY") or os.getenv("GROK_API_KEY") or "").strip())
         openrouter_key_present = bool((os.getenv("OPENROUTER_API_KEY") or "").strip())
 
-        if forced_provider in {"openrouter", "router"} and openrouter_key_present:
-            _global_llm_client = OpenRouterLLMClient()
-        elif (not groq_key_present) and openrouter_key_present:
+        # V2.0 : OpenRouter par défaut si clé présente, sinon Groq legacy (ne devrait plus arriver)
+        if openrouter_key_present and forced_provider != "groq":
             _global_llm_client = OpenRouterLLMClient()
         else:
             _global_llm_client = GroqLLMClient()
@@ -246,85 +246,34 @@ def get_llm_client() -> Any:
 
 async def complete(
     prompt: str,
-    model_name: str = "llama-3.1-8b-instant",
+    model_name: Optional[str] = None,
     temperature: float = 0.2,
     max_tokens: int = 512,
     top_p: Optional[float] = None,
 ) -> str:
     """
-    Appel asynchrone à Groq avec rate limiting intégré
+    V2.0 : Appel asynchrone via OpenRouter UNIQUEMENT.
+    Famille Gemma/Gemini imposée (garde-fou via core.model_registry).
+    Plus aucun appel Groq/DeepSeek/Llama/Mistral n'est émis par défaut.
     """
     from utils import log3
+    from core.model_registry import enforce_allowed_model, DEFAULT_MODEL
 
-    forced_provider = (os.getenv("LLM_PROVIDER") or "").strip().lower()
-    openrouter_key_present = bool((os.getenv("OPENROUTER_API_KEY") or "").strip())
-    groq_key_present = bool((os.getenv("GROQ_API_KEY") or os.getenv("GROK_API_KEY") or "").strip())
-    prefer_openrouter = (forced_provider in {"openrouter", "router"} and openrouter_key_present) or (
-        (not groq_key_present) and openrouter_key_present
-    )
-
-    if prefer_openrouter:
-        try:
-            client = get_llm_client()
-            out = await client.complete(
-                prompt=prompt,
-                model_name=model_name,
-                temperature=temperature,
-                max_tokens=max_tokens,
-                top_p=top_p,
-            )
-            if isinstance(out, dict):
-                return str(out.get("response") or "").strip()
-            return str(out or "").strip()
-        except Exception as e:
-            log3("[LLM][ERROR]", str(e))
-            return f"[Erreur LLM] {str(e)}"
-
-    # Fonction complete avec rate limiting
-    async def _rate_limited_complete():
-        log3("Prompt", prompt)
-        headers = {
-            "Authorization": f"Bearer {GROQ_API_KEY or GROK_API_KEY}",
-            "Content-Type": "application/json",
-        }
-        model_aliases = {
-            "llama3-8b-8192": "llama-3.1-8b-instant",
-            "llama3-70b-8192": "llama-3.3-70b-versatile",
-            "llama-3-8b": "llama-3.1-8b-instant",
-            "llama-3-70b": "llama-3.3-70b-versatile",
-            "gemma-7b-it": "llama-3.1-8b-instant",
-        }
-        canonical_model = model_aliases.get(model_name, model_name)
-        payload = {
-            "model": canonical_model,
-            "messages": [
-                {"role": "system", "content": "Tu es un assistant expert."},
-                {"role": "user", "content": prompt},
-            ],
-            "max_tokens": max_tokens,
-            "temperature": temperature,
-        }
-        if top_p is not None:
-            payload["top_p"] = float(top_p)
-        print(f" [LLM] Envoi requête vers {GROQ_API_URL or GROK_API_URL}")
-
-        async with httpx.AsyncClient() as client:
-            resp = await client.post(GROQ_API_URL or GROK_API_URL, json=payload, headers=headers, timeout=30)
-            resp.raise_for_status()
-            data = resp.json()
-            response_text = data["choices"][0]["message"]["content"].strip()
-            print(" [LLM] Réponse reçue")
-            log3("Réponse LLM", response_text)
-            return response_text
+    safe_model = enforce_allowed_model(model_name or DEFAULT_MODEL, context="llm_client.complete")
 
     try:
-        return await protected_groq_call(lambda: rate_limited_llm_call(_rate_limited_complete, user_id="global_complete"))
+        client = get_llm_client()
+        out = await client.complete(
+            prompt=prompt,
+            model_name=safe_model,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            top_p=top_p,
+        )
+        if isinstance(out, dict):
+            return str(out.get("response") or "").strip()
+        return str(out or "").strip()
     except Exception as e:
-        error_str = str(e)
-        if "429" in error_str or "rate_limit" in error_str.lower() or "quota" in error_str.lower():
-            log3("[LLM][FALLBACK]", "70B épuisé, fallback direct GPT-OSS-120B")
-            return "Système temporairement surchargé. Réessaie dans un instant."
-        print(f"[LLM] Erreur: {type(e).__name__}")
         log3("[LLM][ERROR]", str(e))
         return f"[Erreur LLM] {str(e)}"
 
@@ -332,15 +281,12 @@ async def complete(
 async def embed_text_hf(text: str, model_name: str = "mpnet-base-v2") -> list:
     """
     Encode un texte en embedding via Hugging Face (sentence-transformers).
+    Indépendant du LLM — utilisé pour retrieval local (legacy).
     """
-    # Début embedding silencieux
-    # Génération embedding silencieuse
-    
     try:
         model = get_embedding_model(model_name)
         print(f" [EMBEDDING] Modèle chargé, encoding en cours...")
         embedding = model.encode([text])[0].tolist()
-        # Embedding généré
         return embedding
     except Exception as e:
         print(f"[EMBEDDING] Erreur: {type(e).__name__}")

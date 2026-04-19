@@ -12,7 +12,11 @@ from supabase import create_client, Client
 import time
 
 # Chemin vers le prompt universel V2.0 (BLOC 1 statique)
-_PROMPT_UNIVERSEL_V2_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "prompt_universel_v2.md")
+_LOCAL_PATH_ENV = os.getenv("LOCAL_PROMPT_PATH")
+if _LOCAL_PATH_ENV and os.path.isfile(_LOCAL_PATH_ENV):
+    _PROMPT_UNIVERSEL_V2_PATH = os.path.abspath(_LOCAL_PATH_ENV)
+else:
+    _PROMPT_UNIVERSEL_V2_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "prompt_universel_v2.md")
 # Cache global BLOC 1 / BLOC 2 template (partagé entre toutes les instances)
 _ZETA_CORE_CACHE: Dict[str, str] = {}
 
@@ -100,6 +104,22 @@ class BotlivePromptsManager:
         Raises:
             ValueError: Si company_id invalide ou prompts manquants
         """
+        # ✅ PRIORITÉ SUPRÊME : Fichier local si LOCAL_PROMPT_PATH est défini
+        local_override_path = os.getenv("LOCAL_PROMPT_PATH")
+        if local_override_path:
+            try:
+                if os.path.isfile(local_override_path):
+                    with open(local_override_path, "r", encoding="utf-8") as f:
+                        content = f.read().strip()
+                    if content:
+                        logger.info(f"🚀 [PROMPT_OVERRIDE] Utilisation du fichier local: {local_override_path} ({len(content)} chars)")
+                        # On simule un tag pour le cache si besoin, mais on retourne direct
+                        return content
+                else:
+                    logger.warning(f"⚠️ [PROMPT_OVERRIDE] LOCAL_PROMPT_PATH défini mais fichier introuvable: {local_override_path}")
+            except Exception as e:
+                logger.error(f"❌ [PROMPT_OVERRIDE] Erreur lecture fichier local: {e}")
+
         print(f"[DEBUG] Appel get_prompt avec company_id={company_id}, llm_choice={llm_choice}")
 
         original_llm_choice = llm_choice
@@ -125,14 +145,12 @@ class BotlivePromptsManager:
             response = self.supabase.table("company_rag_configs") \
                 .select("prompt_botlive_groq_70b, prompt_botlive_deepseek_v3, company_name, ai_name, botlive_prompts_updated_at") \
                 .eq("company_id", company_id) \
-                .single() \
                 .execute()
-            logger.info(f"✅ [SUPABASE] Réponse reçue: {bool(response.data)}")
             
-            if not response.data:
+            if not response.data or len(response.data) == 0:
                 raise ValueError(f"❌ Aucune config trouvée pour company_id: {company_id}")
             
-            data = response.data
+            data = response.data[0] if isinstance(response.data, list) else response.data
 
             # Version pour invalidation automatique du cache local.
             version_tag = str(data.get("botlive_prompts_updated_at") or "").strip() or "noversion"
@@ -384,32 +402,50 @@ class BotlivePromptsManager:
     
     def get_company_info(self, company_id: str) -> Dict[str, Any]:
         """
-        Récupère les informations de l'entreprise (nom, IA, plan, etc.)
-        Jointure avec subscriptions pour le routage élastique.
-        
+        Récupère les informations de l'entreprise + sa souscription (2 requêtes séparées).
+        Nécessaire pour le routage élastique (plan + boost) et le Guardian (expiration + quota).
+
         Args:
             company_id: Identifiant entreprise
-        
+
         Returns:
-            Dict: Informations entreprise (name, ai_name, plan_name, has_boost, etc.)
+            Dict: Informations entreprise + champs subscription (plan_name, has_boost,
+                  status, next_billing_date, pro_trial_ends_at, current_usage, usage_limit…)
         """
         try:
-            # Récupérer les infos de base + le plan + le comportement RAG
+            # 1) Config RAG + identité boutique
             response = self.supabase.table("company_rag_configs") \
-                .select("company_name, ai_name, secteur_activite, whatsapp_phone, boutique_type, rag_behavior, description, botlive_prompts_version, has_boost, subscriptions(plan_name)") \
+                .select("company_name, ai_name, secteur_activite, whatsapp_phone, boutique_type, rag_behavior, description, botlive_prompts_version") \
                 .eq("company_id", company_id) \
-                .maybeSingle() \
                 .execute()
-            
+
             if not response.data:
-                return {}
-            
-            data = response.data
-            # Aplatir la réponse de la jointure
-            subscription = data.get("subscriptions", {})
-            if isinstance(subscription, list) and len(subscription) > 0:
-                subscription = subscription[0]
-            
+                logger.warning(f"⚠️ [GET_COMPANY] Aucune config trouvée pour {company_id}")
+                return None
+
+            data = response.data[0]
+
+            # 2) Souscription (requête dédiée pour éviter PGRST200 sur jointure fragile)
+            subscription: Dict[str, Any] = {}
+            plan_name = "starter"
+            has_boost = False
+            try:
+                sub_resp = self.supabase.table("subscriptions") \
+                    .select("plan_type, has_boost, status, next_billing_date, pro_trial_ends_at, current_usage, usage_limit, created_at, updated_at") \
+                    .eq("company_id", company_id) \
+                    .order("updated_at", desc=True) \
+                    .limit(1) \
+                    .execute()
+                if sub_resp.data:
+                    subscription = sub_resp.data[0] or {}
+                    plan_name = str(subscription.get("plan_type") or "starter").strip().lower()
+                    has_boost = bool(subscription.get("has_boost") or False)
+                else:
+                    logger.info(f"ℹ️ [GET_COMPANY] Pas de subscription pour {company_id} → fallback starter sans boost")
+            except Exception as sub_err:
+                # Ne jamais casser la boucle botlive si subscriptions n'est pas lisible (Guardian gèrera)
+                logger.warning(f"⚠️ [GET_COMPANY] Lecture subscriptions KO pour {company_id}: {sub_err}")
+
             return {
                 "company_name": data.get("company_name"),
                 "ai_name": data.get("ai_name"),
@@ -418,10 +454,13 @@ class BotlivePromptsManager:
                 "boutique_type": data.get("boutique_type"),
                 "rag_behavior": data.get("rag_behavior"),
                 "description": data.get("description"),
-                "has_boost": data.get("has_boost", False),
-                "plan_name": subscription.get("plan_name", "none") if isinstance(subscription, dict) else "none"
+                # V2.0 — grille commerciale
+                "plan_name": plan_name,
+                "has_boost": has_boost,
+                # Payload brut pour le Guardian (expiration / quota / session limiter)
+                "subscription": subscription,
             }
-            
+
         except Exception as e:
             logger.error(f"❌ Erreur récupération info entreprise {company_id}: {e}")
             return {}
@@ -540,6 +579,10 @@ class BotlivePromptsManager:
         bloc2_filled = bloc2_template
         for k, v in bloc2_vars.items():
             bloc2_filled = bloc2_filled.replace(f"{{{k}}}", str(v or ""))
+
+        # Remplacer aussi les variables dans le BLOC 1 (CORE) pour assurer l'identité
+        for k, v in bloc2_vars.items():
+            bloc1 = bloc1.replace(f"{{{k}}}", str(v or ""))
 
         # Système C — Injection du PHASE_MODULE entre BLOC 1 et BLOC 2
         phase_module = ""

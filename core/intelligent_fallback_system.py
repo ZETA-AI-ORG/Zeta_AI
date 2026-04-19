@@ -15,7 +15,8 @@ import logging
 from datetime import datetime
 
 from .advanced_intent_classifier import IntentType, IntentResult
-from .llm_client import GroqLLMClient
+from .llm_client import get_llm_client
+from .message_registry import get_system_response, get_company_tone
 
 logger = logging.getLogger(__name__)
 
@@ -53,11 +54,12 @@ class IntelligentFallbackSystem:
     """
     
     def __init__(self):
-        self.llm_client = GroqLLMClient()
+        # V2.0 : plus d'usage direct de Groq — on passe par le client centralisé (OpenRouter / famille Gemma-Gemini)
+        self.llm_client = get_llm_client()
         self.start_time = datetime.now()
         
-        # Templates de réponses de fallback
-        self.fallback_templates = self._build_fallback_templates()
+        # Le dictionnaire statique est conservé uniquement comme ultime repli interne
+        self._legacy_templates = self._build_fallback_templates()
         
         # Patterns d'échec
         self.failure_patterns = self._build_failure_patterns()
@@ -267,17 +269,24 @@ class IntelligentFallbackSystem:
     ) -> str:
         """Génère une réponse adaptative basée sur le contexte"""
         
-        # Récupération du template de base
-        template = self.fallback_templates[fallback_type][criticality_level]
-        
-        # Personnalisation basée sur l'entreprise
-        if company_context:
-            company_name = company_context.get('company_name', 'notre entreprise')
-            ai_name = company_context.get('ai_name', 'votre assistant')
+        # Détermination de la catégorie du registre
+        category = "fallback_search"
+        if fallback_type in [FallbackType.LLM_ERROR, FallbackType.TIMEOUT, FallbackType.RATE_LIMIT]:
+            category = "error_tech"
             
-            # Remplacement des placeholders
-            template = template.replace('notre entreprise', company_name)
-            template = template.replace('votre assistant', ai_name)
+        # Préparation du ton et des variables
+        tone = get_company_tone(company_context.get('company_id') if company_context else None)
+        kwargs = {
+            'company_name': company_context.get('company_name', 'notre entreprise') if company_context else 'notre entreprise',
+            'ai_name': company_context.get('ai_name', 'votre assistant') if company_context else 'votre assistant'
+        }
+        
+        # Appel au registre dynamique (Niveau 1)
+        template = get_system_response(category, tone=tone, **kwargs)
+        
+        # Fallback de secours si le registre échoue (ne devrait pas arriver)
+        if "[ERREUR SYSTEME" in template:
+            template = self._legacy_templates.get(fallback_type, {}).get(criticality_level, "Une erreur est survenue.")
         
         # Personnalisation basée sur l'intention
         if intent_result.primary_intent == IntentType.SOCIAL_GREETING:

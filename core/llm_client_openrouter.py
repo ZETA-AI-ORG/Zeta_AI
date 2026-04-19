@@ -40,27 +40,29 @@ def _normalize_openrouter_model(model: str) -> str:
         return m
 
     aliases = {
-        # Common alias seen in configs (invalid on OpenRouter as-is)
-        "google/gemini-1.5-flash": "google/gemini-flash-1.5",
-        # Other frequent variants
-        "google/gemini-1.5-flash-8b": "google/gemini-flash-1.5",
-        "google/gemini-1.5-flash-8b-latest": "google/gemini-flash-1.5",
-        # Migration: prefer Gemini 2.5 Flash over Flash-Lite
-        "google/gemini-2.5-flash-lite": "google/gemini-2.5-flash",
+        # V2.0 — Anciens placeholders internes → slugs officiels
+        "google/gemma-2-27b-it": "google/gemma-4-26b-a4b-it",
+        "google/gemma-3-27b-it": "google/gemma-4-31b-it",
+        "google/gemini-2.5-flash": "google/gemini-3.1-flash-lite-preview",
+        "google/gemini-2.5-flash-lite": "google/gemini-3.1-flash-lite-preview",
+        # Cas legacy tardifs (anciens noms Gemini 1.5)
+        "google/gemini-1.5-flash": "google/gemini-3.1-flash-lite-preview",
+        "google/gemini-1.5-flash-8b": "google/gemini-3.1-flash-lite-preview",
+        "google/gemini-1.5-flash-8b-latest": "google/gemini-3.1-flash-lite-preview",
     }
 
     return aliases.get(m, m)
 
 
 def _candidate_models(model: str) -> list[str]:
-    """Return a list of models to try (first is preferred)."""
+    """Return a list of models to try (first is preferred).
+
+    V2.0 : aucun fallback cross-famille. On garde uniquement des variantes
+    autorisées (Gemma/Gemini) pour éviter qu'un 400 OpenRouter route vers autre chose.
+    """
 
     base = _normalize_openrouter_model(model)
     candidates = [base]
-
-    # Fallback candidates for Gemini Flash naming inconsistencies
-    if base != "google/gemini-flash-1.5" and ("gemini" in base and "flash" in base):
-        candidates.append("google/gemini-flash-1.5")
 
     # Deduplicate while keeping order
     seen = set()
@@ -89,8 +91,18 @@ async def complete(
     if not api_key:
         raise OpenRouterLLMError("OPENROUTER_API_KEY manquant dans l'environnement")
 
-    default_model = os.getenv("LLM_MODEL", "google/gemini-2.5-flash")
-    requested_model = (model_name or default_model).strip()
+    # 🛡️ V2.0 — Garde-fou central : TOUT appel OpenRouter doit passer par la famille Gemma/Gemini
+    try:
+        from core.model_registry import enforce_allowed_model, DEFAULT_MODEL
+    except Exception:
+        # Fallback minimal si le registry n'est pas dispo (ne doit jamais arriver)
+        # Aligné avec la matrice officielle : Jessica Pro/Elite = Gemma 4-31b-it
+        DEFAULT_MODEL = "google/gemma-4-31b-it"
+        def enforce_allowed_model(m, context: str = ""):
+            return m if (m and ("gemini" in str(m).lower() or "gemma" in str(m).lower())) else DEFAULT_MODEL
+
+    default_model = enforce_allowed_model(os.getenv("LLM_MODEL") or DEFAULT_MODEL, context="llm_client_openrouter_default")
+    requested_model = enforce_allowed_model((model_name or default_model).strip(), context="llm_client_openrouter_call")
     models_to_try = _candidate_models(requested_model)
 
     headers = {

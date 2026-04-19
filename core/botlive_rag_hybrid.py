@@ -45,12 +45,16 @@ logger = logging.getLogger(__name__)
 # Activation du court-circuit Python (forcé à True pour Botlive)
 ENABLE_PYTHON_DIRECT = False
 
-# 🏆 MODEL IDS (OPENROUTER)
-# Basé sur le plan de tarification et d'intelligence
-MODEL_STARTER_CLOSING = "google/gemma-4-26b-a4b-it"   # Le Casseur de Prix - Utilisé pour Starter et Closing (completion=1.0)
-MODEL_PRO_ELITE = "google/gemma-4-31b-it"            # Le Poids Lourd - Intelligence Standard pour Pro/Elite
-MODEL_TURBO_BOOST = "google/gemini-3-flash-preview"   # La Formule 1 - Vitesse et raisonnement supérieur
-MODEL_ZETA_INSIGHT = "google/gemini-3.1-pro-preview" # L'Analyste - Bilans stratégiques
+# 🏆 MODEL IDS — Importés depuis le registry central (famille Gemma/Gemini uniquement)
+# Plus aucune référence à Groq/DeepSeek/Llama/Mistral : voir core/model_registry.py
+from core.model_registry import (
+    MODEL_RANG_A as MODEL_STARTER_CLOSING,   # Starter + Closing (économique)
+    MODEL_RANG_S as MODEL_PRO_ELITE,         # Pro/Elite de base
+    MODEL_RANG_SS as MODEL_TURBO_BOOST,      # Pro/Elite + BOOST
+    MODEL_INSIGHT as MODEL_ZETA_INSIGHT,     # Zeta Insight (bilans)
+    resolve_model_for_plan,
+    enforce_allowed_model,
+)
 
 class BotliveRAGHybrid:
     """
@@ -335,7 +339,11 @@ class BotliveRAGHybrid:
             variants = list(info.get("variants") or [])
             if hide_variants_for_product_id and str(hide_variants_for_product_id) == str(pid):
                 variants = []
+            
+            # ✅ Nettoyage des variantes (certains catalogues ont un ':' comme clé fantôme)
+            variants = [v for v in variants if v and v.strip() not in {":", "", "-"}]
             variants_s = ", ".join(variants) if variants else "Aucune"
+            
             flash = self._build_flash_constraint(info.get("catalog_v2") if isinstance(info.get("catalog_v2"), dict) else {})
             if flash:
                 lines.append(f"- {pname} [ID: {pid}] | Variantes: {variants_s} | Flash: {flash}")
@@ -1258,6 +1266,65 @@ class BotliveRAGHybrid:
         except Exception:
             pass
 
+        # Init métriques AVANT Guardian (pour pouvoir renvoyer ses verdicts)
+        start_time = datetime.now()
+        timings: Dict[str, float] = {}
+
+        # ═══ 🛡️ GUARDIAN — Porte d'entrée sécurité (expiration / quota / session) ═══
+        try:
+            from core.guardian import get_guardian
+            _guardian = get_guardian()
+            _active_company_id = company_id or self.company_id
+            _company_info_for_guardian: Dict[str, Any] = {}
+            if self.prompts_manager and _active_company_id:
+                try:
+                    _company_info_for_guardian = self.prompts_manager.get_company_info(_active_company_id) or {}
+                except Exception as _gi_err:
+                    logger.warning(f"🛡️ [GUARDIAN] get_company_info KO: {_gi_err}")
+
+            _verdict = _guardian.check_access(
+                company_info=_company_info_for_guardian,
+                user_id=user_id,
+                company_id=_active_company_id,
+            )
+            if not _verdict.allowed:
+                logger.warning(
+                    f"🛡️ [GUARDIAN] Short-circuit company={_active_company_id} "
+                    f"user={user_id} reason={_verdict.reason}"
+                )
+                # On stocke le company_info pour la suite (évite un 2e fetch si réactivé plus tard)
+                try:
+                    context["company_info"] = _company_info_for_guardian
+                except Exception:
+                    pass
+                return {
+                    "response": _verdict.message or "Service momentanément indisponible.",
+                    "thinking": "",
+                    "llm_used": "python_guardian_short_circuit",
+                    "fallback_used": False,
+                    "guardian_verdict": {
+                        "allowed": False,
+                        "reason": _verdict.reason,
+                        "metadata": _verdict.metadata,
+                    },
+                    "metrics": {
+                        "total_time_s": (datetime.now() - start_time).total_seconds(),
+                        "timings": timings,
+                    },
+                }
+            # Stocker le résultat pour traçage / logs en cas de succès
+            try:
+                context["guardian_verdict"] = {
+                    "allowed": True,
+                    "reason": _verdict.reason,
+                    "metadata": _verdict.metadata,
+                }
+            except Exception:
+                pass
+        except Exception as _guard_err:
+            # Fail-open : un Guardian cassé ne doit JAMAIS bloquer la boucle botlive
+            logger.error(f"🛡️ [GUARDIAN] Erreur Guardian (fail-open): {_guard_err}")
+
         # Délai de livraison dynamique (aujourd'hui/demain) basé sur l'heure CI
         try:
             now_ci = get_current_time_ci()
@@ -1297,8 +1364,7 @@ class BotliveRAGHybrid:
         if delivery_context_val:
             context.setdefault("delivery_context", delivery_context_val)
 
-        start_time = datetime.now()
-        timings = {}  # Track temps par étape
+        # start_time / timings déjà initialisés plus haut (avant Guardian)
         python_short_circuit = False
         prompt_used_key: str = ""
         prompt_expected_key: str = ""
@@ -1307,22 +1373,28 @@ class BotliveRAGHybrid:
         prompt_gating_path: str = ""
         
         try:
-            # ═══ ÉTAPE 1: LLM FIXE POUR BOTLIVE (Groq 70B) ═══
+            # ═══ ÉTAPE 1: LLM BOTLIVE — OpenRouter uniquement, famille Gemma/Gemini ═══
             step_start = datetime.now()
-            routing_mode = (os.getenv("BOTLIVE_ROUTING_MODE", "direct") or "direct").strip().lower()
+            # V2.0 : injection directe dans le prompt + prefix caching.
+            # Meilisearch et recherche sémantique Supabase sont dépréciés côté botlive.
+            # Opt-in explicite via BOTLIVE_ROUTING_MODE_FORCE_HYBRID=true si jamais on veut réactiver.
+            _force_hybrid = os.getenv("BOTLIVE_ROUTING_MODE_FORCE_HYBRID", "false").strip().lower() in {"1", "true", "yes", "on"}
+            routing_mode = "hybrid" if _force_hybrid else "direct"
             hyde_enabled = bool(routing_mode != "direct")
-            llm_choice = "openrouter" if os.getenv("OPENROUTER_API_KEY") else "groq-70b"
-            prompt_llm_choice = "openrouter" if llm_choice == "openrouter" else "groq-70b"
-            routing_reason = "botlive_openrouter" if llm_choice == "openrouter" else "botlive_fixed_groq_70b"
+            # V2.0 : botlive = OpenRouter uniquement (plus aucun fallback Groq autorisé)
+            llm_choice = "openrouter"
+            prompt_llm_choice = "openrouter"
+            routing_reason = "botlive_openrouter_v2"
             python_sc_env = os.getenv("BOTLIVE_PYTHON_SHORT_CIRCUIT_ENABLED")
             if python_sc_env is None:
-                python_short_circuit_enabled = (llm_choice != "openrouter")
+                # Par défaut, avec OpenRouter, on laisse le LLM gérer (pas de short-circuit Python)
+                python_short_circuit_enabled = False
             else:
                 python_short_circuit_enabled = (str(python_sc_env).strip().lower() == "true")
             router_metrics: Dict[str, Any] = {}
             timings["routing"] = (datetime.now() - step_start).total_seconds()
-            
-            logger.info(f"🎯 [BOTLIVE] Routage fixe: {llm_choice}")
+
+            logger.info(f"🎯 [BOTLIVE] LLM provider: {llm_choice}")
             logger.info(
                 "⚡ [CONFIG] BOTLIVE_ROUTING_MODE=%s | HYDE=%s",
                 routing_mode,
@@ -1330,14 +1402,16 @@ class BotliveRAGHybrid:
             )
             try:
                 openrouter_key_present = bool((os.getenv("OPENROUTER_API_KEY") or "").strip())
-                openrouter_model = os.getenv("OPENROUTER_BOTLIVE_MODEL", os.getenv("LLM_MODEL", "mistralai/mistral-small-3.2-24b-instruct"))
-                groq_default_model = os.getenv("DEFAULT_LLM_MODEL", "llama-3.3-70b-versatile")
+                # V2.0 : fallback sûr = MODEL_PRO_ELITE (Gemma/Gemini), plus jamais Mistral/Llama
+                openrouter_model = enforce_allowed_model(
+                    os.getenv("OPENROUTER_BOTLIVE_MODEL") or MODEL_PRO_ELITE,
+                    context="env_default",
+                )
                 logger.info(
                     "🧭 [BOTLIVE][LLM_SELECTION] "
                     f"openrouter_key_present={openrouter_key_present} "
                     f"selected_llm={llm_choice} "
-                    f"openrouter_model={openrouter_model} "
-                    f"groq_default_model={groq_default_model} "
+                    f"default_model={openrouter_model} "
                     f"routing_reason={routing_reason}"
                 )
             except Exception:
@@ -2920,6 +2994,9 @@ class BotliveRAGHybrid:
                     except Exception:
                         pass
 
+                # ✅ FIX: Initialiser la variable pour éviter UnboundLocalError
+                selected_mono_catalog = None
+                
                 if selected_product_id and selected_product_id in products_by_id:
                     try:
                         selected_mono_catalog = products_by_id[selected_product_id].get("catalog_v2")
@@ -3033,51 +3110,48 @@ class BotliveRAGHybrid:
             # 🧹 NETTOYAGE LEAN (PROD)
             prompt_clean = self._clean_prompt_for_ai(prompt)
             
-            # 🧭 ROUTAGE ÉLASTIQUE (V2.0)
-            target_model = os.getenv("OPENROUTER_BOTLIVE_MODEL", MODEL_PRO_ELITE)
-            
+            # 🧭 ROUTAGE ÉLASTIQUE (V2.0) — via core/model_registry
+            target_model = MODEL_PRO_ELITE  # Fallback sûr (famille Gemma/Gemini garantie)
+
             try:
-                # 1. Récupération du Plan et de l'état Boost
-                # Réutilise company_info déjà fetché pour l'enrichissement (avoid double Supabase query)
+                # 1. Plan + Boost depuis company_info (déjà fetché pour l'enrichissement)
                 _ci_routing = company_info if isinstance(company_info, dict) and company_info else (
                     self.prompts_manager.get_company_info(active_company_id) if self.prompts_manager else {})
                 shop_plan = _ci_routing.get("plan_name", "starter")
-                has_boost = _ci_routing.get("has_boost", False)
+                has_boost = bool(_ci_routing.get("has_boost", False))
 
-                # 2. Détermination du modèle de base (Négociation)
-                if shop_plan == "starter":
-                    base_model = MODEL_STARTER_CLOSING
-                elif has_boost:
-                    base_model = MODEL_TURBO_BOOST  # Rank S/SS with Boost
-                else:
-                    base_model = MODEL_PRO_ELITE     # Rank S/SS Base
-
-                # 3. Calcul du taux de complétude
+                # 2. Signaux d'état (closing / pivot)
                 from core.order_state_tracker import order_tracker
                 state = order_tracker.get_state(user_id)
-                completion_rate = state.get_completion_rate() if hasattr(state, 'get_completion_rate') else 0.0
-                
-                # 4. Détection du pivot (Modification après closing)
+                completion_rate = state.get_completion_rate() if hasattr(state, "get_completion_rate") else 0.0
                 last_maj_action = str((context or {}).get("last_maj_action", "")).strip().upper()
                 is_pivot = last_maj_action in {"UPDATE", "ADD", "CLARIFY_PIVOT"}
-                
-                # 5. Logique finale de routage
-                if completion_rate >= 1.0 and not is_pivot:
-                    # Bascule vers le modèle économique pour le closing (sauf si on est déjà sur le starter)
-                    target_model = MODEL_STARTER_CLOSING
-                    logger.info(f"⚡ [ROUTAGE] Mode CLOSING (completion={completion_rate}) -> Switched to {target_model}")
-                elif is_pivot:
-                    # PIVOT INVERSE : On remonte sur le modèle puissant pour traiter la modification proprement
-                    target_model = base_model
-                    logger.info(f"🔄 [ROUTAGE] PIVOT INVERSE detected ({last_maj_action}) -> Returning to {target_model}")
-                else:
-                    # Mode normal (Négociation)
-                    target_model = base_model
-                    logger.info(f"🎯 [ROUTAGE] Phase NÉGOCIATION (Plan={shop_plan}, Boost={has_boost}) -> Using {target_model}")
-                
+                is_closing = bool(completion_rate >= 1.0 and not is_pivot)
+
+                # 3. Résolution centralisée (conforme grille commerciale 2026)
+                target_model = resolve_model_for_plan(
+                    shop_plan,
+                    has_boost=has_boost,
+                    is_closing=is_closing,
+                    is_pivot=is_pivot,
+                )
+                logger.info(
+                    f"🎯 [ROUTAGE] plan={shop_plan} boost={has_boost} "
+                    f"closing={is_closing} pivot={is_pivot} → {target_model}"
+                )
+
+                # 🧪 TEST OVERRIDE — mais toujours validé par le garde-fou
+                test_override = os.getenv("BOTLIVE_LLM_OVERRIDE")
+                if test_override:
+                    target_model = enforce_allowed_model(test_override, context="BOTLIVE_LLM_OVERRIDE")
+                    logger.info(f"🧪 [TEST] Override → {target_model}")
+
             except Exception as routing_err:
                 logger.error(f"⚠️ [ROUTAGE] Erreur calcul routage élastique: {routing_err}")
-                target_model = os.getenv("OPENROUTER_BOTLIVE_MODEL", MODEL_PRO_ELITE)
+                target_model = MODEL_PRO_ELITE
+
+            # 🛡️ Garde-fou final : le modèle DOIT être Gemma/Gemini
+            target_model = enforce_allowed_model(target_model, context="botlive_main_call")
 
             if llm_choice == "openrouter":
                 # Mode prompt UNIQUE: on utilise le modèle cible calculé
@@ -3091,10 +3165,10 @@ class BotliveRAGHybrid:
                 )
             else:
                 logger.info(
-                    "🧭 [BOTLIVE][LLM_CALL] selected_llm=groq-70b reason="
+                    "🧭 [BOTLIVE][LLM_CALL] selected_llm=openrouter (legacy path) reason="
                     f"{routing_reason} openrouter_key_present={bool((os.getenv('OPENROUTER_API_KEY') or '').strip())}"
                 )
-                response_data = await self._call_groq(prompt_clean, user_id)
+                response_data = await self._call_llm(prompt_clean, user_id)  # [V2] OpenRouter Gemma/Gemini
             self.stats['primary_llm_requests'] += 1
             timings['llm_call'] = (datetime.now() - step_start).total_seconds()
             
@@ -3143,6 +3217,12 @@ class BotliveRAGHybrid:
                                 has_open_response = True
                                 has_close_response = True
                                 has_response_tag = True
+                        else:
+                            # Tentative ultime : si le modèle a juste craché le texte sans tags du tout
+                            if raw0 and len(raw0) > 5 and not (raw0.startswith("<") and ">" in raw0[:20]):
+                                candidate = f"<response>{raw0.strip()}</response>"
+                                response_data = {**response_data, "response": candidate}
+                                logger.info("🩹 [REPAIR] Enveloppement automatique dans <response>")
 
                     strict_retry_enabled = (os.getenv("BOTLIVE_STRICT_RESPONSE_RETRY", "true") or "").strip().lower() in {
                         "true",
@@ -3311,7 +3391,7 @@ class BotliveRAGHybrid:
                                     segment_letter=prompt_segment_letter,
                                 )
                             else:
-                                response_data2 = await self._call_groq(prompt2, user_id)
+                                response_data2 = await self._call_llm(prompt2, user_id)
                             timings["llm_call_pass2"] = (datetime.now() - step_retry2).total_seconds()
 
                             raw_response2 = response_data2.get('response', '')
@@ -3413,8 +3493,8 @@ class BotliveRAGHybrid:
                     corrected_prompt = prompt + "\n\n" + validation_result.correction_prompt
                     
                     logger.info(f"🔄 [REGENERATION] Appel LLM avec correction...")
-                    # Botlive : toujours Groq 70B pour la régénération
-                    response_data = await self._call_groq(corrected_prompt, user_id)
+                    # V2.0 : OpenRouter (Gemma/Gemini) via _call_llm
+                    response_data = await self._call_llm(corrected_prompt, user_id)
                     
                     # Extraire nouvelle réponse
                     raw_response = response_data.get('response', '')
@@ -3661,9 +3741,12 @@ class BotliveRAGHybrid:
                     try:
                         # Priorité: OpenRouter (cheap/fast). Si indisponible, ne pas bloquer.
                         if (os.getenv("OPENROUTER_API_KEY") or "").strip():
-                            model = os.getenv(
-                                "OPENROUTER_SUMMARIZER_MODEL",
-                                os.getenv("OPENROUTER_BOTLIVE_MODEL", "mistralai/mistral-small-3.2-24b-instruct"),
+                            # V2.0 : famille Gemma/Gemini uniquement
+                            model = enforce_allowed_model(
+                                os.getenv("OPENROUTER_SUMMARIZER_MODEL")
+                                or os.getenv("OPENROUTER_BOTLIVE_MODEL")
+                                or MODEL_STARTER_CLOSING,
+                                context="summarizer",
                             )
                             summary_data = await self._call_openrouter(
                                 summarizer_prompt,
@@ -3800,6 +3883,28 @@ class BotliveRAGHybrid:
             if not isinstance(_usage, dict):
                 _usage = {}
 
+            # 📊 V2.0 — Log JSON structuré (observabilité : phase, Guardian, modèle, tokens)
+            try:
+                import json as _json
+                _obs = {
+                    "event": "botlive_response",
+                    "user_id": user_id,
+                    "company_id": (company_id or self.company_id or ""),
+                    "phase": (current_phase or ""),
+                    "guardian": (context or {}).get("guardian_verdict"),
+                    "llm_used": ("python" if python_short_circuit else llm_choice),
+                    "model": _usage.get("model") or response_data.get("model"),
+                    "routing_reason": routing_reason,
+                    "tokens": {"prompt": _pt, "completion": _ct, "total": _tt},
+                    "cost_usd": response_data.get("total_cost") if isinstance(response_data, dict) else None,
+                    "processing_time_s": round(processing_time, 3),
+                    "short_circuit": bool(python_short_circuit),
+                    "validation_valid": validation_result.valid if validation_result is not None else None,
+                }
+                logger.info("📊 [BOTLIVE_OBS] " + _json.dumps(_obs, ensure_ascii=False, default=str))
+            except Exception as _obs_err:
+                logger.debug(f"[OBS] log JSON KO: {_obs_err}")
+
             return {
                 'response': processed_response,
                 'thinking': "" if python_short_circuit else thinking,
@@ -3932,17 +4037,17 @@ class BotliveRAGHybrid:
         return result
 
     async def _call_deepseek(self, prompt: str, user_id: str) -> Dict[str, Any]:
-        """Appel API DeepSeek V3 (actuellement proxifié via Groq 70B)."""
+        """[LEGACY] Ancien path DeepSeek/Groq — désormais redirigé vers OpenRouter (famille Gemma/Gemini)."""
         try:
-            # Import du bon module Groq
-            from core.llm_client_groq import complete
+            # V2.0 : OpenRouter uniquement
+            from core.llm_client_openrouter import complete
 
-            logger.debug(f"📡 Appel DeepSeek V3 pour {user_id}")
+            logger.debug(f"📡 [LEGACY → V2] Appel OpenRouter (Rang A) pour {user_id}")
 
-            # Pour l'instant, utiliser Groq en attendant l'API DeepSeek
+            # V2.0 : Appel LLM centralisé (famille Gemma/Gemini uniquement)
             content, token_info = await complete(
                 prompt=prompt,
-                model_name="llama-3.3-70b-versatile",  # Temporaire
+                model_name=enforce_allowed_model(MODEL_STARTER_CLOSING, context="deepseek_legacy_path"),
                 max_tokens=500,
                 temperature=0.1,
             )
@@ -3953,10 +4058,10 @@ class BotliveRAGHybrid:
                 token_info.get("total_tokens", prompt_tokens + completion_tokens) or 0
             )
             cost = self._calculate_groq_cost(token_info)
-            model = token_info.get("model", "llama-3.3-70b-versatile")
+            model = token_info.get("model", MODEL_STARTER_CLOSING)
 
             try:
-                log3("[LLM]", f"Groq {model} (via DeepSeek) | {len(prompt)} chars")
+                log3("[LLM]", f"LLM {model} | {len(prompt)} chars")
                 cached_tokens = 0
                 try:
                     cached_tokens = int(
@@ -3999,10 +4104,13 @@ class BotliveRAGHybrid:
             from core.llm_client_openrouter import complete
 
             if not model_name:
-                model_name = os.getenv(
-                    "OPENROUTER_BOTLIVE_MODEL",
-                    os.getenv("LLM_MODEL", "mistralai/mistral-small-3.2-24b-instruct"),
+                # V2.0 : fallback sur MODEL_PRO_ELITE (Gemma/Gemini)
+                model_name = (
+                    os.getenv("OPENROUTER_BOTLIVE_MODEL")
+                    or os.getenv("LLM_MODEL")
+                    or MODEL_PRO_ELITE
                 )
+            model_name = enforce_allowed_model(model_name, context="_call_openrouter")
 
             seg = (segment_letter or "").strip().upper()
             phase_norm = (phase or "").strip().upper() if phase else ""
@@ -4155,18 +4263,18 @@ class BotliveRAGHybrid:
             logger.error(f"❌ Erreur OpenRouter API: {e}")
             raise
 
-    async def _call_groq(self, prompt: str, user_id: str) -> Dict[str, Any]:
-        """Appel API Groq 70B."""
+    async def _call_llm(self, prompt: str, user_id: str) -> Dict[str, Any]:
+        """[V2] Appel LLM via OpenRouter (famille Gemma/Gemini uniquement)."
         try:
-            # Import du bon module Groq
-            from core.llm_client_groq import complete
+            # V2.0 : OpenRouter uniquement
+            from core.llm_client_openrouter import complete
 
-            logger.debug(f"📡 Appel Groq 70B pour {user_id}")
+            logger.debug(f"📡 [LEGACY → V2] Appel OpenRouter (Rang S) pour {user_id}")
 
-            # Appel API Groq réel
+            # V2.0 : Appel LLM centralisé (famille Gemma/Gemini uniquement)
             content, token_info = await complete(
                 prompt=prompt,
-                model_name="llama-3.3-70b-versatile",
+                model_name=enforce_allowed_model(MODEL_PRO_ELITE, context="legacy_call_groq"),
                 max_tokens=1000,
                 temperature=0.1,
             )
@@ -4177,10 +4285,10 @@ class BotliveRAGHybrid:
                 token_info.get("total_tokens", prompt_tokens + completion_tokens) or 0
             )
             cost = self._calculate_groq_cost(token_info)
-            model = token_info.get("model", "llama-3.3-70b-versatile")
+            model = token_info.get("model", MODEL_PRO_ELITE)
 
             try:
-                log3("[LLM]", f"Groq {model} | {len(prompt)} chars")
+                log3("[LLM]", f"LLM {model} | {len(prompt)} chars")
                 cached_tokens = 0
                 try:
                     cached_tokens = int(

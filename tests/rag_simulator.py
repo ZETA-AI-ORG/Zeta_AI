@@ -374,16 +374,9 @@ class RAGSimulator:
 
                 has_idx_markers = ("[[PRODUCT_INDEX_START]]" in p_s) and ("[[PRODUCT_INDEX_END]]" in p_s)
                 idx_inner = _extract_between(p_s, "[[PRODUCT_INDEX_START]]", "[[PRODUCT_INDEX_END]]")
-                idx_clean = (idx_inner or "").strip()
-                print(f"\n{'-'*80}")
-                print(
-                    f"🧾 PROMPT SNAPSHOT ({label}) - PRODUCT_INDEX markers={'YES' if has_idx_markers else 'NO'} | chars={len(idx_clean)}"
-                )
-                print(f"{'-'*80}")
-                print(idx_clean if idx_clean else "<EMPTY>")
-                print(f"{'-'*80}\n")
-            except Exception as e:
-                print(f"⚠️ [SIMULATOR] prompt snapshot failed ({label}): {type(e).__name__}: {e}")
+            # ✅ DESACTIVE car trop imprécis par rapport au moteur hybride Botlive (Système C)
+            # Se fier uniquement aux logs [BOTLIVE_PROMPT_FULL] dans la console SSH.
+            return
 
         # IMPORTANT: le backend a un cache exact basé sur req.message.
         # Pour les tours avec images (produit/paiement), on veut FORCER la vision + le parsing,
@@ -408,7 +401,7 @@ class RAGSimulator:
             "user_id": TEST_USER_ID,
             "message": message,
             "images": images,
-            "botlive_enabled": False,
+            "botlive_enabled": True,
             # conversation_history n'est plus attendu côté API, mais on le garde si présent
             "conversation_history": self.conversation_history,
             "user_display_name": TEST_COMPANY_NAME,
@@ -784,6 +777,12 @@ class RAGSimulator:
 
 
 async def main() -> None:
+    # 🧪 TEST OVERRIDE: Si une variable de modèle est définie pour le test, on force l'override dans le core.
+    test_model = os.getenv("BOTLIVE_LLM_MODEL")
+    if test_model:
+        os.environ["BOTLIVE_LLM_OVERRIDE"] = test_model
+        print(f"🧪 [CONFIG] Modèle forcé pour le test: {test_model}")
+
     simulator = RAGSimulator()
 
     # Choix mode: par défaut in-process. Ajoute --http pour forcer l'appel HTTP.

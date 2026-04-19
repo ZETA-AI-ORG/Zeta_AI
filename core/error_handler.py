@@ -10,6 +10,7 @@ from typing import Dict, Any, Optional, Callable, Union
 from dataclasses import dataclass
 from enum import Enum
 import traceback
+from .message_registry import get_system_response, get_company_tone
 
 class ErrorSeverity(Enum):
     LOW = "low"
@@ -35,15 +36,10 @@ class ErrorHandler:
     
     def __init__(self):
         self.error_counts: Dict[str, int] = {}
-        self.fallback_responses = {
-            "groq_api": "Je rencontre des difficultés techniques. Veuillez réessayer dans quelques instants.",
-            "supabase": "Problème de connexion à la base de données. Les données peuvent être temporairement indisponibles.",
-            "meilisearch": "Service de recherche temporairement indisponible. Recherche basique activée.",
-            "rate_limit": "Trop de requêtes simultanées. Veuillez patienter quelques secondes.",
-            "validation": "Votre demande ne peut pas être traitée pour des raisons de sécurité.",
-            "hallucination": "Réponse non fiable détectée. Reformulez votre question pour plus de précision.",
-            "generic": "Une erreur technique s'est produite. Notre équipe travaille à la résoudre."
-        }
+    
+    def get_fallback_message(self, service: str, tone: str = "formal") -> str:
+        """Récupère un message de fallback via le registre dynamique"""
+        return get_system_response("error_tech", tone=tone)
     
     def _classify_error(self, error: Exception, context: str = "") -> ErrorResponse:
         """Classifie une erreur et détermine la réponse appropriée"""
@@ -57,7 +53,7 @@ class ErrorHandler:
                 error_type="rate_limit",
                 error_message="Limite de requêtes atteinte",
                 severity=ErrorSeverity.MEDIUM,
-                fallback_response=self.fallback_responses["rate_limit"],
+                fallback_response=get_system_response("error_tech", tone=get_company_tone()),
                 retry_suggested=True
             )
         
@@ -67,7 +63,7 @@ class ErrorHandler:
                 error_type="timeout",
                 error_message="Délai d'attente dépassé",
                 severity=ErrorSeverity.MEDIUM,
-                fallback_response=self.fallback_responses["generic"],
+                fallback_response=get_system_response("error_tech", tone=get_company_tone()),
                 retry_suggested=True
             )
         
@@ -78,7 +74,7 @@ class ErrorHandler:
                 error_type="connection",
                 error_message=f"Problème de connexion: {service}",
                 severity=ErrorSeverity.HIGH,
-                fallback_response=self.fallback_responses.get(service, self.fallback_responses["generic"]),
+                fallback_response=get_system_response("error_tech", tone=get_company_tone()),
                 retry_suggested=True
             )
         
@@ -98,7 +94,7 @@ class ErrorHandler:
                 error_type="server_error",
                 error_message="Erreur serveur interne",
                 severity=ErrorSeverity.HIGH,
-                fallback_response=self.fallback_responses["generic"],
+                fallback_response=get_system_response("error_tech", tone=get_company_tone()),
                 retry_suggested=True
             )
         
@@ -108,7 +104,7 @@ class ErrorHandler:
                 error_type="unknown",
                 error_message=str(error),
                 severity=ErrorSeverity.MEDIUM,
-                fallback_response=self.fallback_responses["generic"],
+                fallback_response=get_system_response("error_tech", tone=get_company_tone()),
                 retry_suggested=False
             )
     
