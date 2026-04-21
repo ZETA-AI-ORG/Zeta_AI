@@ -22,6 +22,7 @@ class OpenRouterLLMClient:
         max_tokens: int = 600,
         top_p: Optional[float] = None,
         frequency_penalty: Optional[float] = None,
+        presence_penalty: Optional[float] = None,
     ) -> Dict[str, Any]:
         from core.llm_client_openrouter import complete as openrouter_complete
 
@@ -32,6 +33,7 @@ class OpenRouterLLMClient:
             max_tokens=max_tokens,
             top_p=float(top_p) if top_p is not None else 1.0,
             frequency_penalty=frequency_penalty,
+            presence_penalty=presence_penalty,
         )
         return {"response": content, "usage": token_info, "model": token_info.get("model")}
 

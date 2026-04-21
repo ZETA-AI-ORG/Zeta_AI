@@ -3784,26 +3784,18 @@ async def jessica_ragbot_endpoint(req: ChatRequest, request: Request):
 async def amanda_botlive_endpoint(req: ChatRequest, request: Request):
     """
     💬 AMANDA BOTLIVE - Assistante de Précommande (Réservation VIP)
-    
+
     - Prompt: AMANDA PROMPT UNIVERSEL.md (dédié, stable, cache-friendly)
     - Modèle: google/gemini-3.1-pro-preview (MULTIMODAL — images + texte natif)
     - Rôle: Précommande Live TikTok — pas de catalogue, pas de prix
     - Cache prefix: 100% stable (prompt identique entre appels → cache hit maximal)
     - Système C: plan élastique via model_registry (upgrade auto si boost)
-    """
-    import io, contextlib
-    log_stream = io.StringIO()
-    
-    try:
-        with contextlib.redirect_stdout(log_stream):
-            return await _amanda_botlive_internal(req, request, log_stream)
-    except Exception as e:
-        # En cas d'erreur fatale non gérée dans l'interne
-        print(f"❌ [AMANDA] Fatale: {e}")
-        logs = log_stream.getvalue()
-        raise HTTPException(status_code=500, detail={"error": str(e), "server_logs": logs})
 
-async def _amanda_botlive_internal(req: ChatRequest, request: Request, log_stream: io.StringIO):
+    🔍 LOGS : tous les `print(...)` ci-dessous vont directement sur stdout du
+    serveur uvicorn (ou dans la console du simulateur en mode IN-PROCESS).
+    Aucun `redirect_stdout` — c'est l'utilisateur qui consulte les logs
+    (simulator in-process OU terminal serveur).
+    """
     request_id = str(uuid.uuid4())[:8]
     start_time = time.time()
     
@@ -3862,14 +3854,12 @@ async def _amanda_botlive_internal(req: ChatRequest, request: Request, log_strea
         
         full_prompt = f"{system_prompt}\n\n---\n\n{user_block}"
         
-        # 🤖 5. Résolution modèle (Système C + multimodal natif)
-        from core.model_registry import MODEL_INSIGHT, enforce_allowed_model
-        from core.llm_client import complete as llm_complete
+        # 🤖 5. Résolution modèle (Bot Registry v2.0 — dynamique par plan)
+        from core.bot_registry import get_amanda_config
+        from core.model_registry import enforce_allowed_model
+        from core.llm_client import get_llm_client
 
-        # Amanda utilise TOUJOURS Gemini 3.1 Pro (multimodal natif pour Live images)
-        model_name = enforce_allowed_model(MODEL_INSIGHT, context="amandabotlive")
-
-        # 📊 Récupérer plan/boost pour logging (même si modèle fixe pour Amanda)
+        # 📊 Récupérer plan/boost depuis Supabase (registry v2.0 : boost IGNORÉ pour Amanda)
         plan_name = "starter"
         has_boost = False
         try:
@@ -3882,14 +3872,62 @@ async def _amanda_botlive_internal(req: ChatRequest, request: Request, log_strea
         except Exception:
             pass
 
-        print(f"🤖 [AMANDA] model={model_name} | plan={plan_name} boost={has_boost} | prompt={len(full_prompt)} chars")
-        
-        raw_response = await llm_complete(
+        # Résolution via bot_registry (retourne model + params hyperparamètres)
+        amanda_cfg = get_amanda_config(plan_name=plan_name, has_boost=has_boost)
+        requested_model = amanda_cfg["model"]
+        amanda_fallback = amanda_cfg["fallback"]
+        llm_params = amanda_cfg["params"]
+
+        # Garde-fou sécurité (registry principal)
+        model_name = enforce_allowed_model(requested_model, context="amandabotlive")
+        if model_name != requested_model:
+            # Fallback bot_registry si le modèle requis n'est pas autorisé côté model_registry
+            model_name = enforce_allowed_model(amanda_fallback, context="amandabotlive_fallback")
+
+        prompt_len = len(full_prompt)
+        print(
+            f"🤖 [AMANDA][REGISTRY v2.0] model={model_name} | plan={plan_name} "
+            f"boost={has_boost} (ignoré) | fallback={amanda_fallback} | prompt={prompt_len} chars"
+        )
+        print(
+            f"⚙️ [AMANDA][PARAMS] temp={llm_params['temperature']} top_p={llm_params['top_p']} "
+            f"max_tok={llm_params['max_tokens']} freq_pen={llm_params['frequency_penalty']} "
+            f"pres_pen={llm_params['presence_penalty']}"
+        )
+
+        # Appel LLM via client qui retourne tokens + cost (OpenRouter)
+        llm_client_obj = get_llm_client()
+        llm_result = await llm_client_obj.complete(
             prompt=full_prompt,
             model_name=model_name,
-            temperature=0.3,
-            max_tokens=400,
-            top_p=0.9,
+            temperature=llm_params["temperature"],
+            max_tokens=llm_params["max_tokens"],
+            top_p=llm_params["top_p"],
+            frequency_penalty=llm_params["frequency_penalty"],
+            presence_penalty=llm_params["presence_penalty"],
+        )
+        if isinstance(llm_result, dict):
+            raw_response = str(llm_result.get("response") or "")
+            usage = llm_result.get("usage") or {}
+        else:
+            raw_response = str(llm_result or "")
+            usage = {}
+
+        prompt_tokens = int(usage.get("prompt_tokens") or 0)
+        completion_tokens = int(usage.get("completion_tokens") or 0)
+        total_tokens = int(usage.get("total_tokens") or (prompt_tokens + completion_tokens))
+        try:
+            _ptd = (usage.get("usage") or {}).get("prompt_tokens_details") or {}
+            cached_tokens = int(_ptd.get("cached_tokens") or 0)
+        except Exception:
+            cached_tokens = 0
+        try:
+            cost_total = float(usage.get("total_cost") or 0.0)
+        except Exception:
+            cost_total = 0.0
+        print(
+            f"📊 [AMANDA][LLM] tokens in={prompt_tokens} out={completion_tokens} "
+            f"total={total_tokens} cached={cached_tokens} | cost=${cost_total:.6f}"
         )
         
         # 📤 6. Extraction XML (format obligatoire Amanda: <thinking>...</thinking><response>...</response>)
@@ -3911,14 +3949,14 @@ async def _amanda_botlive_internal(req: ChatRequest, request: Request, log_strea
             raw_clean = _re.sub(r"^```(?:xml)?\s*", "", raw_clean, flags=_re.IGNORECASE)
             raw_clean = _re.sub(r"```\s*$", "", raw_clean).strip()
 
-            # Extraire <thinking>
-            m_think = _re.search(r"<thinking>(.*?)</thinking>", raw_clean, flags=_re.DOTALL | _re.IGNORECASE)
+            # Extraire <thinking> — fuzzy-friendly : tolère attributs parasites
+            m_think = _re.search(r"<thinking\b[^>]*>(.*?)</thinking\s*>", raw_clean, flags=_re.DOTALL | _re.IGNORECASE)
             if m_think:
                 thinking_raw = m_think.group(1).strip()
-                # Parser sous-balises pour exposition frontend
+                # Parser sous-balises pour exposition frontend (fuzzy-friendly)
                 for tag in ["q_exact", "catalogue_match", "detected_items_json", "tool_call",
                             "maj", "detection", "priority", "handoff"]:
-                    tm = _re.search(rf"<{tag}>(.*?)</{tag}>", thinking_raw, flags=_re.DOTALL | _re.IGNORECASE)
+                    tm = _re.search(rf"<{tag}\b[^>]*>(.*?)</{tag}\s*>", thinking_raw, flags=_re.DOTALL | _re.IGNORECASE)
                     if tm:
                         thinking_data[tag] = tm.group(1).strip()
 
@@ -3944,17 +3982,27 @@ async def _amanda_botlive_internal(req: ChatRequest, request: Request, log_strea
                 handoff_requested = handoff_str == "true"
                 priority = str(thinking_data.get("priority", "")).strip()
 
-            # Extraire <response>
-            m_resp = _re.search(r"<response>(.*?)</response>", raw_clean, flags=_re.DOTALL | _re.IGNORECASE)
+            # Extraire <response> — fuzzy-friendly (attributs tolérés)
+            m_resp = _re.search(r"<response\b[^>]*>(.*?)</response\s*>", raw_clean, flags=_re.DOTALL | _re.IGNORECASE)
             if m_resp:
                 response_text = m_resp.group(1).strip()
             else:
                 # Fallback: si pas de balise, utiliser tout ce qui suit </thinking>
                 if thinking_raw:
-                    parts = _re.split(r"</thinking>", raw_clean, flags=_re.IGNORECASE)
+                    parts = _re.split(r"</thinking\s*>", raw_clean, flags=_re.IGNORECASE)
                     response_text = parts[-1].strip() if len(parts) > 1 else raw_clean
                 else:
                     response_text = raw_clean
+
+            # Sécuriser detected_items_json (DeepSeek peut malformer le JSON imbriqué)
+            try:
+                import json as _json
+                raw_items = thinking_data.get("detected_items_json", "")
+                if raw_items:
+                    _json.loads(raw_items)  # validation
+            except Exception as _json_err:
+                print(f"⚠️ [AMANDA][PARSER] detected_items_json malformé: {_json_err}")
+                thinking_data["detected_items_json"] = "[]"
 
             # 🤝 Intercepter ##HANDOFF## en fin de réponse
             if "##HANDOFF##" in response_text:
@@ -4091,7 +4139,14 @@ async def _amanda_botlive_internal(req: ChatRequest, request: Request, log_strea
             "multimodal": bool(vision_ocr),
             "processing_time_ms": elapsed_ms,
             "request_id": request_id,
-            "server_logs": log_stream.getvalue()
+            # 📊 Métriques LLM détaillées (pour simulator / dashboard admin)
+            "prompt_len": prompt_len,
+            "prompt_tokens": prompt_tokens,
+            "completion_tokens": completion_tokens,
+            "total_tokens": total_tokens,
+            "cached_tokens": cached_tokens,
+            "cost": cost_total,
+            "usage": usage,
         }
         
     except HTTPException:

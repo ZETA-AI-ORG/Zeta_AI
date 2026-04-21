@@ -374,6 +374,19 @@ class BotlivePromptsManager:
             format_vars['support_hours'] = rag.get("support_hours") or "08:00 - 20:00"
             format_vars['return_policy'] = rag.get("return_policy") or "Échange possible sous 48h (voir conditions)"
             format_vars['delai_message'] = rag.get("delai_message") or "" # Souvent vide, géré par fallback dans le prompt
+
+            # 🏪 Section BOUTIQUE dynamique (online / physical / hybrid)
+            try:
+                from core.boutique_block import build_boutique_block
+                format_vars['boutique_block'] = build_boutique_block(info)
+            except Exception as blk_err:
+                logger.warning(f"⚠️ Fallback boutique_block pour {company_id}: {blk_err}")
+                format_vars['boutique_block'] = (
+                    "Type : Exclusivement en ligne.\n"
+                    "Accès : Aucune visite en magasin n'est possible.\n"
+                    "Service : Nous fonctionnons uniquement par Livraison (Abidjan) "
+                    "ou Expédition (Intérieur) en cas de commande."
+                )
             
         except Exception as e:
             logger.warning(f"⚠️ Erreur lors de l'enrichissement dynamique pour {company_id}: {e}")
@@ -574,6 +587,19 @@ class BotlivePromptsManager:
         support = (rag.get("support") or {}) if isinstance(rag, dict) else {}
         expedition = (rag.get("expedition") or {}) if isinstance(rag, dict) else {}
 
+        # 🏪 Section BOUTIQUE dynamique (online / physical / hybrid)
+        try:
+            from core.boutique_block import build_boutique_block
+            _boutique_block = build_boutique_block(info)
+        except Exception as blk_err:
+            logger.warning(f"⚠️ [V2] Fallback boutique_block: {blk_err}")
+            _boutique_block = (
+                "Type : Exclusivement en ligne.\n"
+                "Accès : Aucune visite en magasin n'est possible.\n"
+                "Service : Nous fonctionnons uniquement par Livraison (Abidjan) "
+                "ou Expédition (Intérieur) en cas de commande."
+            )
+
         bloc2_vars = {
             "bot_name": info.get("ai_name") or "Jessica",
             "shop_name": info.get("company_name") or "Notre Boutique",
@@ -585,6 +611,7 @@ class BotlivePromptsManager:
             "whatsapp_number": support.get("whatsapp") or info.get("whatsapp_phone") or "",
             "support_hours": rag.get("support_hours") or "08:00 - 20:00",
             "return_policy": rag.get("return_policy") or "\u00c9change possible sous 48h",
+            "boutique_block": _boutique_block,
         }
 
         bloc2_filled = bloc2_template

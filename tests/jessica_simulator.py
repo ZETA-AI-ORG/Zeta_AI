@@ -605,12 +605,32 @@ class JessicaSimulator:
             except Exception:
                 pass
 
-            print(f"🤖 RAG (réponse en {duration_ms}ms)")
+            # ═══ Affichage détaillé Jessica ═══
+            d = result if isinstance(result, dict) else {}
+            model_used = d.get("model") or ""
+            plan = d.get("plan") or ""
+            has_boost = bool(d.get("has_boost"))
+            multimodal = bool(d.get("multimodal"))
+            search_method = d.get("search_method") or ""
+            docs_found = d.get("documents_found")
+            confidence = d.get("confidence")
+
+            print(f"🤖 JESSICA (réponse en {duration_ms}ms)")
             print(f"{'='*80}")
-            print(bot_response or "[Aucune réponse] স্ত")
+            print(bot_response or "[Aucune réponse]")
+            print(f"{'='*80}")
+            print(
+                f"🤖 model={model_used} | plan={plan} boost={has_boost} | "
+                f"multimodal={multimodal} | search={search_method} docs={docs_found} conf={confidence}"
+            )
+            print(
+                f"📊 tokens: in={prompt_tokens} out={completion_tokens} "
+                f"total={total_tokens} cached={cached_tokens} | "
+                f"cost=${cost:.6f} | {duration_ms}ms"
+            )
             print(f"{'='*80}\n")
 
-            return result if isinstance(result, dict) else {"raw": result}
+            return d
 
         except Exception as e:
             duration_ms = int((time.time() - start) * 1000)
@@ -641,7 +661,7 @@ class JessicaSimulator:
 
     async def run_interactive(self) -> None:
         print("\n" + "=" * 80)
-        print("🧪 RAG SIMULATOR - Mode Interactif")
+        print("🧪 JESSICA SIMULATOR - Mode Interactif")
         print("=" * 80)
         print("\nCommandes:")
         print("  - Tapez votre message")

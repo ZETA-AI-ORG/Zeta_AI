@@ -71,9 +71,9 @@ def load_amanda_prompt(
     # ════════════════════════════════════════════════════════════════════════
     # Variables à injecter dans le prompt Amanda
     # IMPORTANT: Amanda ne BLOQUE jamais sur paiement (facultatif côté live).
-    # Les seules variables réellement injectées sont celles présentes dans
-    # le prompt : {shop_name}, {wave_number}. Toute autre clé serait orpheline.
     # Toutes STATIQUES par company → cache prefix OK.
+    # Section BOUTIQUE générée dynamiquement via core.boutique_block selon
+    # le champ `boutique_type` (online / physical / hybrid).
     # ════════════════════════════════════════════════════════════════════════
     info = company_info or {}
     rag = (info.get("rag_behavior") or {}) if isinstance(info, dict) else {}
@@ -94,7 +94,7 @@ def load_amanda_prompt(
         or "à demander"
     )
 
-    # WhatsApp support (réservé pour usage futur)
+    # WhatsApp support
     whatsapp_number = (
         support.get("whatsapp")
         or info.get("whatsapp_phone")
@@ -102,11 +102,38 @@ def load_amanda_prompt(
         or ""
     )
 
+    # SAV / Horaires / Politique retour / Délais (présents dans le template Amanda)
+    sav_number = (
+        support.get("sav_number")
+        or support.get("phone")
+        or whatsapp_number
+        or ""
+    )
+    support_hours = rag.get("support_hours") or "08:00 - 20:00"
+    return_policy = rag.get("return_policy") or "Échange possible sous 48h (voir conditions)"
+    delai_message = rag.get("delai_message") or ""
+
+    # 🏪 Section BOUTIQUE dynamique selon boutique_type
+    try:
+        from core.boutique_block import build_boutique_block
+        boutique_block = build_boutique_block(info)
+    except Exception as blk_err:
+        logger.warning(f"⚠️ [AMANDA] Fallback boutique_block: {blk_err}")
+        boutique_block = (
+            "Type : Exclusivement en ligne. Aucune visite en magasin possible.\n"
+            "Service : Livraison (Abidjan) ou Expédition (Intérieur du pays) uniquement."
+        )
+
     variables = {
         "shop_name": shop_name,
         "wave_number": wave_number,
         "whatsapp_number": whatsapp_number,
         "bot_name": "Amanda",
+        "sav_number": sav_number,
+        "support_hours": support_hours,
+        "return_policy": return_policy,
+        "delai_message": delai_message,
+        "boutique_block": boutique_block,
     }
 
     # Remplacement simple {var}
@@ -116,7 +143,8 @@ def load_amanda_prompt(
 
     logger.info(
         f"✅ [AMANDA] Prompt prêt pour company={company_id} "
-        f"(shop={shop_name}, wave={wave_number}, {len(prompt)} chars)"
+        f"(shop={shop_name}, boutique_type={info.get('boutique_type') or 'online'}, "
+        f"wave={wave_number}, sav={sav_number or '∅'}, {len(prompt)} chars)"
     )
     return prompt
 

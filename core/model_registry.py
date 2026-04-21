@@ -51,16 +51,19 @@ DEFAULT_MODEL: str = os.getenv("MODEL_DEFAULT", MODEL_RANG_S)
 # 🛡️ GARDE-FOU (sécurité : refuse tout modèle hors famille autorisée)
 # ═══════════════════════════════════════════════════════════════════════════════
 
-# Préfixes autorisés (cohérence Gemma/Gemini uniquement)
+# Préfixes autorisés (registry v2.0 — Gemma/Gemini + Qwen pour Amanda + DeepSeek pour Jessica Pro/Elite)
 _ALLOWED_PREFIXES = (
     "google/gemma",
     "google/gemini",
+    "qwen/qwen3",          # Amanda (Live TikTok) — registry v2.0
+    "deepseek/deepseek",   # Jessica Pro/Elite — registry v2.0
 )
 
-# Bannis explicitement (legacy Groq / DeepSeek / Mistral / Llama / Qwen / Claude / GPT)
+# Bannis explicitement (legacy Groq / Mistral / Llama / Claude / GPT)
+# Note: Qwen et DeepSeek ont été ré-autorisés dans bot_registry v2.0
 _BANNED_PATTERNS = (
-    "groq/", "deepseek", "mistral", "llama", "meta-llama",
-    "qwen", "anthropic", "claude", "openai", "gpt-",
+    "groq/", "mistral", "llama", "meta-llama",
+    "anthropic", "claude", "openai", "gpt-",
 )
 
 

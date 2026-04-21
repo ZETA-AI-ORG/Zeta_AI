@@ -81,6 +81,7 @@ async def complete(
     temperature: float = 0.7,
     top_p: float = 1.0,
     frequency_penalty: Optional[float] = None,
+    presence_penalty: Optional[float] = None,
     seed: Optional[int] = None,
     response_format: Optional[Dict[str, Any]] = None,
     messages: Optional[list[dict]] = None,
@@ -170,6 +171,12 @@ async def complete(
                 if frequency_penalty is not None:
                     try:
                         body["frequency_penalty"] = float(frequency_penalty)
+                    except Exception:
+                        pass
+
+                if presence_penalty is not None:
+                    try:
+                        body["presence_penalty"] = float(presence_penalty)
                     except Exception:
                         pass
 

@@ -152,6 +152,7 @@ class AmandaSimulator:
             "total_tokens": 0,
             "cached_tokens": 0,
             "cost": 0.0,
+            "prompt_len": 0,
         }
 
     def _json_report_path(self) -> Path:
@@ -275,17 +276,42 @@ class AmandaSimulator:
                      if server_logs:
                          result["server_logs"] = server_logs
 
-            bot_response = (result.get("response") or "").strip() if isinstance(result, dict) else ""
-            thinking = result.get("thinking", {}) if isinstance(result, dict) else {}
-            thinking_raw = result.get("thinking_raw", "") if isinstance(result, dict) else ""
-            model_used = result.get("model", "") if isinstance(result, dict) else ""
-            plan = result.get("plan", "") if isinstance(result, dict) else ""
-            multimodal = result.get("multimodal", False) if isinstance(result, dict) else False
-            zone_detected = result.get("zone_detected", "") if isinstance(result, dict) else ""
-            delivery_cost = result.get("delivery_cost", 0) if isinstance(result, dict) else 0
+            d = result if isinstance(result, dict) else {}
+            bot_response = (d.get("response") or "").strip()
+            thinking = d.get("thinking") or {}
+            thinking_raw = d.get("thinking_raw") or ""
+            model_used = d.get("model") or ""
+            plan = d.get("plan") or ""
+            has_boost = bool(d.get("has_boost"))
+            multimodal = bool(d.get("multimodal"))
+            zone_detected = d.get("zone_detected") or ""
+            delivery_cost = d.get("delivery_cost") or 0
+            detection_slots = d.get("detection_slots") or {}
+            slots_status = d.get("slots_status") or {}
+            dossier_complet = bool(d.get("dossier_complet"))
+            handoff = bool(d.get("handoff"))
+            priority = d.get("priority") or ""
+            prompt_source = d.get("prompt_source") or ""
 
+            prompt_len = int(d.get("prompt_len") or 0)
+            prompt_tokens = int(d.get("prompt_tokens") or 0)
+            completion_tokens = int(d.get("completion_tokens") or 0)
+            total_tokens = int(d.get("total_tokens") or (prompt_tokens + completion_tokens))
+            cached_tokens = int(d.get("cached_tokens") or 0)
+            try:
+                cost = float(d.get("cost") or 0.0)
+            except Exception:
+                cost = 0.0
+
+            # Agrégation
             self._agg["duration_ms"] += duration_ms
             self._agg["turns"] += 1
+            self._agg["prompt_tokens"] += prompt_tokens
+            self._agg["completion_tokens"] += completion_tokens
+            self._agg["total_tokens"] += total_tokens
+            self._agg["cached_tokens"] += cached_tokens
+            self._agg["cost"] += cost
+            self._agg["prompt_len"] += prompt_len
 
             if bot_response:
                 self.add_to_history("AMANDA", bot_response)
@@ -299,7 +325,16 @@ class AmandaSimulator:
                 "model": model_used,
                 "plan": plan,
                 "multimodal": multimodal,
-                "thinking_mode": str(thinking.get("etat", "")) if isinstance(thinking, dict) else "",
+                "prompt_len": prompt_len,
+                "prompt_tokens": prompt_tokens,
+                "completion_tokens": completion_tokens,
+                "total_tokens": total_tokens,
+                "cached_tokens": cached_tokens,
+                "cost": cost,
+                "dossier_complet": dossier_complet,
+                "handoff": handoff,
+                "priority": priority,
+                "zone_detected": zone_detected,
             })
 
             self.json_rows.append({
@@ -308,38 +343,82 @@ class AmandaSimulator:
                 "response": {
                     "text": bot_response,
                     "thinking": thinking,
+                    "thinking_raw": thinking_raw,
+                    "detection_slots": detection_slots,
+                    "slots_status": slots_status,
+                    "dossier_complet": dossier_complet,
+                    "handoff": handoff,
+                    "priority": priority,
+                    "zone_detected": zone_detected,
                     "model": model_used,
                     "plan": plan,
+                    "has_boost": has_boost,
                     "multimodal": multimodal,
+                    "prompt_source": prompt_source,
                 },
                 "timing": {"duration_ms": duration_ms},
+                "usage": {
+                    "prompt_len": prompt_len,
+                    "prompt_tokens": prompt_tokens,
+                    "completion_tokens": completion_tokens,
+                    "total_tokens": total_tokens,
+                    "cached_tokens": cached_tokens,
+                    "cost": cost,
+                },
                 "http": {"status_code": status_code},
             })
 
-            print(f"💬 AMANDA (réponse en {duration_ms}ms | model={model_used})")
+            # ═══ Affichage détaillé (style rag_simulator) ═══
+            print(f"💬 AMANDA (réponse en {duration_ms}ms)")
             print(f"{'='*80}")
             print(bot_response or "[Aucune réponse]")
-            
-            # Affichage des logs serveurs si présents
-            server_logs = result.get("server_logs", "")
-            if server_logs:
-                print(f"\n🖥️  SERVER LOGS (captured at {CHAT_URL}):")
-                print("-" * 40)
-                # Afficher avec indentation légère
-                for line in server_logs.strip().splitlines():
-                    print(f"  | {line}")
-                print("-" * 40)
+            print(f"{'='*80}")
 
+            # Ligne technique compacte
+            print(
+                f"🤖 model={model_used} | plan={plan} boost={has_boost} | "
+                f"multimodal={multimodal} | src={prompt_source}"
+            )
+            print(
+                f"📊 prompt={prompt_len} chars | tokens: in={prompt_tokens} "
+                f"out={completion_tokens} total={total_tokens} cached={cached_tokens} "
+                f"| cost=${cost:.6f} | {duration_ms}ms"
+            )
+
+            # Zone + livraison
             if zone_detected or delivery_cost:
-                print(f"\n🚚 ZONE: {zone_detected} | LIVRAISON: {delivery_cost}F")
+                print(f"🚚 zone={zone_detected or '∅'} | livraison={delivery_cost}F")
+
+            # Slots détectés (résumé visuel)
+            art = "✓" if slots_status.get("article") else "✗"
+            zn = "✓" if slots_status.get("zone") else "✗"
+            tel = "✓" if slots_status.get("telephone") else "✗"
+            pay = "✓" if slots_status.get("paiement_optionnel") else "∅"
+            dossier = "✅" if dossier_complet else "⏳"
+            print(
+                f"🎯 SLOTS: article={art} zone={zn} tel={tel} paiement={pay} "
+                f"→ dossier={dossier} | handoff={handoff} priority={priority or '-'}"
+            )
+
+            # Thinking XML parsed
             if thinking:
-                print(f"\n🧠 THINKING (XML parsed):")
+                print(f"🧠 THINKING:")
                 for k, v in thinking.items():
-                    v_str = str(v)[:120]
-                    print(f"   <{k}>: {v_str}")
+                    v_str = str(v).replace("\n", " ⏎ ")[:200]
+                    print(f"   <{k}> {v_str}")
+
+            # Detection slots détaillés
+            if detection_slots:
+                ds = detection_slots
+                print(
+                    f"🔎 DETECTION: resume='{(ds.get('resume') or '')[:60]}' "
+                    f"zone='{ds.get('zone') or ''}' tel='{ds.get('telephone') or ''}' "
+                    f"paiement='{ds.get('paiement') or ''}'"
+                )
+
             print(f"{'='*80}\n")
 
-            return result if isinstance(result, dict) else {"raw": result}
+            return d
 
         except Exception as e:
             duration_ms = int((time.time() - start) * 1000)
@@ -441,8 +520,13 @@ class AmandaSimulator:
             out_path = Path("tests/amanda_scenario_results.csv")
             out_path.parent.mkdir(parents=True, exist_ok=True)
             with out_path.open("w", encoding="utf-8", newline="") as f:
-                fieldnames = ["turn", "question", "response", "duration_ms", "status_code",
-                              "model", "plan", "multimodal", "thinking_mode"]
+                fieldnames = [
+                    "turn", "question", "response", "duration_ms", "status_code",
+                    "model", "plan", "multimodal",
+                    "prompt_len", "prompt_tokens", "completion_tokens",
+                    "total_tokens", "cached_tokens", "cost",
+                    "dossier_complet", "handoff", "priority", "zone_detected",
+                ]
                 w = csv.DictWriter(f, fieldnames=fieldnames)
                 w.writeheader()
                 for r in self.eval_rows:
@@ -465,7 +549,25 @@ class AmandaSimulator:
         turns = int(self._agg.get("turns") or 0)
         if turns > 0:
             avg_ms = self._agg["duration_ms"] / turns
-            print(f"Moyennes: {turns} tours | duration_ms={avg_ms:.0f}ms/tour")
+            avg_prompt = self._agg["prompt_tokens"] / turns
+            avg_completion = self._agg["completion_tokens"] / turns
+            avg_total = self._agg["total_tokens"] / turns
+            avg_cached = self._agg["cached_tokens"] / turns
+            avg_cost = self._agg["cost"] / turns
+            avg_prompt_len = self._agg["prompt_len"] / turns
+            print(f"Moyennes ({turns} tours):")
+            print(f"- duration_ms     : {avg_ms:.0f}")
+            print(f"- prompt_len      : {avg_prompt_len:.0f} chars")
+            print(f"- prompt_tokens   : {avg_prompt:.1f}")
+            print(f"- completion_tokens: {avg_completion:.1f}")
+            print(f"- total_tokens    : {avg_total:.1f}")
+            print(f"- cached_tokens   : {avg_cached:.1f}")
+            print(f"- cost            : ${avg_cost:.6f}")
+            print(f"\nTotaux:")
+            print(f"- total_tokens    : {self._agg['total_tokens']}")
+            print(f"- total_cost      : ${self._agg['cost']:.6f}")
+            print(f"- total_duration  : {self._agg['duration_ms']}ms")
+            print("")
 
 
 async def main() -> None:
