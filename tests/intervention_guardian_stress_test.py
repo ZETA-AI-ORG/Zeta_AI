@@ -14,7 +14,7 @@ Usage:
 import asyncio
 import os
 import sys
-from datetime import datetime
+from datetime import datetime, timezone
 
 from dotenv import load_dotenv
 
@@ -145,7 +145,7 @@ async def run_stress_test() -> None:
     total_tokens = 0
     print("\n" + "=" * 80)
     print("🧪 INTERVENTION GUARDIAN STRESS TEST")
-    print("Lancement:", datetime.utcnow().isoformat())
+    print("Lancement:", datetime.now(timezone.utc).isoformat())
     print("=" * 80 + "\n")
 
     for idx, sc in enumerate(SCENARIOS, start=1):

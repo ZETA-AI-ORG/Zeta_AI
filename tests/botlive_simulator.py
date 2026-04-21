@@ -15,7 +15,7 @@ Usage:
 import asyncio
 import sys
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 import uuid
 import json
 import csv
@@ -32,7 +32,7 @@ load_dotenv()
 # Configuration test
 TEST_COMPANY_ID = "W27PwOPiblP8TlOrhPcjOtxd0cza"  # Company ID mis à jour
 # Générer un user_id UNIQUE à chaque exécution pour repartir de zéro
-TEST_USER_ID = f"test_botlive_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:6]}"
+TEST_USER_ID = f"test_botlive_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:6]}"
 TEST_COMPANY_NAME = "Test Company"
 
 SCENARIO_PROD_MID = [

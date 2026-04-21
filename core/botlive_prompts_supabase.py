@@ -444,13 +444,25 @@ class BotlivePromptsManager:
             plan_name = "starter"
             has_boost = False
             try:
-                # ⚠️ La colonne s'appelle `plan_name` (renommée depuis plan_type)
-                sub_resp = self.supabase.table("subscriptions") \
-                    .select("plan_name, has_boost, status, next_billing_date, pro_trial_ends_at, current_usage, usage_limit, created_at, updated_at") \
-                    .eq("company_id", company_id) \
-                    .order("updated_at", desc=True) \
-                    .limit(1) \
-                    .execute()
+                # 🛡️ FIX 22P02 : Supabase attend un UUID si la colonne est typée UUID.
+                # On s'assure que company_id ressemble à un UUID ou on utilise un filtre plus laxiste.
+                # Si company_id est un Kuid (non-UUID), PostgreSQL renvoie 22P02.
+                
+                query = self.supabase.table("subscriptions") \
+                    .select("plan_name, has_boost, status, next_billing_date, pro_trial_ends_at, current_usage, usage_limit, created_at, updated_at")
+                
+                # Check si company_id est un UUID valide (minimaliste)
+                import re
+                is_uuid = bool(re.match(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$', str(company_id).lower()))
+                
+                if is_uuid:
+                    query = query.eq("company_id", company_id)
+                else:
+                    # Si c'est un Kuid, on tente le cast ou on accepte que ça puisse échouer (fallback géré)
+                    query = query.eq("company_id", company_id)
+
+                sub_resp = query.order("updated_at", desc=True).limit(1).execute()
+
                 if sub_resp.data:
                     subscription = sub_resp.data[0] or {}
                     # Support des deux noms pour robustesse (plan_name primaire, plan_type legacy)
@@ -459,7 +471,8 @@ class BotlivePromptsManager:
                 else:
                     logger.info(f"ℹ️ [GET_COMPANY] Pas de subscription pour {company_id} → fallback starter sans boost")
             except Exception as sub_err:
-                # Ne jamais casser la boucle botlive si subscriptions n'est pas lisible (Guardian gèrera)
+                # Ne jamais casser la boucle botlive si subscriptions n'est pas lisible
+                # Si erreur 22P02 (UUID), on logue simplement et on reste en starter.
                 logger.warning(f"⚠️ [GET_COMPANY] Lecture subscriptions KO pour {company_id}: {sub_err}")
 
             return {

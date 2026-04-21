@@ -27,7 +27,7 @@ import re
 import sys
 import time
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 import httpx
@@ -126,7 +126,7 @@ CHAT_URL = "http://127.0.0.1:8001/chat"  # resolved at runtime in main()
 TEST_COMPANY_ID = os.getenv("TEST_COMPANY_ID") or DEFAULT_COMPANY_ID
 TEST_COMPANY_NAME = os.getenv("TEST_COMPANY_NAME") or DEFAULT_COMPANY_NAME
 
-TEST_USER_ID = f"test_rag_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:6]}"
+TEST_USER_ID = f"test_rag_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:6]}"
 
 
 SCENARIO_PROD_MID = [
@@ -279,7 +279,7 @@ class RAGSimulator:
         self.turn_number = 0
         self.eval_rows = []
         self.json_rows = []
-        self.started_at_utc = datetime.utcnow().isoformat() + "Z"
+        self.started_at_utc = datetime.now(timezone.utc).isoformat() + "Z"
         self._agg = {
             "duration_ms": 0,
             "turns": 0,
@@ -291,7 +291,7 @@ class RAGSimulator:
         }
 
     def _json_report_path(self) -> Path:
-        ts = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+        ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
         out_dir = Path("tests") / "reports"
         out_dir.mkdir(parents=True, exist_ok=True)
         return out_dir / f"rag_simulator_{ts}_{TEST_USER_ID}.json"
@@ -301,9 +301,9 @@ class RAGSimulator:
             out_path = self._json_report_path()
             payload = {
                 "meta": {
-                    "created_at_utc": datetime.utcnow().isoformat() + "Z",
+                    "created_at_utc": datetime.now(timezone.utc).isoformat() + "Z",
                     "started_at_utc": self.started_at_utc,
-                    "finished_at_utc": datetime.utcnow().isoformat() + "Z",
+                    "finished_at_utc": datetime.now(timezone.utc).isoformat() + "Z",
                     "test_user_id": TEST_USER_ID,
                     "company_id": TEST_COMPANY_ID,
                     "company_name": TEST_COMPANY_NAME,

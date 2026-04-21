@@ -3902,8 +3902,9 @@ async def jessica_ragbot_endpoint(req: ChatRequest, request: Request):
     print(f"{'='*80}\n")
     
     try:
-        # 🎯 SYSTÈME C : Résolution du modèle selon le plan d'abonnement
-        from core.model_registry import resolve_model_for_plan, enforce_allowed_model, MODEL_INSIGHT
+        # 🎯 REGISTRY v2.0 : résolution bot_registry.get_jessica_config
+        from core.bot_registry import get_jessica_config, is_model_allowed
+        from core.model_registry import MODEL_INSIGHT
         from core.simplified_rag_engine import get_simplified_rag_response
 
         # 1. Récupérer plan + boost depuis Supabase (company_info)
@@ -3920,27 +3921,37 @@ async def jessica_ragbot_endpoint(req: ChatRequest, request: Request):
         except Exception as plan_err:
             print(f"⚠️ [JESSICA][PLAN] Fallback starter: {plan_err}")
 
-        # 2. Détection images → si présent, upgrade vers Gemini 3.1 Pro (multimodal)
+        # 2. Détection images → upgrade vers Gemini 3.1 Pro (multimodal)
         images_for_rag = []
         if req.images and len(req.images) > 0:
             images_for_rag = [str(u).strip() for u in req.images if str(u).strip()]
 
-        # 3. Résoudre le modèle (Système C plans élastiques)
-        if images_for_rag:
-            # Multimodal → Gemini 3.1 Pro obligatoire
-            resolved_model = MODEL_INSIGHT  # google/gemini-3.1-pro-preview
-            print(f"🖼️ [JESSICA][MULTIMODAL] Model upgradé → {resolved_model}")
-        else:
-            resolved_model = resolve_model_for_plan(
-                plan_name=plan_name,
-                has_boost=has_boost,
-                is_closing=False,
-                is_pivot=False,
-            )
-            print(f"🎯 [JESSICA][SYSTEM_C] plan={plan_name} boost={has_boost} → {resolved_model}")
+        # 3. Registry v2.0 → model + params complets
+        cfg = get_jessica_config(plan_name=plan_name, has_boost=has_boost)
+        resolved_model = cfg["model"]
+        llm_params = cfg["params"]
+        rank = cfg.get("rank", "?")
+        fallback_model = cfg.get("fallback")
 
-        # 4. Garde-fou sécurité
-        resolved_model = enforce_allowed_model(resolved_model, context="jessicaragbot")
+        if images_for_rag:
+            # Multimodal → Gemini 3.1 Pro obligatoire (override registry)
+            resolved_model = MODEL_INSIGHT
+            print(f"🖼️ [JESSICA][MULTIMODAL] Model upgradé → {resolved_model}")
+
+        # 4. Garde-fou sécurité (registry v2.0)
+        if not is_model_allowed(resolved_model):
+            print(f"🛡️ [JESSICA][GUARD] {resolved_model} non autorisé → fallback {fallback_model}")
+            resolved_model = fallback_model
+
+        print(
+            f"🤖 [JESSICA][REGISTRY v2.0] model={resolved_model} | plan={plan_name} boost={has_boost} "
+            f"rank={rank} | fallback={fallback_model}"
+        )
+        print(
+            f"⚙️ [JESSICA][PARAMS] temp={llm_params.get('temperature')} "
+            f"top_p={llm_params.get('top_p')} max_tok={llm_params.get('max_tokens')} "
+            f"freq_pen={llm_params.get('frequency_penalty')} pres_pen={llm_params.get('presence_penalty')}"
+        )
 
         # 5. Appel RAG sophistiqué (simplified_rag_engine avec prompt_universel_v2.md)
         response = await get_simplified_rag_response(
@@ -3951,6 +3962,7 @@ async def jessica_ragbot_endpoint(req: ChatRequest, request: Request):
             images=images_for_rag,
             request_id=request_id,
             model_name=resolved_model,
+            llm_params=llm_params,
         )
 
         print(f"✅ [JESSICA] Réponse générée en {(time.time() - start_time)*1000:.0f}ms | model={resolved_model}")
@@ -3960,10 +3972,13 @@ async def jessica_ragbot_endpoint(req: ChatRequest, request: Request):
             "confidence": response.get("confidence", 0.95),
             "model": response.get("model", resolved_model),
             "bot_type": "jessica_rag",
+            "prompt_source": "prompt_universel_v2.md",
             "plan": plan_name,
             "has_boost": has_boost,
+            "rank": rank,
             "multimodal": bool(images_for_rag),
             "processing_time_ms": (time.time() - start_time) * 1000,
+            "timings": {"total_endpoint_ms": (time.time() - start_time) * 1000},
             **{k: v for k, v in response.items() if k not in ["response", "confidence", "model"]}
         }
 
@@ -4001,17 +4016,24 @@ async def amanda_botlive_endpoint(req: ChatRequest, request: Request):
     print(f"Message: {(req.message or '')[:100]}")
     print(f"{'='*80}\n")
     
+    # ⏱️ Timings par phase (pour observabilité simulator)
+    _timings: Dict[str, float] = {}
+    _t0 = time.time()
+
     try:
         # 🎭 1. Charger le prompt Amanda dédié (cache prefix stable)
         # 🛡️ BLINDAGE PROD : si le loader crash (ex: rag_behavior string legacy, DB
         # schema drift…), on retombe sur le fichier local pour que l'endpoint ne
         # retourne JAMAIS 500.
         from core.amanda_prompt_loader import load_amanda_prompt
+        _prompt_source = "unknown"
         try:
             system_prompt = load_amanda_prompt(company_id=req.company_id)
+            _prompt_source = "loader"  # déterminé plus finement dans le loader si besoin
         except Exception as _load_err:
             print(f"🚨 [AMANDA] load_amanda_prompt crash → fallback local: {type(_load_err).__name__}: {_load_err}")
             system_prompt = ""
+            _prompt_source = "local_fallback"
             try:
                 from pathlib import Path as _Path
                 _local = _Path(__file__).parent.parent / "AMANDA PROMPT UNIVERSEL.md"
@@ -4039,7 +4061,7 @@ async def amanda_botlive_endpoint(req: ChatRequest, request: Request):
         # 📜 2. Récupérer l'historique conversationnel (léger)
         conversation_history = ""
         try:
-            from database.supabase_client import get_history
+            from core.conversation import get_history
             hist_raw = await get_history(req.company_id, req.user_id)
             if hist_raw:
                 conversation_history = str(hist_raw)[:2000]  # limité pour rapidité
@@ -4355,11 +4377,12 @@ async def amanda_botlive_endpoint(req: ChatRequest, request: Request):
             "zone_detected": zone_name if 'zone_name' in locals() else "",
             "model": model_name,
             "bot_type": "amanda_botlive",
-            "prompt_source": "AMANDA_PROMPT_UNIVERSEL.md",
+            "prompt_source": _prompt_source,
             "plan": plan_name,
             "has_boost": has_boost,
             "multimodal": bool(vision_ocr),
             "processing_time_ms": elapsed_ms,
+            "timings": _timings,
             "request_id": request_id,
             # 📊 Métriques LLM détaillées (pour simulator / dashboard admin)
             "prompt_len": prompt_len,

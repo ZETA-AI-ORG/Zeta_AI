@@ -15,7 +15,7 @@ Usage:
 import asyncio
 import sys
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 import uuid
 import json
 
@@ -28,7 +28,7 @@ load_dotenv()
 
 # Configuration test (même company_id que le simulateur Botlive)
 TEST_COMPANY_ID = "W27PwOPiblP8TlOrhPcjOtxd0cza"
-TEST_USER_ID = f"test_hyde_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:6]}"
+TEST_USER_ID = f"test_hyde_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:6]}"
 
 
 class HydeSimulator:

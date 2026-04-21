@@ -611,8 +611,74 @@ Fais confiance à ton jugement. Tu es Jessica, pas un robot."""
                 return ""
 
             lines = ["PRODUCT_INDEX:"]
-            for pid in products:
-                lines.append(f"- product_id={pid}")
+            
+            # Extract detailed info from plist if available
+            plist = catalog_v2.get("products")
+            if isinstance(plist, list):
+                for p in plist:
+                    if not isinstance(p, dict):
+                        continue
+                    pid = str(p.get("product_id") or "").strip()
+                    if not pid:
+                        continue
+                    
+                    # Extract Name and Variants
+                    name = str(p.get("product_name") or "").strip()
+                    # Extraction robuste des variantes (Scalable)
+                    cat_v2 = p.get("catalog_v2") if isinstance(p.get("catalog_v2"), dict) else p
+                    v_names = []
+                    
+                    # Source 1: Arbre de variantes 'v'
+                    v_tree = cat_v2.get("v")
+                    if isinstance(v_tree, dict):
+                        v_names.extend([str(k) for k in v_tree.keys()])
+                    
+                    # Source 2: Options produit (Structure spécifique constatée en prod)
+                    p_opts = cat_v2.get("product_options")
+                    if isinstance(p_opts, list):
+                        for opt in p_opts:
+                            if isinstance(opt, dict) and isinstance(opt.get("values"), list):
+                                v_names.extend([str(v) for v in opt["values"]])
+                    
+                    # Source 3: Unités (Fallback final)
+                    u_formats = cat_v2.get("unitFormats")
+                    if isinstance(u_formats, dict):
+                        v_names.extend([str(k) for k in u_formats.keys() if k != "piece"])
+
+                    # Nettoyage et dédoublonnage
+                    unique_vars = []
+                    seen = set()
+                    for vn in v_names:
+                        cleaned = str(vn).strip()
+                        if cleaned and cleaned.lower() not in seen:
+                            unique_vars.append(cleaned)
+                            seen.add(cleaned.lower())
+                    
+                    variants_str = f" | Variants: {', '.join(unique_vars[:15])}" if unique_vars else ""
+                    lines.append(f"- ID: {pid} | Name: {name}{variants_str}")
+            
+            # Fallback for mono-product or if plist was empty
+            if len(lines) == 1:
+                pid = str(catalog_v2.get("product_id") or "").strip()
+                if pid:
+                    name = str(catalog_v2.get("product_name") or catalog_v2.get("name") or "").strip()
+                    # Appliquer la même logique robuste pour le mono-produit
+                    v_names = []
+                    v_tree = catalog_v2.get("v")
+                    if isinstance(v_tree, dict): v_names.extend(v_tree.keys())
+                    p_opts = catalog_v2.get("product_options")
+                    if isinstance(p_opts, list):
+                        for opt in p_opts:
+                            if isinstance(opt, dict) and isinstance(opt.get("values"), list):
+                                v_names.extend(opt["values"])
+                    
+                    unique_vars = sorted(list(set([str(v).strip() for v in v_names if v])))
+                    variants_str = f" | Variants: {', '.join(unique_vars[:15])}" if unique_vars else ""
+                    lines.append(f"- ID: {pid} | Name: {name}{variants_str}")
+
+            if len(lines) == 1:
+                return ""
+                
             return "\n".join(lines).strip()
         except Exception:
             return ""

@@ -85,7 +85,8 @@ class SimplifiedRAGEngine:
         company_name: str = "Rue du Grossiste",
         images: Optional[List[str]] = None,
         request_id: str = "unknown",
-        model_name: str = ""
+        model_name: str = "",
+        llm_params: Optional[Dict[str, Any]] = None,
     ) -> SimplifiedRAGResult:
         """
         Traite une requête avec le système simplifié
@@ -3397,17 +3398,28 @@ class SimplifiedRAGEngine:
                 ).strip()
 
             max_tokens_cfg = int(os.getenv("SIMPLIFIED_RAG_MAX_TOKENS", "900"))
-            print(f"🧪 [LLM_CONFIG] model='{model_name}' | max_tokens={max_tokens_cfg}")
-            
+
+            # 🎯 Params LLM : priorité aux params fournis par bot_registry (Jessica RANG_A/S/BOOST),
+            # sinon fallback sur les valeurs historiques (temperature=0.2, top_p=0.7…).
+            _p = llm_params if isinstance(llm_params, dict) else {}
+            _temp = float(_p.get("temperature", 0.2))
+            _top_p = float(_p.get("top_p", 0.7))
+            _max_tok = int(_p.get("max_tokens", max_tokens_cfg))
+            _freq_pen = float(_p.get("frequency_penalty", 0.0))
+            _pres_pen = float(_p.get("presence_penalty", 0.0))
+            print(
+                f"🧪 [LLM_CONFIG] model='{model_name}' | temp={_temp} top_p={_top_p} "
+                f"max_tok={_max_tok} freq_pen={_freq_pen} pres_pen={_pres_pen} | src={'registry' if _p else 'defaults'}"
+            )
+
             llm_result = await self.llm_client.complete(
                 prompt=final_prompt,
                 model_name=model_name,
-                temperature=0.2,
-                top_p=0.7,
-                # 320-420 peut couper la fermeture </response> quand le <thinking> est long.
-                # Rendre configurable (env) + augmenter le défaut pour éviter "<response> tag not found".
-                max_tokens=max_tokens_cfg,
-                frequency_penalty=0.0,
+                temperature=_temp,
+                top_p=_top_p,
+                max_tokens=_max_tok,
+                frequency_penalty=_freq_pen,
+                presence_penalty=_pres_pen,
             )
             
             # 5. Extraction métriques tokens
@@ -3703,10 +3715,11 @@ class SimplifiedRAGEngine:
                         llm_result_2 = await self.llm_client.complete(
                             prompt=final_prompt_2,
                             model_name=model_name,
-                            temperature=0.2,
-                            top_p=0.7,
-                            max_tokens=max_tokens_cfg,
-                            frequency_penalty=0.0,
+                            temperature=_temp,
+                            top_p=_top_p,
+                            max_tokens=_max_tok,
+                            frequency_penalty=_freq_pen,
+                            presence_penalty=_pres_pen,
                         )
 
                         if isinstance(llm_result_2, dict):
@@ -6270,7 +6283,8 @@ async def get_simplified_rag_response(
     company_name: str = "Rue du Grossiste",
     images: Optional[List[str]] = None,
     request_id: str = "unknown",
-    model_name: str = "google/gemini-2.5-flash"
+    model_name: str = "google/gemini-2.5-flash",
+    llm_params: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """
     Interface publique compatible avec l'API existante
@@ -6835,7 +6849,8 @@ async def get_simplified_rag_response(
         company_name=company_name,
         images=images,
         request_id=request_id,
-        model_name=model_name
+        model_name=model_name,
+        llm_params=llm_params,
     )
 
     # IMPORTANT: do not strip the orientation marker here.
