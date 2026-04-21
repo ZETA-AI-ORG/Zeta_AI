@@ -84,7 +84,8 @@ class SimplifiedRAGEngine:
         company_id: str,
         company_name: str = "Rue du Grossiste",
         images: Optional[List[str]] = None,
-        request_id: str = "unknown"
+        request_id: str = "unknown",
+        model_name: str = ""
     ) -> SimplifiedRAGResult:
         """
         Traite une requête avec le système simplifié
@@ -3385,12 +3386,15 @@ class SimplifiedRAGEngine:
             # 4. Génération LLM avec tracking tokens
             print("🤖 [LLM] Génération réponse...")
 
-            # Choix modèle: fallback sur env (OpenRouter) si rien n'est piloté par ailleurs.
-            model_name = (
-                os.getenv("SIMPLIFIED_RAG_MODEL")
-                or os.getenv("LLM_MODEL")
-                or "google/gemini-2.5-flash-lite"
-            ).strip()
+            # Choix modèle: paramètre > env > default
+            if model_name and model_name.strip():
+                model_name = model_name.strip()
+            else:
+                model_name = (
+                    os.getenv("SIMPLIFIED_RAG_MODEL")
+                    or os.getenv("LLM_MODEL")
+                    or "google/gemini-2.5-flash-lite"
+                ).strip()
 
             max_tokens_cfg = int(os.getenv("SIMPLIFIED_RAG_MAX_TOKENS", "900"))
             print(f"🧪 [LLM_CONFIG] model='{model_name}' | max_tokens={max_tokens_cfg}")
@@ -6265,7 +6269,8 @@ async def get_simplified_rag_response(
     user_id: str,
     company_name: str = "Rue du Grossiste",
     images: Optional[List[str]] = None,
-    request_id: str = "unknown"
+    request_id: str = "unknown",
+    model_name: str = "google/gemini-2.5-flash"
 ) -> Dict[str, Any]:
     """
     Interface publique compatible avec l'API existante
@@ -6829,7 +6834,8 @@ async def get_simplified_rag_response(
         company_id=company_id,
         company_name=company_name,
         images=images,
-        request_id=request_id
+        request_id=request_id,
+        model_name=model_name
     )
 
     # IMPORTANT: do not strip the orientation marker here.

@@ -711,13 +711,22 @@ async def process_botlive_message(req: BotliveMessageRequest, background_tasks: 
             except Exception as _over_e:
                 logger.warning("[BOTLIVE][%s] RULE_OVERRIDE error: %s", request_id, _over_e)
 
-        # 🔀 NOUVEAU: passer par le système hybride Botlive (Jessica + HYDE) au lieu de _botlive_handle
+        # 🔀 NOUVEAU: passer par le système hybride Botlive (Amanda - léger sans catalogue)
         from core.botlive_rag_hybrid import botlive_hybrid
-        from core.botlive_prompts_hardcoded import DEEPSEEK_V3_PROMPT
+        from database.supabase_client import get_botlive_prompt  # ✅ Prompt Amanda depuis Supabase
         from Zeta_AI import app as zeta_app
 
-        # Extraire le numéro entreprise depuis le prompt hardcodé (même logique que l'endpoint /chat)
-        botlive_prompt_template = DEEPSEEK_V3_PROMPT
+        # 🎯 AMANDA: Récupérer le prompt léger depuis Supabase (pas de catalogue produit)
+        try:
+            botlive_prompt_template = await get_botlive_prompt(req.company_id)
+            logger.info("[AMANDA] ✅ Prompt Supabase chargé (%s chars)", len(botlive_prompt_template))
+        except Exception as e:
+            logger.warning("[AMANDA] ⚠️ Fallback prompt minimal - erreur: %s", e)
+            # Prompt minimal Amanda sans catalogue (léger)
+            botlive_prompt_template = f"""Tu es Amanda, l'assistante commerciale de l'entreprise {req.company_id}.
+Tu aides les clients avec leurs questions. Sois concise et professionnelle.
+Numéro WhatsApp: À COMPLÉTER
+"""
         company_phone = None
         if botlive_prompt_template:
             import re

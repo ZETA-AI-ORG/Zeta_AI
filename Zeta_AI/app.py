@@ -1,4 +1,4 @@
-﻿import warnings
+import warnings
 warnings.filterwarnings("ignore")
 from dotenv import load_dotenv
 load_dotenv()
@@ -2546,10 +2546,13 @@ async def chat_endpoint(req: ChatRequest, request: Request):
             from database.supabase_client import get_botlive_prompt
             print(f"[BOTLIVE] ✅ get_botlive_prompt importé")
             
-            # Utiliser les prompts hardcodés pour extraction du numéro
-            from core.botlive_prompts_hardcoded import DEEPSEEK_V3_PROMPT
-            botlive_prompt_template = DEEPSEEK_V3_PROMPT
-            print(f"[BOTLIVE] 🔧 Utilisation prompt hardcodé pour extraction numéro")
+            # Récupérer le prompt Supabase pour extraction du numéro
+            try:
+                botlive_prompt_template = await get_botlive_prompt(req.company_id, "hybrid_default")
+                print(f"[BOTLIVE] 🔧 Prompt Supabase récupéré pour extraction numéro")
+            except Exception as prompt_err:
+                print(f"[BOTLIVE] ⚠️ Erreur récupération prompt: {prompt_err}")
+                botlive_prompt_template = ""
             
             # Extraire le numéro de téléphone de l'entreprise du prompt
             # Gère TOUS les formats: "📞 +225 07 87 36 07 57 ☎️", "WhatsApp: 0787360757", etc.
@@ -3678,3 +3681,567 @@ async def live_process_order(req: ProcessOrderRequest):
             except Exception:
                 pass
 
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 🔥 ENDPOINTS DÉDIÉS : Jessica RAG vs Amanda Botlive
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@app.post("/jessicaragbot")
+@limiter.limit("300/minute")
+async def jessica_ragbot_endpoint(req: ChatRequest, request: Request):
+    """
+    🤖 JESSICA RAG BOT - Système sophistiqué avec RAG
+    
+    - Modèle: google/gemma-4-31b-it (RANG S)
+    - Prompt: prompt_universel_v2.md + catalogue produit
+    - Capacités: RAG, calcul prix, gestion panier, validation commande
+    """
+    request_id = str(uuid.uuid4())[:8]
+    start_time = time.time()
+    
+    print(f"\n{'='*80}")
+    print(f"🤖 [JESSICA RAG BOT] Endpoint dédié")
+    print(f"{'='*80}")
+    print(f"User: {req.user_id}")
+    print(f"Message: {req.message}")
+    print(f"{'='*80}\n")
+    
+    try:
+        # 🎯 SYSTÈME C : Résolution du modèle selon le plan d'abonnement
+        from core.model_registry import resolve_model_for_plan, enforce_allowed_model, MODEL_INSIGHT
+        from core.simplified_rag_engine import get_simplified_rag_response
+
+        # 1. Récupérer plan + boost depuis Supabase (company_info)
+        plan_name = "starter"
+        has_boost = False
+        try:
+            from core.botlive_prompts_supabase import get_prompts_manager
+            pm = get_prompts_manager()
+            if pm:
+                info = pm.get_company_info(req.company_id) or {}
+                plan_name = str(info.get("plan_name") or "starter").lower()
+                has_boost = bool(info.get("has_boost", False))
+                print(f"📊 [JESSICA][PLAN] company={req.company_id} plan={plan_name} boost={has_boost}")
+        except Exception as plan_err:
+            print(f"⚠️ [JESSICA][PLAN] Fallback starter: {plan_err}")
+
+        # 2. Détection images → si présent, upgrade vers Gemini 3.1 Pro (multimodal)
+        images_for_rag = []
+        if req.images and len(req.images) > 0:
+            images_for_rag = [str(u).strip() for u in req.images if str(u).strip()]
+
+        # 3. Résoudre le modèle (Système C plans élastiques)
+        if images_for_rag:
+            # Multimodal → Gemini 3.1 Pro obligatoire
+            resolved_model = MODEL_INSIGHT  # google/gemini-3.1-pro-preview
+            print(f"🖼️ [JESSICA][MULTIMODAL] Model upgradé → {resolved_model}")
+        else:
+            resolved_model = resolve_model_for_plan(
+                plan_name=plan_name,
+                has_boost=has_boost,
+                is_closing=False,
+                is_pivot=False,
+            )
+            print(f"🎯 [JESSICA][SYSTEM_C] plan={plan_name} boost={has_boost} → {resolved_model}")
+
+        # 4. Garde-fou sécurité
+        resolved_model = enforce_allowed_model(resolved_model, context="jessicaragbot")
+
+        # 5. Appel RAG sophistiqué (simplified_rag_engine avec prompt_universel_v2.md)
+        response = await get_simplified_rag_response(
+            query=req.message or "",
+            company_id=req.company_id,
+            user_id=req.user_id,
+            company_name="Rue du Grossiste",
+            images=images_for_rag,
+            request_id=request_id,
+            model_name=resolved_model,
+        )
+
+        print(f"✅ [JESSICA] Réponse générée en {(time.time() - start_time)*1000:.0f}ms | model={resolved_model}")
+
+        return {
+            "response": response.get("response", ""),
+            "confidence": response.get("confidence", 0.95),
+            "model": response.get("model", resolved_model),
+            "bot_type": "jessica_rag",
+            "plan": plan_name,
+            "has_boost": has_boost,
+            "multimodal": bool(images_for_rag),
+            "processing_time_ms": (time.time() - start_time) * 1000,
+            **{k: v for k, v in response.items() if k not in ["response", "confidence", "model"]}
+        }
+
+    except Exception as e:
+        print(f"❌ [JESSICA] Erreur: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Jessica RAG error: {str(e)}")
+
+
+@app.post("/amandabotlive")
+@limiter.limit("300/minute")
+async def amanda_botlive_endpoint(req: ChatRequest, request: Request):
+    """
+    💬 AMANDA BOTLIVE - Assistante de Précommande (Réservation VIP)
+    
+    - Prompt: AMANDA PROMPT UNIVERSEL.md (dédié, stable, cache-friendly)
+    - Modèle: google/gemini-3.1-pro-preview (MULTIMODAL — images + texte natif)
+    - Rôle: Précommande Live TikTok — pas de catalogue, pas de prix
+    - Cache prefix: 100% stable (prompt identique entre appels → cache hit maximal)
+    - Système C: plan élastique via model_registry (upgrade auto si boost)
+    """
+    import io, contextlib
+    log_stream = io.StringIO()
+    
+    try:
+        with contextlib.redirect_stdout(log_stream):
+            return await _amanda_botlive_internal(req, request, log_stream)
+    except Exception as e:
+        # En cas d'erreur fatale non gérée dans l'interne
+        print(f"❌ [AMANDA] Fatale: {e}")
+        logs = log_stream.getvalue()
+        raise HTTPException(status_code=500, detail={"error": str(e), "server_logs": logs})
+
+async def _amanda_botlive_internal(req: ChatRequest, request: Request, log_stream: io.StringIO):
+    request_id = str(uuid.uuid4())[:8]
+    start_time = time.time()
+    
+    print(f"\n{'='*80}")
+    print(f"💬 [AMANDA BOTLIVE] Endpoint dédié — Réservation Prioritaire")
+    print(f"{'='*80}")
+    print(f"User: {req.user_id} | Company: {req.company_id}")
+    print(f"Message: {(req.message or '')[:100]}")
+    print(f"{'='*80}\n")
+    
+    try:
+        # 🎭 1. Charger le prompt Amanda dédié (cache prefix stable)
+        from core.amanda_prompt_loader import load_amanda_prompt
+        system_prompt = load_amanda_prompt(company_id=req.company_id)
+        
+        if not system_prompt:
+            raise HTTPException(status_code=500, detail="Prompt Amanda introuvable")
+        
+        # 📜 2. Récupérer l'historique conversationnel (léger)
+        conversation_history = ""
+        try:
+            from database.supabase_client import get_history
+            hist_raw = await get_history(req.company_id, req.user_id)
+            if hist_raw:
+                conversation_history = str(hist_raw)[:2000]  # limité pour rapidité
+        except Exception as hist_err:
+            print(f"⚠️ [AMANDA] Historique indisponible: {hist_err}")
+        
+        # 🖼️ 3. Vision OCR si image présente
+        vision_ocr = ""
+        if req.images and len(req.images) > 0:
+            try:
+                from Zeta_AI.vision_gemini import analyze_product_with_gemini
+                img_url = str(req.images[0]).strip()
+                vres, _ = await analyze_product_with_gemini(
+                    image_url=img_url,
+                    user_message=req.message or "",
+                    company_phone=None,
+                    required_amount=0,
+                )
+                if isinstance(vres, dict):
+                    vision_ocr = f"[VISION_OCR: {vres.get('raw', '')[:500]}]"
+                print(f"🖼️ [AMANDA] Vision OCR: {len(vision_ocr)} chars")
+            except Exception as v_err:
+                print(f"⚠️ [AMANDA] Vision error: {v_err}")
+        
+        # 🧱 4. Construction du prompt final (SYSTEM stable + USER dynamique)
+        # Le prefix `system_prompt` est IDENTIQUE entre appels → cache hit maximal
+        user_block_parts = []
+        if conversation_history:
+            user_block_parts.append(f"## 📜 HISTORIQUE\n{conversation_history}")
+        if vision_ocr:
+            user_block_parts.append(vision_ocr)
+        user_block_parts.append(f"## 💬 MESSAGE CLIENT\n{req.message or ''}")
+        user_block = "\n\n".join(user_block_parts)
+        
+        full_prompt = f"{system_prompt}\n\n---\n\n{user_block}"
+        
+        # 🤖 5. Résolution modèle (Système C + multimodal natif)
+        from core.model_registry import MODEL_INSIGHT, enforce_allowed_model
+        from core.llm_client import complete as llm_complete
+
+        # Amanda utilise TOUJOURS Gemini 3.1 Pro (multimodal natif pour Live images)
+        model_name = enforce_allowed_model(MODEL_INSIGHT, context="amandabotlive")
+
+        # 📊 Récupérer plan/boost pour logging (même si modèle fixe pour Amanda)
+        plan_name = "starter"
+        has_boost = False
+        try:
+            from core.botlive_prompts_supabase import get_prompts_manager
+            pm = get_prompts_manager()
+            if pm:
+                info = pm.get_company_info(req.company_id) or {}
+                plan_name = str(info.get("plan_name") or "starter").lower()
+                has_boost = bool(info.get("has_boost", False))
+        except Exception:
+            pass
+
+        print(f"🤖 [AMANDA] model={model_name} | plan={plan_name} boost={has_boost} | prompt={len(full_prompt)} chars")
+        
+        raw_response = await llm_complete(
+            prompt=full_prompt,
+            model_name=model_name,
+            temperature=0.3,
+            max_tokens=400,
+            top_p=0.9,
+        )
+        
+        # 📤 6. Extraction XML (format obligatoire Amanda: <thinking>...</thinking><response>...</response>)
+        # ⚠️ RÈGLE ARCHITECTURALE AMANDA :
+        # Le dossier complet côté Amanda = ARTICLE + ZONE + TÉLÉPHONE (3 cibles).
+        # Le PAIEMENT est FACULTATIF côté Live — Amanda ne bloque JAMAIS dessus.
+        # Le paiement final est géré par la boutique lors de l'appel post-Live.
+        # → detection_slots["paiement"] est un champ d'observation, jamais un bloqueur.
+        response_text = ""
+        thinking_raw = ""
+        thinking_data: Dict[str, Any] = {}
+        detection_slots: Dict[str, str] = {"resume": "", "zone": "", "telephone": "", "paiement": ""}
+        handoff_requested = False
+        priority = ""
+        try:
+            import re as _re
+            raw_clean = str(raw_response or "").strip()
+            # Nettoyer les balises markdown
+            raw_clean = _re.sub(r"^```(?:xml)?\s*", "", raw_clean, flags=_re.IGNORECASE)
+            raw_clean = _re.sub(r"```\s*$", "", raw_clean).strip()
+
+            # Extraire <thinking>
+            m_think = _re.search(r"<thinking>(.*?)</thinking>", raw_clean, flags=_re.DOTALL | _re.IGNORECASE)
+            if m_think:
+                thinking_raw = m_think.group(1).strip()
+                # Parser sous-balises pour exposition frontend
+                for tag in ["q_exact", "catalogue_match", "detected_items_json", "tool_call",
+                            "maj", "detection", "priority", "handoff"]:
+                    tm = _re.search(rf"<{tag}>(.*?)</{tag}>", thinking_raw, flags=_re.DOTALL | _re.IGNORECASE)
+                    if tm:
+                        thinking_data[tag] = tm.group(1).strip()
+
+                # Parser finement <detection> pour extraire les 4 slots
+                det_text = thinking_data.get("detection", "")
+                if det_text:
+                    for key, pattern in [
+                        ("resume",    r"(?:-\s*)?R[ÉE]SUM[ÉE]\s*:\s*(.+?)(?:\n|$)"),
+                        ("zone",      r"(?:-\s*)?ZONE\s*:\s*(.+?)(?:\n|$)"),
+                        ("telephone", r"(?:-\s*)?T[ÉE]L[ÉE]PHONE\s*:\s*(.+?)(?:\n|$)"),
+                        ("paiement",  r"(?:-\s*)?PAIEMENT\s*:\s*(.+?)(?:\n|$)"),
+                    ]:
+                        mm = _re.search(pattern, det_text, flags=_re.IGNORECASE)
+                        if mm:
+                            val = mm.group(1).strip().rstrip("]").lstrip("[")
+                            # Normaliser "∅" ou "none" → ""
+                            if val.strip() in {"∅", "None", "none", "null", "N/A", "n/a"}:
+                                val = ""
+                            detection_slots[key] = val
+
+                # handoff depuis thinking
+                handoff_str = str(thinking_data.get("handoff", "")).strip().lower()
+                handoff_requested = handoff_str == "true"
+                priority = str(thinking_data.get("priority", "")).strip()
+
+            # Extraire <response>
+            m_resp = _re.search(r"<response>(.*?)</response>", raw_clean, flags=_re.DOTALL | _re.IGNORECASE)
+            if m_resp:
+                response_text = m_resp.group(1).strip()
+            else:
+                # Fallback: si pas de balise, utiliser tout ce qui suit </thinking>
+                if thinking_raw:
+                    parts = _re.split(r"</thinking>", raw_clean, flags=_re.IGNORECASE)
+                    response_text = parts[-1].strip() if len(parts) > 1 else raw_clean
+                else:
+                    response_text = raw_clean
+
+            # 🤝 Intercepter ##HANDOFF## en fin de réponse
+            if "##HANDOFF##" in response_text:
+                handoff_requested = True
+                response_text = response_text.replace("##HANDOFF##", "").strip()
+        except Exception as parse_err:
+            print(f"⚠️ [AMANDA] Parse XML échoué (utilisation raw): {parse_err}")
+            response_text = str(raw_response or "").strip()
+
+        # 🚚 6bis. INTERCEPTEUR §LIVRAISON + validation zone floue
+        try:
+            from core.delivery_zone_extractor import extract_delivery_zone_and_cost
+
+            # 1) Tenter d'extraire la zone depuis le message client
+            zone_info = extract_delivery_zone_and_cost(req.message or "")
+            liv_cost = None
+            zone_name = ""
+            if isinstance(zone_info, dict):
+                liv_cost = zone_info.get("cost")
+                zone_name = zone_info.get("name") or ""
+
+            if "§LIVRAISON" in response_text:
+                if liv_cost and int(liv_cost) > 0 and zone_name:
+                    # Zone précise → remplacer §LIVRAISON par le coût réel
+                    response_text = response_text.replace("§LIVRAISON", f"{int(liv_cost)}F")
+                    print(f"🚚 [AMANDA][§LIVRAISON] remplacé par {liv_cost}F (zone={zone_name})")
+                else:
+                    # Zone floue (ex: "Abidjan" sans quartier) → court-circuit proactif
+                    response_text = (
+                        "C'est noté pour l'article ! 😍 Mais j'ai besoin d'une petite précision pour la livraison : "
+                        "vous êtes dans quelle COMMUNE et quel QUARTIER précisément ? "
+                        "Le tarif varie selon la zone exacte. 🙏"
+                    )
+                    print(f"⚠️ [AMANDA][§LIVRAISON] Court-circuit zone floue (zone_info={zone_info})")
+        except Exception as liv_err:
+            print(f"⚠️ [AMANDA][§LIVRAISON] Erreur intercepteur: {liv_err}")
+
+        # 🎯 Calcul DOSSIER COMPLET (3 cibles — PAIEMENT EXCLU par design Amanda)
+        # Règle : article (resume) + zone (commune+quartier) + téléphone
+        has_article = bool(detection_slots.get("resume") or vision_ocr)
+        has_zone = bool(detection_slots.get("zone"))
+        has_phone = bool(detection_slots.get("telephone"))
+        dossier_complet = has_article and has_zone and has_phone
+
+        elapsed_ms = (time.time() - start_time) * 1000
+        print(
+            f"✅ [AMANDA] Réponse générée en {elapsed_ms:.0f}ms | len={len(response_text)} | "
+            f"dossier_complet={dossier_complet} (art={has_article} zone={has_zone} tel={has_phone}) | "
+            f"handoff={handoff_requested} priority={priority}"
+        )
+        
+        # 💾 7. Sauvegarder dans l'historique
+        try:
+            await save_message_supabase(
+                req.company_id, req.user_id, "user",
+                {"text": req.message or "", "images": req.images or []}
+            )
+            await save_message_supabase(
+                req.company_id, req.user_id, "assistant",
+                {"text": response_text}
+            )
+        except Exception as save_err:
+            print(f"⚠️ [AMANDA] Save error: {save_err}")
+
+        # 🔔 8. NOTIFICATION PRÉCOMMANDE (si handoff ou dossier complet)
+        # Déclenche operator_notification (table Supabase) + push Web Push VAPID
+        # → page /commandes affiche la précommande + bouton "Poursuivre conversation"
+        if handoff_requested or dossier_complet:
+            try:
+                from core.operator_notifications import save_operator_notification
+                amanda_summary = {
+                    "source": "amanda_botlive",
+                    "article": detection_slots.get("resume") or (vision_ocr or "")[:200],
+                    "zone": detection_slots.get("zone") or zone_name,
+                    "telephone": detection_slots.get("telephone"),
+                    "paiement": detection_slots.get("paiement"),  # facultatif (info seulement)
+                    "priority": priority,
+                    "dossier_complet": dossier_complet,
+                    "handoff": handoff_requested,
+                }
+                save_operator_notification(
+                    company_id=req.company_id,
+                    user_id=req.user_id,
+                    message=(req.message or "")[:500],
+                    message_type="precommande",
+                    order_summary=amanda_summary,
+                )
+                print(f"🔔 [AMANDA] Notif precommande envoyée | user={req.user_id[:12]}")
+
+                # Web Push (non bloquant)
+                try:
+                    from routes.notifications import send_push_to_company
+                    push_title = "📝 Nouvelle précommande Live"
+                    push_body = (
+                        f"{detection_slots.get('zone') or zone_name or 'zone ∅'} — "
+                        f"{detection_slots.get('resume', '')[:60]}"
+                    )
+                    await send_push_to_company(
+                        company_id=req.company_id,
+                        title=push_title,
+                        body=push_body,
+                        data={
+                            "type": "precommande",
+                            "user_id": req.user_id,
+                            "source": "amanda_botlive",
+                            "dossier_complet": dossier_complet,
+                        },
+                    )
+                except Exception as push_err:
+                    print(f"⚠️ [AMANDA] Push error (non bloquant): {push_err}")
+            except Exception as notif_err:
+                print(f"⚠️ [AMANDA] Notif precommande error: {notif_err}")
+
+        return {
+            "response": response_text,
+            "thinking": thinking_data,
+            "thinking_raw": thinking_raw,
+            "detection_slots": detection_slots,
+            "priority": priority,
+            "handoff": handoff_requested,
+            "dossier_complet": dossier_complet,
+            "slots_status": {
+                "article": has_article,
+                "zone": has_zone,
+                "telephone": has_phone,
+                "paiement_optionnel": bool(detection_slots.get("paiement")),
+            },
+            "zone_detected": zone_name if 'zone_name' in locals() else "",
+            "model": model_name,
+            "bot_type": "amanda_botlive",
+            "prompt_source": "AMANDA_PROMPT_UNIVERSEL.md",
+            "plan": plan_name,
+            "has_boost": has_boost,
+            "multimodal": bool(vision_ocr),
+            "processing_time_ms": elapsed_ms,
+            "request_id": request_id,
+            "server_logs": log_stream.getvalue()
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ [AMANDA] Erreur: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Amanda Botlive error: {str(e)}")
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# 🧠 ADMIN — Gestion des prompts bots (Supabase `prompt_bots` + Redis)
+# ═══════════════════════════════════════════════════════════════════════
+
+@app.post("/api/admin/prompts/invalidate/{bot_type}")
+async def admin_invalidate_prompt_cache(bot_type: str):
+    """
+    Invalide le cache Redis + in-memory pour un bot_type donné.
+    Le prochain appel relira Supabase (source de vérité).
+
+    Exemple: `POST /api/admin/prompts/invalidate/amanda`
+    """
+    try:
+        from core.prompt_bots_loader import invalidate_cache
+        ok = invalidate_cache(bot_type)
+        return {
+            "status": "ok",
+            "bot_type": bot_type,
+            "invalidated": ok,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Invalidate error: {str(e)}")
+
+
+@app.post("/api/admin/prompts/sync/{bot_type}")
+async def admin_sync_prompt_from_file(bot_type: str, version: str = "1.0"):
+    """
+    Re-upload le fichier .md local vers Supabase (UPSERT sur bot_type).
+    Invalide automatiquement le cache Redis après succès.
+
+    Exemple: `POST /api/admin/prompts/sync/amanda?version=1.2`
+
+    ⚠️ Nécessite que le fichier soit accessible côté backend.
+    """
+    try:
+        from pathlib import Path
+        from core.prompt_bots_loader import upload_prompt_to_supabase, _LOCAL_FALLBACK_FILES
+
+        path = _LOCAL_FALLBACK_FILES.get(bot_type.lower())
+        if not path:
+            raise HTTPException(
+                status_code=404,
+                detail=f"bot_type inconnu: {bot_type} (disponibles: {list(_LOCAL_FALLBACK_FILES.keys())})",
+            )
+        if not path.exists():
+            raise HTTPException(status_code=404, detail=f"Fichier introuvable: {path}")
+
+        content = path.read_text(encoding="utf-8").strip()
+        if not content:
+            raise HTTPException(status_code=422, detail=f"Fichier vide: {path}")
+
+        ok = upload_prompt_to_supabase(
+            bot_type=bot_type,
+            prompt_content=content,
+            version=version,
+            is_active=True,
+        )
+        if not ok:
+            raise HTTPException(status_code=500, detail="Upload Supabase failed (voir logs)")
+
+        return {
+            "status": "ok",
+            "bot_type": bot_type,
+            "version": version,
+            "source_file": str(path),
+            "length": len(content),
+            "cache_invalidated": True,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Sync error: {str(e)}")
+
+
+@app.get("/api/admin/prompts/status")
+async def admin_prompts_status():
+    """
+    Retourne l'état des prompts bots (version Supabase, longueur, cache Redis).
+    Utile pour dashboard admin.
+    """
+    try:
+        import os
+        import httpx
+        from core.prompt_bots_loader import _LOCAL_FALLBACK_FILES, _get_redis, _REDIS_KEY_PREFIX
+
+        supabase_url = os.getenv("SUPABASE_URL", "")
+        supabase_key = os.getenv("SUPABASE_SERVICE_KEY") or os.getenv("SUPABASE_KEY", "")
+
+        bots_info = []
+        redis_client = _get_redis()
+
+        for bot_type in _LOCAL_FALLBACK_FILES.keys():
+            info = {"bot_type": bot_type}
+
+            # Supabase
+            if supabase_url and supabase_key:
+                try:
+                    resp = httpx.get(
+                        f"{supabase_url}/rest/v1/prompt_bots",
+                        params={
+                            "bot_type": f"eq.{bot_type}",
+                            "select": "version,is_active,updated_at",
+                            "limit": "1",
+                        },
+                        headers={
+                            "apikey": supabase_key,
+                            "Authorization": f"Bearer {supabase_key}",
+                        },
+                        timeout=5.0,
+                    )
+                    rows = resp.json() if resp.status_code == 200 else []
+                    if rows:
+                        info["supabase_version"] = rows[0].get("version")
+                        info["supabase_active"] = rows[0].get("is_active")
+                        info["supabase_updated_at"] = rows[0].get("updated_at")
+                    else:
+                        info["supabase_version"] = None
+                except Exception as e:
+                    info["supabase_error"] = str(e)[:100]
+
+            # Redis
+            if redis_client is not None:
+                try:
+                    val = redis_client.get(f"{_REDIS_KEY_PREFIX}{bot_type}")
+                    info["redis_cached"] = bool(val)
+                    info["redis_length"] = len(val) if val else 0
+                    ttl = redis_client.ttl(f"{_REDIS_KEY_PREFIX}{bot_type}")
+                    info["redis_ttl_seconds"] = ttl if ttl > 0 else None
+                except Exception as e:
+                    info["redis_error"] = str(e)[:100]
+            else:
+                info["redis_cached"] = False
+
+            # Local fallback file
+            path = _LOCAL_FALLBACK_FILES.get(bot_type)
+            info["local_file_exists"] = bool(path and path.exists())
+
+            bots_info.append(info)
+
+        return {"status": "ok", "bots": bots_info}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Status error: {str(e)}")

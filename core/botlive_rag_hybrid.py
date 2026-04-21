@@ -3791,6 +3791,17 @@ class BotliveRAGHybrid:
                 became_complete = bool(state_after.is_complete()) and not bool(state_was_complete)
 
                 if became_complete and not python_short_circuit:
+                    # On utilise le coût de livraison s'il est connu
+                    liv_cost = context.get("delivery_cost")
+                    if liv_cost is None:
+                        try:
+                            from core.delivery_zone_extractor import extract_delivery_zone_and_cost
+                            zi = extract_delivery_zone_and_cost(str(state_after.zone or ""))
+                            liv_cost = zi.get("cost") if zi else None
+                        except Exception:
+                            liv_cost = None
+                    
+                    liv_str = f"{liv_cost}F" if liv_cost and int(liv_cost) > 0 else "à confirmer"
                     montant = 2000
                     try:
                         paiement_str = getattr(state_after, "paiement", "") or ""
@@ -3808,17 +3819,34 @@ class BotliveRAGHybrid:
 
                     processed_response = (
                         f"✅PARFAIT Commande confirmée 😊\n"
-                        f"Livraison prévue {delai}, acompte de {montant} F déjà versé.\n"
+                        f"Livraison {liv_str} prévue {delai}, acompte de {montant} F déjà versé.\n"
                         "Nous vous rappellerons bientôt pour les détails et le coût total.\n"
                         "Veuillez ne pas répondre à ce message."
                     )
-                    logger.info(
-                        f"✅ [FINALISATION AUTO] Commande complétée sur ce tour pour {user_id} "
-                        f"(montant={montant}, delai={delai})"
-                    )
+                    logger.info(f"✅ [FINALISATION AUTO] Commande complétée pour {user_id} (livraison={liv_str})")
             except Exception as e:
                 logger.debug(f"⚠️ Vérification finalisation échouée: {e}")
             
+            # ═══ ÉTAPE 6.55: GESTION PLACEHOLDER §LIVRAISON & VALIDATION ZONE ═══
+            try:
+                if "§LIVRAISON" in processed_response:
+                    liv_cost = context.get("delivery_cost")
+                    
+                    if liv_cost and int(liv_cost) > 0:
+                        replacement = f"{liv_cost}F"
+                        processed_response = processed_response.replace("§LIVRAISON", replacement)
+                    else:
+                        # Court-circuit si zone ambiguë (coût 0 ou inconnu)
+                        processed_response = (
+                            "C'est noté pour l'article ! 😍 Mais j'ai besoin d'une petite précision pour la livraison : "
+                            "vous êtes dans quelle COMMUNE et quel QUARTIER précisément ? "
+                            "Le tarif varie selon la zone exacte. 🙏"
+                        )
+                        if isinstance(router_metrics, dict):
+                            router_metrics["placeholder_short_circuit"] = True
+            except Exception as e:
+                logger.error(f"❌ Erreur intercepteur §LIVRAISON: {e}")
+
             # ═══ ÉTAPE 6.6: NETTOYAGE TRACES TECHNIQUES ═══
             processed_response = self._clean_response(processed_response)
 

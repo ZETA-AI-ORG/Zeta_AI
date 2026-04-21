@@ -74,9 +74,14 @@ class SendTestPushRequest(BaseModel):
 async def get_notifications(
     company_id: str,
     unread_only: bool = False,
+    message_type: Optional[str] = None,  # 🔍 Filtre: precommande, post_order, support, etc.
     limit: int = 50,
 ):
-    """Fetch operator notifications for a company."""
+    """Fetch operator notifications for a company.
+    
+    Args:
+        message_type: Filtre par type (ex: "precommande" pour Amanda, "post_order" pour Jessica)
+    """
     import httpx
 
     url, headers = _get_supabase_headers()
@@ -90,6 +95,8 @@ async def get_notifications(
     }
     if unread_only:
         params["read"] = "eq.false"
+    if message_type:
+        params["message_type"] = f"eq.{message_type}"
 
     try:
         async with httpx.AsyncClient(timeout=10) as client:

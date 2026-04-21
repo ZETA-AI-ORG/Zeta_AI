@@ -487,14 +487,18 @@ class BotlivePromptsManager:
             bloc1 = m1.group(1).strip() if m1 else raw
 
             # Extraction des phases A/B/C (Système C)
-            def _extract_phase(letter: str) -> str:
-                pattern = rf"\[\[PHASE_{letter}_START\]\](.*?)\[\[PHASE_{letter}_END\]\]"
+            def _extract_marker(tag_prefix: str) -> str:
+                pattern = rf"\[\[{tag_prefix}_START\]\](.*?)\[\[{tag_prefix}_END\]\]"
                 match = re.search(pattern, raw, re.DOTALL)
                 return match.group(1).strip() if match else ""
 
-            phase_a = _extract_phase("A")
-            phase_b = _extract_phase("B")
-            phase_c = _extract_phase("C")
+            phase_a = _extract_marker("PHASE_A")
+            phase_b = _extract_marker("PHASE_B")
+            phase_c = _extract_marker("PHASE_C")
+
+            # Extraction des identités
+            identity_jessica = _extract_marker("IDENTITY_JESSICA")
+            identity_amanda = _extract_marker("IDENTITY_AMANDA")
 
             # BLOC 2 : priorité au marker [[BLOC2_START]]...[[BLOC2_END]]
             # Fallback : tout ce qui est après le dernier [[PHASE_C_END]] ou [[ZETA_CORE_END]]
@@ -512,10 +516,13 @@ class BotlivePromptsManager:
                 "phase_a": phase_a,
                 "phase_b": phase_b,
                 "phase_c": phase_c,
+                "identity_jessica": identity_jessica,
+                "identity_amanda": identity_amanda,
                 "bloc2_template": bloc2,
             }
             logger.info(
                 f"✅ [V2] Zeta Core chargé: BLOC1={len(bloc1)} chars, "
+                f"ID_JESSICA={len(identity_jessica)}, ID_AMANDA={len(identity_amanda)}, "
                 f"PHASE_A={len(phase_a)}, PHASE_B={len(phase_b)}, PHASE_C={len(phase_c)}, "
                 f"BLOC2={len(bloc2)} chars"
             )
@@ -535,15 +542,19 @@ class BotlivePromptsManager:
         company_id: str,
         company_info: Optional[Dict[str, Any]] = None,
         phase: Optional[str] = None,
+        identity: Optional[str] = None,
     ) -> str:
         """
-        Construit le prompt V2.0 unifié pour OpenRouter (prefix caching).
+        Construit le prompt V2.1 unifié pour OpenRouter (prefix caching).
         BLOC 1 identique pour toutes les boutiques → cache hit maximal.
-        Si `phase` in {"A","B","C"} : injecte le PHASE_MODULE correspondant entre BLOC1 et BLOC2.
-        BLOC 2 rempli avec les variables boutique (wave_number, shop_name, etc.).
-
+        
+        Nouveauté V2.1 (FISSION):
+        - `identity`: "jessica" ou "amanda". Injecte le bloc d'identité correspondant.
+        - Si identity="amanda", on vide les blocs CATALOGUE et PRODUCT_INDEX pour économiser 
+          énormément de tokens et forcer le focus sur la prise de photo/infos.
+          
         Structure retournée (Système C) :
-          BLOC1 + PHASE_MODULE (si phase fournie) + '# 📊 DONNÉES DYNAMIQUES' + BLOC2_rempli
+          BLOC1 + IDENTITY + PHASE_MODULE + '# 📊 DONNÉES DYNAMIQUES' + BLOC2_rempli
         """
         core = self._load_zeta_core()
         bloc1 = core.get("bloc1", "")
@@ -584,6 +595,17 @@ class BotlivePromptsManager:
         for k, v in bloc2_vars.items():
             bloc1 = bloc1.replace(f"{{{k}}}", str(v or ""))
 
+        # Injection de l'IDENTITÉ (V2.1 Fission)
+        identity_module = ""
+        if identity == "jessica":
+            identity_module = core.get("identity_jessica", "")
+        elif identity == "amanda":
+            identity_module = core.get("identity_amanda", "")
+        
+        if identity_module:
+            for k, v in bloc2_vars.items():
+                identity_module = identity_module.replace(f"{{{k}}}", str(v or ""))
+
         # Système C — Injection du PHASE_MODULE entre BLOC 1 et BLOC 2
         phase_module = ""
         phase_normalized = (phase or "").strip().upper() if phase else ""
@@ -595,21 +617,33 @@ class BotlivePromptsManager:
                 for k, v in bloc2_vars.items():
                     phase_module = phase_module.replace(f"{{{k}}}", str(v or ""))
 
+        # --- OPTIMISATION AMANDA: Suppression du catalogue si Amanda ---
+        if identity == "amanda":
+            # On vide le bloc2_filled des marqueurs catalogue pour alléger radicalement le prompt
+            bloc2_filled = bloc2_filled.replace("[[PRODUCT_INDEX_START]]", "[BLOC PRODUCT_INDEX DÉSACTIVÉ POUR AMANDA]")
+            bloc2_filled = re.sub(r"\[\[PRODUCT_INDEX_START\]\].*?\[\[PRODUCT_INDEX_END\]\]", "[INDEX PRODUIT DÉSACTIVÉ]", bloc2_filled, flags=re.DOTALL)
+            bloc2_filled = bloc2_filled.replace("[CATALOGUE_START]", "[BLOC CATALOGUE DÉSACTIVÉ POUR AMANDA]")
+            bloc2_filled = re.sub(r"\[CATALOGUE_START\].*?\[CATALOGUE_END\]", "[CATALOGUE DÉSACTIVÉ]", bloc2_filled, flags=re.DOTALL)
+
+        header_dynamics = "# 📊 DONNÉES DYNAMIQUES\n\n"
+        
+        full_sections = [bloc1]
+        if identity_module:
+            full_sections.append(identity_module)
         if phase_module:
-            full_prompt = (
-                f"{bloc1}\n\n"
-                f"{phase_module}\n\n"
-                f"# \U0001f4ca DONN\u00c9ES DYNAMIQUES\n\n"
-                f"{bloc2_filled}"
-            )
+            full_sections.append(phase_module)
+        
+        full_sections.append(header_dynamics + bloc2_filled)
+        
+        full_prompt = "\n\n".join(full_sections)
+        
+        if identity or phase:
             logger.info(
-                f"\u2705 [V2] Prompt V2 construit pour company={company_id} "
-                f"phase={phase_normalized}: {len(full_prompt)} chars "
-                f"(phase_module={len(phase_module)} chars)"
+                f"✅ [V2.1] Prompt construit pour company={company_id} "
+                f"identity={identity} phase={phase_normalized}: {len(full_prompt)} chars"
             )
         else:
-            full_prompt = f"{bloc1}\n\n# \U0001f4ca DONN\u00c9ES DYNAMIQUES\n\n{bloc2_filled}"
-            logger.info(f"\u2705 [V2] Prompt V2 construit pour company={company_id} (no phase): {len(full_prompt)} chars")
+            logger.info(f"✅ [V2.1] Prompt construit pour company={company_id} (standard): {len(full_prompt)} chars")
         return full_prompt
 
     def clear_cache(self, company_id: Optional[str] = None):
