@@ -344,6 +344,25 @@ def get_supabase_client():
     supabase_key = os.getenv('SUPABASE_SERVICE_KEY') or os.getenv('SUPABASE_KEY')
     return create_client(supabase_url, supabase_key)
 
+def _deep_merge(base: dict, patch: dict) -> dict:
+    """Merge recursif dict: `patch` ecrase `base` feuille par feuille.
+    Les cles absentes de `patch` sont preservees depuis `base`.
+    Les valeurs None dans `patch` sont ignorees (on n'ecrase jamais avec null).
+    """
+    if not isinstance(base, dict):
+        base = {}
+    if not isinstance(patch, dict):
+        return base
+    out = dict(base)
+    for k, v in patch.items():
+        if v is None:
+            continue
+        if isinstance(v, dict) and isinstance(out.get(k), dict):
+            out[k] = _deep_merge(out[k], v)
+        else:
+            out[k] = v
+    return out
+
 async def onboard_company_to_supabase(
     company_id: str,
     company_name: str,
@@ -353,20 +372,50 @@ async def onboard_company_to_supabase(
     objectif_final: str,
     system_prompt_template: str,
     rag_enabled: bool = True,
-    fallback_to_human_message: str = "J'ai du mal à vous suivre. Pouvez-vous reformuler ou préférez-vous que je vous redirige vers un conseiller ?",
+    fallback_to_human_message: str = "J'ai du mal a vous suivre. Pouvez-vous reformuler ou preferez-vous que je vous redirige vers un conseiller ?",
     ai_objective: str = None,
     prompt_botlive_groq_70b: str = None,
-    prompt_botlive_deepseek_v3: str = None
+    prompt_botlive_deepseek_v3: str = None,
+    whatsapp_phone: str = None,
+    boutique_type: str = None,
+    rag_behavior: dict = None,
 ) -> dict:
     """
-    Upsert dans company_rag_configs: crée la ligne si elle n'existe pas, met à jour sinon.
-    Retourne toujours la ligne résultante (grâce à select("*")).
+    Upsert dans company_rag_configs: cree la ligne si elle n'existe pas, met a jour sinon.
+    Retourne toujours la ligne resultante (grace a select("*")).
     """
     from datetime import datetime
     import asyncio
 
     client = get_supabase_client()
     now = datetime.utcnow().isoformat()
+
+    # Merge rag_behavior avec l'existant pour preserver les champs non fournis
+    # (update partiel safe — ne jamais ecraser l'existant avec null)
+    merged_rag_behavior: dict = {}
+    try:
+        existing = await asyncio.to_thread(
+            lambda: client.table("company_rag_configs")
+            .select("rag_behavior, boutique_type, whatsapp_phone")
+            .eq("company_id", company_id)
+            .limit(1)
+            .execute()
+        )
+        if getattr(existing, "data", None):
+            prev = existing.data[0] or {}
+            prev_rag = prev.get("rag_behavior")
+            if isinstance(prev_rag, dict):
+                merged_rag_behavior = dict(prev_rag)
+            # Preserver les anciennes valeurs si l'appelant n'en fournit pas de nouvelle
+            if not boutique_type and prev.get("boutique_type"):
+                boutique_type = prev.get("boutique_type")
+            if not whatsapp_phone and prev.get("whatsapp_phone"):
+                whatsapp_phone = prev.get("whatsapp_phone")
+    except Exception as _e:
+        log3("[SUPABASE][ONBOARD]", f"⚠️ Lecture existante KO ({_e}) — rag_behavior merge repart vide")
+
+    if isinstance(rag_behavior, dict) and rag_behavior:
+        merged_rag_behavior = _deep_merge(merged_rag_behavior, rag_behavior)
 
     company_data = {
         "company_id": company_id,
@@ -377,7 +426,8 @@ async def onboard_company_to_supabase(
         "objectif_final": objectif_final,
         "system_prompt_template": system_prompt_template,
         "rag_enabled": rag_enabled,
-        "rag_behavior": "always",  # Valeur par défaut pour respecter la contrainte check
+        # rag_behavior = JSONB (dict) et non plus string "always"
+        "rag_behavior": merged_rag_behavior or {},
         "fallback_to_human_message": fallback_to_human_message,
         "meili_config": {},
         "searchable_attributes": {},
@@ -394,10 +444,14 @@ async def onboard_company_to_supabase(
         company_data["prompt_botlive_groq_70b"] = prompt_botlive_groq_70b
     if prompt_botlive_deepseek_v3:
         company_data["prompt_botlive_deepseek_v3"] = prompt_botlive_deepseek_v3
+    if whatsapp_phone:
+        company_data["whatsapp_phone"] = whatsapp_phone
+    if boutique_type:
+        company_data["boutique_type"] = boutique_type
 
     try:
         log3("[SUPABASE][ONBOARD]", f"⬆️ Upsert company_id={company_id} ...")
-        # created_at envoyé pour insertion initiale; updated_at pour toute écriture
+        # created_at envoye pour insertion initiale; updated_at pour toute ecriture
         company_data_with_created = {**company_data, "created_at": now}
 
         # 1) Upsert simple (sans chainage select)

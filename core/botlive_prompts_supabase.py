@@ -353,18 +353,19 @@ class BotlivePromptsManager:
 
         # --- ENRICHISSEMENT DYNAMIQUE (V2.0 SCALABLE) ---
         try:
-            info = self.get_company_info(company_id)
-            rag = info.get("rag_behavior", {}) or {}
-            
+            info = self.get_company_info(company_id) or {}
+            # 🛡️ GARDE-FOU : rag_behavior peut être une string legacy → forcer dict
+            _raw_rag = info.get("rag_behavior") if isinstance(info, dict) else None
+            rag = _raw_rag if isinstance(_raw_rag, dict) else {}
+
             # Mapping des variables de base
             format_vars['shop_name'] = info.get("company_name") or "Notre Boutique"
             format_vars['bot_name'] = info.get("ai_name") or "Jessica"
-            
-            # Mapping récursif du rag_behavior
-            # On aplatit les champs essentiels pour le prompt
-            payment = rag.get("payment", {}) or {}
-            support = rag.get("support", {}) or {}
-            expedition = rag.get("expedition", {}) or {}
+
+            # Mapping récursif du rag_behavior (guardé dict)
+            payment = rag.get("payment") if isinstance(rag.get("payment"), dict) else {}
+            support = rag.get("support") if isinstance(rag.get("support"), dict) else {}
+            expedition = rag.get("expedition") if isinstance(rag.get("expedition"), dict) else {}
             
             format_vars['wave_number'] = payment.get("wave_number") or info.get("whatsapp_phone") or "à demander"
             format_vars['depot_amount'] = payment.get("deposit_amount") or expected_deposit or "2000 FCFA"
@@ -443,15 +444,17 @@ class BotlivePromptsManager:
             plan_name = "starter"
             has_boost = False
             try:
+                # ⚠️ La colonne s'appelle `plan_name` (renommée depuis plan_type)
                 sub_resp = self.supabase.table("subscriptions") \
-                    .select("plan_type, has_boost, status, next_billing_date, pro_trial_ends_at, current_usage, usage_limit, created_at, updated_at") \
+                    .select("plan_name, has_boost, status, next_billing_date, pro_trial_ends_at, current_usage, usage_limit, created_at, updated_at") \
                     .eq("company_id", company_id) \
                     .order("updated_at", desc=True) \
                     .limit(1) \
                     .execute()
                 if sub_resp.data:
                     subscription = sub_resp.data[0] or {}
-                    plan_name = str(subscription.get("plan_type") or "starter").strip().lower()
+                    # Support des deux noms pour robustesse (plan_name primaire, plan_type legacy)
+                    plan_name = str(subscription.get("plan_name") or subscription.get("plan_type") or "starter").strip().lower()
                     has_boost = bool(subscription.get("has_boost") or False)
                 else:
                     logger.info(f"ℹ️ [GET_COMPANY] Pas de subscription pour {company_id} → fallback starter sans boost")

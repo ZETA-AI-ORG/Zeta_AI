@@ -247,6 +247,19 @@ async def startup_event():
         print("[STARTUP] 📝 Logging serveur JSON activé")
     except Exception as e:
         print(f"[STARTUP] ⚠️ Erreur logging serveur: {e}")
+
+    # ========== LISTENER pg_notify → INVALIDATION CACHE TEMPS RÉEL ==========
+    # Quand Supabase UPDATE company_rag_configs / prompt_bots / subscriptions,
+    # le trigger envoie NOTIFY 'prompt_cache_invalidate' → ce listener invalide
+    # les 3 couches cache (SimplifiedPromptSystem + BotlivePromptsManager +
+    # prompt_bots_loader) pour éviter les données périmées.
+    try:
+        import asyncio as _asyncio_startup
+        from core.prompt_cache_listener import start_prompt_cache_listener
+        _asyncio_startup.create_task(start_prompt_cache_listener())
+        print("[STARTUP] 🔔 Listener pg_notify 'prompt_cache_invalidate' lancé")
+    except Exception as e:
+        print(f"[STARTUP] ⚠️ Listener pg_notify non lancé: {e}")
     
     print("[STARTUP] 🚀 ENHANCED - Élimination latence 3.6s en cours...")
     
@@ -3190,7 +3203,7 @@ class ConversationPayload(BaseModel):
 
 # --- Modèle pour l'onboarding d'entreprise ---
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, Dict, Any
 
 class OnboardCompanyRequest(BaseModel):
     company_id: Optional[str] = None
@@ -3206,10 +3219,64 @@ class OnboardCompanyRequest(BaseModel):
     prompt_botlive_groq_70b: Optional[str] = None
     prompt_botlive_deepseek_v3: Optional[str] = None
 
+    # ════════════════════════════════════════════════════════════════════════
+    # V2.0 — VARIABLES INJECTÉES DYNAMIQUEMENT DANS AMANDA & JESSICA
+    # Toutes facultatives : valeurs par défaut côté loader si non fournies.
+    # Stockées dans company_rag_configs et invalidées via pg_notify.
+    # ════════════════════════════════════════════════════════════════════════
+    whatsapp_phone: Optional[str] = None
+    boutique_type: Optional[str] = "online"  # online | physical | hybrid
+
+    # rag_behavior JSONB — merge récursif si update partiel.
+    # Schéma attendu :
+    # {
+    #   "payment":    {"wave_number": "+225...", "deposit_amount": "2000 FCFA"},
+    #   "support":    {"whatsapp": "+225...", "sav_number": "+225...", "phone": "..."},
+    #   "expedition": {"base_fee": "3000-5000 FCFA"},
+    #   "support_hours": "08:00 - 20:00",
+    #   "return_policy": "Échange possible sous 48h",
+    #   "delai_message": "Commande avant 13h = livraison l'après-midi...",
+    #   "boutique": {
+    #     "address": "123 rue des Lys, Abidjan",
+    #     "commune": "Cocody",
+    #     "quartier": "Angré 7e",
+    #     "hours": "Lun-Sam 9h-19h",
+    #     "landmarks": ["face au CNPS"],
+    #     "phone_store": "+225 01 02 03 04 05"
+    #   }
+    # }
+    rag_behavior: Optional[Dict[str, Any]] = None
+
+
 class UpdateSystemPromptRequest(BaseModel):
     company_id: str
     system_prompt_template: str
     rag_enabled: bool = True
+
+
+class UpdateRagBehaviorRequest(BaseModel):
+    """Patch partiel des variables dynamiques d'une entreprise.
+    Merge récursif dans company_rag_configs.rag_behavior + invalidation cache.
+    """
+    company_id: str
+    whatsapp_phone: Optional[str] = None
+    boutique_type: Optional[str] = None
+    rag_behavior: Optional[Dict[str, Any]] = None
+    # Raccourcis "flat" pour MAJ rapide sans construire le JSON imbriqué
+    wave_number: Optional[str] = None
+    deposit_amount: Optional[str] = None
+    sav_number: Optional[str] = None
+    whatsapp_support: Optional[str] = None
+    support_hours: Optional[str] = None
+    return_policy: Optional[str] = None
+    delai_message: Optional[str] = None
+    expedition_base_fee: Optional[str] = None
+    # Boutique physique (flat)
+    boutique_address: Optional[str] = None
+    boutique_commune: Optional[str] = None
+    boutique_quartier: Optional[str] = None
+    boutique_hours: Optional[str] = None
+    boutique_phone_store: Optional[str] = None
 
 @app.post("/save_message")
 async def save_message(payload: ConversationPayload):
@@ -3408,7 +3475,10 @@ async def onboard_company_endpoint(req: OnboardCompanyRequest):
                 fallback_to_human_message=req.fallback_to_human_message,
                 ai_objective=req.ai_objective,
                 prompt_botlive_groq_70b=req.prompt_botlive_groq_70b,
-                prompt_botlive_deepseek_v3=req.prompt_botlive_deepseek_v3
+                prompt_botlive_deepseek_v3=req.prompt_botlive_deepseek_v3,
+                whatsapp_phone=req.whatsapp_phone,
+                boutique_type=req.boutique_type,
+                rag_behavior=req.rag_behavior,
             )
             
             # Si Supabase ne renvoie rien (RLS SELECT bloqué), renvoyer un fallback non-null
@@ -3482,6 +3552,131 @@ async def onboard_company_endpoint(req: OnboardCompanyRequest):
         
         import traceback
         log3("[ONBOARD]", f"Stack trace: {traceback.format_exc()}")
+
+# --- Endpoint PATCH rag_behavior (update partiel des variables dynamiques) ---
+@app.patch("/company/rag_behavior")
+async def update_rag_behavior_endpoint(req: UpdateRagBehaviorRequest):
+    """
+    Met à jour partiellement les variables dynamiques d'une entreprise.
+    Merge récursif dans company_rag_configs.rag_behavior + invalidation cache via pg_notify.
+
+    Deux modes d'entrée (combinables) :
+      - Flat : wave_number, sav_number, support_hours, return_policy, delai_message,
+               boutique_address, boutique_hours, ... → assemblés en rag_behavior
+      - JSON : rag_behavior={"payment":{"wave_number":"..."}, ...} → merge direct
+
+    Réponse : la ligne company_rag_configs après MAJ.
+    """
+    try:
+        log3("[RAG_BEHAVIOR]", f"🔧 PATCH rag_behavior pour {req.company_id}")
+
+        # 1) Construire le patch rag_behavior depuis les champs flat
+        patch: Dict[str, Any] = {}
+        if req.rag_behavior and isinstance(req.rag_behavior, dict):
+            patch.update(req.rag_behavior)
+
+        # Mapping des champs flat → structure JSON imbriquée
+        payment_patch: Dict[str, Any] = {}
+        if req.wave_number is not None:
+            payment_patch["wave_number"] = req.wave_number
+        if req.deposit_amount is not None:
+            payment_patch["deposit_amount"] = req.deposit_amount
+        if payment_patch:
+            patch.setdefault("payment", {}).update(payment_patch)
+
+        support_patch: Dict[str, Any] = {}
+        if req.sav_number is not None:
+            support_patch["sav_number"] = req.sav_number
+        if req.whatsapp_support is not None:
+            support_patch["whatsapp"] = req.whatsapp_support
+        if support_patch:
+            patch.setdefault("support", {}).update(support_patch)
+
+        if req.expedition_base_fee is not None:
+            patch.setdefault("expedition", {})["base_fee"] = req.expedition_base_fee
+
+        if req.support_hours is not None:
+            patch["support_hours"] = req.support_hours
+        if req.return_policy is not None:
+            patch["return_policy"] = req.return_policy
+        if req.delai_message is not None:
+            patch["delai_message"] = req.delai_message
+
+        # Boutique physique (flat)
+        boutique_patch: Dict[str, Any] = {}
+        if req.boutique_address is not None:
+            boutique_patch["address"] = req.boutique_address
+        if req.boutique_commune is not None:
+            boutique_patch["commune"] = req.boutique_commune
+        if req.boutique_quartier is not None:
+            boutique_patch["quartier"] = req.boutique_quartier
+        if req.boutique_hours is not None:
+            boutique_patch["hours"] = req.boutique_hours
+        if req.boutique_phone_store is not None:
+            boutique_patch["phone_store"] = req.boutique_phone_store
+        if boutique_patch:
+            patch.setdefault("boutique", {}).update(boutique_patch)
+
+        # 2) Lire la ligne existante (pour merger)
+        from database.supabase_client import get_supabase_client, _deep_merge
+        import asyncio as _asyncio
+        client = get_supabase_client()
+
+        existing = await _asyncio.to_thread(
+            lambda: client.table("company_rag_configs")
+            .select("rag_behavior, boutique_type, whatsapp_phone")
+            .eq("company_id", req.company_id)
+            .limit(1)
+            .execute()
+        )
+        if not getattr(existing, "data", None):
+            raise HTTPException(status_code=404, detail=f"company_id inconnu: {req.company_id}")
+
+        prev = existing.data[0] or {}
+        prev_rag = prev.get("rag_behavior") if isinstance(prev.get("rag_behavior"), dict) else {}
+        merged = _deep_merge(prev_rag, patch)
+
+        # 3) Construire le payload d'update
+        update_payload: Dict[str, Any] = {
+            "rag_behavior": merged,
+            "updated_at": "now()",
+        }
+        if req.boutique_type is not None:
+            update_payload["boutique_type"] = req.boutique_type
+        if req.whatsapp_phone is not None:
+            update_payload["whatsapp_phone"] = req.whatsapp_phone
+
+        # 4) UPDATE
+        result = await _asyncio.to_thread(
+            lambda: client.table("company_rag_configs")
+            .update(update_payload)
+            .eq("company_id", req.company_id)
+            .execute()
+        )
+
+        # 5) Invalidation cache in-process (le trigger pg_notify fera le reste en distribué)
+        try:
+            from core.prompt_cache_listener import _invalidate_all_layers
+            _invalidate_all_layers({"table": "company_rag_configs", "company_id": req.company_id})
+        except Exception as _cache_err:
+            log3("[RAG_BEHAVIOR]", f"⚠️ Invalidation cache locale KO: {_cache_err}")
+
+        log3("[RAG_BEHAVIOR]", f"✅ rag_behavior MAJ pour {req.company_id} (fields={list(patch.keys())})")
+        return {
+            "success": True,
+            "company_id": req.company_id,
+            "rag_behavior": merged,
+            "boutique_type": update_payload.get("boutique_type", prev.get("boutique_type")),
+            "whatsapp_phone": update_payload.get("whatsapp_phone", prev.get("whatsapp_phone")),
+            "patched_keys": list(patch.keys()),
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        log3("[RAG_BEHAVIOR]", f"❌ Erreur: {type(e).__name__}: {e}")
+        raise HTTPException(status_code=500, detail=f"{type(e).__name__}: {e}")
+
 
 # --- Endpoint de mise à jour du system_prompt_template ---
 @app.post("/update_system_prompt")
@@ -3808,9 +4003,36 @@ async def amanda_botlive_endpoint(req: ChatRequest, request: Request):
     
     try:
         # 🎭 1. Charger le prompt Amanda dédié (cache prefix stable)
+        # 🛡️ BLINDAGE PROD : si le loader crash (ex: rag_behavior string legacy, DB
+        # schema drift…), on retombe sur le fichier local pour que l'endpoint ne
+        # retourne JAMAIS 500.
         from core.amanda_prompt_loader import load_amanda_prompt
-        system_prompt = load_amanda_prompt(company_id=req.company_id)
-        
+        try:
+            system_prompt = load_amanda_prompt(company_id=req.company_id)
+        except Exception as _load_err:
+            print(f"🚨 [AMANDA] load_amanda_prompt crash → fallback local: {type(_load_err).__name__}: {_load_err}")
+            system_prompt = ""
+            try:
+                from pathlib import Path as _Path
+                _local = _Path(__file__).parent.parent / "AMANDA PROMPT UNIVERSEL.md"
+                if _local.exists():
+                    tmpl = _local.read_text(encoding="utf-8")
+                    # Substitution minimaliste pour éviter placeholders bruts
+                    system_prompt = (
+                        tmpl.replace("{shop_name}", "la boutique")
+                            .replace("{wave_number}", "à demander")
+                            .replace("{whatsapp_number}", "")
+                            .replace("{sav_number}", "")
+                            .replace("{support_hours}", "08:00 - 20:00")
+                            .replace("{return_policy}", "Échange possible sous 48h (voir conditions)")
+                            .replace("{delai_message}", "")
+                            .replace("{boutique_block}",
+                                     "Type : Exclusivement en ligne. Aucune visite en magasin possible.\n"
+                                     "Service : Livraison (Abidjan) ou Expédition (Intérieur du pays) uniquement.")
+                    )
+            except Exception as _fb_err:
+                print(f"🚨 [AMANDA] Fallback fichier local KO: {_fb_err}")
+
         if not system_prompt:
             raise HTTPException(status_code=500, detail="Prompt Amanda introuvable")
         

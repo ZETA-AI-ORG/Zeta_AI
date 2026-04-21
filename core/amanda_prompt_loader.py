@@ -76,9 +76,13 @@ def load_amanda_prompt(
     # le champ `boutique_type` (online / physical / hybrid).
     # ════════════════════════════════════════════════════════════════════════
     info = company_info or {}
-    rag = (info.get("rag_behavior") or {}) if isinstance(info, dict) else {}
-    payment = (rag.get("payment") or {}) if isinstance(rag, dict) else {}
-    support = (rag.get("support") or {}) if isinstance(rag, dict) else {}
+    # 🛡️ GARDE-FOU : rag_behavior peut être une string legacy ("always", "never"…)
+    # dans certaines bases pas encore migrées → on le force en dict pour éviter
+    # 'str' object has no attribute 'get'.
+    raw_rag = info.get("rag_behavior") if isinstance(info, dict) else None
+    rag = raw_rag if isinstance(raw_rag, dict) else {}
+    payment = rag.get("payment") if isinstance(rag.get("payment"), dict) else {}
+    support = rag.get("support") if isinstance(rag.get("support"), dict) else {}
 
     shop_name = (
         info.get("company_name")

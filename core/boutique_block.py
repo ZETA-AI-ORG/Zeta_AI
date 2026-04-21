@@ -81,8 +81,10 @@ def build_boutique_block(company_info: Optional[Dict[str, Any]]) -> str:
     """
     info = company_info or {}
     btype = _normalize_type(info.get("boutique_type"))
-    rag = info.get("rag_behavior") or {}
-    boutique = (rag.get("boutique") or {}) if isinstance(rag, dict) else {}
+    # 🛡️ GARDE-FOU : rag_behavior peut être une string legacy → forcer dict
+    raw_rag = info.get("rag_behavior") if isinstance(info, dict) else None
+    rag = raw_rag if isinstance(raw_rag, dict) else {}
+    boutique = rag.get("boutique") if isinstance(rag.get("boutique"), dict) else {}
 
     # 🛒 100 % en ligne → bloc hardcodé historique
     if btype == "online":
