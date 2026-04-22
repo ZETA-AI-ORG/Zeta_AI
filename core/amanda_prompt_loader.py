@@ -37,7 +37,7 @@ def _load_template() -> str:
     return template
 
 
-def load_amanda_prompt(
+async def load_amanda_prompt(
     company_id: str,
     company_info: Optional[Dict[str, Any]] = None,
 ) -> str:
@@ -61,7 +61,7 @@ def load_amanda_prompt(
             from core.botlive_prompts_supabase import get_prompts_manager
             manager = get_prompts_manager()
             if manager:
-                company_info = manager.get_company_info(company_id) or {}
+                company_info = await manager.get_company_info(company_id) or {}
             else:
                 company_info = {}
         except Exception as e:

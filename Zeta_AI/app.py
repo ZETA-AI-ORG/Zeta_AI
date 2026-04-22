@@ -16,6 +16,18 @@ from fastapi.middleware.cors import CORSMiddleware
 import requests
 import tempfile
 import re
+import redis
+
+# ═══ ZETA AI — Structured Logging + Cost Calculator ═══
+try:
+    from core.zlog import zlog, zlog_error
+except ImportError:
+    def zlog(*a, **kw): pass
+    def zlog_error(*a, **kw): pass
+try:
+    from core.cost_calculator import compute_cost as _compute_cost
+except ImportError:
+    def _compute_cost(*a, **kw): return 0.0
 
 
 from core.context_manager import ContextManager
@@ -86,6 +98,164 @@ for noisy_logger in [
         pass
 
 app = FastAPI()
+
+def resolve_firebase_to_uuid(supabase_client, firebase_id: str) -> str:
+    """
+    Traduit l'ID Firebase (texte) en UUID Supabase (uuid) via la table companies.
+    """
+    try:
+        from core.zlog import zlog
+        response = supabase_client.table('companies') \
+            .select('id') \
+            .eq('company_id_text', firebase_id) \
+            .execute()
+        
+        if response.data and len(response.data) > 0:
+            return response.data[0]['id'] # Retourne le vrai UUID
+        else:
+            raise ValueError(f"Entreprise introuvable pour l'ID Firebase: {firebase_id}")
+            
+    except Exception as e:
+        zlog("error", "RESOLVE_UUID", "Échec traduction Firebase -> UUID",
+             firebase_id=firebase_id, error=str(e))
+        return None
+
+@app.get("/api/diagnostic/{firebase_id}")
+async def get_company_diagnostic(firebase_id: str, request: Request):
+    """
+    Diagnostic CTO complet : Vérifie Supabase (4 tables) + Redis (DB 0 & 2).
+    Sécurisé par header X-ZETA-AUTH.
+    Optimisé avec timing précis pour déceler la latence.
+    """
+    import time
+    global_start = time.time()
+    
+    # 1. SÉCURITÉ
+    auth_key = request.headers.get("X-ZETA-AUTH")
+    expected_key = os.getenv("ZETA_DIAGNOSTIC_KEY", "zeta_diagnostic_default_secret")
+    if auth_key != expected_key:
+        from core.zlog import zlog
+        zlog("warning", "SECURITY", "Tentative d'accès non autorisée au diagnostic", 
+             firebase_id=firebase_id, remote_ip=request.client.host)
+        raise HTTPException(status_code=403, detail="Accès refusé.")
+
+    from database.supabase_client import get_supabase_client
+    supabase_client = get_supabase_client()
+    
+    diagnostic = {
+        "firebase_id_tested": firebase_id,
+        "uuid_resolved": None,
+        "timings_ms": {},
+        "tables_status": {
+            "1_companies": {"status": "MISSING", "data_preview": None},
+            "2_company_rag_configs": {"status": "MISSING", "data_preview": None},
+            "3_subscriptions": {"status": "MISSING", "data_preview": None},
+            "4_company_catalogs_v2": {"status": "MISSING", "info": None}
+        },
+        "redis_status": {
+            "db0_prompts": {"status": "DOWN", "keys_found": 0},
+            "db2_memory": {"status": "DOWN", "keys_found": 0}
+        },
+        "critical_errors": []
+    }
+
+    try:
+        # --- PHASE 1 : SUPABASE ---
+        
+        # 1.1 PÔLE CORE BUSINESS : RÉSOLUTION UUID
+        t_start = time.time()
+        comp_res = supabase_client.table('companies').select('id, name').eq('company_id_text', firebase_id).execute()
+        diagnostic["timings_ms"]["1_companies_resolve"] = round((time.time() - t_start) * 1000, 2)
+        
+        if not comp_res.data:
+            diagnostic["critical_errors"].append("CRITIQUE : Entreprise absente de la table 'companies'.")
+            return diagnostic
+            
+        company_data = comp_res.data[0]
+        internal_uuid = company_data['id']
+        diagnostic["uuid_resolved"] = internal_uuid
+        diagnostic["tables_status"]["1_companies"] = {"status": "OK", "data_preview": company_data.get('name')}
+
+        # 1.2 EXÉCUTION PARALLÈLE DES 3 AUTRES PILIERS (L'accélérateur V3)
+        t_batch_start = time.time()
+        tasks = [
+            asyncio.to_thread(supabase_client.table('company_rag_configs').select('*').eq('company_id', firebase_id).execute),
+            asyncio.to_thread(supabase_client.table('subscriptions').select('plan_name, has_boost, usage_limit').eq('company_id', internal_uuid).execute),
+            asyncio.to_thread(supabase_client.table('company_catalogs_v2').select('is_active').eq('company_id', firebase_id).execute)
+        ]
+        
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        diagnostic["timings_ms"]["parallel_batch_supabase"] = round((time.time() - t_batch_start) * 1000, 2)
+
+        # Extraction des résultats
+        config_res, sub_res, cat_res = results
+
+        # 1.2 PÔLE CONFIGURATION
+        if not isinstance(config_res, Exception) and config_res.data:
+            preview = {k: v for k, v in config_res.data[0].items() if k in ['company_name', 'shop_slug', 'delivery_zones']}
+            diagnostic["tables_status"]["2_company_rag_configs"] = {"status": "OK", "data_preview": preview}
+        else:
+            diagnostic["critical_errors"].append(f"CONFIG MANQUANTE : {config_res if isinstance(config_res, Exception) else 'vide'}")
+
+        # 1.3 PÔLE ABONNEMENT
+        if not isinstance(sub_res, Exception) and sub_res.data:
+            diagnostic["tables_status"]["3_subscriptions"] = {"status": "OK", "data_preview": sub_res.data[0]}
+        else:
+            diagnostic["critical_errors"].append(f"ABONNEMENT MANQUANT : {sub_res if isinstance(sub_res, Exception) else 'vide'}")
+
+        # 1.4 PÔLE RAG & CATALOGUE
+        if not isinstance(cat_res, Exception) and cat_res.data:
+            is_active = cat_res.data[0].get('is_active', False)
+            diagnostic["tables_status"]["4_company_catalogs_v2"] = {
+                "status": "OK" if is_active else "WARNING", 
+                "info": "Catalogue ACTIF" if is_active else "Catalogue INACTIF"
+            }
+            if not is_active:
+                diagnostic["critical_errors"].append("CATALOGUE INACTIF : [[PRODUCT_INDEX]] sera vide.")
+        else:
+            diagnostic["critical_errors"].append(f"CATALOGUE MANQUANT : {cat_res if isinstance(cat_res, Exception) else 'vide'}")
+
+        # --- PHASE 2 : REDIS (Timeout 500ms) ---
+        redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+        
+        # Test DB 0 (Prompts)
+        t_start = time.time()
+        try:
+            import redis
+            r0 = redis.Redis.from_url(redis_url, socket_timeout=0.5, decode_responses=True)
+            if r0.ping():
+                prompt_key = f"zeta:prompt_bots:{firebase_id}" # On vérifie le cache via l'ID utilisé pour le chargement
+                diagnostic["redis_status"]["db0_prompts"] = {
+                    "status": "UP",
+                    "cache_hit": "YES" if r0.exists(prompt_key) else "NO"
+                }
+        except Exception as re_err:
+            diagnostic["redis_status"]["db0_prompts"]["status"] = f"DOWN ({str(re_err)})"
+        diagnostic["timings_ms"]["redis_db0"] = round((time.time() - t_start) * 1000, 2)
+
+        # Test DB 2 (Memory)
+        t_start = time.time()
+        try:
+            import re
+            redis_url_db2 = re.sub(r"/\d+$", "/2", redis_url)
+            r2 = redis.Redis.from_url(redis_url_db2, socket_timeout=0.5, decode_responses=True)
+            if r2.ping():
+                memory_keys = r2.keys(f"enhanced_memory:*:{internal_uuid}")
+                diagnostic["redis_status"]["db2_memory"] = {
+                    "status": "UP",
+                    "active_sessions": len(memory_keys)
+                }
+        except Exception as re_err:
+            diagnostic["redis_status"]["db2_memory"]["status"] = f"DOWN ({str(re_err)})"
+        diagnostic["timings_ms"]["redis_db2"] = round((time.time() - t_start) * 1000, 2)
+
+    except Exception as e:
+        diagnostic["critical_errors"].append(f"Erreur technique diagnostic: {str(e)}")
+
+    diagnostic["timings_ms"]["total_execution"] = round((time.time() - global_start) * 1000, 2)
+    return diagnostic
+
+# ... (rest of the file remains unchanged until endpoints)
 
 # Événements de cycle de vie pour le cache global
 # SUPPRIMÉ - Remplacé par startup enhanced ci-dessous
@@ -3893,13 +4063,25 @@ async def jessica_ragbot_endpoint(req: ChatRequest, request: Request):
     """
     request_id = str(uuid.uuid4())[:8]
     start_time = time.time()
+
+    # 🛠️ TRADUCTION FIREBASE ➔ UUID
+    from database.supabase_client import get_supabase_client
+    supabase_client = get_supabase_client()
+    raw_company_id = str(req.company_id) # On préserve l'ID TEXTE (Firebase)
+    internal_uuid = resolve_firebase_to_uuid(supabase_client, raw_company_id)
+    if not internal_uuid:
+        return {"error": "Boutique non reconnue ou ID invalide."}
     
-    print(f"\n{'='*80}")
-    print(f"🤖 [JESSICA RAG BOT] Endpoint dédié")
-    print(f"{'='*80}")
-    print(f"User: {req.user_id}")
-    print(f"Message: {req.message}")
-    print(f"{'='*80}\n")
+    # NOTE : On n'écrase pas req.company_id ici car le RAG engine (catalogue/configs) 
+    # a besoin du format TEXTE. On utilisera internal_uuid spécifiquement pour 
+    # les tables qui l'exigent (subscriptions, memory).
+
+    zlog("info", "JESSICA_IN", "requête reçue",
+         request_id=request_id,
+         company_id=req.company_id,
+         user_id=req.user_id,
+         message_len=len(req.message or ""),
+         has_images=bool(req.images))
     
     try:
         # 🎯 REGISTRY v2.0 : résolution bot_registry.get_jessica_config
@@ -3908,18 +4090,26 @@ async def jessica_ragbot_endpoint(req: ChatRequest, request: Request):
         from core.simplified_rag_engine import get_simplified_rag_response
 
         # 1. Récupérer plan + boost depuis Supabase (company_info)
-        plan_name = "starter"
+        plan_name = "decouverte"
         has_boost = False
         try:
             from core.botlive_prompts_supabase import get_prompts_manager
             pm = get_prompts_manager()
             if pm:
-                info = pm.get_company_info(req.company_id) or {}
-                plan_name = str(info.get("plan_name") or "starter").lower()
+                info = await pm.get_company_info(req.company_id) or {}
+                plan_name = str(info.get("plan_name") or "decouverte").lower()
                 has_boost = bool(info.get("has_boost", False))
-                print(f"📊 [JESSICA][PLAN] company={req.company_id} plan={plan_name} boost={has_boost}")
+                zlog("info", "PLAN_RESOLVE", "plan Jessica résolu",
+                     request_id=request_id,
+                     company_id=req.company_id,
+                     plan_name=plan_name,
+                     has_boost=has_boost,
+                     source="subscriptions")
         except Exception as plan_err:
-            print(f"⚠️ [JESSICA][PLAN] Fallback starter: {plan_err}")
+            zlog("warning", "PLAN_RESOLVE", "fallback starter",
+                 request_id=request_id,
+                 company_id=req.company_id,
+                 error=str(plan_err)[:200])
 
         # 2. Détection images → upgrade vers Gemini 3.1 Pro (multimodal)
         images_for_rag = []
@@ -3936,24 +4126,33 @@ async def jessica_ragbot_endpoint(req: ChatRequest, request: Request):
         if images_for_rag:
             # Multimodal → Gemini 3.1 Pro obligatoire (override registry)
             resolved_model = MODEL_INSIGHT
-            print(f"🖼️ [JESSICA][MULTIMODAL] Model upgradé → {resolved_model}")
+            zlog("info", "MODEL_RESOLVE", "upgrade multimodal",
+                 request_id=request_id, model=resolved_model)
 
         # 4. Garde-fou sécurité (registry v2.0)
         if not is_model_allowed(resolved_model):
-            print(f"🛡️ [JESSICA][GUARD] {resolved_model} non autorisé → fallback {fallback_model}")
+            zlog("warning", "MODEL_GUARD", "modèle refusé — fallback",
+                 request_id=request_id,
+                 requested=resolved_model,
+                 fallback=fallback_model)
             resolved_model = fallback_model
 
-        print(
-            f"🤖 [JESSICA][REGISTRY v2.0] model={resolved_model} | plan={plan_name} boost={has_boost} "
-            f"rank={rank} | fallback={fallback_model}"
-        )
-        print(
-            f"⚙️ [JESSICA][PARAMS] temp={llm_params.get('temperature')} "
-            f"top_p={llm_params.get('top_p')} max_tok={llm_params.get('max_tokens')} "
-            f"freq_pen={llm_params.get('frequency_penalty')} pres_pen={llm_params.get('presence_penalty')}"
-        )
+        zlog("info", "MODEL_RESOLVE", "modèle Jessica résolu",
+             request_id=request_id,
+             company_id=req.company_id,
+             plan=plan_name, has_boost=has_boost,
+             model=resolved_model, rank=rank,
+             multimodal=bool(images_for_rag),
+             params=llm_params)
 
         # 5. Appel RAG sophistiqué (simplified_rag_engine avec prompt_universel_v2.md)
+        zlog("info", "RAG_CALL", "appel simplified_rag_engine",
+             request_id=request_id,
+             company_id=req.company_id,
+             user_id=req.user_id,
+             model=resolved_model,
+             has_images=bool(images_for_rag))
+
         response = await get_simplified_rag_response(
             query=req.message or "",
             company_id=req.company_id,
@@ -3965,7 +4164,21 @@ async def jessica_ragbot_endpoint(req: ChatRequest, request: Request):
             llm_params=llm_params,
         )
 
-        print(f"✅ [JESSICA] Réponse générée en {(time.time() - start_time)*1000:.0f}ms | model={resolved_model}")
+        # Calculer le timing avant de construire la réponse
+        _total_ms = (time.time() - start_time) * 1000
+
+        zlog("info", "JESSICA_OUT", "réponse finale",
+             request_id=request_id,
+             company_id=req.company_id,
+             model=response.get("model", resolved_model),
+             rank=rank,
+             response_chars=len(response.get("response", "")),
+             total_ms=round(_total_ms, 2))
+
+        zlog("info", "TIMING_SUMMARY", "récapitulatif phases",
+             request_id=request_id,
+             bot_type="jessica",
+             timings={"total_endpoint_ms": round(_total_ms, 2)})
 
         return {
             "response": response.get("response", ""),
@@ -3977,13 +4190,14 @@ async def jessica_ragbot_endpoint(req: ChatRequest, request: Request):
             "has_boost": has_boost,
             "rank": rank,
             "multimodal": bool(images_for_rag),
-            "processing_time_ms": (time.time() - start_time) * 1000,
-            "timings": {"total_endpoint_ms": (time.time() - start_time) * 1000},
-            **{k: v for k, v in response.items() if k not in ["response", "confidence", "model"]}
+            "processing_time_ms": _total_ms,
+            "timings": {"total_endpoint_ms": round(_total_ms, 2)},
+            **{k: v for k, v in response.items() if k not in ["response", "confidence", "model", "prompt_source", "timings", "processing_time_ms"]}
         }
 
     except Exception as e:
-        print(f"❌ [JESSICA] Erreur: {e}")
+        zlog_error("JESSICA_OUT", "erreur fatale", e,
+                   request_id=request_id if 'request_id' in locals() else "?")
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Jessica RAG error: {str(e)}")
@@ -4008,14 +4222,22 @@ async def amanda_botlive_endpoint(req: ChatRequest, request: Request):
     """
     request_id = str(uuid.uuid4())[:8]
     start_time = time.time()
-    
-    print(f"\n{'='*80}")
-    print(f"💬 [AMANDA BOTLIVE] Endpoint dédié — Réservation Prioritaire")
-    print(f"{'='*80}")
-    print(f"User: {req.user_id} | Company: {req.company_id}")
-    print(f"Message: {(req.message or '')[:100]}")
-    print(f"{'='*80}\n")
-    
+
+    # 🛠️ TRADUCTION FIREBASE ➔ UUID
+    from database.supabase_client import get_supabase_client
+    supabase_client = get_supabase_client()
+    internal_uuid = resolve_firebase_to_uuid(supabase_client, req.company_id)
+    if not internal_uuid:
+        return {"error": "Boutique non reconnue ou ID invalide."}
+    req.company_id = internal_uuid # ON ÉCRASE L'ID DE LA REQUÊTE
+
+    zlog("info", "AMANDA_IN", "requête reçue",
+         request_id=request_id,
+         company_id=req.company_id,
+         user_id=req.user_id,
+         message_len=len(req.message or ""),
+         has_images=bool(req.images))
+
     # ⏱️ Timings par phase (pour observabilité simulator)
     _timings: Dict[str, float] = {}
     _t0 = time.time()
@@ -4025,13 +4247,16 @@ async def amanda_botlive_endpoint(req: ChatRequest, request: Request):
         # 🛡️ BLINDAGE PROD : si le loader crash (ex: rag_behavior string legacy, DB
         # schema drift…), on retombe sur le fichier local pour que l'endpoint ne
         # retourne JAMAIS 500.
+        _t_prompt_start = time.time()
         from core.amanda_prompt_loader import load_amanda_prompt
         _prompt_source = "unknown"
         try:
-            system_prompt = load_amanda_prompt(company_id=req.company_id)
-            _prompt_source = "loader"  # déterminé plus finement dans le loader si besoin
+            system_prompt = await load_amanda_prompt(company_id=req.company_id)
+            _prompt_source = "loader"
         except Exception as _load_err:
-            print(f"🚨 [AMANDA] load_amanda_prompt crash → fallback local: {type(_load_err).__name__}: {_load_err}")
+            zlog("warning", "PROMPT_LOAD", "fallback local utilisé",
+                 company_id=req.company_id,
+                 original_error=str(_load_err)[:200])
             system_prompt = ""
             _prompt_source = "local_fallback"
             try:
@@ -4053,12 +4278,23 @@ async def amanda_botlive_endpoint(req: ChatRequest, request: Request):
                                      "Service : Livraison (Abidjan) ou Expédition (Intérieur du pays) uniquement.")
                     )
             except Exception as _fb_err:
-                print(f"🚨 [AMANDA] Fallback fichier local KO: {_fb_err}")
+                zlog("error", "PROMPT_LOAD", "fallback fichier local KO",
+                     company_id=req.company_id,
+                     error=str(_fb_err)[:200])
+        finally:
+            _timings["prompt_load_ms"] = round((time.time() - _t_prompt_start) * 1000, 2)
+
+        zlog("info", "PROMPT_LOAD", "prompt chargé",
+             company_id=req.company_id,
+             source=_prompt_source,
+             prompt_chars=len(system_prompt),
+             elapsed_ms=_timings.get("prompt_load_ms", 0))
 
         if not system_prompt:
             raise HTTPException(status_code=500, detail="Prompt Amanda introuvable")
         
         # 📜 2. Récupérer l'historique conversationnel (léger)
+        _t_history_start = time.time()
         conversation_history = ""
         try:
             from core.conversation import get_history
@@ -4066,9 +4302,18 @@ async def amanda_botlive_endpoint(req: ChatRequest, request: Request):
             if hist_raw:
                 conversation_history = str(hist_raw)[:2000]  # limité pour rapidité
         except Exception as hist_err:
-            print(f"⚠️ [AMANDA] Historique indisponible: {hist_err}")
+            zlog("warning", "HISTORY", "historique indisponible",
+                 company_id=req.company_id, error=str(hist_err)[:200])
+        finally:
+            _timings["history_load_ms"] = round((time.time() - _t_history_start) * 1000, 2)
+            zlog("debug", "HISTORY", "historique chargé",
+                 company_id=req.company_id, user_id=req.user_id,
+                 chars=len(conversation_history),
+                 truncated=len(conversation_history) >= 2000,
+                 elapsed_ms=_timings["history_load_ms"])
         
         # 🖼️ 3. Vision OCR si image présente
+        _t_vision_start = time.time()
         vision_ocr = ""
         if req.images and len(req.images) > 0:
             try:
@@ -4082,9 +4327,15 @@ async def amanda_botlive_endpoint(req: ChatRequest, request: Request):
                 )
                 if isinstance(vres, dict):
                     vision_ocr = f"[VISION_OCR: {vres.get('raw', '')[:500]}]"
-                print(f"🖼️ [AMANDA] Vision OCR: {len(vision_ocr)} chars")
+                zlog("info", "VISION_OCR", "analyse image",
+                     company_id=req.company_id,
+                     image_url=img_url[:80],
+                     ocr_chars=len(vision_ocr),
+                     elapsed_ms=round((time.time() - _t_vision_start) * 1000, 2))
             except Exception as v_err:
-                print(f"⚠️ [AMANDA] Vision error: {v_err}")
+                zlog("warning", "VISION_OCR", "erreur vision",
+                     company_id=req.company_id, error=str(v_err)[:200])
+        _timings["vision_ocr_ms"] = round((time.time() - _t_vision_start) * 1000, 2)
         
         # 🧱 4. Construction du prompt final (SYSTEM stable + USER dynamique)
         # Le prefix `system_prompt` est IDENTIQUE entre appels → cache hit maximal
@@ -4097,6 +4348,23 @@ async def amanda_botlive_endpoint(req: ChatRequest, request: Request):
         user_block = "\n\n".join(user_block_parts)
         
         full_prompt = f"{system_prompt}\n\n---\n\n{user_block}"
+
+        # --- EXTRACT DEBUG INFO FOR SIMULATOR ---
+        _p_idx = ""
+        _c_blk = ""
+        try:
+            _m_idx = _re.search(r"##\s*PRODUCT_INDEX\s*##\s*(.*?)\s*##\s*END_PRODUCT_INDEX\s*##", str(full_prompt or ""), flags=_re.IGNORECASE | _re.DOTALL)
+            if not _m_idx:
+                _m_idx = _re.search(r"\[\[PRODUCT_INDEX_START\]\](.*?)\[\[PRODUCT_INDEX_END\]\]", str(full_prompt or ""), flags=_re.IGNORECASE | _re.DOTALL)
+            _p_idx = (_m_idx.group(1).strip() if _m_idx else "∅").replace("\n", " | ")[:1000]
+
+            _m_cat = _re.search(r"\[CATALOGUE_START\](.*?)\[CATALOGUE_END\]", str(full_prompt or ""), flags=_re.IGNORECASE | _re.DOTALL)
+            if not _m_cat:
+                # Amanda uses boutique_block often
+                _m_cat = _re.search(r"##\s*BOUTIQUE_INFO\s*##\s*(.*?)\s*##", str(full_prompt or ""), flags=_re.IGNORECASE | _re.DOTALL)
+            _c_blk = (_m_cat.group(1).strip() if _m_cat else "∅").replace("\n", " | ")[:2000]
+        except Exception as _dbg_e:
+            print(f"⚠️ [AMANDA][DEBUG] extraction error: {_dbg_e}")
         
         # 🤖 5. Résolution modèle (Bot Registry v2.0 — dynamique par plan)
         from core.bot_registry import get_amanda_config
@@ -4110,7 +4378,7 @@ async def amanda_botlive_endpoint(req: ChatRequest, request: Request):
             from core.botlive_prompts_supabase import get_prompts_manager
             pm = get_prompts_manager()
             if pm:
-                info = pm.get_company_info(req.company_id) or {}
+                info = await pm.get_company_info(req.company_id) or {}
                 plan_name = str(info.get("plan_name") or "starter").lower()
                 has_boost = bool(info.get("has_boost", False))
         except Exception:
@@ -4129,17 +4397,17 @@ async def amanda_botlive_endpoint(req: ChatRequest, request: Request):
             model_name = enforce_allowed_model(amanda_fallback, context="amandabotlive_fallback")
 
         prompt_len = len(full_prompt)
-        print(
-            f"🤖 [AMANDA][REGISTRY v2.0] model={model_name} | plan={plan_name} "
-            f"boost={has_boost} (ignoré) | fallback={amanda_fallback} | prompt={prompt_len} chars"
-        )
-        print(
-            f"⚙️ [AMANDA][PARAMS] temp={llm_params['temperature']} top_p={llm_params['top_p']} "
-            f"max_tok={llm_params['max_tokens']} freq_pen={llm_params['frequency_penalty']} "
-            f"pres_pen={llm_params['presence_penalty']}"
-        )
+        zlog("info", "MODEL_RESOLVE", "modèle Amanda résolu",
+             request_id=request_id,
+             company_id=req.company_id,
+             plan=plan_name, has_boost=has_boost,
+             model=model_name, boost_ignored=True,
+             fallback=amanda_fallback,
+             prompt_chars=prompt_len,
+             params=llm_params)
 
         # Appel LLM via client qui retourne tokens + cost (OpenRouter)
+        _t_llm_start = time.time()
         llm_client_obj = get_llm_client()
         llm_result = await llm_client_obj.complete(
             prompt=full_prompt,
@@ -4169,10 +4437,23 @@ async def amanda_botlive_endpoint(req: ChatRequest, request: Request):
             cost_total = float(usage.get("total_cost") or 0.0)
         except Exception:
             cost_total = 0.0
-        print(
-            f"📊 [AMANDA][LLM] tokens in={prompt_tokens} out={completion_tokens} "
-            f"total={total_tokens} cached={cached_tokens} | cost=${cost_total:.6f}"
-        )
+        _timings["llm_call_ms"] = round((time.time() - _t_llm_start) * 1000, 2)
+
+        # Compute real cost via cost_calculator
+        _real_cost = _compute_cost(model_name, prompt_tokens, completion_tokens, cached_tokens)
+        if _real_cost > 0 and cost_total == 0:
+            cost_total = _real_cost
+
+        cache_hit_pct = round(cached_tokens / max(prompt_tokens, 1) * 100, 1)
+        zlog("info", "LLM_RESPONSE", "réponse reçue",
+             request_id=request_id,
+             model=model_name,
+             prompt_tokens=prompt_tokens,
+             completion_tokens=completion_tokens,
+             cached_tokens=cached_tokens,
+             cache_hit_rate=cache_hit_pct,
+             cost_usd=round(cost_total, 8),
+             elapsed_ms=_timings["llm_call_ms"])
         
         # 📤 6. Extraction XML (format obligatoire Amanda: <thinking>...</thinking><response>...</response>)
         # ⚠️ RÈGLE ARCHITECTURALE AMANDA :
@@ -4252,9 +4533,21 @@ async def amanda_botlive_endpoint(req: ChatRequest, request: Request):
             if "##HANDOFF##" in response_text:
                 handoff_requested = True
                 response_text = response_text.replace("##HANDOFF##", "").strip()
+
         except Exception as parse_err:
-            print(f"⚠️ [AMANDA] Parse XML échoué (utilisation raw): {parse_err}")
+            zlog("warning", "XML_PARSE", "XML malformé — fuzzy parser utilisé",
+                 request_id=request_id,
+                 raw_preview=str(raw_response or "")[:200],
+                 recovered=bool(str(raw_response or "").strip()))
             response_text = str(raw_response or "").strip()
+
+        zlog("debug", "XML_PARSE", "parsing thinking",
+             request_id=request_id,
+             thinking_chars=len(thinking_raw),
+             has_detection=bool(detection_slots.get("resume")),
+             has_handoff=handoff_requested,
+             priority=priority,
+             slots=detection_slots)
 
         # 🚚 6bis. INTERCEPTEUR §LIVRAISON + validation zone floue
         try:
@@ -4272,7 +4565,12 @@ async def amanda_botlive_endpoint(req: ChatRequest, request: Request):
                 if liv_cost and int(liv_cost) > 0 and zone_name:
                     # Zone précise → remplacer §LIVRAISON par le coût réel
                     response_text = response_text.replace("§LIVRAISON", f"{int(liv_cost)}F")
-                    print(f"🚚 [AMANDA][§LIVRAISON] remplacé par {liv_cost}F (zone={zone_name})")
+                    zlog("info", "LIVRAISON_INTERCEPT", "§LIVRAISON détecté",
+                         request_id=request_id,
+                         zone_raw=detection_slots.get("zone"),
+                         zone_resolved=zone_name,
+                         cost=liv_cost,
+                         action="replaced")
                 else:
                     # Zone floue (ex: "Abidjan" sans quartier) → court-circuit proactif
                     response_text = (
@@ -4280,9 +4578,15 @@ async def amanda_botlive_endpoint(req: ChatRequest, request: Request):
                         "vous êtes dans quelle COMMUNE et quel QUARTIER précisément ? "
                         "Le tarif varie selon la zone exacte. 🙏"
                     )
-                    print(f"⚠️ [AMANDA][§LIVRAISON] Court-circuit zone floue (zone_info={zone_info})")
+                    zlog("info", "LIVRAISON_INTERCEPT", "§LIVRAISON détecté",
+                         request_id=request_id,
+                         zone_raw=detection_slots.get("zone"),
+                         zone_resolved=zone_name,
+                         cost=None,
+                         action="short_circuit")
         except Exception as liv_err:
-            print(f"⚠️ [AMANDA][§LIVRAISON] Erreur intercepteur: {liv_err}")
+            zlog_error("LIVRAISON_INTERCEPT", "erreur intercepteur", liv_err,
+                       request_id=request_id)
 
         # 🎯 Calcul DOSSIER COMPLET (3 cibles — PAIEMENT EXCLU par design Amanda)
         # Règle : article (resume) + zone (commune+quartier) + téléphone
@@ -4292,11 +4596,13 @@ async def amanda_botlive_endpoint(req: ChatRequest, request: Request):
         dossier_complet = has_article and has_zone and has_phone
 
         elapsed_ms = (time.time() - start_time) * 1000
-        print(
-            f"✅ [AMANDA] Réponse générée en {elapsed_ms:.0f}ms | len={len(response_text)} | "
-            f"dossier_complet={dossier_complet} (art={has_article} zone={has_zone} tel={has_phone}) | "
-            f"handoff={handoff_requested} priority={priority}"
-        )
+        _timings["total_endpoint_ms"] = round(elapsed_ms, 2)
+
+        zlog("info", "DOSSIER", "évaluation dossier",
+             request_id=request_id,
+             has_article=has_article, has_zone=has_zone, has_phone=has_phone,
+             dossier_complet=dossier_complet,
+             will_notify=handoff_requested or dossier_complet)
         
         # 💾 7. Sauvegarder dans l'historique
         try:
@@ -4309,7 +4615,8 @@ async def amanda_botlive_endpoint(req: ChatRequest, request: Request):
                 {"text": response_text}
             )
         except Exception as save_err:
-            print(f"⚠️ [AMANDA] Save error: {save_err}")
+            zlog("warning", "CONVERSATION", "échec sauvegarde",
+                 request_id=request_id, error=str(save_err)[:200])
 
         # 🔔 8. NOTIFICATION PRÉCOMMANDE (si handoff ou dossier complet)
         # Déclenche operator_notification (table Supabase) + push Web Push VAPID
@@ -4334,7 +4641,13 @@ async def amanda_botlive_endpoint(req: ChatRequest, request: Request):
                     message_type="precommande",
                     order_summary=amanda_summary,
                 )
-                print(f"🔔 [AMANDA] Notif precommande envoyée | user={req.user_id[:12]}")
+                zlog("info", "NOTIF_OPERATOR", "notification envoyée",
+                     request_id=request_id,
+                     company_id=req.company_id,
+                     trigger="handoff" if handoff_requested else "dossier_complet",
+                     article_preview=amanda_summary.get("article", "")[:60],
+                     zone=amanda_summary.get("zone"),
+                     has_phone=bool(amanda_summary.get("telephone")))
 
                 # Web Push (non bloquant)
                 try:
@@ -4356,9 +4669,28 @@ async def amanda_botlive_endpoint(req: ChatRequest, request: Request):
                         },
                     )
                 except Exception as push_err:
-                    print(f"⚠️ [AMANDA] Push error (non bloquant): {push_err}")
+                    zlog("warning", "NOTIF_OPERATOR", "push error non bloquant",
+                         request_id=request_id, error=str(push_err)[:200])
             except Exception as notif_err:
-                print(f"⚠️ [AMANDA] Notif precommande error: {notif_err}")
+                zlog_error("NOTIF_OPERATOR", "notification precommande error", notif_err,
+                           request_id=request_id)
+
+        zlog("info", "AMANDA_OUT", "réponse finale",
+             request_id=request_id,
+             company_id=req.company_id,
+             response_chars=len(response_text),
+             dossier_complet=dossier_complet,
+             handoff=handoff_requested,
+             model=model_name if 'model_name' in locals() else "?",
+             total_ms=round(elapsed_ms, 2),
+             timings=_timings)
+
+        zlog("info", "TIMING_SUMMARY", "récapitulatif phases",
+             request_id=request_id,
+             bot_type="amanda",
+             timings=_timings,
+             llm_pct=round(_timings.get("llm_call_ms", 0) /
+                           max(_timings.get("total_endpoint_ms", 1), 1) * 100, 1))
 
         return {
             "response": response_text,
@@ -4384,8 +4716,11 @@ async def amanda_botlive_endpoint(req: ChatRequest, request: Request):
             "processing_time_ms": elapsed_ms,
             "timings": _timings,
             "request_id": request_id,
+            "product_index": _p_idx if '_p_idx' in locals() else "",
+            "catalogue_block": _c_blk if '_c_blk' in locals() else "",
+
             # 📊 Métriques LLM détaillées (pour simulator / dashboard admin)
-            "prompt_len": prompt_len,
+            "prompt_len": prompt_len if 'prompt_len' in locals() else 0,
             "prompt_tokens": prompt_tokens,
             "completion_tokens": completion_tokens,
             "total_tokens": total_tokens,
@@ -4397,7 +4732,8 @@ async def amanda_botlive_endpoint(req: ChatRequest, request: Request):
     except HTTPException:
         raise
     except Exception as e:
-        print(f"❌ [AMANDA] Erreur: {e}")
+        zlog_error("AMANDA_OUT", "erreur fatale", e,
+                   request_id=request_id if 'request_id' in locals() else "?")
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Amanda Botlive error: {str(e)}")

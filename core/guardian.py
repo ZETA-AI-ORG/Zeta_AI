@@ -18,9 +18,15 @@ from __future__ import annotations
 
 import os
 import logging
+import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional, Tuple
+
+try:
+    from .zlog import zlog, zlog_error
+except ImportError:
+    from core.zlog import zlog, zlog_error
 
 try:
     from .message_registry import get_system_response, get_company_tone
@@ -118,7 +124,13 @@ class Guardian:
         Retourne un GuardianVerdict. Si allowed=False, le message est déjà prêt
         à être renvoyé au client (humanisé via message_registry).
         """
+        _t0 = time.time()
+        zlog("debug", "GUARDIAN", "vérification accès",
+             company_id=company_id, user_id=user_id)
+
         if not GUARDIAN_ENABLED:
+            zlog("info", "GUARDIAN", "Guardian désactivé — pass-through",
+                 company_id=company_id)
             return GuardianVerdict(True, "DISABLED", "", {"guardian": "disabled"})
 
         info = company_info or {}
@@ -130,22 +142,38 @@ class Guardian:
         ok, reason, meta = self._check_temporal_access(plan, subscription)
         if not ok:
             msg = get_system_response("subscription_expired", tone=tone, **meta)
-            logger.warning(f"🛡️ [GUARDIAN] company={company_id} user={user_id} → {reason} (plan={plan})")
+            zlog("warning", "GUARDIAN", "accès refusé — abonnement expiré",
+                 company_id=company_id, user_id=user_id,
+                 reason=reason, plan=plan,
+                 elapsed_ms=round((time.time() - _t0) * 1000, 2))
             return GuardianVerdict(False, reason, msg, meta)
 
         # 2) Quota d'utilisation
         ok, reason, meta = self._check_usage_quota(subscription)
         if not ok:
             msg = get_system_response("quota_reached", tone=tone, **meta)
-            logger.warning(f"🛡️ [GUARDIAN] company={company_id} user={user_id} → {reason}")
+            zlog("warning", "GUARDIAN", "accès refusé — quota épuisé",
+                 company_id=company_id, user_id=user_id,
+                 reason=reason, usage=meta.get("usage"), limit=meta.get("limit"),
+                 elapsed_ms=round((time.time() - _t0) * 1000, 2))
             return GuardianVerdict(False, reason, msg, meta)
 
         # 3) Session limiter (client WhatsApp)
         ok, reason, meta = self._check_session_limit(plan=plan, user_id=user_id)
         if not ok:
             msg = get_system_response("session_limit", tone=tone, **meta)
-            logger.info(f"🛡️ [GUARDIAN] company={company_id} user={user_id} → {reason}")
+            zlog("warning", "GUARDIAN", "accès refusé — session limit",
+                 company_id=company_id, user_id=user_id,
+                 reason=reason, recent=meta.get("recent"), max=meta.get("max"),
+                 elapsed_ms=round((time.time() - _t0) * 1000, 2))
             return GuardianVerdict(False, reason, msg, meta)
+
+        _elapsed = round((time.time() - _t0) * 1000, 2)
+        zlog("info", "GUARDIAN", "verdict final",
+             company_id=company_id, user_id=user_id,
+             allowed=True, reason="OK", plan=plan,
+             usage=meta.get("usage"), limit=meta.get("limit"),
+             elapsed_ms=_elapsed)
 
         return GuardianVerdict(True, "OK", "", {"plan": plan})
 

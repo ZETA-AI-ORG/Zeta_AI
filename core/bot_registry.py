@@ -28,6 +28,11 @@ from __future__ import annotations
 import os
 from typing import Any, Dict, Optional
 
+try:
+    from .zlog import zlog
+except ImportError:
+    from core.zlog import zlog
+
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # 🎙️ AMANDA — Bot Live TikTok (Précommande VIP)
@@ -164,11 +169,15 @@ def get_amanda_config(plan_name: Optional[str] = None, has_boost: bool = False) 
     Règle : boost IGNORÉ, mêmes params pour tous les plans.
     """
     plan = _normalize_plan(plan_name)
+    model = AMANDA.get(plan, AMANDA["starter"])
+    zlog("info", "REGISTRY", "modèle résolu",
+         bot_type="amanda", plan=plan, has_boost=False,
+         model=model, boost_ignored=True)
     return {
         "bot": "amanda",
         "plan": plan,
         "has_boost": False,              # Amanda ignore le boost (règle métier)
-        "model": AMANDA.get(plan, AMANDA["starter"]),
+        "model": model,
         "fallback": AMANDA["fallback"],
         "params": dict(AMANDA["params"]),
     }
@@ -196,6 +205,10 @@ def get_jessica_config(plan_name: Optional[str] = None, has_boost: bool = False)
         model = JESSICA.get(plan, JESSICA["starter"])
         params = dict(JESSICA["params_rang_a"])
         rank = "RANG_A"
+
+    zlog("info", "REGISTRY", "modèle résolu",
+         bot_type="jessica", plan=plan, has_boost=has_boost,
+         model=model, rank=rank)
 
     return {
         "bot": "jessica",
@@ -237,7 +250,13 @@ def is_model_allowed(model_name: Optional[str]) -> bool:
     """True si le modèle appartient à la liste autorisée du registry v2.0."""
     if not model_name:
         return False
-    return str(model_name).strip() in ALLOWED_MODELS
+    allowed = str(model_name).strip() in ALLOWED_MODELS
+    if not allowed:
+        zlog("warning", "MODEL_GUARD", "modèle interdit remplacé",
+             requested=model_name,
+             fallback="will be resolved by caller",
+             context="bot_registry")
+    return allowed
 
 
 def get_registry_snapshot() -> Dict[str, Any]:

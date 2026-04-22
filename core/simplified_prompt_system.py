@@ -583,7 +583,7 @@ Fais confiance à ton jugement. Tu es Jessica, pas un robot."""
 """
 
     @staticmethod
-    def _build_product_index_block(catalog_v2: Optional[Dict[str, Any]]) -> str:
+    def _build_product_index_block(catalog_v2: Optional[Dict[str, Any]], featured_ids: Optional[List[str]] = None) -> str:
         try:
             if not isinstance(catalog_v2, dict):
                 return ""
@@ -691,8 +691,6 @@ Fais confiance à ton jugement. Tu es Jessica, pas un robot."""
         fresh catalogue section at the end so runtime product context is never lost.
         """
         try:
-            import re
-
             base = str(prompt or "")
             if not base.strip():
                 return base
@@ -1455,6 +1453,7 @@ Fais confiance à ton jugement. Tu es Jessica, pas un robot."""
                 up = str(v).upper()
                 data = _kv_parse(v)
                 if up.startswith("PAYMENT_VERDICT"):
+                    data = data or {}
                     status = (data.get("payment_verdict", "") or data.get("status", "")).upper()
                     amount = data.get("amount", "") or data.get("montant", "")
                     received = data.get("received", "") or data.get("recu", "")
@@ -1764,6 +1763,7 @@ Fais confiance à ton jugement. Tu es Jessica, pas un robot."""
             conversation_history=conversation_history_s,
             completion_rate=completion_rate,
             shop_url=shop_url_s,
+            shop_name=company_name_s,
         )
 
         # Règle runtime (appliquée même si le prompt vient de Supabase):
@@ -1838,6 +1838,37 @@ Fais confiance à ton jugement. Tu es Jessica, pas un robot."""
         # Assembler prompt final
         final_prompt = static_prompt + "\n" + dynamic_context + output_schema + items_schema
         
+        # 🛠️ TÂCHE 2 : Health Check du Prompt
+        try:
+            from core.zlog import zlog
+            
+            # Extraction stricte des balises non remplacées
+            # Note: re est importé au niveau global (ligne 13)
+            unreplaced_tags = re.findall(r'\{[a-zA-Z0-9_]+\}|\[\[[A-Z0-9_]+\]\]', final_prompt)
+
+            # Ignorer les balises structurelles légitimes
+            tags_fixes = [
+                "[[ZETA_CORE_START]]", "[[ZETA_CORE_END]]", 
+                "[[PHASE_A_START]]", "[[PHASE_A_END]]",
+                "[[PHASE_B_START]]", "[[PHASE_B_END]]",
+                "[[PHASE_C_START]]", "[[PHASE_C_END]]",
+                "[[BLOC2_START]]", "[[BLOC2_END]]",
+                "[[PRODUCT_INDEX_START]]", "[[PRODUCT_INDEX_END]]",
+                "[CATALOGUE_START]", "[CATALOGUE_END]"
+            ]
+
+            anomalies = [tag for tag in set(unreplaced_tags) if tag not in tags_fixes]
+
+            # On log uniquement les métriques et les erreurs
+            zlog("info", "PROMPT_STATE", "État de santé du prompt",
+                 company_id=company_id,
+                 total_length=len(final_prompt),
+                 anomalies_count=len(anomalies),
+                 unreplaced_tags=anomalies)
+        except Exception as e:
+            from core.zlog import zlog
+            zlog("warning", "PROMPT_HEALTH_FAIL", "Échec health check prompt", error=str(e))
+
         return final_prompt
     
     def reset_checklist(self, user_id: str, company_id: str):

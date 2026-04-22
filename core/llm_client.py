@@ -7,7 +7,6 @@ from typing import Optional, Dict, Any
 from .rate_limiter import rate_limited_llm_call
 from .circuit_breaker import protected_groq_call
 import os
-from embedding_models import get_embedding_model
 
 _global_llm_client: Optional[Any] = None
 
@@ -278,18 +277,3 @@ async def complete(
     except Exception as e:
         log3("[LLM][ERROR]", str(e))
         return f"[Erreur LLM] {str(e)}"
-
-
-async def embed_text_hf(text: str, model_name: str = "mpnet-base-v2") -> list:
-    """
-    Encode un texte en embedding via Hugging Face (sentence-transformers).
-    Indépendant du LLM — utilisé pour retrieval local (legacy).
-    """
-    try:
-        model = get_embedding_model(model_name)
-        print(f" [EMBEDDING] Modèle chargé, encoding en cours...")
-        embedding = model.encode([text])[0].tolist()
-        return embedding
-    except Exception as e:
-        print(f"[EMBEDDING] Erreur: {type(e).__name__}")
-        raise

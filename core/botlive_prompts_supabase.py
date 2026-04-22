@@ -9,7 +9,17 @@ import re
 import logging
 from typing import Dict, Any, Optional
 from supabase import create_client, Client
+import asyncio
 import time
+
+try:
+    from .zlog import zlog, zlog_error
+except ImportError:
+    try:
+        from core.zlog import zlog, zlog_error
+    except ImportError:
+        def zlog(*a, **kw): pass
+        def zlog_error(*a, **kw): pass
 
 # Chemin vers le prompt universel V2.0 (BLOC 1 statique)
 _LOCAL_PATH_ENV = os.getenv("LOCAL_PROMPT_PATH")
@@ -90,7 +100,7 @@ class BotlivePromptsManager:
         except Exception:
             pass
     
-    def get_prompt(self, company_id: str, llm_choice: str) -> str:
+    async def get_prompt(self, company_id: str, llm_choice: str) -> str:
         """
         Récupère le prompt Botlive depuis Supabase
         
@@ -142,10 +152,12 @@ class BotlivePromptsManager:
         try:
             # Récupérer depuis Supabase (table company_rag_configs)
             logger.info(f"🔍 [SUPABASE] Requête: table=company_rag_configs, company_id={company_id}")
-            response = self.supabase.table("company_rag_configs") \
+            response = await asyncio.to_thread(
+                self.supabase.table("company_rag_configs") \
                 .select("prompt_botlive_groq_70b, prompt_botlive_deepseek_v3, company_name, ai_name, botlive_prompts_updated_at") \
                 .eq("company_id", company_id) \
-                .execute()
+                .execute
+            )
             
             if not response.data or len(response.data) == 0:
                 raise ValueError(f"❌ Aucune config trouvée pour company_id: {company_id}")
@@ -188,14 +200,14 @@ class BotlivePromptsManager:
             logger.error(f"Traceback complet:\n{traceback.format_exc()}")
             raise
 
-    def get_hyde_pre_routing_prompt(self, company_id: str) -> str:
+    async def get_hyde_pre_routing_prompt(self, company_id: str) -> str:
         """Récupère le bloc de prompt HYDE pré-routage depuis prompt_botlive_groq_70b.
 
         Le bloc est délimité par [[HYDE_PRE_ROUTING_START]] et [[HYDE_PRE_ROUTING_END]]
         dans le prompt principal stocké en base.
         """
 
-        return self.get_prompt_block(
+        return await self.get_prompt_block(
             company_id=company_id,
             start_tag="[[HYDE_PRE_ROUTING_START]]",
             end_tag="[[HYDE_PRE_ROUTING_END]]",
@@ -203,7 +215,7 @@ class BotlivePromptsManager:
             required=False,
         )
 
-    def get_prompt_block(
+    async def get_prompt_block(
         self,
         company_id: str,
         start_tag: str,
@@ -228,12 +240,12 @@ class BotlivePromptsManager:
             logger.info(
                 f"🔍 [SUPABASE] Requête prompt block: company_id={company_id}, column={source_column}, block={cache_suffix}"
             )
-            response = (
+            response = await asyncio.to_thread(
                 self.supabase.table("company_rag_configs")
                 .select(f"{source_column}, company_name")
                 .eq("company_id", company_id)
                 .single()
-                .execute()
+                .execute
             )
 
             if not response.data:
@@ -292,27 +304,27 @@ class BotlivePromptsManager:
 
         return block
 
-    def get_hyde_secour_x_prompt(self, company_id: str) -> str:
+    async def get_hyde_secour_x_prompt(self, company_id: str) -> str:
         """Prompt clarification (Gemini) via bloc [[HYDE_SECOUR_X_START]]/[[HYDE_SECOUR_X_END]]."""
 
-        return self.get_prompt_block(
+        return await self.get_prompt_block(
             company_id=company_id,
             start_tag="[[HYDE_SECOUR_X_START]]",
             end_tag="[[HYDE_SECOUR_X_END]]",
             cache_suffix="hyde_secour_x",
         )
 
-    def get_jessica_prompt_x(self, company_id: str) -> str:
+    async def get_jessica_prompt_x(self, company_id: str) -> str:
         """Prompt Jessica complexe (70B) via bloc [[JESSICA_PROMPT_X_START]]/[[JESSICA_PROMPT_X_END]]."""
 
-        return self.get_prompt_block(
+        return await self.get_prompt_block(
             company_id=company_id,
             start_tag="[[JESSICA_PROMPT_X_START]]",
             end_tag="[[JESSICA_PROMPT_X_END]]",
             cache_suffix="jessica_prompt_x",
         )
 
-    def format_prompt(self, 
+    async def format_prompt(self, 
                      company_id: str,
                      llm_choice: str,
                      conversation_history: str = "",
@@ -339,7 +351,7 @@ class BotlivePromptsManager:
         """
         # Récupérer le template depuis Supabase
         logger.info(f"🔍 [PROMPTS_MANAGER] Récupération prompt: company_id={company_id}, llm={llm_choice}")
-        prompt_template = self.get_prompt(company_id, llm_choice)
+        prompt_template = await self.get_prompt(company_id, llm_choice)
         logger.info(f"✅ [PROMPTS_MANAGER] Template récupéré: {len(prompt_template)} chars")
         
         # Variables par défaut
@@ -353,7 +365,7 @@ class BotlivePromptsManager:
 
         # --- ENRICHISSEMENT DYNAMIQUE (V2.0 SCALABLE) ---
         try:
-            info = self.get_company_info(company_id) or {}
+            info = await self.get_company_info(company_id) or {}
             # 🛡️ GARDE-FOU : rag_behavior peut être une string legacy → forcer dict
             _raw_rag = info.get("rag_behavior") if isinstance(info, dict) else None
             rag = _raw_rag if isinstance(_raw_rag, dict) else {}
@@ -414,66 +426,86 @@ class BotlivePromptsManager:
             logger.warning(f"⚠️ [PROMPTS_MANAGER] Fallback formatage: {len(safe_prompt)} chars")
             return safe_prompt
     
-    def get_company_info(self, company_id: str) -> Dict[str, Any]:
+    async def get_company_info(self, company_id: str) -> Dict[str, Any]:
         """
-        Récupère les informations de l'entreprise + sa souscription (2 requêtes séparées).
-        Nécessaire pour le routage élastique (plan + boost) et le Guardian (expiration + quota).
-
-        Args:
-            company_id: Identifiant entreprise
-
-        Returns:
-            Dict: Informations entreprise + champs subscription (plan_name, has_boost,
-                  status, next_billing_date, pro_trial_ends_at, current_usage, usage_limit…)
+        Récupère les informations de l'entreprise + sa souscription en PARALLÈLE (V3 Performance).
+        Gère le mapping hybride Firebase ID (Text) -> Supabase ID (UUID).
         """
         try:
-            # 1) Config RAG + identité boutique
-            response = self.supabase.table("company_rag_configs") \
-                .select("company_name, ai_name, secteur_activite, whatsapp_phone, boutique_type, rag_behavior, description, botlive_prompts_version") \
-                .eq("company_id", company_id) \
-                .execute()
+            # 🎯 0) RÉSOLUTION ID (HYBRID)
+            # Détecter si c'est déjà un UUID
+            is_uuid = bool(re.match(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$', str(company_id).lower()))
+            
+            firebase_id = company_id
+            internal_uuid = company_id if is_uuid else None
 
-            if not response.data:
-                logger.warning(f"⚠️ [GET_COMPANY] Aucune config trouvée pour {company_id}")
+            # Si on a un ID Firebase, on récupère le vrai UUID depuis la table 'companies'
+            if not internal_uuid:
+                try:
+                    res_comp = await asyncio.to_thread(
+                        self.supabase.table("companies")
+                        .select("id")
+                        .eq("company_id_text", firebase_id)
+                        .execute
+                    )
+                    if res_comp.data:
+                        internal_uuid = res_comp.data[0]['id']
+                        zlog("info", "ID_RESOLVE", "Firebase -> UUID mapping trouvé",
+                             firebase_id=firebase_id, uuid=internal_uuid)
+                except Exception as res_err:
+                    logger.warning(f"⚠️ [GET_COMPANY] Résolution UUID échouée pour {firebase_id}: {res_err}")
+
+            # 🎯 1) RÉCUPÉRATION PARALLÈLE (L'accélérateur V3)
+            # On lance les deux requêtes simultanément via asyncio.gather
+            tasks = [
+                asyncio.to_thread(
+                    self.supabase.table("company_rag_configs")
+                    .select("company_name, ai_name, secteur_activite, whatsapp_phone, boutique_type, rag_behavior, description, botlive_prompts_version, shop_slug")
+                    .eq("company_id", firebase_id)
+                    .execute
+                )
+            ]
+            
+            # On n'ajoute la tâche subscription que si on a un UUID valide (pour éviter 22P02)
+            if internal_uuid:
+                tasks.append(
+                    asyncio.to_thread(
+                        self.supabase.table("subscriptions")
+                        .select("plan_name, has_boost, status, next_billing_date, pro_trial_ends_at, current_usage, usage_limit, created_at, updated_at")
+                        .eq("company_id", internal_uuid)
+                        .order("updated_at", desc=True)
+                        .limit(1)
+                        .execute
+                    )
+                )
+            
+            # Exécution parallèle
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+            
+            # Analyse des résultats
+            config_res = results[0]
+            sub_res = results[1] if len(results) > 1 else None
+
+            if isinstance(config_res, Exception) or not config_res.data:
+                logger.warning(f"⚠️ [GET_COMPANY] Aucune config trouvée pour {firebase_id}")
                 return None
+            
+            data = config_res.data[0]
 
-            data = response.data[0]
-
-            # 2) Souscription (requête dédiée pour éviter PGRST200 sur jointure fragile)
+            # Traitement Subscription
             subscription: Dict[str, Any] = {}
-            plan_name = "starter"
+            plan_name = None
             has_boost = False
-            try:
-                # 🛡️ FIX 22P02 : Supabase attend un UUID si la colonne est typée UUID.
-                # On s'assure que company_id ressemble à un UUID ou on utilise un filtre plus laxiste.
-                # Si company_id est un Kuid (non-UUID), PostgreSQL renvoie 22P02.
-                
-                query = self.supabase.table("subscriptions") \
-                    .select("plan_name, has_boost, status, next_billing_date, pro_trial_ends_at, current_usage, usage_limit, created_at, updated_at")
-                
-                # Check si company_id est un UUID valide (minimaliste)
-                import re
-                is_uuid = bool(re.match(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$', str(company_id).lower()))
-                
-                if is_uuid:
-                    query = query.eq("company_id", company_id)
-                else:
-                    # Si c'est un Kuid, on tente le cast ou on accepte que ça puisse échouer (fallback géré)
-                    query = query.eq("company_id", company_id)
-
-                sub_resp = query.order("updated_at", desc=True).limit(1).execute()
-
-                if sub_resp.data:
-                    subscription = sub_resp.data[0] or {}
-                    # Support des deux noms pour robustesse (plan_name primaire, plan_type legacy)
-                    plan_name = str(subscription.get("plan_name") or subscription.get("plan_type") or "starter").strip().lower()
-                    has_boost = bool(subscription.get("has_boost") or False)
-                else:
-                    logger.info(f"ℹ️ [GET_COMPANY] Pas de subscription pour {company_id} → fallback starter sans boost")
-            except Exception as sub_err:
-                # Ne jamais casser la boucle botlive si subscriptions n'est pas lisible
-                # Si erreur 22P02 (UUID), on logue simplement et on reste en starter.
-                logger.warning(f"⚠️ [GET_COMPANY] Lecture subscriptions KO pour {company_id}: {sub_err}")
+            
+            if sub_res and not isinstance(sub_res, Exception) and sub_res.data:
+                subscription = sub_res.data[0] or {}
+                plan_name = str(subscription.get("plan_name") or "").strip().lower() or None
+                has_boost = bool(subscription.get("has_boost") or False)
+                zlog("info", "SUBSCRIPTIONS", "plan résolu (parallel)",
+                     company_id=firebase_id, plan_name=plan_name, has_boost=has_boost)
+            else:
+                zlog("info", "SUBSCRIPTIONS", "pas de subscription ou erreur — fallback starter",
+                     company_id=firebase_id)
 
             return {
                 "company_name": data.get("company_name"),
@@ -483,14 +515,22 @@ class BotlivePromptsManager:
                 "boutique_type": data.get("boutique_type"),
                 "rag_behavior": data.get("rag_behavior"),
                 "description": data.get("description"),
-                # V2.0 — grille commerciale
+                "shop_slug": data.get("shop_slug"),
                 "plan_name": plan_name,
                 "has_boost": has_boost,
-                # Payload brut pour le Guardian (expiration / quota / session limiter)
                 "subscription": subscription,
+                "uuid_resolved": internal_uuid
             }
 
         except Exception as e:
+            zlog_error("SUBSCRIPTIONS", "erreur critique récupération info entreprise", e,
+                       company_id=company_id)
+            logger.error(f"❌ Erreur critique info entreprise {company_id}: {e}")
+            return {}
+
+        except Exception as e:
+            zlog_error("SUBSCRIPTIONS", "erreur récupération info entreprise", e,
+                       company_id=company_id)
             logger.error(f"❌ Erreur récupération info entreprise {company_id}: {e}")
             return {}
     
@@ -566,7 +606,7 @@ class BotlivePromptsManager:
             }
         return _ZETA_CORE_CACHE
 
-    def get_v2_base_prompt(
+    async def get_v2_base_prompt(
         self,
         company_id: str,
         company_info: Optional[Dict[str, Any]] = None,
@@ -594,7 +634,7 @@ class BotlivePromptsManager:
         info = company_info if isinstance(company_info, dict) and company_info else {}
         if not info and company_id:
             try:
-                info = self.get_company_info(company_id)
+                info = await self.get_company_info(company_id)
             except Exception:
                 info = {}
 
@@ -616,9 +656,17 @@ class BotlivePromptsManager:
                 "ou Expédition (Intérieur) en cas de commande."
             )
 
+        _shop_slug = str(info.get("shop_slug") or "").strip()
+        from core.cart_manager import CartManager
+        _catalogue_url = CartManager.get_catalogue_url(_shop_slug) if _shop_slug else ""
+        _shop_url = f"https://{_shop_slug}.zeta-ai.io" if _shop_slug else ""
+
         bloc2_vars = {
             "bot_name": info.get("ai_name") or "Jessica",
             "shop_name": info.get("company_name") or "Notre Boutique",
+            "company_name": info.get("company_name") or "Notre Boutique",
+            "catalogue_url": _catalogue_url,
+            "shop_url": _shop_url,
             "wave_number": payment.get("wave_number") or info.get("whatsapp_phone") or "\u00e0 demander",
             "depot_amount": payment.get("deposit_amount") or "2000 FCFA",
             "delai_message": rag.get("delai_message") or "",
@@ -707,7 +755,7 @@ class BotlivePromptsManager:
             self._cache.clear()
             logger.info("🗑️ Cache complet vidé")
     
-    def get_prompt_metadata(self, company_id: str) -> Dict[str, Any]:
+    async def get_prompt_metadata(self, company_id: str) -> Dict[str, Any]:
         """
         Récupère les métadonnées des prompts (version, date MAJ, etc.)
         
@@ -718,11 +766,13 @@ class BotlivePromptsManager:
             Dict: Métadonnées
         """
         try:
-            response = self.supabase.table("company_rag_configs") \
+            response = await asyncio.to_thread(
+                self.supabase.table("company_rag_configs") \
                 .select("botlive_prompts_version, botlive_prompts_updated_at") \
                 .eq("company_id", company_id) \
                 .single() \
-                .execute()
+                .execute
+            )
             
             return response.data if response.data else {}
             

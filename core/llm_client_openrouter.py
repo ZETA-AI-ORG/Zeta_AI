@@ -241,15 +241,35 @@ async def complete(
             except Exception:
                 total_cost = None
 
+            # 💰 Calcul local du coût si OpenRouter ne le renvoie pas (modèles gratuits/nouveaux)
+            if total_cost is None:
+                # Tarifs OpenRouter approximatifs (par million de tokens)
+                PRICING = {
+                    "google/gemma-4-26b-a4b-it": {"in": 0.08, "out": 0.35},
+                    "google/gemma-4-31b-it": {"in": 0.08, "out": 0.35},
+                    "deepseek/deepseek-v3": {"in": 0.14, "out": 0.28},
+                    "qwen/qwen-2.5-72b-instruct": {"in": 0.35, "out": 0.35},
+                    "meta-llama/llama-3.1-405b-instruct": {"in": 2.0, "out": 2.0},
+                    "google/gemini-2.0-flash": {"in": 0.10, "out": 0.40},
+                }
+                
+                p_tokens = usage.get("prompt_tokens", 0)
+                c_tokens = usage.get("completion_tokens", 0)
+                
+                rates = PRICING.get(model)
+                if rates:
+                    total_cost = (p_tokens * rates["in"] + c_tokens * rates["out"]) / 1_000_000
+                else:
+                    total_cost = 0.0
+
             token_info = {
                 "prompt_tokens": usage.get("prompt_tokens", 0),
                 "completion_tokens": usage.get("completion_tokens", 0),
                 "total_tokens": usage.get("total_tokens", 0),
                 "model": model,
                 "usage": usage,
+                "total_cost": total_cost or 0.0
             }
-            if total_cost is not None:
-                token_info["total_cost"] = total_cost
 
             return content, token_info
 

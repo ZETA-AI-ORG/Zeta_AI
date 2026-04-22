@@ -59,6 +59,10 @@ class SimplifiedRAGResult:
     
     # Thinking
     thinking: str = ""
+    
+    # Enrichment Logs
+    product_index: str = ""
+    catalogue_block: str = ""
 
 
 class SimplifiedRAGEngine:
@@ -3377,6 +3381,22 @@ class SimplifiedRAGEngine:
             
             print(f"✅ [PROMPT] Prompt construit: {len(final_prompt)} chars")
             
+            # --- EXTRACT DEBUG INFO FOR SIMULATOR ---
+            _p_idx = ""
+            _c_blk = ""
+            try:
+                # On Windows, try simple regex first
+                _m_idx = re.search(r"##\s*PRODUCT_INDEX\s*##\s*(.*?)\s*##\s*END_PRODUCT_INDEX\s*##", str(final_prompt or ""), flags=re.IGNORECASE | re.DOTALL)
+                if not _m_idx:
+                    # Fallback on the [[PRODUCT_INDEX]] replacement if it didn't use headers
+                    _m_idx = re.search(r"\[\[PRODUCT_INDEX_START\]\](.*?)\[\[PRODUCT_INDEX_END\]\]", str(final_prompt or ""), flags=re.IGNORECASE | re.DOTALL)
+                _p_idx = (_m_idx.group(1).strip() if _m_idx else "∅").replace("\n", " | ")[:1000]
+
+                _m_cat = re.search(r"\[CATALOGUE_START\](.*?)\[CATALOGUE_END\]", str(final_prompt or ""), flags=re.IGNORECASE | re.DOTALL)
+                _c_blk = (_m_cat.group(1).strip() if _m_cat else "∅").replace("\n", " | ")[:2000]
+            except Exception as _dbg_e:
+                print(f"⚠️ [DEBUG_EXTRACT] error: {_dbg_e}")
+            
             # Affichage prompt pour debug
             print(f"\n{'='*80}")
             print(f"🧠 PROMPT COMPLET ENVOYÉ AU LLM")
@@ -6241,7 +6261,9 @@ class SimplifiedRAGEngine:
                 total_tokens=total_tokens,
                 cost=total_cost,
                 model=str(model_used),
-                thinking=thinking
+                thinking=thinking,
+                product_index=_p_idx if '_p_idx' in locals() else "",
+                catalogue_block=_c_blk if '_c_blk' in locals() else ""
             )
         
         except Exception as e:
@@ -7155,4 +7177,8 @@ async def get_simplified_rag_response(
             "pending_pivot": cart_pending_for_response,
             "items_count": len(cart_items_for_response),
         },
+
+        # 🔍 Debug Pipeline
+        "product_index": result.product_index,
+        "catalogue_block": result.catalogue_block,
     }

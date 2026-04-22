@@ -1278,7 +1278,7 @@ class BotliveRAGHybrid:
             _company_info_for_guardian: Dict[str, Any] = {}
             if self.prompts_manager and _active_company_id:
                 try:
-                    _company_info_for_guardian = self.prompts_manager.get_company_info(_active_company_id) or {}
+                    _company_info_for_guardian = await self.prompts_manager.get_company_info(_active_company_id) or {}
                 except Exception as _gi_err:
                     logger.warning(f"🛡️ [GUARDIAN] get_company_info KO: {_gi_err}")
 
@@ -2236,7 +2236,7 @@ class BotliveRAGHybrid:
                 # 0) Fetch company_info une seule fois (réutilisé pour V2, enrichissement, routage)
                 company_info = None
                 try:
-                    company_info = self.prompts_manager.get_company_info(active_company_id)
+                    company_info = await self.prompts_manager.get_company_info(active_company_id)
                 except Exception as _ci_err:
                     logger.warning(f"⚠️ Erreur récupération company_info: {_ci_err}")
 
@@ -2275,7 +2275,7 @@ class BotliveRAGHybrid:
 
                 # 1) Template brut Supabase pour Jessica (sans formatage global)
                 # llm_choice="groq-70b" → lit prompt_botlive_groq_70b dans company_rag_configs
-                base_prompt_template = self.prompts_manager.get_prompt(active_company_id, prompt_llm_choice)
+                base_prompt_template = await self.prompts_manager.get_prompt(active_company_id, prompt_llm_choice)
 
                 # 🟢 V2.0 OVERRIDE: Pour OpenRouter, utiliser prompt_universel_v2.md (prefix caching)
                 # BLOC 1 identique pour toutes les boutiques → cache hit maximal
@@ -2298,7 +2298,7 @@ class BotliveRAGHybrid:
                                 logger.warning(f"⚠️ [PHASE] Erreur calcul phase: {_phase_err} — phase=None")
                                 _phase_param = None
 
-                        _v2_prompt = self.prompts_manager.get_v2_base_prompt(
+                        _v2_prompt = await self.prompts_manager.get_v2_base_prompt(
                             active_company_id,
                             company_info=company_info,
                             phase=_phase_param,
@@ -3116,7 +3116,7 @@ class BotliveRAGHybrid:
             try:
                 # 1. Plan + Boost depuis company_info (déjà fetché pour l'enrichissement)
                 _ci_routing = company_info if isinstance(company_info, dict) and company_info else (
-                    self.prompts_manager.get_company_info(active_company_id) if self.prompts_manager else {})
+                    await self.prompts_manager.get_company_info(active_company_id) if self.prompts_manager else {})
                 shop_plan = _ci_routing.get("plan_name", "starter")
                 has_boost = bool(_ci_routing.get("has_boost", False))
 
