@@ -680,9 +680,9 @@ class SimplifiedPromptSystem:
             "Sans ce bloc, le systeme ne peut pas traiter ta reponse.\n"
             "</thinking_contract>\n"
         )
-        if _env_flag("ENABLE_THINKING_PROMPT_GUARD", True) and "<thinking_contract>" not in final_prompt:
+        if _env_flag("ENABLE_THINKING_PROMPT_GUARD", False) and "<thinking_contract>" not in final_prompt:
             final_prompt += think_contract
-        if _env_flag("ENABLE_OUTPUT_CONTRACT_GUARD", True) and "<output_contract>" not in final_prompt:
+        if _env_flag("ENABLE_OUTPUT_CONTRACT_GUARD", False) and "<output_contract>" not in final_prompt:
             final_prompt += response_contract
         return final_prompt
 

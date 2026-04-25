@@ -61,6 +61,7 @@ _ALLOWED_PREFIXES = (
 
 _ALLOWED_EXACT_MODELS = {
     "deepseek/deepseek-v4-flash",
+    "stepfun/step-3.5-flash",
 }
 
 # Bannis explicitement (legacy Groq / Mistral / Llama / Claude / GPT)

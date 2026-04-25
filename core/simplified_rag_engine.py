@@ -3545,7 +3545,7 @@ class SimplifiedRAGEngine:
                 if thinking_raw:
                     return thinking_raw
 
-                if _env_flag("ENABLE_THINK_TAG_FALLBACK", True):
+                if _env_flag("ENABLE_THINK_TAG_FALLBACK", False):
                     think_raw = _extract_tag(txt, "think")
                     if think_raw:
                         print("[THINKING_TAG_FALLBACK] model used <think> instead of <thinking>")
@@ -4867,7 +4867,7 @@ class SimplifiedRAGEngine:
                     response = re.sub(r"```[a-zA-Z0-9_-]*\s*", "", response).strip()
                     response = response.replace("```", "").strip()
 
-                if (not str(response or "").strip()) and _env_flag("ENABLE_POST_THINK_RESPONSE_FALLBACK", True):
+                if (not str(response or "").strip()) and _env_flag("ENABLE_POST_THINK_RESPONSE_FALLBACK", False):
                     raw_txt = str(raw_llm_output or "")
                     if re.search(r"</think>", raw_txt, re.IGNORECASE):
                         try:
