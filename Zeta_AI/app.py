@@ -17,6 +17,7 @@ import requests
 import tempfile
 import re
 import redis
+import asyncio
 
 # ═══ ZETA AI — Structured Logging + Cost Calculator ═══
 try:
@@ -99,6 +100,23 @@ for noisy_logger in [
 
 app = FastAPI()
 
+# --- Configuration CORS ---
+# Autorise le dashboard (localhost) et les domaines Zeta AI à communiquer avec l'API
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:5173",
+        "http://localhost:3000",
+        "https://zetaapp.xyz",
+        "https://admin.zetaapp.xyz",
+        "https://app.zetaapp.xyz"
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
 def resolve_firebase_to_uuid(supabase_client, firebase_id: str) -> str:
     """
     Traduit l'ID Firebase (texte) en UUID Supabase (uuid) via la table companies.
@@ -159,63 +177,101 @@ async def get_company_diagnostic(firebase_id: str, request: Request):
         "critical_errors": []
     }
 
+    # --- PHASE 1 : SUPABASE (CORRECTIFS HTTP/2 & RETRY) ---
+    import httpx
+    use_http2 = os.getenv("SUPABASE_HTTP2", "false").lower() == "true"
+    timeout_diag = httpx.Timeout(5.0)
+
+    async def safe_supabase_diag(table: str, query_col: str, query_val: str, select_str: str = "*"):
+        """Appel Supabase sécurisé avec retry, backoff et logging (Désactivation HTTP/2 forcée)"""
+        url = f"{os.getenv('SUPABASE_URL')}/rest/v1/{table}"
+        headers = {
+            "apikey": os.getenv('SUPABASE_KEY'),
+            "Authorization": f"Bearer {os.getenv('SUPABASE_KEY')}",
+            "Content-Type": "application/json"
+        }
+        params = {query_col: f"eq.{query_val}", "select": select_str}
+        
+        async with httpx.AsyncClient(http2=use_http2, timeout=timeout_diag) as client:
+            retries = [0.2, 0.4, 0.8] 
+            for i, delay in enumerate(retries):
+                try:
+                    resp = await client.get(url, headers=headers, params=params)
+                    if resp.status_code == 200:
+                        return resp.json()
+                    return []
+                except Exception as e:
+                    print(f"[DIAGNOSTIC] RETRY_{i+1} {table} — {type(e).__name__}: {e}")
+                    if i < len(retries) - 1:
+                        await asyncio.sleep(delay)
+                    else:
+                        if isinstance(e, httpx.TimeoutException):
+                            return {"status": "TIMEOUT"}
+                        return {"status": "RETRY_EXHAUSTED", "attempts": 3}
+
+    # 1.1 PÔLE CORE BUSINESS : RÉSOLUTION UUID
+    t_start = time.time()
+    comp_res = await safe_supabase_diag('companies', 'company_id_text', firebase_id, select_str='id, name')
+    diagnostic["timings_ms"]["1_companies_resolve"] = round((time.time() - t_start) * 1000, 2)
+    
+    if isinstance(comp_res, dict) and "status" in comp_res:
+        diagnostic["tables_status"]["1_companies"] = {"status": comp_res["status"]}
+        diagnostic["critical_errors"].append(f"ERREUR RÉSOLUTION UUID : {comp_res['status']}")
+        return diagnostic
+        
+    if not comp_res:
+        diagnostic["critical_errors"].append("CRITIQUE : Entreprise absente de la table 'companies'.")
+        return diagnostic
+        
+    company_data = comp_res[0]
+    internal_uuid = company_data['id']
+    diagnostic["uuid_resolved"] = internal_uuid
+    diagnostic["tables_status"]["1_companies"] = {"status": "OK", "data_preview": company_data.get('name')}
+
+    # 1.2 EXÉCUTION PARALLÈLE DES 3 AUTRES PILIERS
+    t_batch_start = time.time()
+    tasks = [
+        safe_supabase_diag('company_rag_configs', 'company_id', firebase_id),
+        safe_supabase_diag('subscriptions', 'company_id', internal_uuid, select_str='plan_name, has_boost, usage_limit'),
+        safe_supabase_diag('company_catalogs_v2', 'company_id', firebase_id, select_str='is_active')
+    ]
+    
+    results = await asyncio.gather(*tasks)
+    diagnostic["timings_ms"]["parallel_batch_supabase"] = round((time.time() - t_batch_start) * 1000, 2)
+
+    # Extraction des résultats
+    config_res, sub_res, cat_res = results
+
+    # 1.2 PÔLE CONFIGURATION
+    if isinstance(config_res, dict) and "status" in config_res:
+        diagnostic["tables_status"]["2_company_rag_configs"] = {"status": config_res["status"]}
+    elif config_res:
+        preview = {k: v for k, v in config_res[0].items() if k in ['company_name', 'shop_slug', 'delivery_zones']}
+        diagnostic["tables_status"]["2_company_rag_configs"] = {"status": "OK", "data_preview": preview}
+    else:
+        diagnostic["tables_status"]["2_company_rag_configs"] = {"status": "MISSING"}
+
+    # 1.3 PÔLE ABONNEMENT
+    if isinstance(sub_res, dict) and "status" in sub_res:
+        diagnostic["tables_status"]["3_subscriptions"] = {"status": sub_res["status"]}
+    elif sub_res:
+        diagnostic["tables_status"]["3_subscriptions"] = {"status": "OK", "data_preview": sub_res[0]}
+    else:
+        diagnostic["tables_status"]["3_subscriptions"] = {"status": "MISSING"}
+
+    # 1.4 PÔLE RAG & CATALOGUE
+    if isinstance(cat_res, dict) and "status" in cat_res:
+        diagnostic["tables_status"]["4_company_catalogs_v2"] = {"status": cat_res["status"]}
+    elif cat_res:
+        is_active = cat_res[0].get('is_active', False)
+        diagnostic["tables_status"]["4_company_catalogs_v2"] = {
+            "status": "OK" if is_active else "WARNING", 
+            "info": "Catalogue ACTIF" if is_active else "Catalogue INACTIF"
+        }
+    else:
+        diagnostic["tables_status"]["4_company_catalogs_v2"] = {"status": "MISSING"}
+    # --- PHASE 2 : REDIS (Timeout 500ms) ---
     try:
-        # --- PHASE 1 : SUPABASE ---
-        
-        # 1.1 PÔLE CORE BUSINESS : RÉSOLUTION UUID
-        t_start = time.time()
-        comp_res = supabase_client.table('companies').select('id, name').eq('company_id_text', firebase_id).execute()
-        diagnostic["timings_ms"]["1_companies_resolve"] = round((time.time() - t_start) * 1000, 2)
-        
-        if not comp_res.data:
-            diagnostic["critical_errors"].append("CRITIQUE : Entreprise absente de la table 'companies'.")
-            return diagnostic
-            
-        company_data = comp_res.data[0]
-        internal_uuid = company_data['id']
-        diagnostic["uuid_resolved"] = internal_uuid
-        diagnostic["tables_status"]["1_companies"] = {"status": "OK", "data_preview": company_data.get('name')}
-
-        # 1.2 EXÉCUTION PARALLÈLE DES 3 AUTRES PILIERS (L'accélérateur V3)
-        t_batch_start = time.time()
-        tasks = [
-            asyncio.to_thread(supabase_client.table('company_rag_configs').select('*').eq('company_id', firebase_id).execute),
-            asyncio.to_thread(supabase_client.table('subscriptions').select('plan_name, has_boost, usage_limit').eq('company_id', internal_uuid).execute),
-            asyncio.to_thread(supabase_client.table('company_catalogs_v2').select('is_active').eq('company_id', firebase_id).execute)
-        ]
-        
-        results = await asyncio.gather(*tasks, return_exceptions=True)
-        diagnostic["timings_ms"]["parallel_batch_supabase"] = round((time.time() - t_batch_start) * 1000, 2)
-
-        # Extraction des résultats
-        config_res, sub_res, cat_res = results
-
-        # 1.2 PÔLE CONFIGURATION
-        if not isinstance(config_res, Exception) and config_res.data:
-            preview = {k: v for k, v in config_res.data[0].items() if k in ['company_name', 'shop_slug', 'delivery_zones']}
-            diagnostic["tables_status"]["2_company_rag_configs"] = {"status": "OK", "data_preview": preview}
-        else:
-            diagnostic["critical_errors"].append(f"CONFIG MANQUANTE : {config_res if isinstance(config_res, Exception) else 'vide'}")
-
-        # 1.3 PÔLE ABONNEMENT
-        if not isinstance(sub_res, Exception) and sub_res.data:
-            diagnostic["tables_status"]["3_subscriptions"] = {"status": "OK", "data_preview": sub_res.data[0]}
-        else:
-            diagnostic["critical_errors"].append(f"ABONNEMENT MANQUANT : {sub_res if isinstance(sub_res, Exception) else 'vide'}")
-
-        # 1.4 PÔLE RAG & CATALOGUE
-        if not isinstance(cat_res, Exception) and cat_res.data:
-            is_active = cat_res.data[0].get('is_active', False)
-            diagnostic["tables_status"]["4_company_catalogs_v2"] = {
-                "status": "OK" if is_active else "WARNING", 
-                "info": "Catalogue ACTIF" if is_active else "Catalogue INACTIF"
-            }
-            if not is_active:
-                diagnostic["critical_errors"].append("CATALOGUE INACTIF : [[PRODUCT_INDEX]] sera vide.")
-        else:
-            diagnostic["critical_errors"].append(f"CATALOGUE MANQUANT : {cat_res if isinstance(cat_res, Exception) else 'vide'}")
-
-        # --- PHASE 2 : REDIS (Timeout 500ms) ---
         redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
         
         # Test DB 0 (Prompts)
@@ -229,14 +285,13 @@ async def get_company_diagnostic(firebase_id: str, request: Request):
                     "status": "UP",
                     "cache_hit": "YES" if r0.exists(prompt_key) else "NO"
                 }
-        except Exception as re_err:
-            diagnostic["redis_status"]["db0_prompts"]["status"] = f"DOWN ({str(re_err)})"
+        except Exception as redis_err:
+            diagnostic["redis_status"]["db0_prompts"]["status"] = f"DOWN ({str(redis_err)})"
         diagnostic["timings_ms"]["redis_db0"] = round((time.time() - t_start) * 1000, 2)
 
         # Test DB 2 (Memory)
         t_start = time.time()
         try:
-            import re
             redis_url_db2 = re.sub(r"/\d+$", "/2", redis_url)
             r2 = redis.Redis.from_url(redis_url_db2, socket_timeout=0.5, decode_responses=True)
             if r2.ping():
@@ -245,8 +300,8 @@ async def get_company_diagnostic(firebase_id: str, request: Request):
                     "status": "UP",
                     "active_sessions": len(memory_keys)
                 }
-        except Exception as re_err:
-            diagnostic["redis_status"]["db2_memory"]["status"] = f"DOWN ({str(re_err)})"
+        except Exception as redis_err:
+            diagnostic["redis_status"]["db2_memory"]["status"] = f"DOWN ({str(redis_err)})"
         diagnostic["timings_ms"]["redis_db2"] = round((time.time() - t_start) * 1000, 2)
 
     except Exception as e:
@@ -363,6 +418,7 @@ print("⚠️ [DEBUG] Image search router SKIPPED (debugging)")
 # --- Botlive API Routes ---
 print("🔍 [DEBUG] Importing botlive router...")
 from routes.botlive import router as botlive_router, shared_router as botliveandrag_router
+from routes.webhook_prompts import router as webhook_prompts_router
 app.include_router(botlive_router)
 app.include_router(botliveandrag_router)
 print("✅ [DEBUG] Botlive router ACTIVATED")
@@ -642,6 +698,7 @@ def flush_cache():
     return {"success": True, "message": "Cache Redis vidé."}
 
 app.include_router(admin_router)
+app.include_router(webhook_prompts_router)
 
 from datetime import datetime
 from core.global_prompt_cache import get_global_prompt_cache
@@ -4123,6 +4180,11 @@ async def jessica_ragbot_endpoint(req: ChatRequest, request: Request):
         rank = cfg.get("rank", "?")
         fallback_model = cfg.get("fallback")
 
+        # OVERRIDE: Si un modèle est forcé dans la requête (ex: tests simulator)
+        if req.model_name and req.model_name.strip():
+            zlog("info", "MODEL_OVERRIDE", f"Forçage modèle: {req.model_name}", request_id=request_id)
+            resolved_model = req.model_name.strip()
+
         if images_for_rag:
             # Multimodal → Gemini 3.1 Pro obligatoire (override registry)
             resolved_model = MODEL_INSIGHT
@@ -4175,10 +4237,36 @@ async def jessica_ragbot_endpoint(req: ChatRequest, request: Request):
              response_chars=len(response.get("response", "")),
              total_ms=round(_total_ms, 2))
 
+        rag_timings = response.get("timings") if isinstance(response.get("timings"), dict) else {}
+        merged_timings = {
+            "context_ms": round(float(rag_timings.get("context_ms", 0.0) or 0.0), 2),
+            "prompt_build_ms": round(float(rag_timings.get("prompt_build_ms", 0.0) or 0.0), 2),
+            "llm_first_pass_ms": round(float(rag_timings.get("llm_first_pass_ms", 0.0) or 0.0), 2),
+            "llm_second_pass_ms": round(float(rag_timings.get("llm_second_pass_ms", 0.0) or 0.0), 2),
+            "parse_ms": round(float(rag_timings.get("parse_ms", 0.0) or 0.0), 2),
+            "post_process_ms": round(float(rag_timings.get("post_process_ms", 0.0) or 0.0), 2),
+            "total_endpoint_ms": round(_total_ms, 2),
+        }
+
         zlog("info", "TIMING_SUMMARY", "récapitulatif phases",
              request_id=request_id,
              bot_type="jessica",
-             timings={"total_endpoint_ms": round(_total_ms, 2)})
+             timings=merged_timings)
+
+        # 💾 SAUVEGARDE CONVERSATION
+        try:
+            from core.conversation import save_message as save_message_supabase
+            await save_message_supabase(
+                req.company_id, req.user_id, "user",
+                {"text": req.message or "", "images": req.images or []}
+            )
+            await save_message_supabase(
+                req.company_id, req.user_id, "assistant",
+                {"text": response.get("response", "")}
+            )
+        except Exception as save_err:
+            zlog("warning", "CONVERSATION", "échec sauvegarde Jessica",
+                 request_id=request_id, error=str(save_err)[:200])
 
         return {
             "response": response.get("response", ""),
@@ -4191,7 +4279,7 @@ async def jessica_ragbot_endpoint(req: ChatRequest, request: Request):
             "rank": rank,
             "multimodal": bool(images_for_rag),
             "processing_time_ms": _total_ms,
-            "timings": {"total_endpoint_ms": round(_total_ms, 2)},
+            "timings": merged_timings,
             **{k: v for k, v in response.items() if k not in ["response", "confidence", "model", "prompt_source", "timings", "processing_time_ms"]}
         }
 

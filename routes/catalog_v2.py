@@ -753,6 +753,123 @@ def _write_local_catalog(company_id: str, payload: CatalogV2SyncLocalRequest) ->
     return final_path
 
 
+async def _dispatch_to_n8n(company_id: str, action: str, catalog: Any):
+    """
+    Envoie une notification à n8n pour synchronisation (Parallélisation).
+    URL: https://n8n.zetaapp.xyz/webhook-test/onboarding-botlive
+    """
+    webhook_url = "https://n8n.zetaapp.xyz/webhook-test/onboarding-botlive"
+    try:
+        import httpx
+        async with httpx.AsyncClient() as client:
+            # On respecte le format attendu par n8n (body.catalogs)
+            payload = {
+                "company_id": company_id,
+                "action": action,
+                "catalogs": [catalog] if isinstance(catalog, dict) else (catalog or []),
+                "timestamp": time.time()
+            }
+            
+            logger.info(f"📤 [N8N] Tentative d'envoi | company={company_id} | action={action}")
+            
+            # Debug ciblés sur les champs critiques
+            if isinstance(catalog, dict):
+                p_name = catalog.get('name') or catalog.get('product_name')
+                img_count = len(catalog.get('imageUrls') or [])
+                logger.info(f"🔍 [N8N] Payload Debug: name='{p_name}', images={img_count}")
+
+            response = await client.post(webhook_url, json=payload, timeout=10.0)
+            
+            if response.status_code >= 400:
+                logger.error(f"❌ [N8N] Erreur HTTP {response.status_code}")
+            else:
+                logger.info(f"🚀 [N8N] Dispatch réussi | status={response.status_code}")
+                
+    except Exception as e:
+        logger.error(f"❌ [N8N] Erreur dispatch: {str(e)}")
+
+
+@router.post("/delete", response_model=CatalogV2UpsertResponse)
+async def delete_company_product_v2(request: Request, company_id: str, row_id: str) -> CatalogV2UpsertResponse:
+    """Soft delete d'un produit : Supabase (is_active=False) + Local JSON removal + n8n."""
+    _check_internal_key(request)
+    
+    cid = str(company_id).strip()
+    rid = str(row_id).strip()
+    
+    try:
+        from database.supabase_client import get_supabase_client
+        client = get_supabase_client()
+        
+        # 1. Supabase Soft Delete
+        res = await asyncio.to_thread(
+            client.table("company_catalogs_v2")
+            .update({"is_active": False, "updated_at": datetime.now().isoformat()})
+            .eq("id", rid)
+            .execute
+        )
+        
+        # 2. Local JSON update (Removal)
+        # On lit le fichier, on filtre, on réécrit
+        base_dir = os.getenv("CATALOG_V2_LOCAL_DIR") or "/data/catalogs"
+        safe_id = re.sub(r"[^a-zA-Z0-9\-_]", "_", cid)
+        final_path = os.path.join(base_dir, f"{safe_id}.json")
+        
+        deleted_catalog = {}
+        if os.path.exists(final_path):
+            with open(final_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            
+            products = data.get("catalog", {}).get("products", [])
+            # On cherche le produit pour n8n avant de le supprimer
+            for p in products:
+                if str(p.get("row_id") or "").strip() == rid:
+                    deleted_catalog = p.get("catalog_v2") or {}
+                    break
+            
+            new_products = [p for p in products if str(p.get("row_id") or "").strip() != rid]
+            data["catalog"]["products"] = new_products
+            data["synced_at"] = time.time()
+            
+            with open(final_path, "w", encoding="utf-8") as f:
+                json.dump(data, f, ensure_ascii=False)
+        
+        # 3. Dispatch n8n
+        if deleted_catalog:
+            await _dispatch_to_n8n(cid, "delete", deleted_catalog)
+            
+        return CatalogV2UpsertResponse(
+            success=True,
+            company_id=cid,
+            id=rid,
+            version=0,
+            updated_at=datetime.now().isoformat(),
+            timestamp=time.time()
+        )
+    except Exception as e:
+        logger.error(f"[CATALOG_V2] Delete error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/destroy", response_model=CatalogV2UpsertResponse)
+async def destroy_company_product_v2(request: Request, company_id: str, row_id: str) -> CatalogV2UpsertResponse:
+    """Suppression définitive d'un produit (Hard Delete)."""
+    _check_internal_key(request)
+    cid = str(company_id).strip()
+    rid = str(row_id).strip()
+    try:
+        from database.supabase_client import get_supabase_client
+        client = get_supabase_client()
+        # 1. Supabase Hard Delete
+        client.table("company_catalogs_v2").delete().eq("id", rid).execute()
+        # 2. Local JSON update and Dispatch (simplified)
+        await _dispatch_to_n8n(cid, "destroy", {"id": rid})
+        return CatalogV2UpsertResponse(success=True, company_id=cid, id=rid, version=0, updated_at=datetime.now().isoformat(), timestamp=time.time())
+    except Exception as e:
+        logger.error(f"[CATALOG_V2] Destroy error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.post("/upsert", response_model=CatalogV2UpsertResponse)
 async def upsert_company_catalog_v2(request: Request, payload: CatalogV2UpsertRequest) -> CatalogV2UpsertResponse:
     _check_internal_key(request)
@@ -816,10 +933,34 @@ async def upsert_company_catalog_v2(request: Request, payload: CatalogV2UpsertRe
 
         catalog_id, version, updated_at = await asyncio.to_thread(_sync)
 
+        # 3. Sync Local JSON & Get Full Catalog for n8n
+        full_catalog_data = payload.catalog
+        try:
+            sync_req = CatalogV2SyncLocalRequest(
+                company_id=company_id,
+                catalog=payload.catalog,
+                product_id=str(payload.product_id or payload.catalog.get("product_id") or ""),
+                updated_at=updated_at or datetime.now().isoformat(),
+                version=version
+            )
+            final_path = _write_local_catalog(company_id, sync_req)
+
+            if os.path.exists(final_path):
+                with open(final_path, "r", encoding="utf-8") as f:
+                    cached_data = json.load(f)
+                    full_catalog_data = cached_data.get("catalog") or cached_data
+        except Exception as e:
+            logger.error(f"[CATALOG_V2] Sync local error: {e}")
+
         try:
             from core.company_catalog_v2_loader import invalidate_company_catalog_v2_cache
-
             invalidate_company_catalog_v2_cache(company_id)
+        except Exception:
+            pass
+
+        # 4. Dispatch n8n (Full Catalog)
+        try:
+            await _dispatch_to_n8n(company_id, "upsert", full_catalog_data)
         except Exception:
             pass
 
@@ -831,6 +972,7 @@ async def upsert_company_catalog_v2(request: Request, payload: CatalogV2UpsertRe
             updated_at=updated_at,
             timestamp=time.time(),
         )
+
 
     except HTTPException:
         raise
@@ -887,13 +1029,9 @@ async def sync_local_and_upsert_botlive_catalogue_block_deepseek(
         if not pid:
             pid = _product_id_hash(pn)
 
-        # Build the entry line + optional variants sub-line
-        entry_line = f"- {pn} [ID: {pid}]" if pid else f"- {pn}"
-        variants_line = ""
-        if variant_names and len(variant_names) > 0:
-            clean_variants = [str(v).strip() for v in variant_names if str(v).strip()]
-            if clean_variants:
-                variants_line = f"  - VARIANTS: {' | '.join(clean_variants)}"
+        # Nouveau format Premium : - Nom Produit | ID: product_id | Variantes: [V1 | V2]
+        variants_str = " | ".join(variant_names) if variant_names else "NULL"
+        entry_line = f"- {pn} | ID: {pid} | Variantes: [{variants_str}]"
 
         start_tag = "[[PRODUCT_INDEX_START]]"
         end_tag = "[[PRODUCT_INDEX_END]]"
@@ -918,53 +1056,51 @@ async def sync_local_and_upsert_botlive_catalogue_block_deepseek(
                 if ln.startswith("- VARIANTS:") or ln.startswith("-   VARIANTS:"):
                     i += 1
                     continue
-                if ln.startswith("-"):
-                    n = ln[1:].strip()
-                else:
-                    n = ln
-                if not n:
-                    i += 1
-                    continue
-                m_pid = re.search(r"\bprod_[a-z0-9_]{6,64}\b", n, flags=re.IGNORECASE)
-                existing_pid = str(m_pid.group(0)).lower() if m_pid else ""
-                name_only = re.sub(r"\s*\[ID:\s*prod_[a-z0-9_]{6,64}\s*\]\s*", "", n, flags=re.IGNORECASE).strip()
-                # Check for variants sub-line on next line
-                existing_variants_line = ""
-                if i + 1 < len(raw_lines):
-                    next_ln = raw_lines[i + 1].strip()
-                    if next_ln.startswith("- VARIANTS:"):
-                        existing_variants_line = next_ln
-                        i += 1  # skip it
+                # Nouveau parsing pipe-separated
+                m_pid = re.search(r"ID:\s*(prod_[a-z0-9_]{6,64})", n, flags=re.IGNORECASE)
+                existing_pid = str(m_pid.group(1)).lower() if m_pid else ""
+                
+                # Extraction du nom (tout ce qui est avant le premier '|')
+                name_only = n.split("|")[0].replace("-", "", 1).strip()
+                
+                # Extraction des variantes
+                m_vars = re.search(r"Variantes:\s*\[(.*?)\]", n, flags=re.IGNORECASE)
+                existing_variants_str = m_vars.group(1) if m_vars else "NULL"
+                
                 if existing_pid:
                     if existing_pid in seen_pids:
                         i += 1
                         continue
                     seen_pids.add(existing_pid)
-                items.append({"name": name_only, "pid": existing_pid, "line": f"- {n}", "variants_line": existing_variants_line})
+                items.append({
+                    "name": name_only, 
+                    "pid": existing_pid, 
+                    "variants_str": existing_variants_str
+                })
                 i += 1
 
             if pid:
                 if pid not in seen_pids:
-                    items.append({"name": pn, "pid": pid, "line": entry_line, "variants_line": variants_line})
+                    items.append({"name": pn, "pid": pid, "variants_str": variants_str})
                     seen_pids.add(pid)
                 else:
                     # Update existing entry (same pid) with new name/variants
                     for item in items:
                         if item["pid"] == pid:
-                            item["line"] = entry_line
-                            item["variants_line"] = variants_line
+                            item["name"] = pn
+                            item["variants_str"] = variants_str
                             break
             else:
                 if pn.strip().lower() not in {it["name"].strip().lower() for it in items if it["name"]}:
-                    items.append({"name": pn, "pid": "", "line": entry_line, "variants_line": variants_line})
+                    items.append({"name": pn, "pid": "", "variants_str": variants_str})
 
             items_sorted = sorted(items, key=lambda it: (it["name"] or "").lower())
             block_lines = []
-            for it in items_sorted:
-                if (it["line"] or "").strip():
-                    block_lines.append(it["line"])
-                    if it.get("variants_line"):
-                        block_lines.append(it["variants_line"])
+            for idx, it in enumerate(items_sorted, 1):
+                # Format final numéroté Premium
+                line = f"{idx}. {it['name']} | ID: {it['pid']} | Variantes: [{it['variants_str']}]"
+                block_lines.append(line)
+            
             new_block = "\n" + "\n".join(block_lines) + "\n"
             return p[:block_start] + new_block + p[ei:]
 
@@ -976,23 +1112,34 @@ async def sync_local_and_upsert_botlive_catalogue_block_deepseek(
         insertion = "\n".join(block_lines)
         return insertion + p
 
-    def _clear_catalogue_markers(existing_prompt: str) -> str:
-        p = str(existing_prompt or "")
+    def _inject_catalogue_block(prompt: str, block: str) -> str:
+        p = str(prompt or "")
         if not p.strip():
             return p
         try:
             import re as _re
-
+            start_tag = "[CATALOGUE_START]"
+            end_tag = "[CATALOGUE_END]"
             pat = r"\[CATALOGUE_START\](.*?)\[CATALOGUE_END\]"
-            matches = list(_re.finditer(pat, p, flags=_re.IGNORECASE | _re.DOTALL))
-            if matches:
-                m = matches[-1]
-                replacement = "[CATALOGUE_START]\n\n[CATALOGUE_END]"
-                out = p[: m.start()] + replacement + p[m.end() :]
-                return str(out)
+            new_content = f"{start_tag}\n{block.strip()}\n{end_tag}"
+            
+            if _re.search(pat, p, flags=_re.IGNORECASE | _re.DOTALL):
+                return _re.sub(pat, new_content, p, flags=_re.IGNORECASE | _re.DOTALL)
+            else:
+                return p + "\n\n" + new_content
         except Exception:
-            pass
-        return p
+            return p
+
+    def _clear_catalogue_markers(existing_prompt: str) -> str:
+        # Keep this for backward compatibility if needed, but we prefer _inject
+        p = str(existing_prompt or "")
+        try:
+            import re as _re
+            pat = r"\[CATALOGUE_START\](.*?)\[CATALOGUE_END\]"
+            replacement = "[CATALOGUE_START]\n\n[CATALOGUE_END]"
+            return _re.sub(pat, replacement, p, flags=_re.IGNORECASE | _re.DOTALL)
+        except Exception:
+            return p
 
     try:
         from database.supabase_client import get_supabase_client
@@ -1013,59 +1160,35 @@ async def sync_local_and_upsert_botlive_catalogue_block_deepseek(
             if resp and getattr(resp, "data", None):
                 existing_prompt = str((resp.data or {}).get("prompt_botlive_deepseek_v3") or "")
         except Exception:
-            existing_prompt = ""
+            pass
 
-        # IMPORTANT: we do NOT persist catalogue content inside the Supabase prompt.
-        # We keep the markers but force them empty.
-        updated_prompt = _clear_catalogue_markers(existing_prompt)
+        # 2. REDIS: Store Product Index dynamically (Scalable approach)
         try:
-            # Extract variant names from catalog vtree keys
+            import redis
+            from config import REDIS_URL
+            r = redis.from_url(REDIS_URL)
+            
+            # On prépare la ligne d'index
             _vtree = payload.catalog.get("v") if isinstance(payload.catalog.get("v"), dict) else {}
             _variant_names = [str(k).strip() for k in _vtree.keys() if str(k).strip()] if isinstance(_vtree, dict) else []
-            updated_prompt = _upsert_product_index_block(
-                updated_prompt,
-                str(payload.catalog.get("product_name") or ""),
-                str(payload.product_id or payload.catalog.get("product_id") or ""),
-                variant_names=_variant_names if _variant_names else None,
-            )
-        except Exception:
-            pass
-        if not updated_prompt or len(updated_prompt.strip()) < 50:
-            raise HTTPException(status_code=400, detail="prompt_deepseek introuvable ou trop court: initialise d'abord le prompt")
+            v_str = " | ".join(_variant_names) if _variant_names else "NULL"
+            p_id = str(payload.product_id or payload.catalog.get("product_id") or "")
+            p_name = str(payload.catalog.get("product_name") or payload.catalog.get("name") or "")
+            
+            index_line = f"- {p_name} | ID: {p_id} | Variantes: [{v_str}]"
+            
+            # On stocke dans un Hash Redis pour accumulation automatique
+            r.hset(f"zeta:product_index:{company_id}", p_id, index_line)
+            # TTL de 30 jours pour la persistance
+            r.expire(f"zeta:product_index:{company_id}", 30 * 24 * 3600)
+            
+            logger.info("[CATALOG_V2][REDIS] ✅ Product Index updated for %s | %s", company_id, p_id)
+        except Exception as e:
+            logger.error(f"[CATALOG_V2][REDIS] ❌ Error: {e}")
 
-        debug_payload: Optional[Dict[str, Any]] = None
-        if debug:
-            injected_block = ""
-            markers_found = 0
-            try:
-                import re as _re
-
-                pat = r"\[CATALOGUE_START\](.*?)\[CATALOGUE_END\]"
-                matches = list(_re.finditer(pat, str(updated_prompt or ""), flags=_re.IGNORECASE | _re.DOTALL))
-                markers_found = len(matches)
-                if matches:
-                    injected_block = str(matches[-1].group(1) or "").strip()
-            except Exception:
-                injected_block = ""
-
-            gen_block = str(catalogue_block or "").strip()
-            gen_hash = hashlib.sha256(gen_block.encode("utf-8", errors="replace")).hexdigest() if gen_block else ""
-            inj_hash = hashlib.sha256(injected_block.encode("utf-8", errors="replace")).hexdigest() if injected_block else ""
-
-            debug_payload = {
-                "supabase_table": "company_rag_configs",
-                "supabase_column": "prompt_botlive_deepseek_v3",
-                "markers_found": markers_found,
-                "generated_catalogue_block": gen_block,
-                "generated_catalogue_block_chars": len(gen_block),
-                "generated_catalogue_block_sha256": gen_hash,
-                "injected_catalogue_block": injected_block,
-                "injected_catalogue_block_chars": len(injected_block),
-                "injected_catalogue_block_sha256": inj_hash,
-                "injected_equals_generated": bool(gen_block and injected_block and gen_hash == inj_hash),
-                "note": "Catalogue block is NOT persisted in Supabase prompt; markers are kept empty.",
-            }
-
+        # 3. SUPABASE: We keep it clean (No injection in prompt anymore)
+        updated_prompt = _clear_catalogue_markers(existing_prompt)
+        
         row: Dict[str, Any] = {
             "company_id": company_id,
             "prompt_botlive_deepseek_v3": updated_prompt,
@@ -1078,12 +1201,19 @@ async def sync_local_and_upsert_botlive_catalogue_block_deepseek(
 
         supabase.table("company_rag_configs").upsert(row, on_conflict="company_id").execute()
 
+
         logger.info(
             "[CATALOG_V2][SYNC+PROMPT] ✅ company_id=%s | catalogue_chars=%s | prompt_chars=%s",
             company_id,
             len(str(catalogue_block)),
             len(str(updated_prompt)),
         )
+
+        # Dispatch n8n
+        try:
+            await _dispatch_to_n8n(company_id, "sync_local_upsert", payload.catalog)
+        except Exception:
+            pass
 
         return CatalogV2SyncLocalAndUpsertPromptResponse(
             success=True,
@@ -1148,6 +1278,83 @@ async def get_company_catalog_v2(request: Request, company_id: str) -> CatalogV2
         logger.error(f"[CATALOG_V2] Get error: {type(e).__name__}: {e}")
         raise HTTPException(status_code=500, detail="Erreur récupération catalogue")
 
+
+@router.delete("/row/{row_id}")
+async def soft_delete_product_v2(request: Request, row_id: str):
+    _check_internal_key(request)
+    try:
+        from database.supabase_client import get_supabase_client
+        supabase = get_supabase_client()
+        
+        # 1. Récupérer le produit pour n8n avant de le désactiver
+        resp_get = supabase.table("company_catalogs_v2").select("*").eq("id", row_id).single().execute()
+        product_data = getattr(resp_get, "data", {})
+        cid = product_data.get("company_id")
+        
+        # 2. Update status
+        now_iso = datetime.now().isoformat()
+        supabase.table("company_catalogs_v2").update({
+            "is_active": False,
+            "status": "deleted",
+            "deleted_at": now_iso,
+            "updated_at": now_iso
+        }).eq("id", row_id).execute()
+        
+        # 3. Dispatch n8n
+        if cid:
+            await _dispatch_to_n8n(cid, "delete", product_data.get("catalog") or {})
+            
+        return {"success": True, "message": "Produit déplacé dans la corbeille"}
+    except Exception as e:
+        logger.error(f"[CATALOG_V2] Soft delete error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/row/{row_id}/restore")
+async def restore_product_v2(request: Request, row_id: str):
+    _check_internal_key(request)
+    try:
+        from database.supabase_client import get_supabase_client
+        supabase = get_supabase_client()
+        
+        # 1. Update status
+        now_iso = datetime.now().isoformat()
+        resp = supabase.table("company_catalogs_v2").update({
+            "is_active": True,
+            "status": "active",
+            "deleted_at": None,
+            "updated_at": now_iso
+        }).eq("id", row_id).execute()
+        
+        product_data = (getattr(resp, "data", []) or [{}])[0]
+        cid = product_data.get("company_id")
+        
+        # 2. Dispatch n8n
+        if cid:
+            await _dispatch_to_n8n(cid, "restore", product_data.get("catalog") or {})
+            
+        return {"success": True, "message": "Produit restauré"}
+    except Exception as e:
+        logger.error(f"[CATALOG_V2] Restore error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.delete("/row/{row_id}/hard")
+async def hard_delete_product_v2(request: Request, row_id: str):
+    _check_internal_key(request)
+    try:
+        from database.supabase_client import get_supabase_client
+        supabase = get_supabase_client()
+        
+        # 1. Get cid for cache invalidation
+        resp_get = supabase.table("company_catalogs_v2").select("company_id").eq("id", row_id).single().execute()
+        cid = getattr(resp_get, "data", {}).get("company_id")
+        
+        # 2. Delete
+        supabase.table("company_catalogs_v2").delete().eq("id", row_id).execute()
+        
+        return {"success": True, "message": "Produit supprimé définitivement"}
+    except Exception as e:
+        logger.error(f"[CATALOG_V2] Hard delete error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @debug_router.get("/debug/{company_id}")
 async def debug_company_catalog_v2(request: Request, company_id: str) -> Dict[str, Any]:

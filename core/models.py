@@ -18,6 +18,8 @@ class ChatRequest(BaseModel):
     user_question: Optional[str] = None
     # conversation_history n'est plus attendu côté API; chargé depuis Supabase
     conversation_history: Optional[str] = ""
+    # Permet de forcer un modèle spécifique (ex: tests)
+    model_name: Optional[str] = None
 
     @validator('company_id')
     def validate_company_id(cls, v):

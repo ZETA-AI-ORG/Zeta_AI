@@ -39,8 +39,8 @@ logger = logging.getLogger(__name__)
 # ═══════════════════════════════════════════════════════════════════════════════
 
 MODEL_RANG_A: str = os.getenv("MODEL_RANG_A", "google/gemma-4-26b-a4b-it")
-MODEL_RANG_S: str = os.getenv("MODEL_RANG_S", "google/gemma-4-31b-it")
-MODEL_RANG_SS: str = os.getenv("MODEL_RANG_SS", "google/gemini-3.1-flash-lite-preview")
+MODEL_RANG_S: str = os.getenv("MODEL_RANG_S", "deepseek/deepseek-v4-flash")
+MODEL_RANG_SS: str = os.getenv("MODEL_RANG_SS", "deepseek/deepseek-v4-flash")
 MODEL_INSIGHT: str = os.getenv("MODEL_INSIGHT", "google/gemini-3.1-pro-preview")
 
 # Modèle par défaut universel (Jessica / Pro-Elite = RANG S)

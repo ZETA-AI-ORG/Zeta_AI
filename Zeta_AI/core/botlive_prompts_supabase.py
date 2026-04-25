@@ -127,13 +127,22 @@ class BotlivePromptsManager:
         prompt_template = self.get_prompt(company_id, llm_choice)
         logger.info(f"✅ [PROMPTS_MANAGER] Template récupéré: {len(prompt_template)} chars")
         
+        # Récupérer infos entreprise pour injection variables
+        company_info = self.get_company_info(company_id)
+        shop_name = company_info.get("company_name") or "la boutique"
+        ai_name = company_info.get("ai_name") or "Jessica"
+
         # Variables par défaut
         format_vars = {
             'conversation_history': conversation_history,
             'question': question,
             'detected_objects': detected_objects,
             'filtered_transactions': filtered_transactions,
-            'expected_deposit': expected_deposit
+            'expected_deposit': expected_deposit,
+            'company_name': shop_name,
+            'shop_name': shop_name, # Alias
+            'ai_name': ai_name,
+            'bot_name': ai_name # Alias
         }
         
         # Ajouter l'état de la commande si fourni (MÉMOIRE CONTEXTE)

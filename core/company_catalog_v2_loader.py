@@ -262,33 +262,36 @@ def get_company_catalog_v2(company_id: str) -> Optional[Dict[str, Any]]:
                         pass
                     if not isinstance(catalog, dict):
                         continue
-                    if isinstance(catalog.get("products"), list):
-                        for p in catalog.get("products") or []:
-                            if not isinstance(p, dict):
-                                continue
-                            cat = p.get("catalog_v2") if isinstance(p.get("catalog_v2"), dict) else p
-                            if not isinstance(cat, dict):
-                                continue
-                            pid = str(p.get("product_id") or cat.get("product_id") or "").strip()
-                            pname = str(p.get("product_name") or cat.get("product_name") or cat.get("name") or "").strip()
-                            products.append({"product_id": pid, "product_name": pname, "catalog_v2": cat})
-                    else:
-                        pid = str(catalog.get("product_id") or "").strip()
-                        pname = str(catalog.get("product_name") or catalog.get("name") or "").strip()
-                        products.append({"product_id": pid, "product_name": pname, "catalog_v2": catalog})
+                    
+                    # Extraire l'ID et le nom de façon robuste
+                    pid = str(catalog.get("product_id") or catalog.get("id") or "").strip()
+                    pname = str(catalog.get("product_name") or catalog.get("name") or "").strip()
+                    
+                    if pid or pname:
+                        products.append({
+                            "product_id": pid,
+                            "product_name": pname,
+                            "catalog_v2": catalog
+                        })
+                
+                # Déduplication par ID
                 deduped_products = []
-                seen_product_ids = set()
-                for product in products:
-                    pid = str(product.get("product_id") or "").strip().lower()
-                    if pid:
-                        if pid in seen_product_ids:
-                            continue
-                        seen_product_ids.add(pid)
-                    deduped_products.append(product)
-                if len(deduped_products) == 1 and isinstance(deduped_products[0].get("catalog_v2"), dict):
-                    supabase_result = deduped_products[0].get("catalog_v2")
+                seen_pids = set()
+                for p in products:
+                    curr_id = p["product_id"].lower()
+                    if curr_id and curr_id in seen_pids:
+                        continue
+                    if curr_id:
+                        seen_pids.add(curr_id)
+                    deduped_products.append(p)
+
+                if len(deduped_products) == 1:
+                    supabase_result = deduped_products[0]["catalog_v2"]
                 elif deduped_products:
+                    # Format multi-produit standard
                     supabase_result = {"products": deduped_products}
+                else:
+                    supabase_result = None
             try:
                 supabase_result = _unwrap_catalog_shape(supabase_result)
             except Exception:

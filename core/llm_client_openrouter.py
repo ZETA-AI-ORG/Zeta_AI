@@ -85,6 +85,7 @@ async def complete(
     seed: Optional[int] = None,
     response_format: Optional[Dict[str, Any]] = None,
     messages: Optional[list[dict]] = None,
+    stop: Optional[list[str]] = None,
 ) -> tuple[str, dict]:
     """Wrapper OpenAI-compatible pour OpenRouter chat completions."""
 
@@ -167,6 +168,12 @@ async def complete(
                     "top_p": top_p,
                     "stream": False,
                 }
+                # Défense DeepSeek contre fuites FIM dans les réponses.
+                effective_stop = stop if isinstance(stop, list) and stop else None
+                if effective_stop is None and str(model or "").lower().startswith("deepseek/deepseek"):
+                    effective_stop = ["<｜fim▁end｜>", "<｜fim▁begin｜>", "<｜fim▁hole｜>"]
+                if effective_stop:
+                    body["stop"] = effective_stop
 
                 if frequency_penalty is not None:
                     try:

@@ -11,6 +11,8 @@ from typing import Dict, Any, Optional
 from supabase import create_client, Client
 import asyncio
 import time
+import redis
+import json
 
 try:
     from .zlog import zlog, zlog_error
@@ -46,8 +48,17 @@ class BotlivePromptsManager:
             raise ValueError("❌ SUPABASE_URL et SUPABASE_SERVICE_KEY requis dans .env")
         
         self.supabase: Client = create_client(supabase_url, supabase_key)
-        self._cache = {}  # Cache en mémoire pour performance
-        self._cache_timestamps = {}  # Timestamps pour TTL
+        self._cache = {}  # Cache en mémoire pour performance (legacy)
+        self._cache_timestamps = {}  # Timestamps pour TTL (legacy)
+        
+        # Initialisation Redis
+        redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+        try:
+            self.redis_client = redis.Redis.from_url(redis_url, decode_responses=True)
+            logger.info(f"✅ Redis initialisé pour le cache des prompts ({redis_url})")
+        except Exception as e:
+            logger.error(f"❌ Erreur initialisation Redis: {e}")
+            self.redis_client = None
 
         enabled_raw = (os.getenv("PROMPT_LOCAL_CACHE_ENABLED", "true") or "true").strip().lower()
         self._cache_enabled = enabled_raw in {"1", "true", "yes", "y", "on"}
@@ -100,7 +111,126 @@ class BotlivePromptsManager:
         except Exception:
             pass
     
-    async def get_prompt(self, company_id: str, llm_choice: str) -> str:
+    async def get_prompt(self, company_id: str = None, llm_choice: str = "groq", bot_type: str = "jessica") -> str:
+        """
+        Récupère le prompt depuis Redis (cache) ou Supabase (fallback table prompt_bots)
+        """
+        redis_key = f"zeta:prompts:{bot_type}"
+        
+        # 1. Vérifier Redis
+        if self.redis_client:
+            try:
+                cached = self.redis_client.get(redis_key)
+                if cached:
+                    # logger.info(f"🚀 [REDIS_HIT] Prompt {bot_type} récupéré depuis le cache")
+                    return cached
+            except Exception as e:
+                logger.warning(f"⚠️ Erreur lecture Redis: {e}")
+
+        # 2. Fallback Supabase (table prompt_bots)
+        logger.info(f"📡 [REDIS_MISS] Récupération prompt {bot_type} depuis Supabase (table prompt_bots)...")
+        try:
+            # Note: on utilise asyncio.to_thread car le client supabase-py est synchrone
+            response = await asyncio.to_thread(
+                self.supabase.table("prompt_bots")
+                .select("prompt_content")
+                .eq("bot_type", bot_type)
+                .eq("is_active", True)
+                .execute
+            )
+            
+            if response.data and len(response.data) > 0:
+                prompt = response.data[0]["prompt_content"]
+                # Stocker dans Redis (24h)
+                if self.redis_client:
+                    try:
+                        self.redis_client.setex(redis_key, 86400, prompt)
+                        logger.info(f"💾 [REDIS_SAVE] Prompt {bot_type} mis en cache pour 24h")
+                    except Exception as ree:
+                        logger.warning(f"⚠️ Erreur écriture Redis: {ree}")
+                return prompt
+        except Exception as e:
+            logger.error(f"❌ Erreur critique Supabase prompt_bots: {e}")
+
+        # 3. Fallback ultime : ancien système V1 (par entreprise)
+        return await self.get_prompt_v1_fallback(company_id, llm_choice)
+
+    async def get_company_profile(self, company_id: str) -> Dict[str, Any]:
+        """
+        Récupère les données de configuration d'une entreprise.
+        Priorité Redis (company_profile:{id}) -> Fallback Supabase (company_rag_configs).
+        """
+        if not company_id:
+            return {}
+
+        redis_key = f"company_profile:{company_id}"
+        
+        # 1. Tenter Redis
+        if self.redis_client:
+            try:
+                cached_data = self.redis_client.get(redis_key)
+                if cached_data:
+                    # logger.info(f"🚀 [REDIS_HIT] Profile chargé pour {company_id}")
+                    return json.loads(cached_data)
+            except Exception as e:
+                logger.error(f"⚠️ Erreur lecture profil Redis: {e}")
+
+        # 2. Fallback Supabase
+        logger.info(f"🔍 [SUPABASE_FALLBACK] Chargement profil pour {company_id}")
+        try:
+            # On utilise asyncio.to_thread car le client supabase-py est synchrone
+            resp = await asyncio.to_thread(
+                self.supabase.table("company_rag_configs")
+                .select("*")
+                .eq("company_id", company_id)
+                .execute
+            )
+            
+            if resp.data and len(resp.data) > 0:
+                profile = resp.data[0]
+                # Mise en cache Redis (TTL 24h)
+                if self.redis_client:
+                    try:
+                        self.redis_client.setex(redis_key, 86400, json.dumps(profile))
+                        logger.info(f"✅ [REDIS_SAVE] Profile mis en cache pour {company_id}")
+                    except Exception as e:
+                        logger.error(f"⚠️ Erreur sauvegarde profil Redis: {e}")
+                return profile
+        except Exception as e:
+            logger.error(f"❌ Erreur Supabase Profile {company_id}: {e}")
+        
+        return {}
+
+    def safe_inject_variables(self, prompt: str, company_data: Dict[str, Any]) -> str:
+        """
+        Remplacement sécurisé des balises par .replace() pour éviter les crashs .format().
+        """
+        if not prompt:
+            return ""
+            
+        # Valeurs par défaut sécurisées
+        replacements = {
+            "{bot_name}": company_data.get("bot_name") or company_data.get("ai_name") or "Assistante",
+            "{shop_name}": company_data.get("shop_name") or company_data.get("company_name") or "notre boutique",
+            "{whatsapp_number}": company_data.get("whatsapp_number") or "non spécifié",
+            "{sav_number}": company_data.get("sav_number") or company_data.get("whatsapp_number") or "non spécifié",
+            "{return_policy}": company_data.get("return_policy") or "Veuillez nous contacter pour les retours.",
+            "{boutique_block}": company_data.get("boutique_block") or "",
+            "{expedition_base_fee}": str(company_data.get("expedition_base_fee") or "selon zone"),
+            "{delai_message}": company_data.get("delai_message") or "quelques minutes",
+            "{support_hours}": company_data.get("support_hours") or "24h/7j",
+            "{wave_number}": company_data.get("wave_number") or "disponible sur demande",
+            "{depot_amount}": str(company_data.get("depot_amount") or "0"),
+        }
+
+        # Remplacement en chaîne
+        final_prompt = prompt
+        for tag, value in replacements.items():
+            final_prompt = final_prompt.replace(tag, str(value or ""))
+            
+        return final_prompt
+
+    async def get_prompt_v1_fallback(self, company_id: str, llm_choice: str) -> str:
         """
         Récupère le prompt Botlive depuis Supabase
         
@@ -371,8 +501,8 @@ class BotlivePromptsManager:
             rag = _raw_rag if isinstance(_raw_rag, dict) else {}
 
             # Mapping des variables de base
-            format_vars['shop_name'] = info.get("company_name") or "Notre Boutique"
-            format_vars['bot_name'] = info.get("ai_name") or "Jessica"
+            format_vars['company_name'] = info.get("company_name") or "Notre Boutique"
+            format_vars['ai_name'] = info.get("ai_name") or "Jessica"
 
             # Mapping récursif du rag_behavior (guardé dict)
             payment = rag.get("payment") if isinstance(rag.get("payment"), dict) else {}
@@ -662,8 +792,7 @@ class BotlivePromptsManager:
         _shop_url = f"https://{_shop_slug}.zeta-ai.io" if _shop_slug else ""
 
         bloc2_vars = {
-            "bot_name": info.get("ai_name") or "Jessica",
-            "shop_name": info.get("company_name") or "Notre Boutique",
+            "ai_name": info.get("ai_name") or "Jessica",
             "company_name": info.get("company_name") or "Notre Boutique",
             "catalogue_url": _catalogue_url,
             "shop_url": _shop_url,
@@ -754,6 +883,10 @@ class BotlivePromptsManager:
             # Vider tout le cache
             self._cache.clear()
             logger.info("🗑️ Cache complet vidé")
+
+    def invalidate_cache(self, company_id: Optional[str] = None):
+        """Alias pour compatibilité webhook"""
+        return self.clear_cache(company_id)
     
     async def get_prompt_metadata(self, company_id: str) -> Dict[str, Any]:
         """
@@ -813,6 +946,9 @@ def get_prompts_manager() -> BotlivePromptsManager:
             return None
     return _prompts_manager
 
+# Export pour compatibilité routes
+prompts_manager = get_prompts_manager()
+
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # 🔧 FONCTIONS UTILITAIRES (COMPATIBILITÉ AVEC ANCIEN SYSTÈME)
@@ -834,22 +970,15 @@ def format_prompt(company_id: str, llm_choice: str, **kwargs) -> str:
     return manager.format_prompt(company_id, llm_choice, **kwargs)
 
 
-def get_prompt_info(company_id: str, llm_choice: str) -> dict:
+async def get_prompt_info(company_id: str, llm_choice: str) -> dict:
     """
     Retourne les métadonnées du prompt (compatibilité)
-    
-    Args:
-        company_id: Identifiant entreprise
-        llm_choice: "groq-70b" ou "deepseek-v3"
-    
-    Returns:
-        dict: Métadonnées
     """
     manager = get_prompts_manager()
-    metadata = manager.get_prompt_metadata(company_id)
+    metadata = await manager.get_prompt_metadata(company_id)
     
     # Estimer tokens
-    prompt = manager.get_prompt(company_id, llm_choice)
+    prompt = await manager.get_prompt(company_id, llm_choice)
     tokens_approx = len(prompt) // 4
     
     return {

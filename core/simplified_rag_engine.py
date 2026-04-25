@@ -63,6 +63,7 @@ class SimplifiedRAGResult:
     # Enrichment Logs
     product_index: str = ""
     catalogue_block: str = ""
+    timings: Optional[Dict[str, float]] = None
 
 
 class SimplifiedRAGEngine:
@@ -113,6 +114,18 @@ class SimplifiedRAGEngine:
             SimplifiedRAGResult avec réponse + métriques
         """
         start_time = time.time()
+        phase_timings: Dict[str, float] = {
+            "context_ms": 0.0,
+            "prompt_build_ms": 0.0,
+            "llm_first_pass_ms": 0.0,
+            "llm_second_pass_ms": 0.0,
+            "parse_ms": 0.0,
+            "post_process_ms": 0.0,
+            "total_endpoint_ms": 0.0,
+        }
+
+        def _ms_since(t0: float) -> float:
+            return round((time.perf_counter() - t0) * 1000, 2)
 
         # Si un handoff a été déclenché, on met le bot en pause pour éviter qu'il réponde pendant l'intervention humaine.
         # (Le frontend/humain peut reprendre la conversation via un autre canal.)
@@ -1210,7 +1223,7 @@ class SimplifiedRAGEngine:
                     return ""
 
                 detected_variant = _fuzzy_pick_variant(ql)
-                print(f"🔍 [PREMATCH_DEBUG] detected_variant='{detected_variant}' | container_type={type(container).__name__} | has_products={isinstance(container, dict) and isinstance(container.get('products'), list) if isinstance(container, dict) else 'N/A'}")
+                # print(f"🔍 [PREMATCH_DEBUG] detected_variant='{detected_variant}' | container_type={type(container).__name__} | has_products={isinstance(container, dict) and isinstance(container.get('products'), list) if isinstance(container, dict) else 'N/A'}")
 
                 if isinstance(container, dict) and isinstance(container.get("products"), list):
                     candidates = []
@@ -1224,135 +1237,9 @@ class SimplifiedRAGEngine:
                         if pn_norm:
                             candidates.append((pname, pn_norm, p))
 
-                    # Strategy A: strict substring (keeps old behavior)
-                    for pname, pn_norm, p in candidates:
-                        if pn_norm and pn_norm in msg_norm:
-                            detected_name = pname
-                            detected_pid = _pick_pid_from_product_entry(p, pname)
-                            break
-
-                    # Strategy B: token match with uniqueness (handles queries like "je veux des couches")
-                    if not detected_pid and msg_norm:
-                        msg_pad = f" {msg_norm} "
-                        stop_tokens = {
-                            "avec",
-                            "sans",
-                            "pour",
-                            "pack",
-                            "lot",
-                            "paquet",
-                            "carton",
-                            "colis",
-                            "bebe",
-                            "bb",
-                        }
-
-                        matched_products = []  # list of (pname, pn_norm, matched_tokens)
-                        token_to_products = {}
-                        for pname, pn_norm, p in candidates:
-                            toks = [t for t in pn_norm.split() if len(t) >= 4 and t not in stop_tokens]
-                            hits = [t for t in toks if f" {t} " in msg_pad]
-                            if hits:
-                                matched_products.append((pname, pn_norm, hits, p))
-                                for t in hits:
-                                    token_to_products.setdefault(t, set()).add(pname)
-
-                        # If exactly one product matches any significant token => pick it.
-                        if len(matched_products) == 1:
-                            detected_name = matched_products[0][0]
-                            detected_pid = _pick_pid_from_product_entry(matched_products[0][3], detected_name)
-                        else:
-                            # If a token uniquely identifies a single product => pick it.
-                            uniq_tokens = []
-                            for t, pset in (token_to_products or {}).items():
-                                if isinstance(pset, set) and len(pset) == 1:
-                                    uniq_tokens.append(t)
-                            # Prefer longer tokens for specificity.
-                            uniq_tokens = sorted(set(uniq_tokens), key=lambda x: (-len(x), x))
-                            if uniq_tokens:
-                                only_name = list(token_to_products[uniq_tokens[0]])[0]
-                                detected_name = str(only_name)
-                                for pname, pn_norm, hits, p in matched_products:
-                                    if pname == detected_name:
-                                        detected_pid = _pick_pid_from_product_entry(p, detected_name)
-                                        break
-
-                    # Strategy C: variant-only mention on a mono-product container.
-                    # If the user says "prix culotte ?" without the product name, but the company has exactly one product,
-                    # we can safely select that product_id and carry the variant hint.
-                    if (not detected_pid) and detected_variant:
-                        try:
-                            plist = [pp for pp in (container.get("products") or []) if isinstance(pp, dict)]
-                            print(f"🔍 [PREMATCH_DEBUG] Strategy C: detected_variant='{detected_variant}' | plist_len={len(plist)}")
-                            if len(plist) == 1:
-                                only_p = plist[0]
-                                only_name = str(
-                                    only_p.get("product_name")
-                                    or (only_p.get("catalog_v2") or {}).get("product_name")
-                                    or ""
-                                ).strip()
-                                detected_name = only_name
-                                detected_pid = _pick_pid_from_product_entry(only_p, only_name)
-                                print(f"🔍 [PREMATCH_DEBUG] Strategy C matched: pid='{detected_pid}' name='{detected_name}'")
-                        except Exception as _sc_e:
-                            print(f"⚠️ [PREMATCH_DEBUG] Strategy C error: {type(_sc_e).__name__}: {_sc_e}")
-                            pass
-
-                    # Strategy D: variant-only mention on a multi-product container.
-                    # If multiple products exist, pick the unique product whose catalog.v contains the variant.
-                    if (not detected_pid) and detected_variant:
-                        try:
-                            plist = [pp for pp in (container.get("products") or []) if isinstance(pp, dict)]
-                            if len(plist) >= 2:
-                                v_norm = _norm_name_for_id(detected_variant)
-                                matches = []
-                                for pp in plist:
-                                    cat = pp.get("catalog_v2") if isinstance(pp.get("catalog_v2"), dict) else None
-                                    if not isinstance(cat, dict):
-                                        continue
-                                    vtree = cat.get("v") if isinstance(cat.get("v"), dict) else None
-                                    if not isinstance(vtree, dict) or not vtree:
-                                        continue
-                                    keys = [str(k or "").strip() for k in list(vtree.keys())]
-                                    if any(_norm_name_for_id(k) == v_norm for k in keys if str(k).strip()):
-                                        matches.append(pp)
-
-                                if len(matches) == 1:
-                                    one = matches[0]
-                                    one_name = str(
-                                        one.get("product_name")
-                                        or (one.get("catalog_v2") or {}).get("product_name")
-                                        or (one.get("catalog_v2") or {}).get("name")
-                                        or ""
-                                    ).strip()
-                                    detected_name = one_name
-                                    detected_pid = _pick_pid_from_product_entry(one, one_name)
-                        except Exception:
-                            pass
-                elif isinstance(container, dict):
-                    pname = str(container.get("product_name") or container.get("name") or "").strip()
-                    pn_norm = _norm_name_for_id(pname)
-                    if pn_norm and pn_norm in msg_norm:
-                        detected_name = pname
-                        real_id = str(container.get("product_id") or "").strip()
-                        detected_pid = real_id if real_id else _product_id_hash(pname)
-
-                    # Strategy E: mono-product container + variant detected in message
-                    # If product_name didn't match but we detected a variant, check vtree
-                    if (not detected_pid) and detected_variant and pname:
-                        try:
-                            vtree = container.get("v") if isinstance(container.get("v"), dict) else None
-                            if isinstance(vtree, dict) and vtree:
-                                v_norm = _norm_name_for_id(detected_variant)
-                                for vk in vtree.keys():
-                                    if _norm_name_for_id(str(vk)) == v_norm:
-                                        detected_name = pname
-                                        real_id = str(container.get("product_id") or "").strip()
-                                        detected_pid = real_id if real_id else _product_id_hash(pname)
-                                        print(f"🎯 [PREMATCH_DEBUG] Strategy E (mono+variant): pid='{detected_pid}' variant='{detected_variant}'")
-                                        break
-                        except Exception:
-                            pass
+                    # ALL PREMATCH STRATEGIES BYPASSED AS REQUESTED
+                    # Product identification is now handled solely by the LLM via the PRODUCT_INDEX.
+                    pass
 
                 if detected_pid:
                     if prev_active_product_id and detected_variant and (str(prev_active_product_id).strip() != str(detected_pid).strip()):
@@ -1482,6 +1369,7 @@ class SimplifiedRAGEngine:
             
             # 2. Collecte contexte dynamique en parallèle
             print("📦 [CONTEXT] Collecte contexte dynamique...")
+            context_t0 = time.perf_counter()
             dynamic_context = await self.context_injector.collect_dynamic_context(
                 query=query,
                 user_id=user_id,
@@ -1977,7 +1865,27 @@ class SimplifiedRAGEngine:
                         variant = str(target_item.get("variant") or target_item.get("product") or "").strip()
                         spec = str(target_item.get("specs") or target_item.get("spec") or "").strip()
 
-                        node = vtree.get(variant) if variant else None
+                        def _find_vkey_local(raw_val: str) -> str:
+                            rv = str(raw_val or "").strip().lower()
+                            keys = [str(k) for k in vtree.keys()]
+                            if not rv:
+                                return keys[0] if len(keys) == 1 else ""
+                            for k in keys:
+                                if str(k).strip().lower() == rv:
+                                    return str(k)
+                            for k in keys:
+                                kl = str(k).strip().lower()
+                                if rv and (rv in kl or kl in rv):
+                                    return str(k)
+                            return keys[0] if len(keys) == 1 else ""
+
+                        variant_key = _find_vkey_local(variant)
+                        if not variant_key and spec:
+                            variant_key = _find_vkey_local(spec)
+                            if variant_key:
+                                spec = ""
+
+                        node = vtree.get(variant_key) if variant_key else None
                         if isinstance(node, dict):
                             node_s = node.get("s")
                             if isinstance(node_s, dict) and node_s and spec:
@@ -1992,10 +1900,14 @@ class SimplifiedRAGEngine:
                 unit_got = str(target_item.get("unit") or "").strip()
                 qty_got = target_item.get("qty")
                 fmt = _fmt_units(allowed_units)
+                expected_msg = str(target_pack.get("expected") or "").strip() if isinstance(target_pack, dict) else ""
+                explicit_msg = str(target_pack.get("message") or "").strip() if isinstance(target_pack, dict) else ""
 
                 # Build the XML block
                 msg = ""
-                if target_reason == "bad_unit":
+                if explicit_msg:
+                    msg = explicit_msg
+                elif target_reason == "bad_unit":
                     if fmt:
                         msg = f"Unité '{unit_got or '∅'}' non reconnue. Formats dispo: {fmt}."
                     else:
@@ -2024,6 +1936,7 @@ class SimplifiedRAGEngine:
                     f"    <unit_recue>{_escape(unit_got)}</unit_recue>\n"
                     f"    <qty_recue>{_escape(str(qty_got) if qty_got is not None else '')}</qty_recue>\n"
                     f"    <formats_disponibles>{_escape(fmt)}</formats_disponibles>\n"
+                    f"    <expected>{_escape(expected_msg)}</expected>\n"
                     f"    <message>{_escape(msg)}</message>\n"
                     "  </PANIER>"
                 )
@@ -2084,6 +1997,7 @@ class SimplifiedRAGEngine:
             
             print(f"✅ [CONTEXT] Zone: {dynamic_context.get('detected_location', 'N/A')}")
             print(f"✅ [CONTEXT] Frais: {dynamic_context.get('shipping_fee', 'N/A')}")
+            phase_timings["context_ms"] = _ms_since(context_t0)
 
             # 2.c Instruction immédiate (Python -> Jessica)
             instruction_block = ""
@@ -3182,11 +3096,88 @@ class SimplifiedRAGEngine:
             except Exception:
                 had_product_context_in_prompt = False
 
+            def _is_stable_product_id(v: str) -> bool:
+                return bool(re.fullmatch(r"prod_[a-z0-9_\-]{6,80}", str(v or "").strip(), flags=re.IGNORECASE))
+
+            def _norm_text_for_match(s: str) -> str:
+                t = str(s or "").lower()
+                t = re.sub(r"[^a-z0-9àâäçéèêëîïôöùûüÿñæœ\s-]", " ", t)
+                t = re.sub(r"\s+", " ", t).strip()
+                return t
+
+            def _simple_singular_fr_token(token: str) -> str:
+                t = str(token or "").strip().lower()
+                if len(t) <= 3:
+                    return t
+                if t.endswith("x") and len(t) > 4:
+                    return t[:-1]
+                if t.endswith("s") and len(t) > 4:
+                    return t[:-1]
+                return t
+
+            def _pre_resolve_active_pid() -> Tuple[str, str]:
+                # 1) State tracker déjà résolu
+                try:
+                    st = order_tracker.get_state(user_id)
+                    state_pid = str(getattr(st, "produit", "") or "").strip()
+                    if _is_stable_product_id(state_pid):
+                        return state_pid, "state.produit"
+                except Exception:
+                    pass
+                # 2) Meta active_product_id
+                try:
+                    meta_pid = str(order_tracker.get_custom_meta(user_id, "active_product_id", default="") or "").strip()
+                    if _is_stable_product_id(meta_pid):
+                        return meta_pid, "meta.active_product_id"
+                except Exception:
+                    pass
+                # 3) Résolution par alias/tokens depuis le catalogue + message courant
+                try:
+                    catalog = get_company_catalog_v2(company_id)
+                    plist = (catalog or {}).get("products") if isinstance(catalog, dict) else None
+                    if not isinstance(plist, list) or not plist:
+                        return "", "none"
+                    qn = _norm_text_for_match(query)
+                    if not qn:
+                        return "", "none"
+                    q_tokens = [tk for tk in qn.split() if len(tk) >= 3 and not tk.isdigit()]
+                    q_token_set = set(q_tokens)
+                    q_token_set.update({_simple_singular_fr_token(tk) for tk in q_tokens})
+                    stop_words = {"lot", "de", "du", "des", "le", "la", "les", "et", "ou", "bebe", "bébé", "kg", "0", "30"}
+                    hits: List[str] = []
+                    for p in plist:
+                        if not isinstance(p, dict):
+                            continue
+                        pid = str(p.get("product_id") or "").strip()
+                        name = str(p.get("product_name") or p.get("name") or "").strip()
+                        if not _is_stable_product_id(pid) or not name:
+                            continue
+                        nn = _norm_text_for_match(name)
+                        if nn and nn in qn:
+                            hits.append(pid)
+                            continue
+                        tokens = [tk for tk in nn.split() if len(tk) >= 4 and tk not in stop_words and not tk.isdigit()]
+                        if any((_simple_singular_fr_token(tk) in q_token_set) or (tk in q_token_set) for tk in tokens):
+                            hits.append(pid)
+                    uniq = list(dict.fromkeys(hits))
+                    if len(uniq) == 1:
+                        return uniq[0], "message_alias"
+                except Exception:
+                    pass
+                return "", "none"
+
             active_pid_before_prompt = ""
+            active_pid_source = "none"
             try:
-                active_pid_before_prompt = str(order_tracker.get_custom_meta(user_id, "active_product_id", default="") or "").strip()
+                active_pid_before_prompt, active_pid_source = _pre_resolve_active_pid()
+                if _is_stable_product_id(active_pid_before_prompt):
+                    order_tracker.set_custom_meta(user_id, "active_product_id", active_pid_before_prompt)
+                else:
+                    active_pid_before_prompt = ""
+                    active_pid_source = "none"
             except Exception:
                 active_pid_before_prompt = ""
+                active_pid_source = "none"
 
             # ── CartManager: injecter le résumé panier dans le prompt ──
             try:
@@ -3336,10 +3327,12 @@ class SimplifiedRAGEngine:
                 instruction_block += "\n" + "\n".join(proactive_hints) + "\n"
                 print(f"💡 [PROACTIVE_HINTS] {len(proactive_hints)} hint(s) injected into instruction_block")
 
+            prompt_t0 = time.perf_counter()
             final_prompt = await self.prompt_system.build_prompt(
                 query=query,
                 user_id=user_id,
                 company_id=company_id,
+                active_product_id=active_pid_before_prompt,
                 detected_location=dynamic_context.get('detected_location'),
                 shipping_fee=dynamic_context.get('shipping_fee'),
                 delivery_time=dynamic_context.get('delivery_time'),
@@ -3366,6 +3359,21 @@ class SimplifiedRAGEngine:
                 ),
                 has_image=bool(images and len(images) > 0),
             )
+            phase_timings["prompt_build_ms"] = _ms_since(prompt_t0)
+            
+            # Extraire blocs de diagnostic du prompt pour le simulateur
+            _p_idx = ""
+            _c_blk = ""
+            try:
+                # Cherche PRODUCT_INDEX (marqueurs injectés par simplified_prompt_system)
+                m_idx = re.search(r"## PRODUCT_INDEX ##\n(.*?)\n## END_PRODUCT_INDEX ##", str(final_prompt or ""), re.DOTALL)
+                if m_idx: _p_idx = m_idx.group(1).strip()
+                
+                # Cherche CATALOGUE_BLOCK
+                m_cat = re.search(r"\[CATALOGUE_START\]\n(.*?)\n\[CATALOGUE_END\]", str(final_prompt or ""), re.DOTALL)
+                if m_cat: _c_blk = m_cat.group(1).strip()
+            except:
+                pass
 
             first_pass_catalogue_block_empty = True
             try:
@@ -3380,29 +3388,6 @@ class SimplifiedRAGEngine:
                 first_pass_catalogue_block_empty = True
             
             print(f"✅ [PROMPT] Prompt construit: {len(final_prompt)} chars")
-            
-            # --- EXTRACT DEBUG INFO FOR SIMULATOR ---
-            _p_idx = ""
-            _c_blk = ""
-            try:
-                # On Windows, try simple regex first
-                _m_idx = re.search(r"##\s*PRODUCT_INDEX\s*##\s*(.*?)\s*##\s*END_PRODUCT_INDEX\s*##", str(final_prompt or ""), flags=re.IGNORECASE | re.DOTALL)
-                if not _m_idx:
-                    # Fallback on the [[PRODUCT_INDEX]] replacement if it didn't use headers
-                    _m_idx = re.search(r"\[\[PRODUCT_INDEX_START\]\](.*?)\[\[PRODUCT_INDEX_END\]\]", str(final_prompt or ""), flags=re.IGNORECASE | re.DOTALL)
-                _p_idx = (_m_idx.group(1).strip() if _m_idx else "∅").replace("\n", " | ")[:1000]
-
-                _m_cat = re.search(r"\[CATALOGUE_START\](.*?)\[CATALOGUE_END\]", str(final_prompt or ""), flags=re.IGNORECASE | re.DOTALL)
-                _c_blk = (_m_cat.group(1).strip() if _m_cat else "∅").replace("\n", " | ")[:2000]
-            except Exception as _dbg_e:
-                print(f"⚠️ [DEBUG_EXTRACT] error: {_dbg_e}")
-            
-            # Affichage prompt pour debug
-            print(f"\n{'='*80}")
-            print(f"🧠 PROMPT COMPLET ENVOYÉ AU LLM")
-            print(f"{'='*80}")
-            print(final_prompt[:1000] + "..." if len(final_prompt) > 1000 else final_prompt)
-            print(f"{'='*80}\n")
             
             # 4. Génération LLM avec tracking tokens
             print("🤖 [LLM] Génération réponse...")
@@ -3432,6 +3417,7 @@ class SimplifiedRAGEngine:
                 f"max_tok={_max_tok} freq_pen={_freq_pen} pres_pen={_pres_pen} | src={'registry' if _p else 'defaults'}"
             )
 
+            llm_first_t0 = time.perf_counter()
             llm_result = await self.llm_client.complete(
                 prompt=final_prompt,
                 model_name=model_name,
@@ -3441,6 +3427,7 @@ class SimplifiedRAGEngine:
                 frequency_penalty=_freq_pen,
                 presence_penalty=_pres_pen,
             )
+            phase_timings["llm_first_pass_ms"] = _ms_since(llm_first_t0)
             
             # 5. Extraction métriques tokens
             token_usage = {}
@@ -3558,7 +3545,8 @@ class SimplifiedRAGEngine:
                 return any(re.search(rf"\b{re.escape(t)}\b", mm) for t in tokens)
 
             def _extract_tag(text: str, tag: str) -> str:
-                m = re.search(rf'<{tag}>(.*?)</{tag}>', text or "", re.DOTALL | re.IGNORECASE)
+                # Tolère <tag>, <tag >, <tag attr="..."> pour robustesse inter-modèles.
+                m = re.search(rf'<{tag}\b[^>]*>(.*?)</{tag}>', text or "", re.DOTALL | re.IGNORECASE)
                 return m.group(1).strip() if m else ""
 
             def _parse_thinking_schema(thinking_text: str) -> Dict[str, Any]:
@@ -3637,13 +3625,22 @@ class SimplifiedRAGEngine:
                 }
 
             try:
-                def _is_stable_product_id(v: str) -> bool:
-                    return bool(re.fullmatch(r"prod_[a-z0-9_\-]{6,80}", str(v or "").strip(), flags=re.IGNORECASE))
-
                 stable_pid = ""
                 stable_label = ""
+                second_pass_reason = "skip_guard"
+                trigger_second_pass = False
 
-                if first_pass_catalogue_block_empty and (not active_pid_before_prompt) and (not second_pass_attempted):
+                if not first_pass_catalogue_block_empty:
+                    second_pass_reason = "skip_catalogue_present_first_pass"
+                elif active_pid_before_prompt:
+                    second_pass_reason = "skip_active_pid_pre_resolved"
+                elif second_pass_attempted:
+                    second_pass_reason = "skip_already_attempted"
+                else:
+                    trigger_second_pass = True
+                    second_pass_reason = "trigger_missing_active_pid_and_empty_catalogue"
+
+                if trigger_second_pass:
                     t_match0 = re.search(r'<thinking>(.*?)</thinking>', raw_llm_output, re.DOTALL | re.IGNORECASE)
                     t0 = t_match0.group(1).strip() if t_match0 else ""
 
@@ -3698,11 +3695,14 @@ class SimplifiedRAGEngine:
                             pass
 
                         second_pass_attempted = True
+                        second_pass_reason = "trigger_stable_pid_from_first_pass_thinking"
 
+                        prompt_2_t0 = time.perf_counter()
                         final_prompt_2 = await self.prompt_system.build_prompt(
                             query=query,
                             user_id=user_id,
                             company_id=company_id,
+                            active_product_id=stable_pid,
                             detected_location=dynamic_context.get('detected_location'),
                             shipping_fee=dynamic_context.get('shipping_fee'),
                             delivery_time=dynamic_context.get('delivery_time'),
@@ -3729,9 +3729,20 @@ class SimplifiedRAGEngine:
                             ),
                             has_image=bool(images and len(images) > 0),
                         )
+                        phase_timings["prompt_build_ms"] = round(phase_timings.get("prompt_build_ms", 0.0) + _ms_since(prompt_2_t0), 2)
+                        
+                        # Mettre à jour les diagnostics si 2nd pass
+                        try:
+                            m_idx_2 = re.search(r"## PRODUCT_INDEX ##\n(.*?)\n## END_PRODUCT_INDEX ##", str(final_prompt_2 or ""), re.DOTALL)
+                            if m_idx_2: _p_idx = m_idx_2.group(1).strip()
+                            
+                            m_cat_2 = re.search(r"\[CATALOGUE_START\]\n(.*?)\n\[CATALOGUE_END\]", str(final_prompt_2 or ""), re.DOTALL)
+                            if m_cat_2: _c_blk = m_cat_2.group(1).strip()
+                        except:
+                            pass
 
                         print(f"🔁 [LLM_SECOND_PASS] product_id='{stable_pid}' | prompt_chars={len(final_prompt_2)}")
-
+                        llm_second_t0 = time.perf_counter()
                         llm_result_2 = await self.llm_client.complete(
                             prompt=final_prompt_2,
                             model_name=model_name,
@@ -3741,6 +3752,7 @@ class SimplifiedRAGEngine:
                             frequency_penalty=_freq_pen,
                             presence_penalty=_pres_pen,
                         )
+                        phase_timings["llm_second_pass_ms"] = _ms_since(llm_second_t0)
 
                         if isinstance(llm_result_2, dict):
                             response = llm_result_2.get("response", llm_result_2)
@@ -3748,10 +3760,18 @@ class SimplifiedRAGEngine:
                             response = llm_result_2
 
                         raw_llm_output = str(response or "")
+                    else:
+                        second_pass_reason = "skip_no_stable_pid_in_first_pass"
+
+                print(
+                    f"[SECOND_PASS_DECISION] "
+                    f"{json.dumps({'trigger': bool(second_pass_attempted), 'reason': second_pass_reason, 'active_product_id_before': active_pid_before_prompt or '', 'stable_pid': stable_pid or '', 'source': active_pid_source or 'none'}, ensure_ascii=False)}"
+                )
             except Exception as _second_e:
                 print(f"⚠️ [LLM_SECOND_PASS] error: {type(_second_e).__name__}: {_second_e}")
 
             # Extraire <thinking>
+            parse_t0 = time.perf_counter()
             thinking_match = re.search(r'<thinking>(.*?)</thinking>', raw_llm_output, re.DOTALL | re.IGNORECASE)
             if thinking_match:
                 thinking = thinking_match.group(1).strip()
@@ -4777,7 +4797,7 @@ class SimplifiedRAGEngine:
                 print(f"⚠️ [ORDER_STATUS] Erreur lecture state: {e}")
 
             # Extraire <response>
-            response_match = re.search(r'<response>(.*?)</response>', raw_llm_output, re.DOTALL | re.IGNORECASE)
+            response_match = re.search(r'<response\b[^>]*>(.*?)</response>', raw_llm_output, re.DOTALL | re.IGNORECASE)
             if response_match:
                 response = response_match.group(1).strip()
                 print(f"✅ [RESPONSE] Extrait: {len(response)} chars")
@@ -4804,6 +4824,7 @@ class SimplifiedRAGEngine:
                     pass
             else:
                 validated_price_single = False
+                fallback_reason = "response_tag_missing"
                 try:
                     raw_preview = str(raw_llm_output or "")
                     raw_preview_short = raw_preview[:600] + ("..." if len(raw_preview) > 600 else "")
@@ -4828,6 +4849,15 @@ class SimplifiedRAGEngine:
                 # - Supprimer les code fences (```xml / ```)
                 # - Si la sortie ne contient que du XML, forcer une question utile
                 if not validated_price_single:
+                    candidate = str(raw_llm_output or "")
+                    candidate = re.sub(r'<thinking>.*?</thinking>', '', candidate, flags=re.DOTALL | re.IGNORECASE).strip()
+                    candidate = re.sub(r"```[a-zA-Z0-9_-]*\s*", "", candidate).strip()
+                    candidate = candidate.replace("```", "").strip()
+                    if re.search(r"(\[\[PRODUCT_INDEX\]\]|##\s*PRODUCT_INDEX\s*##|\[CATALOGUE_START\]|\[CATALOGUE_END\])", candidate, re.IGNORECASE):
+                        candidate = ""
+                        fallback_reason = "prompt_leak_markers_detected"
+                    if candidate:
+                        response = candidate
                     response = re.sub(r'<thinking>.*?</thinking>', '', str(response or ''), flags=re.DOTALL | re.IGNORECASE).strip()
                     response = re.sub(r"```[a-zA-Z0-9_-]*\s*", "", response).strip()
                     response = response.replace("```", "").strip()
@@ -4874,6 +4904,14 @@ class SimplifiedRAGEngine:
 
                     response = _fallback_question(nf)
                     print(f"🛡️ [RESPONSE_FALLBACK] xml_leak_detected | next={nf}")
+
+                print(
+                    f"[RESPONSE_PARSE_FALLBACK] "
+                    f"{json.dumps({'reason': fallback_reason, 'response_chars': len(str(response or '')), 'has_response_tag': False}, ensure_ascii=False)}"
+                )
+
+            phase_timings["parse_ms"] = _ms_since(parse_t0)
+            post_process_t0 = time.perf_counter()
 
             # 6.0 SAV/HUMAN HANDOFF (RAG): si le LLM sort le token de transmission OU <handoff>true</handoff>
             # dans le thinking, on notifie et on stoppe.
@@ -5192,6 +5230,8 @@ class SimplifiedRAGEngine:
                         return False
                     if any(k in m for k in ["prix", "tarif", "tarifs", "total", "montant", "c'est combien", "cest combien", "ça coute", "ca coute"]):
                         return True
+                    if any(k in m for k in ["combine", "combi", "ca fera", "ça fera"]):
+                        return True
                     if re.search(r"\b(ca|ça)\s*(va\s*)?faire\s*combien\b", m):
                         return True
                     if re.search(r"\bcombien\s*(ca|ça)\s*(fait|fera|va\s*faire)\b", m):
@@ -5280,6 +5320,18 @@ class SimplifiedRAGEngine:
                         """
 
                         unit_raw = str(it.get("unit") or "").strip()
+                        # Single allowed unit -> canonical fallback (missing or invalid unit).
+                        if len(allowed_units or []) == 1:
+                            only_unit = str((allowed_units or [])[0] or "").strip()
+                            if only_unit:
+                                if not unit_raw:
+                                    nxt = dict(it)
+                                    nxt["unit"] = only_unit
+                                    return nxt
+                                if unit_raw not in allowed_units:
+                                    nxt = dict(it)
+                                    nxt["unit"] = only_unit
+                                    return nxt
                         if unit_raw in allowed_units:
                             return it
 
@@ -5326,6 +5378,85 @@ class SimplifiedRAGEngine:
 
                         return it
 
+                    def _load_bot_format(selected_catalog: Dict[str, Any]) -> Dict[str, Any]:
+                        bf = selected_catalog.get("bot_format")
+                        if not isinstance(bf, dict):
+                            ui_state = selected_catalog.get("ui_state") if isinstance(selected_catalog.get("ui_state"), dict) else {}
+                            bf = ui_state.get("bot_format") if isinstance(ui_state, dict) else None
+                        return bf if isinstance(bf, dict) else {}
+
+                    def _apply_bot_format_unit_alias(
+                        it: Dict[str, Any],
+                        *,
+                        allowed_units: List[str],
+                        bot_format: Dict[str, Any],
+                    ) -> Dict[str, Any]:
+                        unit_raw = str(it.get("unit") or "").strip()
+                        if not unit_raw:
+                            return it
+                        aliases_map = bot_format.get("unit_aliases") if isinstance(bot_format.get("unit_aliases"), dict) else {}
+                        if not isinstance(aliases_map, dict) or not aliases_map:
+                            return it
+
+                        unit_norm = _norm_unit_token(unit_raw)
+                        for canon, aliases in aliases_map.items():
+                            canon_s = str(canon or "").strip()
+                            alias_list = aliases if isinstance(aliases, list) else []
+                            alias_norm = {_norm_unit_token(a) for a in alias_list if str(a).strip()}
+                            if unit_norm and unit_norm in alias_norm and canon_s in (allowed_units or []):
+                                nxt = dict(it)
+                                nxt["unit"] = canon_s
+                                return nxt
+                        return it
+
+                    def _validate_bot_format_constraints(
+                        it: Dict[str, Any],
+                        *,
+                        bot_format: Dict[str, Any],
+                        specs_raw: str,
+                        allowed_units: List[str],
+                    ) -> Optional[Dict[str, str]]:
+                        if not isinstance(bot_format, dict) or not bot_format:
+                            return None
+
+                        qty_val = it.get("qty")
+                        unit_val = str(it.get("unit") or "").strip()
+                        specs_val = str(specs_raw or it.get("specs") or it.get("spec") or "").strip()
+
+                        specs_cfg = bot_format.get("specs") if isinstance(bot_format.get("specs"), list) else []
+                        required_specs = [s for s in specs_cfg if isinstance(s, dict) and bool(s.get("required"))]
+                        if required_specs and not specs_val:
+                            names = [str(s.get("key") or "").strip() for s in required_specs if str(s.get("key") or "").strip()]
+                            return {
+                                "reason": "bad_specs",
+                                "expected": ", ".join(names) if names else "specification requise",
+                                "message": "Spec requise non fournie selon bot_format.",
+                            }
+
+                        min_order = bot_format.get("min_order") if isinstance(bot_format.get("min_order"), dict) else {}
+                        min_value = min_order.get("value")
+                        min_unit = str(min_order.get("unit") or "").strip()
+                        try:
+                            min_i = int(min_value) if min_value is not None else 0
+                        except Exception:
+                            min_i = 0
+
+                        if min_i > 0 and min_unit and isinstance(qty_val, int) and qty_val > 0:
+                            if unit_val == min_unit and qty_val < min_i:
+                                return {
+                                    "reason": "qty_invalid",
+                                    "expected": f">= {min_i} {min_unit}",
+                                    "message": f"Commande minimum non atteinte: attendu >= {min_i} {min_unit}.",
+                                }
+
+                        if unit_val and allowed_units and unit_val not in allowed_units:
+                            return {
+                                "reason": "bad_unit",
+                                "expected": ", ".join(allowed_units),
+                                "message": "Unité hors liste autorisée par bot_format.",
+                            }
+                        return None
+
                     def _match_key_case_insensitive(keys: List[str], target: str) -> Optional[str]:
                         t = str(target or "").strip().lower()
                         if not t:
@@ -5337,9 +5468,11 @@ class SimplifiedRAGEngine:
 
                     def _find_variant_key(product_raw: str) -> Optional[str]:
                         p = str(product_raw or "").strip().lower()
-                        if not p:
-                            return ""
                         keys = [str(k) for k in vtree.keys()]
+                        if not p:
+                            if len(keys) == 1:
+                                return str(keys[0])
+                            return ""
                         for k in keys:
                             if str(k).strip().lower() == p:
                                 return str(k)
@@ -5471,6 +5604,22 @@ class SimplifiedRAGEngine:
                             out["invalid"].append({"item": it, "reason": "catalog_unavailable"})
                             continue
 
+                        bot_format = _load_bot_format(selected_catalog)
+                        print(
+                            f"[BOT_FORMAT_LOADED] "
+                            + json.dumps(
+                                {
+                                    "company_id": company_id,
+                                    "user_id": user_id,
+                                    "product_id": str(it.get("product_id") or selected_catalog.get("product_id") or "").strip(),
+                                    "has_bot_format": bool(bot_format),
+                                    "allowed_units_count": len((bot_format.get("allowed_units") or [])) if isinstance(bot_format, dict) else 0,
+                                    "specs_count": len((bot_format.get("specs") or [])) if isinstance(bot_format, dict) else 0,
+                                },
+                                ensure_ascii=False,
+                            )
+                        )
+
                         canonical_units = selected_catalog.get("canonical_units")
                         if not isinstance(canonical_units, list):
                             canonical_units = []
@@ -5489,6 +5638,12 @@ class SimplifiedRAGEngine:
                             continue
 
                         variant_key = _find_variant_key(variant_raw or product_raw)
+                        # Some catalogs encode size/spec directly at top-level in vtree keys.
+                        # If variant is unresolved, try specs as top-level key before bad_product.
+                        if not variant_key and specs_raw:
+                            variant_key = _find_variant_key(specs_raw)
+                            if variant_key:
+                                specs_raw = ""
                         node = vtree.get(variant_key) if variant_key else None
                         if not isinstance(node, dict):
                             out["invalid"].append({"item": it, "reason": "bad_product"})
@@ -5507,6 +5662,7 @@ class SimplifiedRAGEngine:
                             u_map = sub_node.get("u")
                             allowed_units = list(u_map.keys()) if isinstance(u_map, dict) else []
                             it2 = _canonicalize_item_unit(dict(it), allowed_units=allowed_units, parsed_units=parsed_units)
+                            it2 = _apply_bot_format_unit_alias(it2, allowed_units=allowed_units, bot_format=bot_format)
                             unit2 = str(it2.get("unit") or "").strip()
                             if not isinstance(u_map, dict) or unit2 not in u_map:
                                 out["invalid"].append({"item": it, "reason": "bad_unit"})
@@ -5518,6 +5674,7 @@ class SimplifiedRAGEngine:
                             u_map = node.get("u")
                             allowed_units = list(u_map.keys()) if isinstance(u_map, dict) else []
                             it2 = _canonicalize_item_unit(dict(it), allowed_units=allowed_units, parsed_units=parsed_units)
+                            it2 = _apply_bot_format_unit_alias(it2, allowed_units=allowed_units, bot_format=bot_format)
                             unit2 = str(it2.get("unit") or "").strip()
                             if not isinstance(u_map, dict) or unit2 not in u_map:
                                 out["invalid"].append({"item": it, "reason": "bad_unit"})
@@ -5542,6 +5699,50 @@ class SimplifiedRAGEngine:
                             out["unconfirmed"].append({"item": it, "reason": "low_confidence", "confidence": conf_f})
                             continue
 
+                        bf_reject = _validate_bot_format_constraints(
+                            it,
+                            bot_format=bot_format,
+                            specs_raw=specs_raw,
+                            allowed_units=allowed_units,
+                        )
+                        if bf_reject:
+                            out["invalid"].append(
+                                {
+                                    "item": it,
+                                    "reason": str(bf_reject.get("reason") or "invalid_items"),
+                                    "expected": str(bf_reject.get("expected") or "").strip(),
+                                    "message": str(bf_reject.get("message") or "").strip(),
+                                }
+                            )
+                            print(
+                                f"[BOT_FORMAT_VALIDATE] "
+                                + json.dumps(
+                                    {
+                                        "ok": False,
+                                        "reason": str(bf_reject.get("reason") or ""),
+                                        "expected": str(bf_reject.get("expected") or ""),
+                                        "product_id": str(it.get("product_id") or ""),
+                                        "unit": str(it.get("unit") or ""),
+                                        "qty": it.get("qty"),
+                                    },
+                                    ensure_ascii=False,
+                                )
+                            )
+                            continue
+
+                        print(
+                            f"[BOT_FORMAT_VALIDATE] "
+                            + json.dumps(
+                                {
+                                    "ok": True,
+                                    "product_id": str(it.get("product_id") or ""),
+                                    "unit": str(it.get("unit") or ""),
+                                    "qty": it.get("qty"),
+                                },
+                                ensure_ascii=False,
+                            )
+                        )
+
                         out["confirmed"].append(it)
 
                     if out["invalid"]:
@@ -5555,6 +5756,41 @@ class SimplifiedRAGEngine:
 
                 validation = _validate_items(detected_items)
                 order_tracker.set_custom_meta(user_id, "detected_items_validation", validation)
+                try:
+                    invalid_items = validation.get("invalid") if isinstance(validation, dict) else []
+                    if isinstance(invalid_items, list) and invalid_items:
+                        first_invalid = invalid_items[0] if isinstance(invalid_items[0], dict) else {}
+                        reason = str(first_invalid.get("reason") or "").strip()
+                        expected = str(first_invalid.get("expected") or "").strip()
+                        message = str(first_invalid.get("message") or "").strip()
+                        order_tracker.set_custom_meta(
+                            user_id,
+                            "bot_format_reject_state",
+                            {
+                                "reason": reason,
+                                "expected": expected,
+                                "message": message,
+                            },
+                        )
+                        # Invalidation autoritaire des slots fragiles pour forcer une clarification propre.
+                        if reason in {"bad_unit", "qty_invalid", "qty_null"}:
+                            order_tracker.update_quantite(user_id, "", source="BOT_FORMAT_REJECT", confidence=1.0)
+                        if reason in {"bad_specs"}:
+                            order_tracker.update_produit_details(user_id, "", source="BOT_FORMAT_REJECT", confidence=1.0)
+                        print(
+                            f"[BOT_FORMAT_REJECT_STATE] "
+                            + json.dumps(
+                                {
+                                    "reason": reason,
+                                    "expected": expected,
+                                    "message": message,
+                                    "user_id": user_id,
+                                },
+                                ensure_ascii=False,
+                            )
+                        )
+                except Exception:
+                    pass
                 if validation.get("ok"):
                     st_for_zone = order_tracker.get_state(user_id)
                     zone_for_price = str(getattr(st_for_zone, "zone", "") or "").strip() or str(dynamic_context.get("detected_location") or "").strip()
@@ -5768,6 +6004,22 @@ class SimplifiedRAGEngine:
                         print(f"⚠️ [PRICE_MULTI] calc returned empty | raw_items_len={len(str(detected_items_raw or ''))}")
                 else:
                     print(f"🧾 [PRICE_MULTI] skipped | reasons={validation.get('reasons')}")
+                    try:
+                        invalid_items_dbg = validation.get("invalid") if isinstance(validation.get("invalid"), list) else []
+                        unconfirmed_items_dbg = validation.get("unconfirmed") if isinstance(validation.get("unconfirmed"), list) else []
+                        inv_reason = ""
+                        unc_reason = ""
+                        if invalid_items_dbg:
+                            inv_reason = str((invalid_items_dbg[0] or {}).get("reason") or "").strip()
+                        if unconfirmed_items_dbg:
+                            unc_reason = str((unconfirmed_items_dbg[0] or {}).get("reason") or "").strip()
+                        print(
+                            f"[PRICE_MULTI_DECISION] "
+                            f"{json.dumps({'ok': False, 'reasons': validation.get('reasons') or [], 'first_invalid_reason': inv_reason, 'first_unconfirmed_reason': unc_reason, 'items_len': len(detected_items) if isinstance(detected_items, list) else 0}, ensure_ascii=False)}"
+                        )
+                    except Exception:
+                        pass
+
                     if _is_price_request(query or ""):
                         order_tracker.set_custom_meta(user_id, "price_requested", True)
 
@@ -6225,7 +6477,7 @@ class SimplifiedRAGEngine:
             # 7. Récupérer état checklist
             # IMPORTANT: la checklist doit refléter l'état persistant (OrderStateTracker)
             # après parsing du <thinking>, sinon next_step reste bloqué à MISSING.
-            checklist = self.prompt_system.get_checklist_state(user_id, company_id)
+            checklist = self.prompt_system.update_checklist_from_message(user_id, company_id, "", False)
             try:
                 st_post = order_tracker.get_state(user_id)
                 checklist.model = bool(str(getattr(st_post, "produit", "") or "").strip())
@@ -6242,7 +6494,14 @@ class SimplifiedRAGEngine:
                 pass
             
             # 8. Calcul temps traitement
+            phase_timings["post_process_ms"] = _ms_since(post_process_t0)
             processing_time = (time.time() - start_time) * 1000
+            phase_timings["total_endpoint_ms"] = round(processing_time, 2)
+
+            print(
+                f"[TIMING_PHASE] "
+                f"{json.dumps({'context_ms': phase_timings.get('context_ms', 0.0), 'prompt_build_ms': phase_timings.get('prompt_build_ms', 0.0), 'llm_first_pass_ms': phase_timings.get('llm_first_pass_ms', 0.0), 'llm_second_pass_ms': phase_timings.get('llm_second_pass_ms', 0.0), 'parse_ms': phase_timings.get('parse_ms', 0.0), 'post_process_ms': phase_timings.get('post_process_ms', 0.0), 'total_endpoint_ms': phase_timings.get('total_endpoint_ms', 0.0)}, ensure_ascii=False)}"
+            )
             
             print(f"✅ [SIMPLIFIED RAG] Terminé en {processing_time:.0f}ms")
             
@@ -6263,7 +6522,8 @@ class SimplifiedRAGEngine:
                 model=str(model_used),
                 thinking=thinking,
                 product_index=_p_idx if '_p_idx' in locals() else "",
-                catalogue_block=_c_blk if '_c_blk' in locals() else ""
+                catalogue_block=_c_blk if '_c_blk' in locals() else "",
+                timings=phase_timings,
             )
         
         except Exception as e:
@@ -6273,6 +6533,7 @@ class SimplifiedRAGEngine:
             
             # Retour fallback
             processing_time = (time.time() - start_time) * 1000
+            phase_timings["total_endpoint_ms"] = round(processing_time, 2)
             return SimplifiedRAGResult(
                 response="Je rencontre une difficulté technique. Pouvez-vous reformuler votre question ?",
                 confidence=0.0,
@@ -6280,7 +6541,8 @@ class SimplifiedRAGEngine:
                 checklist_state="Erreur",
                 next_step="Réessayer",
                 detected_location=None,
-                shipping_fee=None
+                shipping_fee=None,
+                timings=phase_timings,
             )
 
 
@@ -6362,7 +6624,22 @@ async def get_simplified_rag_response(
 
     def _is_price_request_local(msg: str) -> bool:
         m = str(msg or "").lower()
-        return any(k in m for k in ["prix", "total", "ça fait combien", "ca fait combien", "combien", "montant"])
+        return any(
+            k in m
+            for k in [
+                "prix",
+                "total",
+                "ça fait combien",
+                "ca fait combien",
+                "combien",
+                "combien?",
+                "combine",
+                "combi",
+                "ca fera",
+                "ça fera",
+                "montant",
+            ]
+        )
 
     def _is_total_request_local(msg: str, company_id: Optional[str] = None) -> bool:
         m = str(msg or "").lower()
@@ -7014,6 +7291,7 @@ async def get_simplified_rag_response(
                     "next_step": "STOP",
                     "detected_location": result.detected_location,
                     "shipping_fee": result.shipping_fee,
+                    "timings": result.timings if isinstance(result.timings, dict) else {"total_endpoint_ms": round(float(result.processing_time_ms or 0.0), 2)},
                 }
 
             # Paiement non validé → flow normal avec confirmation
@@ -7131,6 +7409,7 @@ async def get_simplified_rag_response(
                 "next_step": "WAIT_CONFIRMATION",
                 "detected_location": result.detected_location,
                 "shipping_fee": result.shipping_fee,
+                "timings": result.timings if isinstance(result.timings, dict) else {"total_endpoint_ms": round(float(result.processing_time_ms or 0.0), 2)},
             }
     except Exception:
         pass
@@ -7170,6 +7449,7 @@ async def get_simplified_rag_response(
         "next_step": result.next_step,
         "detected_location": result.detected_location,
         "shipping_fee": result.shipping_fee,
+        "timings": result.timings if isinstance(result.timings, dict) else {"total_endpoint_ms": round(float(result.processing_time_ms or 0.0), 2)},
 
         # Panier multi-produits (CartManager)
         "cart": {

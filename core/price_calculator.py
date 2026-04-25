@@ -1064,7 +1064,7 @@ class UniversalPriceCalculator:
             if not (is_culottes or is_pression):
                 return ""
 
-            q = UniversalPriceCalculator._extract_quantity_int(quant_l)
+            q = UniversalPriceCalculator._parse_int(quant_l)
             if q is None:
                 return ""
 

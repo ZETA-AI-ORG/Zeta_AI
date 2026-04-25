@@ -51,7 +51,7 @@ _REDIS_TTL_SECONDS = 3600  # 1h (filet de sécurité même si trigger rate)
 _BASE_DIR = Path(__file__).parent.parent
 _LOCAL_FALLBACK_FILES: Dict[str, Path] = {
     "amanda": _BASE_DIR / "AMANDA PROMPT UNIVERSEL.md",
-    # "jessica": _BASE_DIR / "prompt_universel_v2.md",  # décommenter quand migré
+    "jessica": _BASE_DIR / "prompt_universel_v2.md",
 }
 
 # ───────────────────────────────────────────────────────────────────────
@@ -186,16 +186,16 @@ def get_prompt_template(bot_type: str) -> str:
         try:
             val = redis_client.get(_redis_key(bot_type))
             if val:
-                logger.debug(f"📦 [PROMPT_BOTS] Redis HIT bot_type={bot_type}")
+                print(f"📦 [PROMPT_BOTS] Cache HIT (Redis) pour bot={bot_type}")
                 return val
         except Exception as e:
-            logger.warning(f"⚠️ [PROMPT_BOTS] Redis read error: {e}")
+            print(f"⚠️ [PROMPT_BOTS] Redis read error: {e}")
 
     # 2) In-memory (valide si < TTL)
     mem_val = _memory_cache.get(bot_type)
     mem_ts = _memory_cache_ts.get(bot_type, 0.0)
     if mem_val and (time.time() - mem_ts) < _REDIS_TTL_SECONDS:
-        logger.debug(f"📦 [PROMPT_BOTS] In-memory HIT bot_type={bot_type}")
+        print(f"📦 [PROMPT_BOTS] Cache HIT (In-Memory) pour bot={bot_type}")
         # Re-hydrate Redis si possible
         if redis_client is not None:
             try:
@@ -212,7 +212,7 @@ def get_prompt_template(bot_type: str) -> str:
         content = _fetch_from_local_file(bot_type)
 
     if not content:
-        logger.error(f"❌ [PROMPT_BOTS] TOUS les fallbacks ont échoué pour bot_type={bot_type}")
+        print(f"❌ [PROMPT_BOTS] TOUS les fallbacks ont échoué pour bot_type={bot_type}")
         return ""
 
     # Remplir les caches
@@ -288,7 +288,7 @@ def upload_prompt_to_supabase(
         logger.error(f"❌ [PROMPT_BOTS] Contenu vide pour {bot_type}, upload refusé")
         return False
 
-    url = f"{SUPABASE_URL}/rest/v1/prompt_bots"
+    url = f"{SUPABASE_URL}/rest/v1/prompt_bots?on_conflict=bot_type"
     headers = {
         "apikey": SUPABASE_KEY,
         "Authorization": f"Bearer {SUPABASE_KEY}",

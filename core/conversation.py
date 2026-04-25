@@ -125,7 +125,7 @@ async def get_history(company_id: str, user_id: str) -> str:
         "company_id": f"eq.{company_id}",  # Filtre aussi par company_id
         "select": "role,content,timestamp",
         "order": "timestamp.desc",
-        "limit": 15
+        "limit": 20
     }
     client = _get_supabase_client()
     try:
@@ -161,9 +161,9 @@ async def get_history(company_id: str, user_id: str) -> str:
                 for msg in all_messages
             ])
             
-            # Tronquer à 2000 chars max (garder les plus récents)
-            if len(history) > 2000:
-                history = "..." + history[-2000:]
+            # Tronquer à 4000 chars max (garder les plus récents)
+            if len(history) > 4000:
+                history = "..." + history[-4000:]
             
             return history
         else:
