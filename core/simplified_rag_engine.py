@@ -34,6 +34,8 @@ from core.dynamic_context_injector import get_dynamic_context_injector
 from core.llm_client import get_llm_client
 from core.company_catalog_v2_loader import get_company_catalog_v2, get_company_product_catalog_v2
 from core.catalog_v2_item_normalizer import normalize_detected_items
+from core.bot_format_rules_engine import apply_explicit_unit_alias, validate_cart_intent
+from core.catalog_v2_resolver import resolve_catalog_item_context
 from core.cart_manager import CartManager
 from .message_registry import get_system_response, get_company_tone
 
@@ -1806,6 +1808,10 @@ class SimplifiedRAGEngine:
                     v = {}
                 if not isinstance(v, dict):
                     return ""
+                xml_ready = str(v.get("validation_errors_xml") or "").strip()
+                if xml_ready:
+                    m = re.search(r"<validation_errors>\s*(.*?)\s*</validation_errors>", xml_ready, flags=re.IGNORECASE | re.DOTALL)
+                    return str(m.group(1) if m else xml_ready).strip()
 
                 reasons = v.get("reasons") if isinstance(v.get("reasons"), list) else []
                 invalid = v.get("invalid") if isinstance(v.get("invalid"), list) else []
@@ -1832,7 +1838,7 @@ class SimplifiedRAGEngine:
                     target_pack = unconfirmed[0] if isinstance(unconfirmed[0], dict) else None
 
                 target_item = target_pack.get("item") if isinstance(target_pack, dict) else None
-                target_reason = str(target_pack.get("reason") or "").strip().lower() if isinstance(target_pack, dict) else ""
+                target_reason = str(target_pack.get("code") or target_pack.get("reason") or "").strip().lower() if isinstance(target_pack, dict) else ""
                 if not isinstance(target_item, dict):
                     return ""
 
@@ -1843,57 +1849,15 @@ class SimplifiedRAGEngine:
                 except Exception:
                     catalog_v2 = None
 
-                selected_catalog = None
                 try:
-                    plist = catalog_v2.get("products") if isinstance(catalog_v2, dict) else None
-                    if isinstance(plist, list):
-                        pid = str(target_item.get("product_id") or "").strip()
-                        if pid:
-                            selected_catalog = get_company_product_catalog_v2(company_id, pid)
-                        else:
-                            only_one = [p for p in plist if isinstance(p, dict) and isinstance(p.get("catalog_v2"), dict)]
-                            if len(only_one) == 1:
-                                selected_catalog = only_one[0].get("catalog_v2")
-                    else:
-                        selected_catalog = catalog_v2
-                except Exception:
-                    selected_catalog = catalog_v2
-
-                try:
-                    vtree = selected_catalog.get("v") if isinstance(selected_catalog, dict) else None
-                    if isinstance(vtree, dict):
-                        variant = str(target_item.get("variant") or target_item.get("product") or "").strip()
-                        spec = str(target_item.get("specs") or target_item.get("spec") or "").strip()
-
-                        def _find_vkey_local(raw_val: str) -> str:
-                            rv = str(raw_val or "").strip().lower()
-                            keys = [str(k) for k in vtree.keys()]
-                            if not rv:
-                                return keys[0] if len(keys) == 1 else ""
-                            for k in keys:
-                                if str(k).strip().lower() == rv:
-                                    return str(k)
-                            for k in keys:
-                                kl = str(k).strip().lower()
-                                if rv and (rv in kl or kl in rv):
-                                    return str(k)
-                            return keys[0] if len(keys) == 1 else ""
-
-                        variant_key = _find_vkey_local(variant)
-                        if not variant_key and spec:
-                            variant_key = _find_vkey_local(spec)
-                            if variant_key:
-                                spec = ""
-
-                        node = vtree.get(variant_key) if variant_key else None
-                        if isinstance(node, dict):
-                            node_s = node.get("s")
-                            if isinstance(node_s, dict) and node_s and spec:
-                                sub = node_s.get(spec)
-                                if isinstance(sub, dict) and isinstance(sub.get("u"), dict):
-                                    allowed_units = [str(k) for k in sub.get("u").keys() if str(k).strip()]
-                            if not allowed_units and isinstance(node.get("u"), dict):
-                                allowed_units = [str(k) for k in node.get("u").keys() if str(k).strip()]
+                    resolved = resolve_catalog_item_context(
+                        company_id=company_id,
+                        container=catalog_v2 if isinstance(catalog_v2, dict) else None,
+                        product_id=str(target_item.get("product_id") or "").strip(),
+                        product_hint=str(target_item.get("variant") or target_item.get("product") or "").strip(),
+                        specs_hint=str(target_item.get("specs") or target_item.get("spec") or "").strip(),
+                    )
+                    allowed_units = resolved.get("allowed_units") if isinstance(resolved.get("allowed_units"), list) else []
                 except Exception:
                     allowed_units = []
 
@@ -1907,16 +1871,18 @@ class SimplifiedRAGEngine:
                 msg = ""
                 if explicit_msg:
                     msg = explicit_msg
-                elif target_reason == "bad_unit":
+                elif target_reason == "unit_not_allowed":
                     if fmt:
                         msg = f"Unité '{unit_got or '∅'}' non reconnue. Formats dispo: {fmt}."
                     else:
                         msg = f"Unité '{unit_got or '∅'}' non reconnue."
-                elif target_reason in {"qty_null", "qty_invalid"}:
+                elif target_reason in {"qty_missing", "qty_invalid", "below_min_order"}:
                     if fmt:
                         msg = f"Quantité invalide/ambiguë. Choisis un format parmi: {fmt}."
                     else:
                         msg = "Quantité invalide/ambiguë."
+                elif target_reason in {"missing_required_option", "option_value_not_allowed"}:
+                    msg = explicit_msg or "Option produit manquante ou invalide. Demande la valeur autorisée au client."
                 else:
                     if fmt:
                         msg = f"Panier à confirmer/corriger. Formats dispo: {fmt}."
@@ -5394,68 +5360,12 @@ class SimplifiedRAGEngine:
                         unit_raw = str(it.get("unit") or "").strip()
                         if not unit_raw:
                             return it
-                        aliases_map = bot_format.get("unit_aliases") if isinstance(bot_format.get("unit_aliases"), dict) else {}
-                        if not isinstance(aliases_map, dict) or not aliases_map:
-                            return it
-
-                        unit_norm = _norm_unit_token(unit_raw)
-                        for canon, aliases in aliases_map.items():
-                            canon_s = str(canon or "").strip()
-                            alias_list = aliases if isinstance(aliases, list) else []
-                            alias_norm = {_norm_unit_token(a) for a in alias_list if str(a).strip()}
-                            if unit_norm and unit_norm in alias_norm and canon_s in (allowed_units or []):
-                                nxt = dict(it)
-                                nxt["unit"] = canon_s
-                                return nxt
+                        mapped = apply_explicit_unit_alias(unit_raw, bot_format=bot_format, allowed_units=allowed_units)
+                        if mapped and mapped != unit_raw:
+                            nxt = dict(it)
+                            nxt["unit"] = mapped
+                            return nxt
                         return it
-
-                    def _validate_bot_format_constraints(
-                        it: Dict[str, Any],
-                        *,
-                        bot_format: Dict[str, Any],
-                        specs_raw: str,
-                        allowed_units: List[str],
-                    ) -> Optional[Dict[str, str]]:
-                        if not isinstance(bot_format, dict) or not bot_format:
-                            return None
-
-                        qty_val = it.get("qty")
-                        unit_val = str(it.get("unit") or "").strip()
-                        specs_val = str(specs_raw or it.get("specs") or it.get("spec") or "").strip()
-
-                        specs_cfg = bot_format.get("specs") if isinstance(bot_format.get("specs"), list) else []
-                        required_specs = [s for s in specs_cfg if isinstance(s, dict) and bool(s.get("required"))]
-                        if required_specs and not specs_val:
-                            names = [str(s.get("key") or "").strip() for s in required_specs if str(s.get("key") or "").strip()]
-                            return {
-                                "reason": "bad_specs",
-                                "expected": ", ".join(names) if names else "specification requise",
-                                "message": "Spec requise non fournie selon bot_format.",
-                            }
-
-                        min_order = bot_format.get("min_order") if isinstance(bot_format.get("min_order"), dict) else {}
-                        min_value = min_order.get("value")
-                        min_unit = str(min_order.get("unit") or "").strip()
-                        try:
-                            min_i = int(min_value) if min_value is not None else 0
-                        except Exception:
-                            min_i = 0
-
-                        if min_i > 0 and min_unit and isinstance(qty_val, int) and qty_val > 0:
-                            if unit_val == min_unit and qty_val < min_i:
-                                return {
-                                    "reason": "qty_invalid",
-                                    "expected": f">= {min_i} {min_unit}",
-                                    "message": f"Commande minimum non atteinte: attendu >= {min_i} {min_unit}.",
-                                }
-
-                        if unit_val and allowed_units and unit_val not in allowed_units:
-                            return {
-                                "reason": "bad_unit",
-                                "expected": ", ".join(allowed_units),
-                                "message": "Unité hors liste autorisée par bot_format.",
-                            }
-                        return None
 
                     def _match_key_case_insensitive(keys: List[str], target: str) -> Optional[str]:
                         t = str(target or "").strip().lower()
@@ -5553,52 +5463,14 @@ class SimplifiedRAGEngine:
                         confidence = it.get("confidence")
                         qty = it.get("qty")
 
-                        selected_catalog = None
-                        try:
-                            plist = catalog_v2.get("products") if isinstance(catalog_v2, dict) else None
-                            if isinstance(plist, list):
-                                pid = str(it.get("product_id") or "").strip()
-                                if pid:
-                                    selected_catalog = get_company_product_catalog_v2(company_id, pid)
-                                    if not isinstance(selected_catalog, dict):
-                                        try:
-                                            if re.fullmatch(r"prod_[0-9a-f]{8}", pid, flags=re.IGNORECASE):
-                                                import hashlib as _hashlib
-                                                import unicodedata as _ud
-
-                                                def _norm_name_for_id(name: str) -> str:
-                                                    t = str(name or "").strip().lower()
-                                                    t = _ud.normalize("NFKD", t)
-                                                    t = "".join([c for c in t if not _ud.combining(c)])
-                                                    t = re.sub(r"[^a-z0-9\s-]+", " ", t)
-                                                    t = t.replace("-", " ")
-                                                    t = re.sub(r"\s+", " ", t).strip()
-                                                    return t
-
-                                                def _pid_hash(name: str) -> str:
-                                                    base = _norm_name_for_id(name)
-                                                    if not base:
-                                                        return ""
-                                                    h = _hashlib.sha1(base.encode("utf-8", errors="replace")).hexdigest()
-                                                    return f"prod_{h[:8]}"
-
-                                                for p in (plist or []):
-                                                    if not isinstance(p, dict):
-                                                        continue
-                                                    pname = str(p.get("product_name") or (p.get("catalog_v2") or {}).get("product_name") or "").strip()
-                                                    if pname and _pid_hash(pname).lower() == pid.lower() and isinstance(p.get("catalog_v2"), dict):
-                                                        selected_catalog = p.get("catalog_v2")
-                                                        break
-                                        except Exception:
-                                            pass
-                                else:
-                                    only_one = [p for p in plist if isinstance(p, dict) and isinstance(p.get("catalog_v2"), dict)]
-                                    if len(only_one) == 1:
-                                        selected_catalog = only_one[0].get("catalog_v2")
-                            else:
-                                selected_catalog = catalog_v2
-                        except Exception:
-                            selected_catalog = catalog_v2
+                        resolved_ctx = resolve_catalog_item_context(
+                            company_id=company_id,
+                            container=catalog_v2 if isinstance(catalog_v2, dict) else None,
+                            product_id=str(it.get("product_id") or "").strip(),
+                            product_hint=variant_raw or product_raw,
+                            specs_hint=specs_raw,
+                        )
+                        selected_catalog = resolved_ctx.get("catalog") if isinstance(resolved_ctx, dict) else None
 
                         if not isinstance(selected_catalog, dict):
                             out["invalid"].append({"item": it, "reason": "catalog_unavailable"})
@@ -5620,30 +5492,13 @@ class SimplifiedRAGEngine:
                             )
                         )
 
-                        canonical_units = selected_catalog.get("canonical_units")
-                        if not isinstance(canonical_units, list):
-                            canonical_units = []
-                        canonical_units = [str(u).strip() for u in canonical_units if str(u).strip()]
-
-                        parsed_units: List[Dict[str, Any]] = []
-                        for cu in canonical_units:
-                            p = _parse_unit_key(cu)
-                            if p:
-                                p["key"] = str(cu)
-                                parsed_units.append(p)
-
                         vtree = selected_catalog.get("v")
                         if not isinstance(vtree, dict) or not vtree:
                             out["invalid"].append({"item": it, "reason": "catalog_unavailable"})
                             continue
 
-                        variant_key = _find_variant_key(variant_raw or product_raw)
-                        # Some catalogs encode size/spec directly at top-level in vtree keys.
-                        # If variant is unresolved, try specs as top-level key before bad_product.
-                        if not variant_key and specs_raw:
-                            variant_key = _find_variant_key(specs_raw)
-                            if variant_key:
-                                specs_raw = ""
+                        variant_key = str(resolved_ctx.get("variant_key") or "")
+                        resolved_specs_key = str(resolved_ctx.get("specs_key") or "")
                         node = vtree.get(variant_key) if variant_key else None
                         if not isinstance(node, dict):
                             out["invalid"].append({"item": it, "reason": "bad_product"})
@@ -5651,7 +5506,7 @@ class SimplifiedRAGEngine:
 
                         node_s = node.get("s")
                         if isinstance(node_s, dict) and node_s:
-                            sub_key = _find_subvariant_key(node_s, specs_raw)
+                            sub_key = resolved_specs_key
                             if not sub_key:
                                 out["invalid"].append({"item": it, "reason": "bad_specs"})
                                 continue
@@ -5661,8 +5516,7 @@ class SimplifiedRAGEngine:
                                 continue
                             u_map = sub_node.get("u")
                             allowed_units = list(u_map.keys()) if isinstance(u_map, dict) else []
-                            it2 = _canonicalize_item_unit(dict(it), allowed_units=allowed_units, parsed_units=parsed_units)
-                            it2 = _apply_bot_format_unit_alias(it2, allowed_units=allowed_units, bot_format=bot_format)
+                            it2 = _apply_bot_format_unit_alias(dict(it), allowed_units=allowed_units, bot_format=bot_format)
                             unit2 = str(it2.get("unit") or "").strip()
                             if not isinstance(u_map, dict) or unit2 not in u_map:
                                 out["invalid"].append({"item": it, "reason": "bad_unit"})
@@ -5673,8 +5527,7 @@ class SimplifiedRAGEngine:
                         else:
                             u_map = node.get("u")
                             allowed_units = list(u_map.keys()) if isinstance(u_map, dict) else []
-                            it2 = _canonicalize_item_unit(dict(it), allowed_units=allowed_units, parsed_units=parsed_units)
-                            it2 = _apply_bot_format_unit_alias(it2, allowed_units=allowed_units, bot_format=bot_format)
+                            it2 = _apply_bot_format_unit_alias(dict(it), allowed_units=allowed_units, bot_format=bot_format)
                             unit2 = str(it2.get("unit") or "").strip()
                             if not isinstance(u_map, dict) or unit2 not in u_map:
                                 out["invalid"].append({"item": it, "reason": "bad_unit"})
@@ -5699,18 +5552,20 @@ class SimplifiedRAGEngine:
                             out["unconfirmed"].append({"item": it, "reason": "low_confidence", "confidence": conf_f})
                             continue
 
-                        bf_reject = _validate_bot_format_constraints(
-                            it,
-                            bot_format=bot_format,
-                            specs_raw=specs_raw,
+                        bf_validation = validate_cart_intent(
+                            selected_catalog,
+                            [it],
                             allowed_units=allowed_units,
+                            strict_bot_format=True,
                         )
-                        if bf_reject:
+                        bf_reject = (bf_validation.get("invalid") or [None])[0] if isinstance(bf_validation, dict) else None
+                        if isinstance(bf_reject, dict):
                             out["invalid"].append(
                                 {
                                     "item": it,
-                                    "reason": str(bf_reject.get("reason") or "invalid_items"),
-                                    "expected": str(bf_reject.get("expected") or "").strip(),
+                                    "code": str(bf_reject.get("code") or "invalid_items"),
+                                    "reason": str(bf_reject.get("code") or "invalid_items"),
+                                    "expected": bf_reject.get("expected") if isinstance(bf_reject.get("expected"), dict) else str(bf_reject.get("expected") or "").strip(),
                                     "message": str(bf_reject.get("message") or "").strip(),
                                 }
                             )
@@ -5719,8 +5574,8 @@ class SimplifiedRAGEngine:
                                 + json.dumps(
                                     {
                                         "ok": False,
-                                        "reason": str(bf_reject.get("reason") or ""),
-                                        "expected": str(bf_reject.get("expected") or ""),
+                                        "code": str(bf_reject.get("code") or ""),
+                                        "expected": bf_reject.get("expected") if isinstance(bf_reject.get("expected"), dict) else str(bf_reject.get("expected") or ""),
                                         "product_id": str(it.get("product_id") or ""),
                                         "unit": str(it.get("unit") or ""),
                                         "qty": it.get("qty"),
@@ -5746,6 +5601,16 @@ class SimplifiedRAGEngine:
                         out["confirmed"].append(it)
 
                     if out["invalid"]:
+                        first_invalid = out["invalid"][0] if isinstance(out["invalid"][0], dict) else None
+                        if isinstance(first_invalid, dict):
+                            xml_payload = validate_cart_intent(
+                                selected_catalog if isinstance(selected_catalog, dict) else catalog_v2,
+                                [first_invalid.get("item")] if isinstance(first_invalid.get("item"), dict) else [],
+                                allowed_units=allowed_units if isinstance(allowed_units, list) else None,
+                                strict_bot_format=True,
+                            )
+                            if isinstance(xml_payload, dict):
+                                out["validation_errors_xml"] = str(xml_payload.get("validation_errors_xml") or "").strip()
                         out["reasons"].append("invalid_items")
                         return out
                     if out["unconfirmed"]:
@@ -5760,28 +5625,30 @@ class SimplifiedRAGEngine:
                     invalid_items = validation.get("invalid") if isinstance(validation, dict) else []
                     if isinstance(invalid_items, list) and invalid_items:
                         first_invalid = invalid_items[0] if isinstance(invalid_items[0], dict) else {}
-                        reason = str(first_invalid.get("reason") or "").strip()
-                        expected = str(first_invalid.get("expected") or "").strip()
+                        reason = str(first_invalid.get("code") or first_invalid.get("reason") or "").strip()
+                        expected_raw = first_invalid.get("expected")
+                        expected = json.dumps(expected_raw, ensure_ascii=False) if isinstance(expected_raw, dict) else str(expected_raw or "").strip()
                         message = str(first_invalid.get("message") or "").strip()
                         order_tracker.set_custom_meta(
                             user_id,
                             "bot_format_reject_state",
                             {
+                                "code": reason,
                                 "reason": reason,
                                 "expected": expected,
                                 "message": message,
                             },
                         )
                         # Invalidation autoritaire des slots fragiles pour forcer une clarification propre.
-                        if reason in {"bad_unit", "qty_invalid", "qty_null"}:
+                        if reason in {"unit_not_allowed", "below_min_order", "qty_invalid", "qty_missing"}:
                             order_tracker.update_quantite(user_id, "", source="BOT_FORMAT_REJECT", confidence=1.0)
-                        if reason in {"bad_specs"}:
+                        if reason in {"missing_required_option", "option_value_not_allowed", "bad_specs"}:
                             order_tracker.update_produit_details(user_id, "", source="BOT_FORMAT_REJECT", confidence=1.0)
                         print(
                             f"[BOT_FORMAT_REJECT_STATE] "
                             + json.dumps(
                                 {
-                                    "reason": reason,
+                                    "code": reason,
                                     "expected": expected,
                                     "message": message,
                                     "user_id": user_id,

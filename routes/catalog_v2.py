@@ -136,6 +136,10 @@ class CatalogV2SyncLocalAndUpsertPromptRequest(BaseModel):
     company_name: Optional[str] = None
     product_name: Optional[str] = None
     product_id: Optional[str] = None
+    technical_specs: Optional[str] = None
+    sales_constraints: Optional[str] = None
+    description: Optional[str] = None
+    important_note: Optional[str] = None
 
 
 class CatalogV2SyncLocalAndUpsertPromptResponse(BaseModel):
@@ -178,6 +182,10 @@ def _check_internal_key(request: Request) -> None:
 
 
 def _build_catalogue_block_from_catalog_v2(catalog: Dict[str, Any]) -> str:
+    from core.catalogue_block_builder import build_catalogue_block_from_catalog_v2
+
+    return build_catalogue_block_from_catalog_v2(catalog)
+
     try:
         if not isinstance(catalog, dict) or not catalog:
             return ""
@@ -260,12 +268,97 @@ def _build_catalogue_block_from_catalog_v2(catalog: Dict[str, Any]) -> str:
         if not isinstance(custom_formats, list):
             custom_formats = []
 
+        unit_formats = ui_state.get("unitFormats")
+        if not isinstance(unit_formats, dict):
+            unit_formats = {}
+        piece_enabled = bool(isinstance(unit_formats.get("piece"), dict) and unit_formats.get("piece", {}).get("enabled") is True)
+
+        product_options = catalog.get("product_options")
+        if not isinstance(product_options, list):
+            product_options = []
+
+        bot_format = catalog.get("bot_format")
+        if not isinstance(bot_format, dict):
+            bot_format = {}
+
+        pricing_mode = str(bot_format.get("pricing_mode") or "").strip().lower()
+        sales_target = str(bot_format.get("sales_target") or bot_format.get("sales_mode") or "").strip().lower()
+        required_options = bot_format.get("required_options") if isinstance(bot_format.get("required_options"), list) else []
+        selling_formats = bot_format.get("selling_formats") if isinstance(bot_format.get("selling_formats"), list) else []
+        free_texts = bot_format.get("free_texts") if isinstance(bot_format.get("free_texts"), dict) else {}
+
+        def _fmt_label_from_item(row: Dict[str, Any]) -> str:
+            f_type = str(row.get("type") or "").strip().lower()
+            qty = row.get("qty")
+            label = str(row.get("label") or row.get("customLabel") or row.get("custom_label") or "").strip()
+            if label:
+                return label
+            try:
+                qty_i = int(qty) if qty is not None else None
+            except Exception:
+                qty_i = None
+            type_label_map = {
+                "piece": "Pièce",
+                "lot": "Lot de",
+                "paquet": "Paquet de",
+                "balle": "Balle de",
+                "carton": "Carton de",
+                "pack": "Pack de",
+                "caisse": "Caisse de",
+            }
+            if f_type and qty_i and qty_i > 0:
+                prefix = type_label_map.get(f_type, f_type.capitalize())
+                return f"{prefix} {qty_i}".strip()
+            return f_type or "Format"
+
+        format_catalog: list[Dict[str, Any]] = []
+        for f in custom_formats:
+            if not isinstance(f, dict):
+                continue
+            f_type = str(f.get("type") or "").strip().lower()
+            qty = f.get("qty", f.get("quantity"))
+            enabled = f.get("enabled")
+            try:
+                qty_i = int(qty) if qty is not None else None
+            except Exception:
+                qty_i = None
+            if not f_type or not qty_i or qty_i <= 0:
+                continue
+            canonical = f"{f_type}_{qty_i}"
+            format_catalog.append(
+                {
+                    "key": canonical,
+                    "label": _fmt_label_from_item(f),
+                    "enabled": enabled is not False,
+                    "type": f_type,
+                    "qty": qty_i,
+                }
+            )
+
         vtree = catalog.get("v")
         if not isinstance(vtree, dict):
             vtree = {}
 
-        technical_specs = str(catalog.get("technical_specs") or "").strip()
-        sales_constraints = str(catalog.get("sales_constraints") or "").strip()
+        technical_specs = ""
+        sales_constraints = ""
+        important_note = ""
+        if isinstance(free_texts, dict):
+            technical_specs = str(free_texts.get("technical_specs") or "").strip()
+            sales_constraints = str(free_texts.get("sales_constraints") or "").strip()
+            important_note = str(free_texts.get("important_note") or "").strip()
+        if not technical_specs and isinstance(ui_state, dict):
+            technical_specs = str(ui_state.get("technicalSpecs") or "").strip()
+        if not sales_constraints and isinstance(ui_state, dict):
+            sales_constraints = str(ui_state.get("salesConstraints") or "").strip()
+        if not important_note and isinstance(ui_state, dict):
+            important_note = str(ui_state.get("importantNote") or "").strip()
+        if not technical_specs:
+            technical_specs = str(catalog.get("technical_specs") or "").strip()
+        if not sales_constraints:
+            sales_constraints = str(catalog.get("sales_constraints") or "").strip()
+        if not important_note:
+            important_note = str(catalog.get("important_note") or "").strip()
+        description = str(catalog.get("description") or "").strip()
 
         lines = []
         lines.append("# CATALOGUE_REFERENCE (AUTO)\n")
@@ -277,43 +370,169 @@ def _build_catalogue_block_from_catalog_v2(catalog: Dict[str, Any]) -> str:
             lines.append("- (none)")
         lines.append("")
 
+        lines.append("## PRICING_MODE")
+        if pricing_mode:
+            lines.append(f"- pricing_mode: `{pricing_mode}`")
+        else:
+            lines.append("- pricing_mode: (unknown)")
+        if sales_target:
+            lines.append(f"- sales_target: `{sales_target}`")
+        lines.append("")
+
         lines.append("## FORMATS_DE_VENTE")
-        if custom_formats:
-            for f in custom_formats:
+        if selling_formats:
+            for f in selling_formats:
                 if not isinstance(f, dict):
                     continue
-                f_type = str(f.get("type") or "").strip()
-                qty = f.get("quantity")
-                label = str(f.get("label") or f.get("customLabel") or f.get("custom_label") or "").strip()
-                enabled = f.get("enabled")
-
+                fname = str(f.get("format_name") or "").strip()
+                cid = str(f.get("canonical_id") or "").strip()
                 try:
-                    qty_i = int(qty) if qty is not None else None
+                    min_order_i = int(f.get("min_order") or 0)
                 except Exception:
-                    qty_i = None
-
-                canonical = ""
-                if f_type and qty_i and qty_i > 0:
-                    canonical = f"{f_type}_{qty_i}"
-                enabled_s = "true" if enabled is True else ("false" if enabled is False else "")
-
+                    min_order_i = 0
+                price_v = f.get("price")
+                price_i = None
+                try:
+                    if price_v is not None and str(price_v).strip() != "":
+                        price_i = int(float(price_v))
+                except Exception:
+                    price_i = None
                 tail = []
-                if canonical:
-                    tail.append(f"canonical={canonical}")
+                if cid:
+                    tail.append(f"canonical={cid}")
+                if price_i is not None:
+                    tail.append(f"price={price_i}")
+                if min_order_i > 0:
+                    tail.append(f"min_order={min_order_i}")
+                tail_s = (" | " + ", ".join(tail)) if tail else ""
+                lines.append(f"- (format) -> {fname}{tail_s}" if fname else f"- (format){tail_s}")
+        elif format_catalog:
+            for f in format_catalog:
+                enabled_s = "true" if f.get("enabled") is True else ("false" if f.get("enabled") is False else "")
+                tail = []
+                if f.get("key"):
+                    tail.append(f"canonical={f['key']}")
                 if enabled_s:
                     tail.append(f"enabled={enabled_s}")
                 tail_s = (" | " + ", ".join(tail)) if tail else ""
-
-                head = f"- {label}" if label else "- (format)"
-                if f_type and qty_i and qty_i > 0:
-                    head += f" -> {f_type} x {qty_i}"
+                head = f"- {f.get('label') or '(format)'}"
+                if f.get("type") and f.get("qty"):
+                    head += f" -> {f['type']} x {f['qty']}"
                 lines.append(head + tail_s)
+        else:
+            lines.append("- (none)")
+        lines.append("")
+
+        lines.append("## OPTIONS_CLIENT")
+        if required_options:
+            for opt in required_options:
+                if not isinstance(opt, dict):
+                    continue
+                name = str(opt.get("name") or opt.get("label") or opt.get("key") or "").strip()
+                mandatory = bool(opt.get("is_mandatory") if opt.get("is_mandatory") is not None else opt.get("required"))
+                values = opt.get("values") if isinstance(opt.get("values"), list) else []
+                values_txt = ", ".join(f"`{str(v).strip()}`" for v in values if str(v).strip())
+                if name:
+                    lines.append(f"- {name} ({'Obligatoire' if mandatory else 'Facultatif'}) : {values_txt}" if values_txt else f"- {name} ({'Obligatoire' if mandatory else 'Facultatif'})")
+        elif product_options:
+            for opt in product_options:
+                if not isinstance(opt, dict):
+                    continue
+                key = str(opt.get("key") or opt.get("label") or "").strip()
+                label = str(opt.get("label") or key or "").strip()
+                required = bool(opt.get("required"))
+                values = opt.get("values") if isinstance(opt.get("values"), list) else []
+                values_txt = ", ".join(f"`{str(v).strip()}`" for v in values if str(v).strip())
+                req_txt = "obligatoire" if required else "facultatif"
+                if key:
+                    if values_txt:
+                        lines.append(f"- `{key}` ({label}) [{req_txt}] : {values_txt}")
+                    else:
+                        lines.append(f"- `{key}` ({label}) [{req_txt}]")
+        else:
+            lines.append("- (none)")
+        lines.append("")
+
+        lines.append("## BOT_FORMAT")
+        if bot_format:
+            sales_mode = str(bot_format.get("sales_mode") or "").strip()
+            if sales_mode:
+                lines.append(f"- sales_mode: `{sales_mode}`")
+            bot_allowed_units_raw = bot_format.get("allowed_units") if isinstance(bot_format.get("allowed_units"), list) else []
+            bot_allowed_units: list[str] = []
+            bot_aliases: Dict[str, list[str]] = {}
+            for row in bot_allowed_units_raw:
+                if isinstance(row, dict):
+                    key = str(row.get("key") or "").strip()
+                    aliases = row.get("aliases") if isinstance(row.get("aliases"), list) else []
+                    clean_aliases = [str(a).strip().lower() for a in aliases if str(a).strip()]
+                    if key:
+                        bot_allowed_units.append(key)
+                        bot_aliases[key] = clean_aliases
+                else:
+                    key = str(row or "").strip()
+                    if key:
+                        bot_allowed_units.append(key)
+            if bot_allowed_units:
+                lines.append(f"- allowed_units: {', '.join(sorted(set(bot_allowed_units)))}")
+            min_order = bot_format.get("min_order") if isinstance(bot_format.get("min_order"), dict) else {}
+            min_value = min_order.get("value")
+            min_unit = str(min_order.get("unit") or "").strip()
+            if min_value is not None or min_unit:
+                lines.append(f"- min_order: value={min_value or 0}, unit={min_unit or '(none)'}")
+            if required_options:
+                lines.append("- required_options: present")
+            specs = bot_format.get("specs") if isinstance(bot_format.get("specs"), list) else []
+            if specs:
+                lines.append("- specs:")
+                for s in specs:
+                    if not isinstance(s, dict):
+                        continue
+                    skey = str(s.get("key") or "").strip()
+                    slabel = str(s.get("label") or skey or "").strip()
+                    stype = str(s.get("type") or "text").strip()
+                    required = bool(s.get("required"))
+                    values = s.get("values") if isinstance(s.get("values"), list) else []
+                    clean_values = [str(v).strip() for v in values if str(v).strip()]
+                    val_txt = f" values={', '.join(f'`{v}`' for v in clean_values)}" if clean_values else ""
+                    if skey:
+                        lines.append(f"  - `{skey}` ({slabel}) type={stype} required={str(required).lower()}{val_txt}")
+            rules = bot_format.get("validation_rules") if isinstance(bot_format.get("validation_rules"), dict) else {}
+            if rules:
+                lines.append("- validation_rules:")
+                for rk, rv in rules.items():
+                    if isinstance(rv, dict):
+                        lines.append(f"  - {rk}: {json.dumps(rv, ensure_ascii=False)}")
+                    else:
+                        lines.append(f"  - {rk}: {rv}")
+            hints = bot_format.get("prompt_hints")
+            if isinstance(hints, list) and hints:
+                hint_txt = ", ".join(f"`{str(h).strip()}`" for h in hints if str(h).strip())
+                if hint_txt:
+                    lines.append(f"- prompt_hints: {hint_txt}")
+            if selling_formats:
+                lines.append("- selling_formats: present")
         else:
             lines.append("- (none)")
         lines.append("")
 
         lines.append("## UNITS_PAR_PRODUIT")
         if vtree:
+            fallback_format_lines = []
+            if selling_formats:
+                fallback_format_lines.append(f"- formats: {', '.join(str(f.get('canonical_id') or '').strip() for f in selling_formats if isinstance(f, dict) and str(f.get('canonical_id') or '').strip())}")
+                for fmt in selling_formats:
+                    if not isinstance(fmt, dict):
+                        continue
+                    cid = str(fmt.get("canonical_id") or "").strip()
+                    fname = str(fmt.get("format_name") or "").strip()
+                    if cid and fname:
+                        fallback_format_lines.append(f"- {cid}: {fname}")
+            elif format_catalog:
+                fallback_format_lines.append(f"- formats: {', '.join(f['key'] for f in format_catalog if f.get('key'))}")
+                for fmt in format_catalog:
+                    if fmt.get("key") and fmt.get("label"):
+                        fallback_format_lines.append(f"- {fmt['key']}: {fmt['label']}")
             for variant_name, node in vtree.items():
                 if not isinstance(node, dict):
                     continue
@@ -327,7 +546,9 @@ def _build_catalogue_block_from_catalog_v2(catalog: Dict[str, Any]) -> str:
                     units = [str(k) for k in u_map.keys()]
                     units = [u for u in units if u]
                     units = sorted(set(units))
-                    if units:
+                    if units == ["piece"] and not piece_enabled and fallback_format_lines:
+                        lines.extend(fallback_format_lines)
+                    elif units:
                         lines.append(f"- formats: {', '.join(units)}")
                     else:
                         lines.append("- formats: (none)")
@@ -387,10 +608,28 @@ def _build_catalogue_block_from_catalog_v2(catalog: Dict[str, Any]) -> str:
                     lines.append("")
                     continue
 
-                lines.append("- (no units)")
+                if not piece_enabled and fallback_format_lines:
+                    lines.extend(fallback_format_lines)
+                else:
+                    lines.append("- (no units)")
                 lines.append("")
         else:
-            lines.append("- (none)")
+            if not piece_enabled and selling_formats:
+                lines.append(f"- formats: {', '.join(str(f.get('canonical_id') or '').strip() for f in selling_formats if isinstance(f, dict) and str(f.get('canonical_id') or '').strip())}")
+                for fmt in selling_formats:
+                    if not isinstance(fmt, dict):
+                        continue
+                    cid = str(fmt.get("canonical_id") or "").strip()
+                    fname = str(fmt.get("format_name") or "").strip()
+                    if cid and fname:
+                        lines.append(f"- {cid}: {fname}")
+            elif not piece_enabled and format_catalog:
+                lines.append(f"- formats: {', '.join(f['key'] for f in format_catalog if f.get('key'))}")
+                for fmt in format_catalog:
+                    if fmt.get("key") and fmt.get("label"):
+                        lines.append(f"- {fmt['key']}: {fmt['label']}")
+            else:
+                lines.append("- (none)")
 
         # Conservative, data-driven rules derived only from structured price data.
         lines.append("")
@@ -441,6 +680,11 @@ def _build_catalogue_block_from_catalog_v2(catalog: Dict[str, Any]) -> str:
                 else:
                     lines.append("- allowed_units: (none)")
                     lines.append("- sold_only_by: (none)")
+
+                if pricing_mode:
+                    lines.append(f"- pricing_mode: {pricing_mode}")
+                if sales_target:
+                    lines.append(f"- sales_target: {sales_target}")
 
                 # Pricing varies by specs only if we can observe multiple spec rows with different prices.
                 pricing_varies_by_specs: Optional[bool] = None
@@ -518,6 +762,16 @@ def _build_catalogue_block_from_catalog_v2(catalog: Dict[str, Any]) -> str:
         if sales_constraints:
             lines.append("## SALES_CONSTRAINTS (RAW)")
             lines.append(sales_constraints)
+            lines.append("")
+
+        if description:
+            lines.append("## DESCRIPTION (RAW)")
+            lines.append(description)
+            lines.append("")
+
+        if important_note:
+            lines.append("## IMPORTANT_NOTE (RAW)")
+            lines.append(important_note)
             lines.append("")
 
         return "\n".join(lines).strip() + "\n"
@@ -1009,6 +1263,24 @@ async def sync_local_and_upsert_botlive_catalogue_block_deepseek(
             pn_in = str(payload.catalog.get("product_name") or "").strip()
             if pn_top and not pn_in:
                 payload.catalog["product_name"] = pn_top
+            pid_top = str(getattr(payload, "product_id", "") or "").strip()
+            pid_in = str(payload.catalog.get("product_id") or "").strip()
+            if pid_top and not pid_in:
+                payload.catalog["product_id"] = pid_top
+
+            tech_top = str(getattr(payload, "technical_specs", "") or "").strip()
+            sales_top = str(getattr(payload, "sales_constraints", "") or "").strip()
+            desc_top = str(getattr(payload, "description", "") or "").strip()
+            note_top = str(getattr(payload, "important_note", "") or "").strip()
+
+            if tech_top:
+                payload.catalog["technical_specs"] = tech_top
+            if sales_top:
+                payload.catalog["sales_constraints"] = sales_top
+            if desc_top and not str(payload.catalog.get("description") or "").strip():
+                payload.catalog["description"] = desc_top
+            if note_top and not str(payload.catalog.get("important_note") or "").strip():
+                payload.catalog["important_note"] = note_top
     except Exception:
         pass
 

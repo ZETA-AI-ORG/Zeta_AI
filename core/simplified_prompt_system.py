@@ -22,6 +22,7 @@ logger = logging.getLogger(__name__)
 
 from core.order_state_tracker import order_tracker
 from core.company_catalog_v2_loader import get_company_catalog_v2, get_company_product_catalog_v2
+from core.catalogue_block_builder import build_catalogue_block_from_catalog_v2
 from database.supabase_client import get_supabase_client
 from core.company_cache_manager import company_cache
 from core.prompt_bots_loader import get_prompt_template
@@ -248,11 +249,10 @@ class SimplifiedPromptSystem:
         return "\n".join(lines)
 
     def _build_product_context_block(self, catalog, p_id) -> str:
-        """Formatte les détails d'un produit spécifique (Support V2)."""
-        if not catalog or not p_id: return ""
-        
+        if not catalog or not p_id:
+            return ""
+
         p_data = None
-        # Recherche dans le conteneur multi-produits
         if isinstance(catalog.get("products"), list):
             for p in catalog["products"]:
                 cat = p.get("catalog_v2") if isinstance(p.get("catalog_v2"), dict) else p
@@ -261,78 +261,61 @@ class SimplifiedPromptSystem:
                     p_data = cat
                     break
         else:
-            # Mono-produit ou dictionnaire
             mono_pid = str(catalog.get("product_id") or catalog.get("id") or "").strip()
             if mono_pid and mono_pid == str(p_id).strip():
                 p_data = catalog
             else:
                 p_data = catalog.get(p_id) if "v" not in catalog else catalog
-            
-        if not isinstance(p_data, dict): return ""
-        
-        name = p_data.get('product_name') or p_data.get('name') or p_id
-        desc = p_data.get('description') or p_data.get('product_description') or ""
-        vtree = p_data.get('v') or {}
-        tech = p_data.get('technical_specs') or ""
-        sales = p_data.get('sales_constraints') or ""
-        bot_format = p_data.get("bot_format")
-        if not isinstance(bot_format, dict):
-            ui_state = p_data.get("ui_state") if isinstance(p_data.get("ui_state"), dict) else {}
-            bot_format = ui_state.get("bot_format") if isinstance(ui_state, dict) else None
-        bot_md = self._build_bot_format_markdown(bot_format if isinstance(bot_format, dict) else {})
 
-        # Formatage Markdown Premium
-        lines = [f"### {name}"]
-        
-        # 1. Variantes
-        if isinstance(vtree, dict) and vtree:
-            v_list = []
-            for vk, vnode in vtree.items():
-                if not isinstance(vnode, dict): continue
-                specs_keys = []
-                if isinstance(vnode.get("s"), dict):
-                    specs_keys = [str(k) for k in vnode["s"].keys()]
-                if specs_keys:
-                    v_list.append(f"- **{vk}** : {', '.join(specs_keys)}")
-                else:
-                    v_list.append(f"- **{vk}**")
-            if v_list:
-                lines.append("\n**Variantes disponibles :**")
-                lines.extend(v_list)
+        if not isinstance(p_data, dict):
+            return ""
 
-        # 2. Contraintes de vente
-        if str(sales).strip():
-            lines.append(f"\n**Contraintes de vente :**\n{sales}")
+        return build_catalogue_block_from_catalog_v2(p_data)
 
-        # 3. Spécifications techniques
-        if str(tech).strip():
-            lines.append(f"\n**Spécifications techniques :**\n{tech}")
-
-        # 4. Description
-        if str(desc).strip():
-            lines.append(f"\n**Description :**\n{desc}")
-
-        # 5. Bot format constraints (deterministic Python/LLM contract)
-        if str(bot_md).strip():
-            lines.append(f"\n**Règles Bot & Formats (déterministes)**\n{bot_md}")
-
-        return "\n".join(lines)
-
-    def _build_bot_format_markdown(self, bot_format: Dict[str, Any]) -> str:
+    def _build_bot_format_markdown(self, bot_format: Dict[str, Any], product_catalog: Dict[str, Any]) -> str:
         """Construit un markdown compact des contraintes bot_format."""
         if not isinstance(bot_format, dict) or not bot_format:
             return ""
 
         sales_mode = str(bot_format.get("sales_mode") or "").strip()
-        allowed_units = bot_format.get("allowed_units") if isinstance(bot_format.get("allowed_units"), list) else []
-        allowed_units = [str(u).strip() for u in allowed_units if str(u).strip()]
-
-        unit_aliases = bot_format.get("unit_aliases") if isinstance(bot_format.get("unit_aliases"), dict) else {}
+        allowed_units_raw = bot_format.get("allowed_units") if isinstance(bot_format.get("allowed_units"), list) else []
+        unit_aliases_legacy = bot_format.get("unit_aliases") if isinstance(bot_format.get("unit_aliases"), dict) else {}
         min_order = bot_format.get("min_order") if isinstance(bot_format.get("min_order"), dict) else {}
         min_value = min_order.get("value")
         min_unit = str(min_order.get("unit") or "").strip()
         specs = bot_format.get("specs") if isinstance(bot_format.get("specs"), list) else []
         rules = bot_format.get("validation_rules") if isinstance(bot_format.get("validation_rules"), list) else []
+
+        # Supporte les deux formats:
+        # - legacy: allowed_units=["lot_300"], unit_aliases={...}
+        # - v1: allowed_units=[{"key":"lot_300","aliases":[...]}]
+        unit_aliases: Dict[str, List[str]] = {}
+        allowed_units: List[str] = []
+        for row in allowed_units_raw:
+            if isinstance(row, dict):
+                key = str(row.get("key") or "").strip()
+                aliases = row.get("aliases") if isinstance(row.get("aliases"), list) else []
+                clean_aliases = [str(a).strip().lower() for a in aliases if str(a).strip()]
+                if key:
+                    allowed_units.append(key)
+                    if clean_aliases:
+                        unit_aliases[key] = sorted(set(clean_aliases))
+            else:
+                key = str(row).strip()
+                if key:
+                    allowed_units.append(key)
+        if isinstance(unit_aliases_legacy, dict):
+            for key, aliases in unit_aliases_legacy.items():
+                k = str(key or "").strip()
+                if not k:
+                    continue
+                a_list = aliases if isinstance(aliases, list) else []
+                clean_aliases = [str(a).strip().lower() for a in a_list if str(a).strip()]
+                if clean_aliases:
+                    merged = set(unit_aliases.get(k, []))
+                    merged.update(clean_aliases)
+                    unit_aliases[k] = sorted(merged)
+        allowed_units = sorted(set([u for u in allowed_units if u]))
 
         lines: List[str] = []
         if sales_mode:
@@ -353,6 +336,8 @@ class SimplifiedPromptSystem:
                 lines.append("- Aliases d'unités:")
                 lines.extend(alias_lines)
 
+        required_spec_keys: List[str] = []
+        optional_spec_keys: List[str] = []
         if specs:
             spec_lines: List[str] = []
             for s in specs:
@@ -362,13 +347,18 @@ class SimplifiedPromptSystem:
                 if not key:
                     continue
                 stype = str(s.get("type") or "text").strip().lower()
-                required = bool(s.get("required"))
-                allowed_values = s.get("allowed_values") if isinstance(s.get("allowed_values"), list) else []
+                allowed_values = s.get("values") if isinstance(s.get("values"), list) else []
+                if not allowed_values:
+                    allowed_values = s.get("allowed_values") if isinstance(s.get("allowed_values"), list) else []
+                clean_values = [str(v).strip() for v in allowed_values if str(v).strip()]
+                required = len(clean_values) > 0
+                if required:
+                    required_spec_keys.append(key)
+                else:
+                    optional_spec_keys.append(key)
                 values_txt = ""
-                if allowed_values:
-                    clean_values = [str(v).strip() for v in allowed_values if str(v).strip()]
-                    if clean_values:
-                        values_txt = f" values={', '.join(f'`{v}`' for v in clean_values)}"
+                if clean_values:
+                    values_txt = f" values={', '.join(f'`{v}`' for v in clean_values)}"
                 spec_lines.append(f"  - `{key}` ({stype}) required={str(required).lower()}{values_txt}")
             if spec_lines:
                 lines.append("- Specs attendues:")
@@ -387,6 +377,35 @@ class SimplifiedPromptSystem:
             if rule_lines:
                 lines.append("- Règles de rejet Python:")
                 lines.extend(rule_lines)
+
+        # Slots dynamiques + fantômes (observabilité + déterminisme)
+        has_variant = False
+        if isinstance(product_catalog, dict):
+            vtree = product_catalog.get("v")
+            has_variant = isinstance(vtree, dict) and len(vtree.keys()) > 1
+        slots_active: List[str] = ["PRODUIT"]
+        if has_variant:
+            slots_active.append("VARIANT")
+        slots_active.extend([f"SPEC_{k.upper()}" for k in required_spec_keys])
+        slots_active.extend(["QUANTITÉ", "ZONE", "TÉLÉPHONE", "PAIEMENT"])
+        slots_ghost: List[str] = []
+        if not has_variant:
+            slots_ghost.append("VARIANT")
+        slots_ghost.extend([f"SPEC_{k.upper()}" for k in optional_spec_keys])
+        lines.append("- Slots actifs: " + ", ".join(slots_active))
+        if slots_ghost:
+            lines.append("- Slots fantômes (N/A): " + ", ".join(slots_ghost))
+        logger.info(
+            "[SLOTS_INIT] %s",
+            json.dumps(
+                {
+                    "active_slots": slots_active,
+                    "ghost_slots": slots_ghost,
+                    "required_specs": required_spec_keys,
+                },
+                ensure_ascii=False,
+            ),
+        )
 
         if not lines:
             return ""

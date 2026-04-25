@@ -2,6 +2,12 @@ import re
 from typing import Any, Dict, List, Optional, Tuple
 
 from core.company_catalog_v2_loader import get_company_catalog_v2, get_company_product_catalog_v2
+from core.bot_format_rules_engine import apply_explicit_unit_alias, extract_allowed_units, load_bot_format
+from core.catalog_v2_resolver import (
+    allowed_units_for_variant_and_specs as shared_allowed_units_for_variant_and_specs,
+    resolve_variant_and_specs as shared_resolve_variant_and_specs,
+    select_product_catalog as shared_select_product_catalog,
+)
 
 
 def _norm_name_for_id(name: str) -> str:
@@ -324,9 +330,11 @@ def _canonicalize_unit_and_qty(
     raw_unit: str,
     raw_qty: Any,
     message: str,
+    strict_bot_format: bool = True,
+    explicit_aliases_only: bool = True,
+    bot_format: Optional[Dict[str, Any]] = None,
 ) -> Tuple[str, Optional[int]]:
     unit_s = str(raw_unit or "").strip()
-    unit_l = unit_s.lower()
 
     qty_i: Optional[int] = None
     try:
@@ -343,97 +351,16 @@ def _canonicalize_unit_and_qty(
 
     allowed = [str(u).strip() for u in (allowed_units or []) if str(u).strip()]
 
-    # Direct
     if unit_s and unit_s in allowed:
         return unit_s, qty_i
 
-    def _units_from_vtree(cv2: Dict[str, Any]) -> List[str]:
-        try:
-            vtree = cv2.get("v")
-            if not isinstance(vtree, dict):
-                return []
-            out: set[str] = set()
-            for _vk, _node in vtree.items():
-                if not isinstance(_node, dict):
-                    continue
-                uu = _node.get("u")
-                if isinstance(uu, dict):
-                    for _uk in uu.keys():
-                        if str(_uk).strip():
-                            out.add(str(_uk).strip())
-                ss = _node.get("s")
-                if isinstance(ss, dict):
-                    for _sub in ss.values():
-                        if not isinstance(_sub, dict):
-                            continue
-                        uu2 = _sub.get("u")
-                        if not isinstance(uu2, dict):
-                            continue
-                        for _uk in uu2.keys():
-                            if str(_uk).strip():
-                                out.add(str(_uk).strip())
+    if unit_s and isinstance(bot_format, dict):
+        alias_mapped = apply_explicit_unit_alias(unit_s, bot_format=bot_format, allowed_units=allowed)
+        if alias_mapped and alias_mapped in allowed:
+            return alias_mapped, qty_i
 
-            return sorted(out)
-        except Exception:
-            return []
-
-    canon_units = catalog_v2.get("canonical_units")
-    if not isinstance(canon_units, list):
-        canon_units = []
-    canon_units = [str(u).strip() for u in canon_units if str(u).strip()]
-
-    if not canon_units:
-        canon_units = _units_from_vtree(catalog_v2)
-
-    if not canon_units and allowed:
-        canon_units = list(allowed)
-
-    if unit_s and unit_s in canon_units and (not allowed or unit_s in allowed):
+    if strict_bot_format or explicit_aliases_only:
         return unit_s, qty_i
-
-    for t in ["lot", "paquet", "pack", "carton", "colis", "balle"]:
-        if re.search(rf"\b{t}s?\b", msg_l):
-            token = _canon_token(t)
-            break
-
-    parsed_units = [_parse_unit_key(u) for u in canon_units]
-    parsed_units = [p for p in parsed_units if p]
-
-    allowed_set = set(allowed) if allowed else set(canon_units)
-
-    # If user used a non-canonical/vague unit (ex: "carton") but the catalog allows only ONE unit
-    # for this variant/spec, we can safely map to that single unit.
-    if unit_s and (unit_s not in allowed_set) and len(allowed_set) == 1:
-        return list(allowed_set)[0], qty_i
-
-    # If user provided a unit that is not allowed and there are multiple possible units,
-    # do not keep an invalid unit; force clarification downstream.
-    if unit_s and (unit_s not in allowed_set) and len(allowed_set) > 1:
-        return "", None
-
-    if (not unit_s) and len(allowed_set) == 1:
-        return list(allowed_set)[0], qty_i
-
-    if token and token != "piece":
-        candidates = [p for p in parsed_units if p.get("type") == token and str(p.get("key") or "") in allowed_set]
-        candidates = sorted(candidates, key=lambda x: int(x.get("size") or 0))
-        base = candidates[0] if candidates else None
-        if base and qty_i is not None and qty_i > 0:
-            try:
-                total = int(qty_i) * int(base.get("size") or 0)
-            except Exception:
-                total = 0
-            if total > 0:
-                exact = [p for p in candidates if int(p.get("size") or 0) == total]
-                if exact:
-                    return str(exact[0].get("key")), 1
-        if base:
-            return str(base.get("key")), qty_i
-
-    # piece fallback: if exactly one allowed unit, pick it
-    if token == "piece":
-        if len(allowed_set) == 1:
-            return list(allowed_set)[0], qty_i
 
     return unit_s, qty_i
 
@@ -444,6 +371,7 @@ def normalize_detected_items(
     items: List[Dict[str, Any]],
     message: str,
     catalog_container: Optional[Dict[str, Any]] = None,
+    strict_bot_format: bool = True,
 ) -> List[Dict[str, Any]]:
     cid = str(company_id or "").strip()
     if not cid:
@@ -469,14 +397,14 @@ def normalize_detected_items(
         product_hint = str(raw.get("variant") or raw.get("product") or "").strip()
         specs_hint = str(raw.get("specs") or "").strip() or str(raw.get("spec") or "").strip()
 
-        selected_catalog = _select_product_catalog(company_id=cid, container=container, product_id=pid)
+        selected_catalog = shared_select_product_catalog(company_id=cid, container=container, product_id=pid)
         if not isinstance(selected_catalog, dict):
             selected_catalog = container if isinstance(container, dict) else None
         if not isinstance(selected_catalog, dict):
             out.append({**raw, "product_id": pid})
             continue
 
-        variant_key, specs_key = _resolve_variant_and_specs(
+        variant_key, specs_key = shared_resolve_variant_and_specs(
             catalog_v2=selected_catalog,
             product_hint=product_hint,
             specs_hint=specs_hint,
@@ -494,18 +422,24 @@ def normalize_detected_items(
         except Exception:
             weight_mapped_spec, weight_status = "", ""
 
-        allowed_units = _allowed_units_for_variant_and_specs(
+        allowed_units = shared_allowed_units_for_variant_and_specs(
             catalog_v2=selected_catalog,
             variant_key=variant_key,
             specs_key=specs_key,
         )
+        bot_format = load_bot_format(selected_catalog)
+        bot_allowed_units = extract_allowed_units(bot_format, allowed_units)
+        effective_allowed_units = bot_allowed_units or allowed_units
 
         unit_key, qty_i = _canonicalize_unit_and_qty(
-            allowed_units=allowed_units,
+            allowed_units=effective_allowed_units,
             catalog_v2=selected_catalog,
             raw_unit=str(raw.get("unit") or "").strip(),
             raw_qty=raw.get("qty"),
             message=message,
+            strict_bot_format=strict_bot_format,
+            explicit_aliases_only=True,
+            bot_format=bot_format,
         )
 
         nxt: Dict[str, Any] = dict(raw)
