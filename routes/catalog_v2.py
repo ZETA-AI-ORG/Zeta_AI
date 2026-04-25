@@ -1221,7 +1221,7 @@ async def sync_local_and_upsert_botlive_catalogue_block_deepseek(
             path=final_path,
             prompt_chars=len(str(updated_prompt)),
             catalogue_chars=len(str(catalogue_block)),
-            debug=debug_payload,
+            debug=None,
             updated_at=now_iso,
             timestamp=time.time(),
         )
