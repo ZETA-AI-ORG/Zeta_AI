@@ -34,7 +34,7 @@ from core.dynamic_context_injector import get_dynamic_context_injector
 from core.llm_client import get_llm_client
 from core.company_catalog_v2_loader import get_company_catalog_v2, get_company_product_catalog_v2
 from core.catalog_v2_item_normalizer import normalize_detected_items
-from core.bot_format_rules_engine import apply_explicit_unit_alias, validate_cart_intent
+from core.bot_format_rules_engine import apply_explicit_unit_alias, validate_cart_intent, is_price_lookup_ready
 from core.catalog_v2_resolver import resolve_catalog_item_context
 from core.cart_manager import CartManager
 from .message_registry import get_system_response, get_company_tone
@@ -68,6 +68,14 @@ class SimplifiedRAGResult:
     timings: Optional[Dict[str, float]] = None
 
 
+def normalize_company_id(company_id: str) -> str:
+    raw = str(company_id or "")
+    normalized = raw.strip()
+    if normalized != raw:
+        print(f"[COMPANY_ID_CORRUPT] recu='{raw}' normalise='{normalized}'")
+    return normalized
+
+
 class SimplifiedRAGEngine:
     """Moteur RAG simplifié avec prompt statique + injection dynamique minimale"""
     
@@ -77,7 +85,7 @@ class SimplifiedRAGEngine:
         self.context_injector = get_dynamic_context_injector()
         self.llm_client = None
         self.cart_manager = CartManager(ttl_seconds=259200)
-    
+
     async def initialize(self):
         """Initialise le client LLM"""
         if self.llm_client is None:
@@ -115,6 +123,7 @@ class SimplifiedRAGEngine:
         Returns:
             SimplifiedRAGResult avec réponse + métriques
         """
+        company_id = normalize_company_id(company_id)
         start_time = time.time()
         phase_timings: Dict[str, float] = {
             "context_ms": 0.0,
@@ -1294,12 +1303,18 @@ class SimplifiedRAGEngine:
                     # This is a robustness fallback when the prompt doesn't emit <tool_call>.
                     try:
                         if _is_price_intent(query):
+                            _prematch_spec = None
+                            try:
+                                _st_price = order_tracker.get_state(user_id)
+                                _prematch_spec = str(getattr(_st_price, "produit_details", "") or "").strip() or None
+                            except Exception:
+                                _prematch_spec = None
                             if detected_variant:
                                 list_text, list_items = _generate_price_list_for_tool_call(
                                     company_id_val=company_id,
                                     product_id_val=detected_pid,
                                     variant_val=detected_variant,
-                                    spec_val=None,
+                                    spec_val=_prematch_spec,
                                 )
                             else:
                                 list_text, list_items = _generate_price_table_for_product(
@@ -6272,16 +6287,26 @@ class SimplifiedRAGEngine:
                         except Exception:
                             pass
 
-                    # ── Decision: send price list when unit is NOT yet chosen ──
-                    # Skip ONLY when both unit AND spec are known (single price → no table needed)
-                    _both_known = bool(_detected_unit and _detected_spec)
+                    # ── Decision: bypass price list when Python already has enough structured data ──
+                    _price_lookup = {"ready": False, "missing_required_options": [], "allowed_units": []}
+                    if pid:
+                        try:
+                            _sel_cat_lookup = get_company_product_catalog_v2(company_id, pid)
+                        except Exception:
+                            _sel_cat_lookup = None
+                        if isinstance(_sel_cat_lookup, dict):
+                            _price_lookup = is_price_lookup_ready(
+                                _sel_cat_lookup,
+                                unit=_detected_unit,
+                                specs=_detected_spec,
+                            )
 
-                    if pid and _both_known:
-                        # Both unit + spec known → single price, skip table
+                    if pid and bool(_price_lookup.get("ready")):
+                        # Unit known + mandatory options satisfied → Python can answer directly
                         if isinstance(tool_call_req, dict):
                             tool_call_req["action"] = "NONE"
                             tool_call_req["_skipped_price_list"] = True
-                        print(f"🛡️ [SEND_PRICE_LIST] Skipped (fully specified: unit={_detected_unit} spec={_detected_spec}) → LLM gives price directly")
+                        print(f"🛡️ [SEND_PRICE_LIST] Skipped (price-ready: unit={_detected_unit} spec={_detected_spec}) → Python can answer directly")
                         if _auto_reason:
                             print(f"🔧 [AUTO_FILL] {_auto_reason}")
                     elif pid:
@@ -6463,6 +6488,7 @@ async def get_simplified_rag_response(
     Returns:
         Dict avec response + métriques (compatible avec ancien format)
     """
+    company_id = normalize_company_id(company_id)
     msg = str(query or "").strip()
 
     def _is_affirmation(s: str) -> bool:

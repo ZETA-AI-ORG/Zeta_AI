@@ -49,6 +49,7 @@ C_BG_MAGENTA = "\033[45m"
 C_BG_CYAN = "\033[46m"
 
 DEFAULT_COMPANY_ID = "W27PwOPiblP8TlOrhPcjOtxd0cza"
+DEFAULT_TEST_MODEL = "deepseek/deepseek-v4-flash"
 TEST_USER_ID = f"test_jessica_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:6]}"
 
 class PremiumSimulator:
@@ -56,6 +57,7 @@ class PremiumSimulator:
         self.mode = mode
         self.url = url or os.getenv("CHAT_URL") or "http://127.0.0.1:8002/jessicaragbot"
         self.company_id = os.getenv("TEST_COMPANY_ID") or DEFAULT_COMPANY_ID
+        self.model_name = os.getenv("TEST_MODEL_NAME") or DEFAULT_TEST_MODEL
         self.user_id = TEST_USER_ID
         self.history = ""
         self.turn = 0
@@ -79,7 +81,8 @@ class PremiumSimulator:
             "company_id": self.company_id,
             "user_id": self.user_id,
             "message": message,
-            "images": images or []
+            "images": images or [],
+            "model_name": self.model_name,
         }
 
         start_t = time.time()
@@ -182,6 +185,7 @@ async def main():
     sim.log_header(f"JESSICA SIMULATOR V3.0 — {sim.mode} MODE")
     print(f"🧪 URL: {sim.url}")
     print(f"🧪 COMPANY_ID: {sim.company_id}")
+    print(f"🧪 MODEL_NAME: {sim.model_name}")
     print(f"🧪 USER_ID: {sim.user_id}")
     
     print(f"\n{C_YELLOW}Tapez votre message ou 'exit' pour quitter.{C_RESET}")

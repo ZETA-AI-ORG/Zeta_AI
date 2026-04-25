@@ -179,6 +179,51 @@ def _extract_min_order_by_unit(bot_format: Dict[str, Any]) -> Dict[str, int]:
     return out
 
 
+def is_price_lookup_ready(
+    catalog: Dict[str, Any],
+    *,
+    unit: Optional[str],
+    specs: Optional[str],
+    allowed_units: Optional[List[str]] = None,
+) -> Dict[str, Any]:
+    bot_format = load_bot_format(catalog)
+    if not bot_format:
+        return {"ready": bool(str(unit or "").strip()), "missing_required_options": [], "allowed_units": []}
+
+    unit_val = apply_explicit_unit_alias(
+        str(unit or "").strip(),
+        bot_format=bot_format,
+        allowed_units=allowed_units,
+    )
+    specs_val = str(specs or "").strip()
+    specs_lower = specs_val.lower()
+    effective_allowed_units = extract_allowed_units(bot_format, allowed_units)
+    missing_required: List[Dict[str, Any]] = []
+
+    if not unit_val:
+        return {"ready": False, "missing_required_options": missing_required, "allowed_units": effective_allowed_units}
+
+    if effective_allowed_units and unit_val not in effective_allowed_units:
+        return {"ready": False, "missing_required_options": missing_required, "allowed_units": effective_allowed_units}
+
+    required_options = _extract_required_options(bot_format, catalog)
+    for opt in required_options:
+        if not bool(opt.get("is_mandatory")):
+            continue
+        values = [str(v).strip() for v in (opt.get("values") or []) if str(v).strip()]
+        if not specs_val:
+            missing_required.append({"name": str(opt.get("name") or "").strip(), "values": values})
+            continue
+        if values and not any(str(v).lower() in specs_lower for v in values):
+            missing_required.append({"name": str(opt.get("name") or "").strip(), "values": values})
+
+    return {
+        "ready": not missing_required,
+        "missing_required_options": missing_required,
+        "allowed_units": effective_allowed_units,
+    }
+
+
 def validate_cart_item(
     catalog: Dict[str, Any],
     item: Dict[str, Any],

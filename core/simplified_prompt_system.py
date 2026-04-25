@@ -236,7 +236,7 @@ class SimplifiedPromptSystem:
                 name = p.get("product_name") or p.get("name") or pid
                 if pid:
                     suffix = " [STATUT: UNIQUE_PRODUIT_BOUTIQUE]" if product_count == 1 else ""
-                    lines.append(f"- {name} (ID: {pid}){suffix}")
+                    lines.append(f"- [{pid}] {name}{suffix}")
         
         # Cas 2 : Mono-produit direct
         else:
@@ -245,10 +245,7 @@ class SimplifiedPromptSystem:
             name = catalog.get("product_name") or catalog.get("name") or pid
             if pid:
                 suffix = " [STATUT: UNIQUE_PRODUIT_BOUTIQUE]" if product_count == 1 else ""
-                lines.append(f"- {name} (ID: {pid}){suffix}")
-
-        if not lines: return "Aucun produit disponible."
-        return "\n".join(lines)
+                lines.append(f"- [{pid}] {name}{suffix}")
 
         if not lines: return "Aucun produit disponible."
         return "\n".join(lines)
