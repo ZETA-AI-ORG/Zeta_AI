@@ -460,6 +460,20 @@ class SimplifiedPromptSystem:
             return nested
         return None
 
+    def _resolve_mono_product_id(self, catalog: Any) -> str:
+        if not isinstance(catalog, dict):
+            return ""
+        plist = catalog.get("products")
+        if isinstance(plist, list):
+            products = [p for p in plist if isinstance(p, dict)]
+            if len(products) == 1:
+                p = products[0]
+                cat = p.get("catalog_v2") if isinstance(p.get("catalog_v2"), dict) else p
+                return str(p.get("product_id") or cat.get("product_id") or cat.get("id") or "").strip()
+            return ""
+        pid = str(catalog.get("product_id") or catalog.get("id") or "").strip()
+        return pid if pid else ""
+
     async def build_prompt(
         self,
         user_id: str,
@@ -517,7 +531,18 @@ class SimplifiedPromptSystem:
 
         # Récupérer le catalogue
         catalog_v2 = get_company_catalog_v2(company_id)
-        
+
+        if not active_product_id:
+            mono_pid = self._resolve_mono_product_id(catalog_v2)
+            if mono_pid:
+                active_product_id = mono_pid
+                active_product_source = "mono_product_auto"
+                try:
+                    order_tracker.set_custom_meta(user_id, "active_product_id", mono_pid)
+                except Exception:
+                    pass
+                logger.info("[AUTO_INJECT] Mono-produit détecté -> force active_product_id=%s", mono_pid)
+
         # Récupérer le prompt statique
         static_prompt = await self.get_static_prompt(company_id)
 

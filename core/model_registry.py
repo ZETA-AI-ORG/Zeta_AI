@@ -59,6 +59,10 @@ _ALLOWED_PREFIXES = (
     "deepseek/deepseek",   # Jessica Pro/Elite — registry v2.0
 )
 
+_ALLOWED_EXACT_MODELS = {
+    "deepseek/deepseek-v4-flash",
+}
+
 # Bannis explicitement (legacy Groq / Mistral / Llama / Claude / GPT)
 # Note: Qwen et DeepSeek ont été ré-autorisés dans bot_registry v2.0
 _BANNED_PATTERNS = (
@@ -83,6 +87,9 @@ def is_model_allowed(model_name: Optional[str]) -> bool:
         _allowed_test_models = [x.strip().lower() for x in _test_allow.split(",") if x.strip()]
         if any(m == allowed or model_name == allowed for allowed in _test_allow.split(",") if allowed.strip()):
             return True
+
+    if m in _ALLOWED_EXACT_MODELS:
+        return True
     
     if any(bad in m for bad in _BANNED_PATTERNS):
         return False
