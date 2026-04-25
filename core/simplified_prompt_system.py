@@ -27,6 +27,16 @@ from database.supabase_client import get_supabase_client
 from core.company_cache_manager import company_cache
 from core.prompt_bots_loader import get_prompt_template
 
+
+def _env_flag(name: str, default: bool = False) -> bool:
+    try:
+        raw = os.getenv(name)
+        if raw is None:
+            return bool(default)
+        return str(raw).strip().lower() in {"1", "true", "yes", "y", "on"}
+    except Exception:
+        return bool(default)
+
 @dataclass
 class OrderChecklistState:
     """État de la checklist de commande"""
@@ -663,7 +673,16 @@ class SimplifiedPromptSystem:
             "Rien en dehors de ces balises.\n"
             "</output_contract>\n"
         )
-        if "<output_contract>" not in final_prompt:
+        think_contract = (
+            "\n\n<thinking_contract>\n"
+            "CRITIQUE: Utilise OBLIGATOIREMENT <thinking>...</thinking> et JAMAIS <think>...</think>.\n"
+            "Le bloc <thinking> est obligatoire et doit contenir exactement les balises definies ci-dessous.\n"
+            "Sans ce bloc, le systeme ne peut pas traiter ta reponse.\n"
+            "</thinking_contract>\n"
+        )
+        if _env_flag("ENABLE_THINKING_PROMPT_GUARD", True) and "<thinking_contract>" not in final_prompt:
+            final_prompt += think_contract
+        if _env_flag("ENABLE_OUTPUT_CONTRACT_GUARD", True) and "<output_contract>" not in final_prompt:
             final_prompt += response_contract
         return final_prompt
 

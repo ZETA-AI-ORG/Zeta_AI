@@ -3530,6 +3530,30 @@ class SimplifiedRAGEngine:
                 m = re.search(rf'<{tag}\b[^>]*>(.*?)</{tag}>', text or "", re.DOTALL | re.IGNORECASE)
                 return m.group(1).strip() if m else ""
 
+            def _env_flag(name: str, default: bool = False) -> bool:
+                try:
+                    raw = os.getenv(name)
+                    if raw is None:
+                        return bool(default)
+                    return str(raw).strip().lower() in {"1", "true", "yes", "y", "on"}
+                except Exception:
+                    return bool(default)
+
+            def _extract_structured_thinking(raw_text: str) -> str:
+                txt = str(raw_text or "")
+                thinking_raw = _extract_tag(txt, "thinking")
+                if thinking_raw:
+                    return thinking_raw
+
+                if _env_flag("ENABLE_THINK_TAG_FALLBACK", True):
+                    think_raw = _extract_tag(txt, "think")
+                    if think_raw:
+                        print("[THINKING_TAG_FALLBACK] model used <think> instead of <thinking>")
+                        return think_raw
+
+                print("[THINKING_MISSING] no structured thinking block found")
+                return ""
+
             def _parse_thinking_schema(thinking_text: str) -> Dict[str, Any]:
                 t = thinking_text or ""
 
@@ -3622,8 +3646,7 @@ class SimplifiedRAGEngine:
                     second_pass_reason = "trigger_missing_active_pid_and_empty_catalogue"
 
                 if trigger_second_pass:
-                    t_match0 = re.search(r'<thinking>(.*?)</thinking>', raw_llm_output, re.DOTALL | re.IGNORECASE)
-                    t0 = t_match0.group(1).strip() if t_match0 else ""
+                    t0 = _extract_structured_thinking(raw_llm_output)
 
                     if t0:
                         di_txt = _extract_tag(t0, "detected_items_json")
@@ -3753,9 +3776,8 @@ class SimplifiedRAGEngine:
 
             # Extraire <thinking>
             parse_t0 = time.perf_counter()
-            thinking_match = re.search(r'<thinking>(.*?)</thinking>', raw_llm_output, re.DOTALL | re.IGNORECASE)
-            if thinking_match:
-                thinking = thinking_match.group(1).strip()
+            thinking = _extract_structured_thinking(raw_llm_output)
+            if thinking:
                 thinking_parsed = _parse_thinking_schema(thinking)
 
                 try:
@@ -4831,7 +4853,8 @@ class SimplifiedRAGEngine:
                 # - Si la sortie ne contient que du XML, forcer une question utile
                 if not validated_price_single:
                     candidate = str(raw_llm_output or "")
-                    candidate = re.sub(r'<thinking>.*?</thinking>', '', candidate, flags=re.DOTALL | re.IGNORECASE).strip()
+                    candidate = re.sub(r'<thinking\b[^>]*>.*?</thinking>', '', candidate, flags=re.DOTALL | re.IGNORECASE).strip()
+                    candidate = re.sub(r'<think\b[^>]*>.*?</think>', '', candidate, flags=re.DOTALL | re.IGNORECASE).strip()
                     candidate = re.sub(r"```[a-zA-Z0-9_-]*\s*", "", candidate).strip()
                     candidate = candidate.replace("```", "").strip()
                     if re.search(r"(\[\[PRODUCT_INDEX\]\]|##\s*PRODUCT_INDEX\s*##|\[CATALOGUE_START\]|\[CATALOGUE_END\])", candidate, re.IGNORECASE):
@@ -4839,9 +4862,20 @@ class SimplifiedRAGEngine:
                         fallback_reason = "prompt_leak_markers_detected"
                     if candidate:
                         response = candidate
-                    response = re.sub(r'<thinking>.*?</thinking>', '', str(response or ''), flags=re.DOTALL | re.IGNORECASE).strip()
+                    response = re.sub(r'<thinking\b[^>]*>.*?</thinking>', '', str(response or ''), flags=re.DOTALL | re.IGNORECASE).strip()
+                    response = re.sub(r'<think\b[^>]*>.*?</think>', '', str(response or ''), flags=re.DOTALL | re.IGNORECASE).strip()
                     response = re.sub(r"```[a-zA-Z0-9_-]*\s*", "", response).strip()
                     response = response.replace("```", "").strip()
+
+                if (not str(response or "").strip()) and _env_flag("ENABLE_POST_THINK_RESPONSE_FALLBACK", True):
+                    raw_txt = str(raw_llm_output or "")
+                    if re.search(r"</think>", raw_txt, re.IGNORECASE):
+                        try:
+                            response = re.split(r"</think>", raw_txt, maxsplit=1, flags=re.IGNORECASE)[-1].strip()
+                            response = re.sub(r"<[^>]+>", "", str(response or "")).strip()
+                            fallback_reason = "post_think_response_fallback"
+                        except Exception:
+                            pass
 
                 # Si le modèle a rendu un <response> sans fermeture, récupérer le contenu après la balise.
                 # (sinon on risque de renvoyer littéralement "<response>" au client)

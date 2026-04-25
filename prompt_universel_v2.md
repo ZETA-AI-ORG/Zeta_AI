@@ -475,6 +475,8 @@ Les infos produit/specs/quantité sont **DÉJÀ** dans `<detected_items_json>`. 
 
 ## FORMAT DE SORTIE
 
+⚠️ CRITIQUE : Utilise OBLIGATOIREMENT <thinking>...</thinking> et JAMAIS <think>...</think>. Le bloc <thinking> est obligatoire et doit contenir exactement les balises définies ci-dessous. Sans ce bloc, le système ne peut pas traiter ta réponse.
+
 CRITIQUE : Ton message DOIT contenir exactement 2 blocs : `<thinking>...</thinking>` et `<response>...</response>`.
 
 Toute réponse ne respectant pas ce format sera rejetée.
