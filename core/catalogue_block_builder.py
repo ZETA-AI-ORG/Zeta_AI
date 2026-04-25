@@ -99,7 +99,7 @@ def _extract_allowed_units(bot_format: Dict[str, Any], catalog: Dict[str, Any]) 
     return sorted(set([u for u in allowed_units if u]))
 
 
-def _extract_required_options(bot_format: Dict[str, Any]) -> List[Dict[str, Any]]:
+def _extract_required_options(bot_format: Dict[str, Any], catalog: Dict[str, Any]) -> List[Dict[str, Any]]:
     required_options = bot_format.get("required_options")
     if isinstance(required_options, list):
         clean: List[Dict[str, Any]] = []
@@ -120,6 +120,27 @@ def _extract_required_options(bot_format: Dict[str, Any]) -> List[Dict[str, Any]
                 )
         if clean:
             return clean
+
+    ui_state = catalog.get("ui_state") if isinstance(catalog.get("ui_state"), dict) else {}
+    ui_product_options = ui_state.get("productOptions") if isinstance(ui_state.get("productOptions"), list) else []
+    ui_fallback: List[Dict[str, Any]] = []
+    for row in ui_product_options:
+        if not isinstance(row, dict):
+            continue
+        name = str(row.get("label") or row.get("name") or row.get("key") or "").strip()
+        values = row.get("values") if isinstance(row.get("values"), list) else []
+        clean_values = [str(v).strip() for v in values if str(v).strip()]
+        if name and clean_values:
+            ui_fallback.append(
+                {
+                    "name": name,
+                    "key": str(row.get("key") or "").strip(),
+                    "is_mandatory": bool(row.get("required")),
+                    "values": clean_values,
+                }
+            )
+    if ui_fallback:
+        return ui_fallback
 
     specs = bot_format.get("specs") if isinstance(bot_format.get("specs"), list) else []
     fallback: List[Dict[str, Any]] = []
@@ -220,7 +241,7 @@ def build_catalogue_block_from_catalog_v2(catalog: Dict[str, Any]) -> str:
         sales_target = str(bot_format.get("sales_target") or bot_format.get("sales_mode") or "").strip().lower()
         allowed_units = _extract_allowed_units(bot_format, catalog)
         unit_aliases = _extract_unit_aliases(bot_format)
-        required_options = _extract_required_options(bot_format)
+        required_options = _extract_required_options(bot_format, catalog)
         selling_formats = _extract_selling_formats(bot_format, catalog)
         free_texts = bot_format.get("free_texts") if isinstance(bot_format.get("free_texts"), dict) else {}
         technical_specs = str(free_texts.get("technical_specs") or catalog.get("technical_specs") or "").strip()
@@ -241,12 +262,9 @@ def build_catalogue_block_from_catalog_v2(catalog: Dict[str, Any]) -> str:
                 tail: List[str] = []
                 canonical_id = str(row.get("canonical_id") or "").strip()
                 format_name = str(row.get("format_name") or canonical_id or "").strip()
-                price = row.get("price")
                 min_order = row.get("min_order")
                 if canonical_id:
                     tail.append(f"canonical={canonical_id}")
-                if price is not None:
-                    tail.append(f"price={price}")
                 if min_order is not None:
                     tail.append(f"min_order={min_order}")
                 suffix = f" | {' | '.join(tail)}" if tail else ""

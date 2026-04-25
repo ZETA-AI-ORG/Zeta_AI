@@ -91,7 +91,7 @@ def apply_explicit_unit_alias(unit_raw: str, *, bot_format: Dict[str, Any], allo
     return unit_val
 
 
-def _extract_required_options(bot_format: Dict[str, Any]) -> List[Dict[str, Any]]:
+def _extract_required_options(bot_format: Dict[str, Any], catalog: Dict[str, Any]) -> List[Dict[str, Any]]:
     required_options = bot_format.get("required_options") if isinstance(bot_format.get("required_options"), list) else []
     clean: List[Dict[str, Any]] = []
     for row in required_options:
@@ -111,6 +111,27 @@ def _extract_required_options(bot_format: Dict[str, Any]) -> List[Dict[str, Any]
             )
     if clean:
         return clean
+
+    ui_state = catalog.get("ui_state") if isinstance(catalog.get("ui_state"), dict) else {}
+    ui_product_options = ui_state.get("productOptions") if isinstance(ui_state.get("productOptions"), list) else []
+    ui_fallback: List[Dict[str, Any]] = []
+    for row in ui_product_options:
+        if not isinstance(row, dict):
+            continue
+        values = row.get("values") if isinstance(row.get("values"), list) else []
+        clean_values = [str(v).strip() for v in values if str(v).strip()]
+        name = str(row.get("label") or row.get("name") or row.get("key") or "").strip()
+        if name and clean_values:
+            ui_fallback.append(
+                {
+                    "name": name,
+                    "key": str(row.get("key") or "").strip(),
+                    "is_mandatory": bool(row.get("required")),
+                    "values": clean_values,
+                }
+            )
+    if ui_fallback:
+        return ui_fallback
 
     specs = bot_format.get("specs") if isinstance(bot_format.get("specs"), list) else []
     fallback: List[Dict[str, Any]] = []
@@ -183,6 +204,8 @@ def validate_cart_item(
     rules = bot_format.get("validation_rules") if isinstance(bot_format.get("validation_rules"), dict) else {}
 
     if qty_val is None:
+        if not unit_val and not specs_val:
+            return None
         return {
             "code": "qty_missing",
             "expected": {"qty": "integer>0"},
@@ -198,16 +221,16 @@ def validate_cart_item(
         }
 
     block_if_unit_not_allowed = bool(rules.get("block_if_unit_not_allowed"))
-    if strict_bot_format and block_if_unit_not_allowed and effective_allowed_units:
-        if not unit_val or unit_val not in effective_allowed_units:
+    if strict_bot_format and block_if_unit_not_allowed and effective_allowed_units and unit_val:
+        if unit_val not in effective_allowed_units:
             return {
                 "code": "unit_not_allowed",
                 "expected": {"allowed_units": effective_allowed_units},
-                "message": f'Unité "{unit_val or "∅"}" interdite. Les seules unités autorisées sont {", ".join(effective_allowed_units)}. Demande au client de choisir parmi les formats autorisés.',
+                "message": f'Unité "{unit_val}" interdite. Les seules unités autorisées sont {", ".join(effective_allowed_units)}. Demande au client de choisir parmi les formats autorisés.',
                 "item": item_dict,
             }
 
-    required_options = _extract_required_options(bot_format)
+    required_options = _extract_required_options(bot_format, catalog)
     specs_lower = specs_val.lower()
     for opt in required_options:
         if not bool(opt.get("is_mandatory")):

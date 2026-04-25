@@ -5518,8 +5518,14 @@ class SimplifiedRAGEngine:
                             allowed_units = list(u_map.keys()) if isinstance(u_map, dict) else []
                             it2 = _apply_bot_format_unit_alias(dict(it), allowed_units=allowed_units, bot_format=bot_format)
                             unit2 = str(it2.get("unit") or "").strip()
-                            if not isinstance(u_map, dict) or unit2 not in u_map:
+                            if not isinstance(u_map, dict):
                                 out["invalid"].append({"item": it, "reason": "bad_unit"})
+                                continue
+                            if not unit2:
+                                out["unconfirmed"].append({"item": it2, "reason": "unit_null"})
+                                continue
+                            if unit2 not in u_map:
+                                out["invalid"].append({"item": it2, "reason": "bad_unit"})
                                 continue
                             it = it2
                             unit = unit2
@@ -5529,8 +5535,14 @@ class SimplifiedRAGEngine:
                             allowed_units = list(u_map.keys()) if isinstance(u_map, dict) else []
                             it2 = _apply_bot_format_unit_alias(dict(it), allowed_units=allowed_units, bot_format=bot_format)
                             unit2 = str(it2.get("unit") or "").strip()
-                            if not isinstance(u_map, dict) or unit2 not in u_map:
+                            if not isinstance(u_map, dict):
                                 out["invalid"].append({"item": it, "reason": "bad_unit"})
+                                continue
+                            if not unit2:
+                                out["unconfirmed"].append({"item": it2, "reason": "unit_null"})
+                                continue
+                            if unit2 not in u_map:
+                                out["invalid"].append({"item": it2, "reason": "bad_unit"})
                                 continue
                             it = it2
                             unit = unit2

@@ -223,24 +223,29 @@ class SimplifiedPromptSystem:
     def _build_product_index_block(self, catalog, featured_ids=None) -> str:
         """Formatte l'index des produits pour le prompt (Support V2 multi-produits)."""
         if not catalog: return "Aucun produit disponible."
-        
+
         lines = []
+        product_count = 0
         # Cas 1 : Conteneur multi-produits {"products": [{"product_id": "...", "product_name": "...", "catalog_v2": {...}}]}
         if isinstance(catalog.get("products"), list):
+            product_count = len([p for p in catalog["products"] if isinstance(p, dict)])
             for p in catalog["products"]:
                 if not isinstance(p, dict): continue
                 # On utilise directement les clés à plat fournies par le loader
                 pid = p.get("product_id") or p.get("id") or ""
                 name = p.get("product_name") or p.get("name") or pid
                 if pid:
-                    lines.append(f"- {name} (ID: {pid})")
+                    suffix = " [STATUT: UNIQUE_PRODUIT_BOUTIQUE]" if product_count == 1 else ""
+                    lines.append(f"- {name} (ID: {pid}){suffix}")
         
         # Cas 2 : Mono-produit direct
         else:
+            product_count = 1 if (catalog.get("product_id") or catalog.get("id")) else 0
             pid = catalog.get("product_id") or catalog.get("id")
             name = catalog.get("product_name") or catalog.get("name") or pid
             if pid:
-                lines.append(f"- {name} (ID: {pid})")
+                suffix = " [STATUT: UNIQUE_PRODUIT_BOUTIQUE]" if product_count == 1 else ""
+                lines.append(f"- {name} (ID: {pid}){suffix}")
 
         if not lines: return "Aucun produit disponible."
         return "\n".join(lines)
