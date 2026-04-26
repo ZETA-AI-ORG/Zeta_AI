@@ -20,9 +20,9 @@ def normalize_provider_token(token: str) -> str:
         return ""
     compact = raw.replace(" ", "-").replace("_", "-").replace(".", "")
     aliases = {
-        "alibaba": "alibaba-cloud-int",
-        "alibaba-cloud-int": "alibaba-cloud-int",
-        "alibabacloudint": "alibaba-cloud-int",
+        "alibaba": "alibaba",
+        "alibaba-cloud-int": "alibaba",
+        "alibabacloudint": "alibaba",
         "google-vertex": "google-vertex",
         "googlevertex": "google-vertex",
         "deepseek": "deepseek",
