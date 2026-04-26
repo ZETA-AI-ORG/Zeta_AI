@@ -3186,9 +3186,21 @@ class SimplifiedRAGEngine:
 
             # ── CartManager: injecter le résumé panier dans le prompt ──
             try:
-                cart_summary = self.cart_manager.get_cart_summary(user_id)
+                cart_items_count = 0
+                try:
+                    cart_items_count = int(self.cart_manager.get_items_count(user_id) or 0)
+                except Exception:
+                    cart_items_count = 0
+
+                cart_summary = ""
+                if cart_items_count > 1:
+                    cart_summary = self.cart_manager.get_cart_summary(user_id)
+
                 if cart_summary:
                     instruction_block += f"\n<current_cart>{cart_summary}</current_cart>\n"
+                    print(f"🛒 [CART_SUMMARY] injected items={cart_items_count}")
+                else:
+                    print(f"🔇 [CART_SUMMARY] skipped items={cart_items_count}")
             except Exception as _cart_e:
                 print(f"⚠️ [CART_SUMMARY] injection error: {type(_cart_e).__name__}: {_cart_e}")
 
