@@ -3440,6 +3440,8 @@ class SimplifiedRAGEngine:
             completion_tokens = 0
             total_tokens = 0
             total_cost = 0.0
+            cached_tokens = 0
+            cache_write_tokens = 0
             model_used = "unknown"
             
             if isinstance(llm_result, dict):
@@ -3457,12 +3459,18 @@ class SimplifiedRAGEngine:
                             if token_usage.get("total_cost") is not None
                             else (token_usage.get("cost") or 0.0)
                         )
+                        prompt_token_details = token_usage.get("prompt_tokens_details") or {}
+                        if isinstance(prompt_token_details, dict):
+                            cached_tokens = int(prompt_token_details.get("cached_tokens") or 0)
+                            cache_write_tokens = int(prompt_token_details.get("cache_write_tokens") or 0)
                 except Exception as e:
                     print(f"⚠️ [TOKENS] Erreur extraction: {e}")
                     prompt_tokens = 0
                     completion_tokens = 0
                     total_tokens = 0
                     total_cost = 0.0
+                    cached_tokens = 0
+                    cache_write_tokens = 0
             else:
                 response = llm_result
 
@@ -3471,7 +3479,7 @@ class SimplifiedRAGEngine:
             
             print(f"✅ [LLM] Réponse générée: {len(str(response))} chars")
             print(
-                f"{C_GREEN}💰 [TOKENS] Prompt: {prompt_tokens} | Completion: {completion_tokens} | Total: {total_tokens} | Cost: ${total_cost:.6f} | Model: {model_used}{C_RESET}"
+                f"{C_GREEN}💰 [TOKENS] Prompt: {prompt_tokens} | Completion: {completion_tokens} | Total: {total_tokens} | Cached: {cached_tokens} | CacheWrite: {cache_write_tokens} | Cost: ${total_cost:.6f} | Model: {model_used}{C_RESET}"
             )
             
             # 6. Extraction thinking + response
@@ -4849,6 +4857,10 @@ class SimplifiedRAGEngine:
             response_match = re.search(r'<response\b[^>]*>(.*?)</response>', raw_llm_output, re.DOTALL | re.IGNORECASE)
             if response_match:
                 response = response_match.group(1).strip()
+                _max_response_chars = max(256, int(os.getenv("WHATSAPP_MAX_RESPONSE_CHARS", "4000") or "4000"))
+                if len(response) > _max_response_chars:
+                    print(f"⚠️ [SAFETY] Réponse tronquée à {_max_response_chars} chars")
+                    response = response[:_max_response_chars]
                 print(f"✅ [RESPONSE] Extrait: {len(response)} chars")
                 try:
                     _prev = str(response or "").replace("\n", " ").strip()
@@ -7450,9 +7462,15 @@ async def get_simplified_rag_response(
     except Exception:
         pass
 
+    _final_response = str(result.response or "")
+    _max_response_chars = max(256, int(os.getenv("WHATSAPP_MAX_RESPONSE_CHARS", "4000") or "4000"))
+    if len(_final_response) > _max_response_chars:
+        print(f"⚠️ [SAFETY] Final response truncated to {_max_response_chars} chars")
+        _final_response = _final_response[:_max_response_chars]
+
     # Format compatible avec l'ancien système
     return {
-        "response": result.response,
+        "response": _final_response,
         "confidence": result.confidence,
         "documents_found": True,  # Toujours True car prompt statique
         "processing_time_ms": result.processing_time_ms,
