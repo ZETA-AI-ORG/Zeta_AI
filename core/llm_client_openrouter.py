@@ -39,7 +39,37 @@ def _env_int(name: str, default: int) -> int:
 
 
 def _parse_csv_env(name: str) -> list[str]:
-    return [x.strip() for x in str(os.getenv(name, "") or "").split(",") if x.strip()]
+    return [_normalize_provider_token(x) for x in str(os.getenv(name, "") or "").split(",") if _normalize_provider_token(x)]
+
+
+def _normalize_provider_token(token: str) -> str:
+    raw = str(token or "").strip().lower()
+    if not raw:
+        return ""
+    compact = re.sub(r"[\s._]+", "-", raw)
+    aliases = {
+        "alibaba": "alibaba-cloud-int",
+        "alibaba-cloud-int": "alibaba-cloud-int",
+        "alibaba-cloud-international": "alibaba-cloud-int",
+        "alibaba-cloud-int.": "alibaba-cloud-int",
+        "alibaba-cloud-int-": "alibaba-cloud-int",
+        "alibaba-cloud-intl": "alibaba-cloud-int",
+        "alibaba-cloud-int": "alibaba-cloud-int",
+        "alibaba-cloud-int.": "alibaba-cloud-int",
+        "alibaba-cloud-intl": "alibaba-cloud-int",
+        "alibaba-cloud-int.-": "alibaba-cloud-int",
+        "alibaba-cloud-int.": "alibaba-cloud-int",
+        "google-vertex": "google-vertex",
+        "google-vertex-us-east5": "google-vertex/us-east5",
+        "google-vertex-us-central1": "google-vertex/us-central1",
+        "google vertex": "google-vertex",
+        "google-vertex-us": "google-vertex",
+        "deepseek": "deepseek",
+        "novitaai": "novitaai",
+        "novita-ai": "novitaai",
+        "deepinfra": "deepinfra",
+    }
+    return aliases.get(raw, aliases.get(compact, compact))
 
 
 def _get_openrouter_client() -> httpx.AsyncClient:
@@ -117,7 +147,7 @@ def _model_runtime_registry(model: str) -> Dict[str, Any]:
     registry = [
         {
             "match_prefix": "qwen/qwen3.5-flash-02-23",
-            "provider_only": _parse_csv_env("OPENROUTER_QWEN_PROVIDER_ONLY") or ["alibaba"],
+            "provider_only": _parse_csv_env("OPENROUTER_QWEN_PROVIDER_ONLY") or ["alibaba-cloud-int"],
             "use_nitro": _env_flag("OPENROUTER_QWEN_USE_NITRO", False),
             "temperature": float(os.getenv("OPENROUTER_QWEN_TEMPERATURE", "0.2")),
             "top_p": float(os.getenv("OPENROUTER_QWEN_TOP_P", "0.8")),
@@ -127,8 +157,8 @@ def _model_runtime_registry(model: str) -> Dict[str, Any]:
         },
         {
             "match_prefix": "deepseek/deepseek",
-            "provider_only": _parse_csv_env("OPENROUTER_DEEPSEEK_PROVIDER_ONLY") or ["DeepSeek", "NovitaAI"],
-            "provider_ignore": _parse_csv_env("OPENROUTER_DEEPSEEK_PROVIDER_IGNORE") or ["DeepInfra"],
+            "provider_only": _parse_csv_env("OPENROUTER_DEEPSEEK_PROVIDER_ONLY") or ["deepseek", "novitaai"],
+            "provider_ignore": _parse_csv_env("OPENROUTER_DEEPSEEK_PROVIDER_IGNORE") or ["deepinfra"],
             "use_nitro": _env_flag("OPENROUTER_DEEPSEEK_USE_NITRO", False),
             "temperature": float(os.getenv("OPENROUTER_DEEPSEEK_TEMPERATURE", "0.35")),
             "top_p": float(os.getenv("OPENROUTER_DEEPSEEK_TOP_P", "0.85")),
@@ -138,7 +168,7 @@ def _model_runtime_registry(model: str) -> Dict[str, Any]:
         },
         {
             "match_prefix": "google/gemini",
-            "provider_only": _parse_csv_env("OPENROUTER_GEMINI_PROVIDER_ONLY") or ["Google Vertex"],
+            "provider_only": _parse_csv_env("OPENROUTER_GEMINI_PROVIDER_ONLY") or ["google-vertex"],
             "provider_ignore": _parse_csv_env("OPENROUTER_GEMINI_PROVIDER_IGNORE"),
             "use_nitro": _env_flag("OPENROUTER_GEMINI_USE_NITRO", False),
             "temperature": float(os.getenv("OPENROUTER_GEMINI_TEMPERATURE", "0.2")),
@@ -149,7 +179,7 @@ def _model_runtime_registry(model: str) -> Dict[str, Any]:
         },
         {
             "match_prefix": "google/gemma",
-            "provider_only": _parse_csv_env("OPENROUTER_GEMMA_PROVIDER_ONLY") or ["Google Vertex"],
+            "provider_only": _parse_csv_env("OPENROUTER_GEMMA_PROVIDER_ONLY") or ["google-vertex"],
             "provider_ignore": _parse_csv_env("OPENROUTER_GEMMA_PROVIDER_IGNORE"),
             "use_nitro": _env_flag("OPENROUTER_GEMMA_USE_NITRO", False),
             "temperature": float(os.getenv("OPENROUTER_GEMMA_TEMPERATURE", "0.2")),

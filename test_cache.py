@@ -12,7 +12,28 @@ load_dotenv()
 OPENROUTER_API_URL = os.getenv("OPENROUTER_API_URL", "https://openrouter.ai/api/v1/chat/completions")
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
 MODEL_NAME = os.getenv("TEST_MODEL_NAME", "qwen/qwen3.5-flash-02-23")
-PROVIDER_ONLY = [x.strip() for x in str(os.getenv("OPENROUTER_QWEN_PROVIDER_ONLY", "Alibaba Cloud Int.") or "").split(",") if x.strip()]
+
+
+def normalize_provider_token(token: str) -> str:
+    raw = str(token or "").strip().lower()
+    if not raw:
+        return ""
+    compact = raw.replace(" ", "-").replace("_", "-").replace(".", "")
+    aliases = {
+        "alibaba": "alibaba-cloud-int",
+        "alibaba-cloud-int": "alibaba-cloud-int",
+        "alibabacloudint": "alibaba-cloud-int",
+        "google-vertex": "google-vertex",
+        "googlevertex": "google-vertex",
+        "deepseek": "deepseek",
+        "novitaai": "novitaai",
+        "novita-ai": "novitaai",
+        "deepinfra": "deepinfra",
+    }
+    return aliases.get(raw, aliases.get(compact, compact))
+
+
+PROVIDER_ONLY = [normalize_provider_token(x) for x in str(os.getenv("OPENROUTER_QWEN_PROVIDER_ONLY", "alibaba-cloud-int") or "").split(",") if normalize_provider_token(x)]
 
 
 async def main() -> None:
@@ -43,7 +64,21 @@ async def main() -> None:
                 body["provider"] = provider
 
             resp = await client.post(OPENROUTER_API_URL, json=body, headers=headers)
-            resp.raise_for_status()
+            if resp.status_code != 200:
+                print(
+                    json.dumps(
+                        {
+                            "request": idx + 1,
+                            "status_code": resp.status_code,
+                            "body": resp.text[:2000],
+                            "model": MODEL_NAME,
+                            "provider_only": PROVIDER_ONLY,
+                            "url": OPENROUTER_API_URL,
+                        },
+                        ensure_ascii=False,
+                    )
+                )
+                resp.raise_for_status()
             data = resp.json()
             usage = data.get("usage") or {}
             prompt_details = usage.get("prompt_tokens_details") or {}
