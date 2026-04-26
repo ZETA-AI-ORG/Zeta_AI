@@ -60,6 +60,7 @@ _ALLOWED_PREFIXES = (
 )
 
 _ALLOWED_EXACT_MODELS = {
+    "qwen/qwen3.5-flash-02-23",
     "deepseek/deepseek-v4-flash",
     "stepfun/step-3.5-flash",
 }

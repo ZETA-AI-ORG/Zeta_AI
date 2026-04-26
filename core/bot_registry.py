@@ -138,6 +138,7 @@ INSIGHT: Dict[str, Any] = {
 
 ALLOWED_MODELS = {
     "qwen/qwen3-235b-a22b-2507",
+    "qwen/qwen3.5-flash-02-23",
     "google/gemma-4-26b-a4b-it",
     "google/gemma-4-31b-it",
     "deepseek/deepseek-v3.2",

@@ -13,6 +13,7 @@ import asyncio
 import time
 import redis
 import json
+import ast
 
 try:
     from .zlog import zlog, zlog_error
@@ -37,6 +38,33 @@ logger = logging.getLogger(__name__)
 
 def _normalize_company_id(company_id: Any) -> str:
     return str(company_id or "").strip()
+
+
+def _normalize_dictish(value: Any) -> Dict[str, Any]:
+    if isinstance(value, dict):
+        return value
+    if isinstance(value, str):
+        text = value.strip()
+        if not text:
+            return {}
+        for parser in (json.loads, ast.literal_eval):
+            try:
+                parsed = parser(text)
+            except Exception:
+                continue
+            if isinstance(parsed, dict):
+                return parsed
+            if isinstance(parsed, str) and parsed != text:
+                return _normalize_dictish(parsed)
+    return {}
+
+
+def _normalize_company_profile(profile: Any) -> Dict[str, Any]:
+    if not isinstance(profile, dict):
+        return {}
+    normalized = dict(profile)
+    normalized["rag_behavior"] = _normalize_dictish(normalized.get("rag_behavior"))
+    return normalized
 
 class BotlivePromptsManager:
     """
@@ -176,7 +204,7 @@ class BotlivePromptsManager:
                 cached_data = self.redis_client.get(redis_key)
                 if cached_data:
                     # logger.info(f"🚀 [REDIS_HIT] Profile chargé pour {company_id}")
-                    return json.loads(cached_data)
+                    return _normalize_company_profile(json.loads(cached_data))
             except Exception as e:
                 logger.error(f"⚠️ Erreur lecture profil Redis: {e}")
 
@@ -192,7 +220,7 @@ class BotlivePromptsManager:
             )
             
             if resp.data and len(resp.data) > 0:
-                profile = resp.data[0]
+                profile = _normalize_company_profile(resp.data[0])
                 # Mise en cache Redis (TTL 24h)
                 if self.redis_client:
                     try:
@@ -503,18 +531,17 @@ class BotlivePromptsManager:
         # --- ENRICHISSEMENT DYNAMIQUE (V2.0 SCALABLE) ---
         try:
             info = await self.get_company_info(company_id) or {}
-            # 🛡️ GARDE-FOU : rag_behavior peut être une string legacy → forcer dict
-            _raw_rag = info.get("rag_behavior") if isinstance(info, dict) else None
-            rag = _raw_rag if isinstance(_raw_rag, dict) else {}
+            # 🛡️ GARDE-FOU : rag_behavior legacy/string → normaliser en dict
+            rag = _normalize_dictish(info.get("rag_behavior")) if isinstance(info, dict) else {}
 
             # Mapping des variables de base
             format_vars['company_name'] = info.get("company_name") or "Notre Boutique"
             format_vars['ai_name'] = info.get("ai_name") or "Jessica"
 
             # Mapping récursif du rag_behavior (guardé dict)
-            payment = rag.get("payment") if isinstance(rag.get("payment"), dict) else {}
-            support = rag.get("support") if isinstance(rag.get("support"), dict) else {}
-            expedition = rag.get("expedition") if isinstance(rag.get("expedition"), dict) else {}
+            payment = _normalize_dictish(rag.get("payment"))
+            support = _normalize_dictish(rag.get("support"))
+            expedition = _normalize_dictish(rag.get("expedition"))
             
             format_vars['wave_number'] = payment.get("wave_number") or info.get("whatsapp_phone") or "à demander"
             format_vars['depot_amount'] = payment.get("deposit_amount") or expected_deposit or "2000 FCFA"
@@ -651,7 +678,7 @@ class BotlivePromptsManager:
                 "secteur_activite": data.get("secteur_activite"),
                 "whatsapp_phone": data.get("whatsapp_phone"),
                 "boutique_type": data.get("boutique_type"),
-                "rag_behavior": data.get("rag_behavior"),
+                "rag_behavior": _normalize_dictish(data.get("rag_behavior")),
                 "description": data.get("description"),
                 "shop_slug": data.get("shop_slug"),
                 "plan_name": plan_name,
@@ -777,10 +804,10 @@ class BotlivePromptsManager:
             except Exception:
                 info = {}
 
-        rag = (info.get("rag_behavior") or {}) if isinstance(info, dict) else {}
-        payment = (rag.get("payment") or {}) if isinstance(rag, dict) else {}
-        support = (rag.get("support") or {}) if isinstance(rag, dict) else {}
-        expedition = (rag.get("expedition") or {}) if isinstance(rag, dict) else {}
+        rag = _normalize_dictish(info.get("rag_behavior")) if isinstance(info, dict) else {}
+        payment = _normalize_dictish(rag.get("payment"))
+        support = _normalize_dictish(rag.get("support"))
+        expedition = _normalize_dictish(rag.get("expedition"))
 
         # 🏪 Section BOUTIQUE dynamique (online / physical / hybrid)
         try:

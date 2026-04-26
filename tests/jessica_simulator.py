@@ -49,7 +49,7 @@ C_BG_MAGENTA = "\033[45m"
 C_BG_CYAN = "\033[46m"
 
 DEFAULT_COMPANY_ID = "W27PwOPiblP8TlOrhPcjOtxd0cza"
-DEFAULT_TEST_MODEL = "stepfun/step-3.5-flash"
+DEFAULT_TEST_MODEL = "qwen/qwen3.5-flash-02-23"
 TEST_USER_ID = f"test_jessica_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:6]}"
 
 class PremiumSimulator:
