@@ -2,6 +2,7 @@
 import asyncio
 import json
 import os
+from pathlib import Path
 
 import httpx
 from dotenv import load_dotenv
@@ -45,8 +46,14 @@ async def main() -> None:
         "Content-Type": "application/json",
     }
 
+    prompt_path = Path("prompt_universel_v2.md")
+    if prompt_path.exists():
+        system_prompt = prompt_path.read_text(encoding="utf-8", errors="ignore")
+    else:
+        system_prompt = ("Tu es Jessica. Réponds brièvement. " * 400).strip()
+
     messages = [
-        {"role": "system", "content": "Tu es Jessica. Réponds brièvement."},
+        {"role": "system", "content": system_prompt},
         {"role": "user", "content": "Test cache requête 1"},
     ]
 
@@ -66,19 +73,19 @@ async def main() -> None:
             resp = await client.post(OPENROUTER_API_URL, json=body, headers=headers)
             if resp.status_code != 200:
                 print(
-                    json.dumps(
-                        {
-                            "request": idx + 1,
-                            "status_code": resp.status_code,
-                            "body": resp.text[:2000],
-                            "model": MODEL_NAME,
-                            "provider_only": PROVIDER_ONLY,
-                            "url": OPENROUTER_API_URL,
-                        },
-                        ensure_ascii=False,
-                    )
+                json.dumps(
+                    {
+                        "request": idx + 1,
+                        "status_code": resp.status_code,
+                        "body": resp.text[:2000],
+                        "model": MODEL_NAME,
+                        "provider_only": PROVIDER_ONLY,
+                        "url": OPENROUTER_API_URL,
+                    },
+                    ensure_ascii=False,
                 )
-                resp.raise_for_status()
+            )
+            resp.raise_for_status()
             data = resp.json()
             usage = data.get("usage") or {}
             prompt_details = usage.get("prompt_tokens_details") or {}
@@ -88,6 +95,7 @@ async def main() -> None:
                         "request": idx + 1,
                         "model": MODEL_NAME,
                         "provider_only": PROVIDER_ONLY,
+                        "system_prompt_chars": len(system_prompt),
                         "cost": data.get("total_cost", data.get("cost", usage.get("cost"))),
                         "prompt_tokens": usage.get("prompt_tokens", 0),
                         "completion_tokens": usage.get("completion_tokens", 0),
