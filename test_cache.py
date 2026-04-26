@@ -12,7 +12,7 @@ load_dotenv()
 
 OPENROUTER_API_URL = os.getenv("OPENROUTER_API_URL", "https://openrouter.ai/api/v1/chat/completions")
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
-MODEL_NAME = os.getenv("TEST_MODEL_NAME", "qwen/qwen3.5-flash-02-23")
+MODEL_NAME = os.getenv("TEST_MODEL_NAME", "google/gemini-3.1-flash-lite-preview")
 
 
 def normalize_provider_token(token: str) -> str:
@@ -26,6 +26,8 @@ def normalize_provider_token(token: str) -> str:
         "alibabacloudint": "alibaba",
         "google-vertex": "google-vertex",
         "googlevertex": "google-vertex",
+        "google-ai-studio": "google-ai-studio",
+        "googleaistudio": "google-ai-studio",
         "deepseek": "deepseek",
         "novitaai": "novitaai",
         "novita-ai": "novitaai",
@@ -34,13 +36,26 @@ def normalize_provider_token(token: str) -> str:
     return aliases.get(raw, aliases.get(compact, compact))
 
 
-PROVIDER_ONLY = [normalize_provider_token(x) for x in str(os.getenv("OPENROUTER_QWEN_PROVIDER_ONLY", "alibaba") or "").split(",") if normalize_provider_token(x)]
+def provider_only_for_model(model_name: str) -> list[str]:
+    if model_name.startswith("qwen/"):
+        raw = os.getenv("OPENROUTER_QWEN_PROVIDER_ONLY", "alibaba")
+    elif model_name.startswith("google/gemini"):
+        raw = os.getenv("OPENROUTER_GEMINI_PROVIDER_ONLY", "google-ai-studio")
+    elif model_name.startswith("google/gemma"):
+        raw = os.getenv("OPENROUTER_GEMMA_PROVIDER_ONLY", "google-ai-studio")
+    else:
+        raw = os.getenv("OPENROUTER_PROVIDER_ONLY", "")
+    return [normalize_provider_token(x) for x in str(raw or "").split(",") if normalize_provider_token(x)]
+
+
+PROVIDER_ONLY = provider_only_for_model(MODEL_NAME)
 PROMPT_CACHE_SUPPORTED = {
     "qwen/qwen3.5-flash-02-23": False,
     "qwen/qwen3.5-flash-02-23:nitro": False,
     "deepseek/deepseek-v3.2": True,
-    "google/gemini-3.1-flash-lite-preview": True,
-    "google/gemma-4-26b-a4b-it": False,
+    "google/gemini-3.1-flash-lite-preview": None,
+    "google/gemini-3.1-flash-preview": None,
+    "google/gemma-4-26b-a4b-it": None,
 }
 
 
@@ -120,7 +135,7 @@ async def main() -> None:
                             "diagnostic": "prompt_cache_not_supported",
                             "model": MODEL_NAME,
                             "provider_only": PROVIDER_ONLY,
-                            "note": "cached_tokens=0 est attendu sur ce modèle; utiliser DeepSeek ou Gemini pour tester le prompt caching OpenRouter.",
+                            "note": "cached_tokens=0 est attendu sur ce modèle; utiliser DeepSeek pour tester le prompt caching OpenRouter.",
                         },
                         ensure_ascii=False,
                     )

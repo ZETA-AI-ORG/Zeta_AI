@@ -168,7 +168,7 @@ def _model_runtime_registry(model: str) -> Dict[str, Any]:
         },
         {
             "match_prefix": "google/gemini",
-            "provider_only": _parse_csv_env("OPENROUTER_GEMINI_PROVIDER_ONLY") or ["google-vertex"],
+            "provider_only": _parse_csv_env("OPENROUTER_GEMINI_PROVIDER_ONLY") or ["google-ai-studio"],
             "provider_ignore": _parse_csv_env("OPENROUTER_GEMINI_PROVIDER_IGNORE"),
             "use_nitro": _env_flag("OPENROUTER_GEMINI_USE_NITRO", False),
             "temperature": float(os.getenv("OPENROUTER_GEMINI_TEMPERATURE", "0.2")),
@@ -181,7 +181,7 @@ def _model_runtime_registry(model: str) -> Dict[str, Any]:
         },
         {
             "match_prefix": "google/gemma",
-            "provider_only": _parse_csv_env("OPENROUTER_GEMMA_PROVIDER_ONLY") or ["google-vertex"],
+            "provider_only": _parse_csv_env("OPENROUTER_GEMMA_PROVIDER_ONLY") or ["google-ai-studio"],
             "provider_ignore": _parse_csv_env("OPENROUTER_GEMMA_PROVIDER_IGNORE"),
             "use_nitro": _env_flag("OPENROUTER_GEMMA_USE_NITRO", False),
             "temperature": float(os.getenv("OPENROUTER_GEMMA_TEMPERATURE", "0.2")),
