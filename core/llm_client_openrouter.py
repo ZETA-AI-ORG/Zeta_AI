@@ -268,9 +268,7 @@ def _log_llm_end(model: str, elapsed_ms: float, usage: Dict[str, Any], total_cos
 
 
 def _append_usage_jsonl(model: str, usage: Dict[str, Any], total_cost: float, elapsed_ms: float) -> None:
-    log_path = str(os.getenv("OPENROUTER_USAGE_LOG_PATH", "") or "").strip()
-    if not log_path:
-        return
+    log_path = str(os.getenv("OPENROUTER_USAGE_LOG_PATH", "") or "results/openrouter_usage.jsonl").strip()
     entry = {
         "ts": int(time.time()),
         "model": model,

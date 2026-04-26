@@ -56,6 +56,8 @@ class SimplifiedRAGResult:
     prompt_tokens: int = 0
     completion_tokens: int = 0
     total_tokens: int = 0
+    cached_tokens: int = 0
+    cache_write_tokens: int = 0
     cost: float = 0.0
     model: str = ""
     
@@ -3184,7 +3186,10 @@ class SimplifiedRAGEngine:
                 active_pid_before_prompt = ""
                 active_pid_source = "none"
 
-            # ── CartManager: injecter le résumé panier dans le prompt ──
+            # ── CartManager: injecter le résumé panier en fin de prompt (ZETA_SESSION) ──
+            # Architecture "Schéma haut, Payload bas": on isole current_cart de instruction_block
+            # pour préserver la stabilité du préfixe (cache LLM).
+            current_cart_block = ""
             try:
                 cart_items_count = 0
                 try:
@@ -3197,8 +3202,8 @@ class SimplifiedRAGEngine:
                     cart_summary = self.cart_manager.get_cart_summary(user_id)
 
                 if cart_summary:
-                    instruction_block += f"\n<current_cart>{cart_summary}</current_cart>\n"
-                    print(f"🛒 [CART_SUMMARY] injected items={cart_items_count}")
+                    current_cart_block = f"<current_cart>{cart_summary}</current_cart>"
+                    print(f"🛒 [CART_SUMMARY] injected (session payload) items={cart_items_count}")
                 else:
                     print(f"🔇 [CART_SUMMARY] skipped items={cart_items_count}")
             except Exception as _cart_e:
@@ -3207,6 +3212,8 @@ class SimplifiedRAGEngine:
             # ── Catalogue URL + Cart deep link pour redirection intelligente ──
             # Gating: n'injecter que si l'intention du client touche au catalogue/site/finalisation
             # Anti-répétition: ne pas ré-injecter le même type de lien si envoyé récemment
+            # Architecture "Schéma haut, Payload bas": website_redirect vit en fin de prompt
+            website_redirect_block = ""
             try:
                 _q_low = str(query or "").lower()
                 _EXPLORE_KW = re.compile(
@@ -3256,7 +3263,7 @@ class SimplifiedRAGEngine:
                             if _cart_link:
                                 _redir_block += f"  <cart_link>{_cart_link}</cart_link>\n"
                             _redir_block += "</website_redirect>"
-                            instruction_block += "\n" + _redir_block + "\n"
+                            website_redirect_block = _redir_block
 
                             # Persister pour anti-répétition
                             try:
@@ -3273,6 +3280,16 @@ class SimplifiedRAGEngine:
             # ── PATCH D: Hints proactifs — Python injecte les montants connus pour que Jessica les annonce ──
             proactive_hints = []
             try:
+                _query_low = str(query or "").lower()
+                _wants_price_hint = any(
+                    kw in _query_low
+                    for kw in ("prix", "prix?", "combien", "total", "coût", "cout", "payer", "montant")
+                )
+                _wants_delivery_hint = any(
+                    kw in _query_low
+                    for kw in ("livraison", "délai", "delai", "expédition", "expedition", "frais")
+                )
+
                 # Hint 1: Prix produit — si price_calculation_block contient un ready_to_send, le LLM DOIT l'annoncer
                 _pc_block_str = str(price_calculation_block or "").strip()
 
@@ -3296,7 +3313,7 @@ class SimplifiedRAGEngine:
                 except Exception:
                     _price_already_announced = False
 
-                if _pc_block_str:
+                if _pc_block_str and _wants_price_hint:
                     _ready_hint = ""
                     try:
                         _m_ready = re.search(r"<ready_to_send>(.*?)</ready_to_send>", _pc_block_str, re.DOTALL | re.IGNORECASE)
@@ -3326,7 +3343,7 @@ class SimplifiedRAGEngine:
                             )
 
                 # Hint 2: Frais de livraison — si zone connue + fee calculé, le LLM DOIT annoncer les frais
-                if delivery_fee_fcfa and isinstance(delivery_fee_fcfa, int) and delivery_fee_fcfa > 0 and zone_val:
+                if _wants_delivery_hint and delivery_fee_fcfa and isinstance(delivery_fee_fcfa, int) and delivery_fee_fcfa > 0 and zone_val:
                     # OPT-1/3: Ne pas annoncer les frais si déjà dans l'historique
                     _fee_str = str(delivery_fee_fcfa)
                     _fee_already = bool(f"{_fee_str}f" in _conv_hist.replace(" ", "") or f"livraison" in _conv_hist and _fee_str in _conv_hist)
@@ -3359,6 +3376,8 @@ class SimplifiedRAGEngine:
                 instruction_block=instruction_block,
                 validation_errors_block=validation_errors_block,
                 price_calculation_block=price_calculation_block,
+                current_cart_block=current_cart_block,
+                website_redirect_block=website_redirect_block,
                 catalogue_reference_block=(
                     catalogue_reference_block_override
                     if str(catalogue_reference_block_override or "").strip()
@@ -3760,6 +3779,8 @@ class SimplifiedRAGEngine:
                             instruction_block=instruction_block,
                             validation_errors_block=validation_errors_block,
                             price_calculation_block=price_calculation_block,
+                            current_cart_block=current_cart_block,
+                            website_redirect_block=website_redirect_block,
                             catalogue_reference_block=(
                                 catalogue_reference_block_override
                                 if str(catalogue_reference_block_override or "").strip()
@@ -6566,6 +6587,8 @@ class SimplifiedRAGEngine:
                 prompt_tokens=prompt_tokens,
                 completion_tokens=completion_tokens,
                 total_tokens=total_tokens,
+                cached_tokens=cached_tokens,
+                cache_write_tokens=cache_write_tokens,
                 cost=total_cost,
                 model=str(model_used),
                 thinking=thinking,
@@ -7480,6 +7503,15 @@ async def get_simplified_rag_response(
         print(f"⚠️ [SAFETY] Final response truncated to {_max_response_chars} chars")
         _final_response = _final_response[:_max_response_chars]
 
+    try:
+        _usage_payload = result.usage if isinstance(result.usage, dict) else {}
+        _prompt_details_payload = _usage_payload.get("prompt_tokens_details") or {}
+        _cached_tokens_final = int(_prompt_details_payload.get("cached_tokens") or 0)
+        _cache_write_tokens_final = int(_prompt_details_payload.get("cache_write_tokens") or 0)
+    except Exception:
+        _cached_tokens_final = 0
+        _cache_write_tokens_final = 0
+
     # Format compatible avec l'ancien système
     return {
         "response": _final_response,
@@ -7496,6 +7528,8 @@ async def get_simplified_rag_response(
         "prompt_tokens": result.prompt_tokens,
         "completion_tokens": result.completion_tokens,
         "total_tokens": result.total_tokens,
+        "cached_tokens": result.cached_tokens,
+        "cache_write_tokens": result.cache_write_tokens,
         "cost": result.cost,
         "model": result.model,
         

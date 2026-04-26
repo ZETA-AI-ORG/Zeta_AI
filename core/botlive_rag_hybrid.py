@@ -332,7 +332,11 @@ class BotliveRAGHybrid:
         if not products_by_id:
             return "", products_by_id
 
-        for pid, info in sorted(products_by_id.items(), key=lambda kv: str(kv[1].get("product_name") or "").lower()):
+        # 🔒 APPEND-ONLY : tri déterministe par product_id ASC (ordre croissant de création).
+        # Un nouveau produit s'ajoute TOUJOURS en fin de liste → cache Gemini préservé
+        # sur toute la Zone 3 (catalogue). Tri alphabétique interdit : ajouter "Biberons"
+        # devant "Couches/Tétines" casserait tout le cache en aval.
+        for pid, info in sorted(products_by_id.items(), key=lambda kv: str(kv[0] or "")):
             pname = str(info.get("product_name") or "").strip()
             if not pname:
                 continue

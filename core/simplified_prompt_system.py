@@ -27,6 +27,11 @@ from database.supabase_client import get_supabase_client
 from core.company_cache_manager import company_cache
 from core.prompt_bots_loader import get_prompt_template
 from core.botlive_prompts_supabase import get_prompts_manager
+from core.prompt_static_loader import (
+    get_immutable_core,
+    get_shop_dynamic_template,
+    is_muraille_enabled,
+)
 
 
 def _env_flag(name: str, default: bool = False) -> bool:
@@ -37,6 +42,33 @@ def _env_flag(name: str, default: bool = False) -> bool:
         return str(raw).strip().lower() in {"1", "true", "yes", "y", "on"}
     except Exception:
         return bool(default)
+
+
+def _wrap_session_block(content: Optional[str], xml_tag: str) -> str:
+    """
+    Wrappe un payload de session dans une balise XML stable.
+    Architecture "Schéma haut, Payload bas":
+    - Si content vide → retourne "" (placeholder rendu vide en fin de prompt)
+    - Si content déjà wrappé dans <xml_tag> → retourne tel quel (pas de double wrap)
+    - Sinon → wrap dans <xml_tag>...</xml_tag>
+    """
+    s = str(content or "").strip()
+    if not s:
+        return ""
+    open_tag = f"<{xml_tag}"
+    close_tag = f"</{xml_tag}>"
+    if s.startswith(open_tag) and close_tag in s:
+        return s
+    return f"<{xml_tag}>\n{s}\n</{xml_tag}>"
+
+
+def _passthrough_session_block(content: Optional[str]) -> str:
+    """
+    Pour les blocs déjà fournis avec leur wrapper XML (ex: current_cart, website_redirect).
+    Retourne tel quel ou chaîne vide.
+    """
+    s = str(content or "").strip()
+    return s if s else ""
 
 @dataclass
 class OrderChecklistState:
@@ -268,9 +300,16 @@ class SimplifiedPromptSystem:
         product_count = 0
         # Cas 1 : Conteneur multi-produits {"products": [{"product_id": "...", "product_name": "...", "catalog_v2": {...}}]}
         if isinstance(catalog.get("products"), list):
-            product_count = len([p for p in catalog["products"] if isinstance(p, dict)])
-            for p in catalog["products"]:
-                if not isinstance(p, dict): continue
+            # 🔒 APPEND-ONLY : tri déterministe par product_id ASC.
+            # Objectif cache Gemini : un nouveau produit s'ajoute TOUJOURS en fin de liste,
+            # ce qui invalide seulement les derniers tokens (au lieu de toute la Zone 3
+            # si on utilisait un tri alphabétique par nom).
+            products_sorted = sorted(
+                [p for p in catalog["products"] if isinstance(p, dict)],
+                key=lambda p: str(p.get("product_id") or p.get("id") or "")
+            )
+            product_count = len(products_sorted)
+            for p in products_sorted:
                 # On utilise directement les clés à plat fournies par le loader
                 pid = p.get("product_id") or p.get("id") or ""
                 name = p.get("product_name") or p.get("name") or pid
@@ -590,7 +629,27 @@ class SimplifiedPromptSystem:
         phase = self._compute_phase(current_state)
 
         # Récupérer le prompt statique
-        static_prompt = await self.get_static_prompt(company_id, phase=phase)
+        # ─────────────────────────────────────────────────────────────
+        # 🧱 ARCHITECTURE "MURAILLE DE CHINE" (cache multi-niveaux Gemini)
+        # ─────────────────────────────────────────────────────────────
+        # Si PROMPT_MURAILLE_ENABLED=true :
+        #   static_prompt = CORE_immuable (Z1 universel) + SHOP_dynamique (Z2-Z5)
+        #   → Z1 byte-identique entre toutes les boutiques → cache partagé inter-boutiques
+        #   → Z2/Z3 par boutique, Z4/Z5 volatile par tour
+        # Sinon : comportement legacy (prompt_universel_v2.md monolithique)
+        muraille_on = is_muraille_enabled()
+        if muraille_on:
+            core_immutable_text = get_immutable_core()
+            shop_template_text = get_shop_dynamic_template()
+            static_prompt = core_immutable_text + "\n\n" + shop_template_text
+            logger.info(
+                "🧱 [MURAILLE] Mode actif | core=%d chars | shop_template=%d chars | total=%d chars",
+                len(core_immutable_text),
+                len(shop_template_text),
+                len(static_prompt),
+            )
+        else:
+            static_prompt = await self.get_static_prompt(company_id, phase=phase)
 
         # Inject PRODUCT_INDEX
         try:
@@ -691,11 +750,26 @@ class SimplifiedPromptSystem:
             "return_policy": c_profile.get("return_policy") or "Veuillez nous contacter pour les retours.",
             # CURRENT QUERY (CRITICAL FOR ANTI-HALLUCINATION)
             "query": query or "",
-            # Support for dynamic blocks from RAG engine
-            "instruction_block": kwargs.get('instruction_block') or "",
-            "validation_errors_block": kwargs.get('validation_errors_block') or "",
-            "price_calculation_block": kwargs.get('price_calculation_block') or "",
-            "catalogue_reference_block": kwargs.get('catalogue_reference_block') or ""
+            "current_phase": str(phase or "").strip().upper() or "NONE",
+            # Support for dynamic session blocks from RAG engine
+            # Architecture "Schéma haut, Payload bas": ces blocs sont injectés en FIN de prompt
+            # (section [[ZETA_SESSION]]) pour préserver la stabilité du préfixe (cache LLM).
+            "instruction_block": _wrap_session_block(
+                kwargs.get('instruction_block'), "instruction_immediate"
+            ),
+            "validation_errors_block": _wrap_session_block(
+                kwargs.get('validation_errors_block'), "validation_errors"
+            ),
+            "price_calculation_block": _wrap_session_block(
+                kwargs.get('price_calculation_block'), "price_calculation"
+            ),
+            "current_cart_block": _passthrough_session_block(
+                kwargs.get('current_cart_block')
+            ),
+            "website_redirect_block": _passthrough_session_block(
+                kwargs.get('website_redirect_block')
+            ),
+            "catalogue_reference_block": kwargs.get('catalogue_reference_block') or "",
         }
 
         # Formatage final avec la nouvelle méthode sécurisée

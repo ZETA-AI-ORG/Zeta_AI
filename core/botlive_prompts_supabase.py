@@ -570,10 +570,10 @@ class BotlivePromptsManager:
         
         # Ajouter l'état de la commande si fourni (MÉMOIRE CONTEXTE)
         if order_state:
-            # Injecter l'état AVANT le message client
+            # Injecter l'état APRÈS l'historique pour préserver au maximum le préfixe cacheable
             prompt_template = prompt_template.replace(
                 "HISTORIQUE: {conversation_history}",
-                f"HISTORIQUE: {{conversation_history}}\n\n{order_state}"
+                f"HISTORIQUE: {{conversation_history}}\n\n<order_state>\n{order_state}\n</order_state>"
             )
         
         # Formatage sécurisé
