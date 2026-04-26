@@ -150,6 +150,8 @@ def _model_runtime_registry(model: str) -> Dict[str, Any]:
             "frequency_penalty": float(os.getenv("OPENROUTER_QWEN_FREQUENCY_PENALTY", "0.1")),
             "presence_penalty": float(os.getenv("OPENROUTER_QWEN_PRESENCE_PENALTY", "0.05")),
             "max_tokens_cap": max(128, _env_int("OPENROUTER_QWEN_MAX_TOKENS", 800)),
+            "prompt_cache_supported": False,
+            "prompt_cache_mode": "unsupported",
         },
         {
             "match_prefix": "deepseek/deepseek",
@@ -161,6 +163,8 @@ def _model_runtime_registry(model: str) -> Dict[str, Any]:
             "frequency_penalty": float(os.getenv("OPENROUTER_DEEPSEEK_FREQUENCY_PENALTY", "0.1")),
             "presence_penalty": float(os.getenv("OPENROUTER_DEEPSEEK_PRESENCE_PENALTY", "0.05")),
             "max_tokens_cap": max(128, _env_int("OPENROUTER_DEEPSEEK_MAX_TOKENS", hard_cap)),
+            "prompt_cache_supported": True,
+            "prompt_cache_mode": "implicit",
         },
         {
             "match_prefix": "google/gemini",
@@ -172,6 +176,8 @@ def _model_runtime_registry(model: str) -> Dict[str, Any]:
             "frequency_penalty": float(os.getenv("OPENROUTER_GEMINI_FREQUENCY_PENALTY", "0.0")),
             "presence_penalty": float(os.getenv("OPENROUTER_GEMINI_PRESENCE_PENALTY", "0.0")),
             "max_tokens_cap": max(128, _env_int("OPENROUTER_GEMINI_MAX_TOKENS", hard_cap)),
+            "prompt_cache_supported": True,
+            "prompt_cache_mode": "implicit",
         },
         {
             "match_prefix": "google/gemma",
@@ -183,6 +189,8 @@ def _model_runtime_registry(model: str) -> Dict[str, Any]:
             "frequency_penalty": float(os.getenv("OPENROUTER_GEMMA_FREQUENCY_PENALTY", "0.05")),
             "presence_penalty": float(os.getenv("OPENROUTER_GEMMA_PRESENCE_PENALTY", "0.05")),
             "max_tokens_cap": max(128, _env_int("OPENROUTER_GEMMA_MAX_TOKENS", hard_cap)),
+            "prompt_cache_supported": False,
+            "prompt_cache_mode": "unsupported",
         },
     ]
 
@@ -199,6 +207,8 @@ def _model_runtime_registry(model: str) -> Dict[str, Any]:
         "frequency_penalty": None,
         "presence_penalty": None,
         "max_tokens_cap": hard_cap,
+        "prompt_cache_supported": False,
+        "prompt_cache_mode": "unsupported",
     }
 
 
@@ -423,7 +433,7 @@ async def complete(
                     body["provider"] = provider_preferences
 
                 logger.info(
-                    "[LLM_START] model=%s stream=%s prompt_chars=%s messages=%s max_tokens=%s temp=%.3f top_p=%.3f freq_pen=%s pres_pen=%s provider=%s timeout_s=%.1f",
+                    "[LLM_START] model=%s stream=%s prompt_chars=%s messages=%s max_tokens=%s temp=%.3f top_p=%.3f freq_pen=%s pres_pen=%s provider=%s cache_supported=%s cache_mode=%s timeout_s=%.1f",
                     model,
                     stream_mode,
                     len(prompt or ""),
@@ -434,6 +444,8 @@ async def complete(
                     model_frequency_penalty,
                     model_presence_penalty,
                     provider_preferences or {},
+                    bool(runtime_cfg.get("prompt_cache_supported", False)),
+                    str(runtime_cfg.get("prompt_cache_mode") or "unsupported"),
                     _openrouter_timeout(),
                 )
                 started_at = time.perf_counter()

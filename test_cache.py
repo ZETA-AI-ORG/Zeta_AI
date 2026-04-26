@@ -35,6 +35,13 @@ def normalize_provider_token(token: str) -> str:
 
 
 PROVIDER_ONLY = [normalize_provider_token(x) for x in str(os.getenv("OPENROUTER_QWEN_PROVIDER_ONLY", "alibaba") or "").split(",") if normalize_provider_token(x)]
+PROMPT_CACHE_SUPPORTED = {
+    "qwen/qwen3.5-flash-02-23": False,
+    "qwen/qwen3.5-flash-02-23:nitro": False,
+    "deepseek/deepseek-v3.2": True,
+    "google/gemini-3.1-flash-lite-preview": True,
+    "google/gemma-4-26b-a4b-it": False,
+}
 
 
 async def main() -> None:
@@ -95,6 +102,7 @@ async def main() -> None:
                         "request": idx + 1,
                         "model": MODEL_NAME,
                         "provider_only": PROVIDER_ONLY,
+                        "prompt_cache_supported": PROMPT_CACHE_SUPPORTED.get(MODEL_NAME),
                         "system_prompt_chars": len(system_prompt),
                         "cost": data.get("total_cost", data.get("cost", usage.get("cost"))),
                         "prompt_tokens": usage.get("prompt_tokens", 0),
@@ -105,6 +113,18 @@ async def main() -> None:
                     ensure_ascii=False,
                 )
             )
+            if PROMPT_CACHE_SUPPORTED.get(MODEL_NAME) is False:
+                print(
+                    json.dumps(
+                        {
+                            "diagnostic": "prompt_cache_not_supported",
+                            "model": MODEL_NAME,
+                            "provider_only": PROVIDER_ONLY,
+                            "note": "cached_tokens=0 est attendu sur ce modèle; utiliser DeepSeek ou Gemini pour tester le prompt caching OpenRouter.",
+                        },
+                        ensure_ascii=False,
+                    )
+                )
             if idx == 0:
                 await asyncio.sleep(3)
 
