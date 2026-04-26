@@ -34,6 +34,10 @@ _ZETA_CORE_CACHE: Dict[str, str] = {}
 
 logger = logging.getLogger(__name__)
 
+
+def _normalize_company_id(company_id: Any) -> str:
+    return str(company_id or "").strip()
+
 class BotlivePromptsManager:
     """
     Gestionnaire de prompts Botlive depuis Supabase
@@ -160,6 +164,7 @@ class BotlivePromptsManager:
         Récupère les données de configuration d'une entreprise.
         Priorité Redis (company_profile:{id}) -> Fallback Supabase (company_rag_configs).
         """
+        company_id = _normalize_company_id(company_id)
         if not company_id:
             return {}
 
@@ -260,6 +265,7 @@ class BotlivePromptsManager:
             except Exception as e:
                 logger.error(f"❌ [PROMPT_OVERRIDE] Erreur lecture fichier local: {e}")
 
+        company_id = _normalize_company_id(company_id)
         print(f"[DEBUG] Appel get_prompt avec company_id={company_id}, llm_choice={llm_choice}")
 
         original_llm_choice = llm_choice
@@ -360,6 +366,7 @@ class BotlivePromptsManager:
         dans un unique champ Supabase, et distingués uniquement par leurs balises.
         """
 
+        company_id = _normalize_company_id(company_id)
         cache_key = f"{company_id}_{cache_suffix}"
         cached = self._cache_get(cache_key)
         if cached is not None:
@@ -564,6 +571,7 @@ class BotlivePromptsManager:
         try:
             # 🎯 0) RÉSOLUTION ID (HYBRID)
             # Détecter si c'est déjà un UUID
+            company_id = _normalize_company_id(company_id)
             is_uuid = bool(re.match(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$', str(company_id).lower()))
             
             firebase_id = company_id
@@ -761,6 +769,7 @@ class BotlivePromptsManager:
         if not bloc1:
             return ""
 
+        company_id = _normalize_company_id(company_id)
         info = company_info if isinstance(company_info, dict) and company_info else {}
         if not info and company_id:
             try:

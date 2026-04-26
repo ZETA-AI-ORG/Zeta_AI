@@ -26,6 +26,7 @@ from core.catalogue_block_builder import build_catalogue_block_from_catalog_v2
 from database.supabase_client import get_supabase_client
 from core.company_cache_manager import company_cache
 from core.prompt_bots_loader import get_prompt_template
+from core.botlive_prompts_supabase import get_prompts_manager
 
 
 def _env_flag(name: str, default: bool = False) -> bool:
@@ -98,10 +99,11 @@ class SimplifiedPromptSystem:
         self.supabase = get_supabase_client()
         self.prompt_cache = {} # Cache local mémoire (optionnel si Redis utilisé)
 
-    async def get_static_prompt(self, company_id: str) -> str:
+    async def get_static_prompt(self, company_id: str, *, phase: Optional[str] = None) -> str:
         """Récupère le prompt statique depuis Supabase ou cache local."""
-        if company_id in self.prompt_cache:
-            return self.prompt_cache[company_id]
+        cache_key = f"{company_id}:{str(phase or '').strip().upper() or 'NONE'}"
+        if cache_key in self.prompt_cache:
+            return self.prompt_cache[cache_key]
         
         try:
             # 1. On récupère la config (status et mode)
@@ -124,18 +126,34 @@ class SimplifiedPromptSystem:
                 
                 print(f"📡 [PROMPT_SYSTEM] Routage : company={company_id} | mode={mode} -> bot={bot_type}")
                 
-                # 4. Chargement du template unifié depuis prompt_bots
+                # 4. Chargement V2.1 phase-driven pour Jessica
+                if bot_type == "jessica":
+                    try:
+                        manager = get_prompts_manager()
+                        unified_prompt = await manager.get_v2_base_prompt(
+                            company_id=company_id,
+                            phase=str(phase or "").strip().upper() or None,
+                            identity="jessica",
+                        )
+                        if unified_prompt:
+                            print(f"✅ [PROMPT_SYSTEM] Source: V2.1 ({bot_type}, phase={str(phase or '').strip().upper() or 'NONE'}) pour {company_id}")
+                            self.prompt_cache[cache_key] = unified_prompt
+                            return unified_prompt
+                    except Exception as e:
+                        logger.warning("⚠️ [PROMPT_SYSTEM] fallback prompt_bots after V2.1 error: %s", e)
+
+                # 5. Chargement du template unifié depuis prompt_bots
                 unified_prompt = get_prompt_template(bot_type)
                 if unified_prompt:
                     print(f"✅ [PROMPT_SYSTEM] Source: UNIFIÉ ({bot_type}) pour {company_id}")
-                    self.prompt_cache[company_id] = unified_prompt
+                    self.prompt_cache[cache_key] = unified_prompt
                     return unified_prompt
                 
-                # 5. Fallback sur les colonnes legacy
+                # 6. Fallback sur les colonnes legacy
                 prompt = config.get("prompt_botlive_deepseek_v3") or config.get("system_prompt_template")
                 if prompt:
                     print(f"⚠️ [PROMPT_SYSTEM] Source: LEGACY (colonne DB) pour {company_id}")
-                    self.prompt_cache[company_id] = prompt
+                    self.prompt_cache[cache_key] = prompt
                     return prompt
                     
         except Exception as e:
@@ -188,17 +206,29 @@ class SimplifiedPromptSystem:
             if v: ctx.append(f"{k.upper()}: {v}")
         return "\n".join(ctx)
 
+    def _compute_phase(self, state) -> str:
+        try:
+            missing = state.get_missing_fields() if state else []
+        except Exception:
+            missing = []
+        missing_set = {str(f).upper().strip() for f in (missing or [])}
+        if "PRODUIT" in missing_set or "SPECS" in missing_set:
+            return "A"
+        if "ZONE" in missing_set or "NUMÉRO" in missing_set or "NUMERO" in missing_set or "QUANTITÉ" in missing_set or "QUANTITE" in missing_set:
+            return "B"
+        return "C"
+
     def update_checklist_from_message(self, user_id: str, company_id: str, query: str, has_image: bool) -> OrderChecklistState:
         """Simule la mise à jour de la checklist (Logique réelle dans OrderStateTracker)"""
         # Ici on récupère l'état depuis le tracker réel
         state = order_tracker.get_state(user_id)
         
         checklist = OrderChecklistState()
-        checklist.model = state.produit is not None
-        checklist.details = state.produit_details is not None
-        checklist.quantity = state.quantite is not None
-        checklist.zone = state.zone is not None
-        checklist.telephone = state.numero is not None
+        checklist.model = bool(str(state.produit or "").strip())
+        checklist.details = bool(getattr(state, "selected_options", {}) or str(getattr(state, "produit_details_display", "") or state.produit_details or "").strip())
+        checklist.quantity = bool(str(state.quantite or "").strip())
+        checklist.zone = bool(str(state.zone or "").strip())
+        checklist.telephone = bool(str(state.numero or "").strip())
         checklist.payment = state._is_paiement_valid()
         checklist.photo = has_image
         
@@ -553,8 +583,14 @@ class SimplifiedPromptSystem:
                     pass
                 logger.info("[AUTO_INJECT] Mono-produit détecté -> force active_product_id=%s", mono_pid)
 
+        try:
+            current_state = order_tracker.get_state(user_id)
+        except Exception:
+            current_state = None
+        phase = self._compute_phase(current_state)
+
         # Récupérer le prompt statique
-        static_prompt = await self.get_static_prompt(company_id)
+        static_prompt = await self.get_static_prompt(company_id, phase=phase)
 
         # Inject PRODUCT_INDEX
         try:
@@ -684,6 +720,19 @@ class SimplifiedPromptSystem:
             final_prompt += think_contract
         if _env_flag("ENABLE_OUTPUT_CONTRACT_GUARD", False) and "<output_contract>" not in final_prompt:
             final_prompt += response_contract
+        logger.info(
+            "[PROMPT_PHASE_KPI] %s",
+            json.dumps(
+                {
+                    "company_id": company_id,
+                    "user_id": user_id,
+                    "phase": phase,
+                    "prompt_chars": len(final_prompt),
+                    "prompt_tokens_approx": len(final_prompt) // 4,
+                },
+                ensure_ascii=False,
+            ),
+        )
         return final_prompt
 
 # Singleton

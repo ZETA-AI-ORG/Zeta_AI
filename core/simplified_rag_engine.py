@@ -34,7 +34,7 @@ from core.dynamic_context_injector import get_dynamic_context_injector
 from core.llm_client import get_llm_client
 from core.company_catalog_v2_loader import get_company_catalog_v2, get_company_product_catalog_v2
 from core.catalog_v2_item_normalizer import normalize_detected_items
-from core.bot_format_rules_engine import apply_explicit_unit_alias, validate_cart_intent, is_price_lookup_ready
+from core.bot_format_rules_engine import apply_explicit_unit_alias, validate_cart_intent, is_price_lookup_ready, build_selected_options_display
 from core.catalog_v2_resolver import resolve_catalog_item_context
 from core.cart_manager import CartManager
 from .message_registry import get_system_response, get_company_tone
@@ -74,6 +74,28 @@ def normalize_company_id(company_id: str) -> str:
     if normalized != raw:
         print(f"[COMPANY_ID_CORRUPT] recu='{raw}' normalise='{normalized}'")
     return normalized
+
+
+def _persist_selected_options(
+    user_id: str,
+    selected_catalog: Optional[Dict[str, Any]],
+    selected_options: Optional[Dict[str, Any]],
+    *,
+    source: str,
+    confidence: float,
+) -> None:
+    if not isinstance(selected_catalog, dict):
+        return
+    if not isinstance(selected_options, dict) or not selected_options:
+        return
+    display_value = build_selected_options_display(selected_catalog, selected_options)
+    order_tracker.update_selected_options(
+        user_id,
+        selected_options,
+        display_value=display_value,
+        source=source,
+        confidence=confidence,
+    )
 
 
 class SimplifiedRAGEngine:
@@ -925,12 +947,14 @@ class SimplifiedRAGEngine:
                             pass
 
                         try:
-                            v = str(picked.get("variant") or "").strip()
-                            sp = str(picked.get("spec") or "").strip()
-                            # Only store variant+spec when spec is present (variant alone is NOT a spec)
-                            details = (v + " " + sp).strip() if sp else ""
-                            if details:
-                                order_tracker.update_produit_details(user_id, details, source="PRICE_LIST_CHOICE", confidence=0.9)
+                            picked_selected_options = picked.get("selected_options") if isinstance(picked.get("selected_options"), dict) else {}
+                            _persist_selected_options(
+                                user_id,
+                                selected_catalog,
+                                picked_selected_options,
+                                source="PRICE_LIST_CHOICE",
+                                confidence=0.9,
+                            )
                         except Exception:
                             pass
 
@@ -1306,7 +1330,7 @@ class SimplifiedRAGEngine:
                             _prematch_spec = None
                             try:
                                 _st_price = order_tracker.get_state(user_id)
-                                _prematch_spec = str(getattr(_st_price, "produit_details", "") or "").strip() or None
+                                _prematch_spec = str(getattr(_st_price, "produit_details_display", "") or getattr(_st_price, "produit_details", "") or "").strip() or None
                             except Exception:
                                 _prematch_spec = None
                             if detected_variant:
@@ -2444,7 +2468,7 @@ class SimplifiedRAGEngine:
             try:
                 st_for_price = order_tracker.get_state(user_id)
                 produit_val = str(getattr(st_for_price, "produit", "") or "").strip()
-                specs_val = str(getattr(st_for_price, "produit_details", "") or "").strip()
+                specs_val = str(getattr(st_for_price, "produit_details_display", "") or getattr(st_for_price, "produit_details", "") or "").strip()
                 quantite_val = str(getattr(st_for_price, "quantite", "") or "").strip()
                 zone_val = str(dynamic_context.get("detected_location") or getattr(st_for_price, "zone", "") or "").strip()
 
@@ -4158,6 +4182,27 @@ class SimplifiedRAGEngine:
                                                             _specs_parts.append(_label)
                                                     _new_specs = ", ".join(_specs_parts)
                                                     order_tracker.update_produit_details(user_id, _new_specs, source="CART_SYNC", confidence=0.95)
+                                                    _selected_options_agg: Dict[str, str] = {}
+                                                    for _ri in _real_items:
+                                                        _sel = _ri.get("selected_options") if isinstance(_ri.get("selected_options"), dict) else {}
+                                                        for _k, _v in _sel.items():
+                                                            _ks = str(_k or "").strip()
+                                                            _vs = str(_v or "").strip()
+                                                            if _ks and _vs:
+                                                                _selected_options_agg[_ks] = _vs
+                                                    _sync_catalog = None
+                                                    if len(_pids) == 1:
+                                                        try:
+                                                            _sync_catalog = get_company_product_catalog_v2(company_id, list(_pids)[0])
+                                                        except Exception:
+                                                            _sync_catalog = None
+                                                    _persist_selected_options(
+                                                        user_id,
+                                                        _sync_catalog,
+                                                        _selected_options_agg,
+                                                        source="CART_SYNC",
+                                                        confidence=0.95,
+                                                    )
                                                     # Clear global quantité (multi-items or changed)
                                                     order_tracker.update_quantite(user_id, "", source="CART_SYNC", confidence=0.9)
                                                     # Update produit if single pid
@@ -4170,6 +4215,7 @@ class SimplifiedRAGEngine:
                                                 else:
                                                     # Panier vide → reset produit/specs/quantité
                                                     order_tracker.update_produit_details(user_id, "", source="CART_SYNC_EMPTY", confidence=0.95)
+                                                    order_tracker.update_selected_options(user_id, {}, display_value="", source="CART_SYNC_EMPTY", confidence=0.95)
                                                     order_tracker.update_quantite(user_id, "", source="CART_SYNC_EMPTY", confidence=0.95)
                                                     order_tracker.update_produit(user_id, "", source="CART_SYNC_EMPTY", confidence=0.95)
                                                     parsed_items = []
@@ -5619,6 +5665,7 @@ class SimplifiedRAGEngine:
                             allowed_units=allowed_units,
                             strict_bot_format=True,
                         )
+                        canonical_item = (bf_validation.get("confirmed") or [it])[0] if isinstance(bf_validation, dict) and isinstance(bf_validation.get("confirmed"), list) and bf_validation.get("confirmed") else it
                         bf_reject = (bf_validation.get("invalid") or [None])[0] if isinstance(bf_validation, dict) else None
                         if isinstance(bf_reject, dict):
                             out["invalid"].append(
@@ -5659,7 +5706,7 @@ class SimplifiedRAGEngine:
                             )
                         )
 
-                        out["confirmed"].append(it)
+                        out["confirmed"].append(canonical_item)
 
                     if out["invalid"]:
                         first_invalid = out["invalid"][0] if isinstance(out["invalid"][0], dict) else None
@@ -5681,7 +5728,25 @@ class SimplifiedRAGEngine:
                     return out
 
                 validation = _validate_items(detected_items)
+                if validation.get("ok") and isinstance(validation.get("confirmed"), list) and validation.get("confirmed"):
+                    detected_items = validation.get("confirmed")
                 order_tracker.set_custom_meta(user_id, "detected_items_validation", validation)
+                try:
+                    print(
+                        "[RAG_KPI] "
+                        + json.dumps(
+                            {
+                                "user_id": user_id,
+                                "company_id": company_id,
+                                "canonicalization_attempt_count": int(((validation.get("canonicalization_metrics") or {}).get("canonicalization_attempt_count") if isinstance(validation, dict) else 0) or 0),
+                                "canonicalization_success_count": int(((validation.get("canonicalization_metrics") or {}).get("canonicalization_success_count") if isinstance(validation, dict) else 0) or 0),
+                                "canonicalization_ambiguous_count": int(((validation.get("canonicalization_metrics") or {}).get("canonicalization_ambiguous_count") if isinstance(validation, dict) else 0) or 0),
+                            },
+                            ensure_ascii=False,
+                        )
+                    )
+                except Exception:
+                    pass
                 try:
                     invalid_items = validation.get("invalid") if isinstance(validation, dict) else []
                     if isinstance(invalid_items, list) and invalid_items:
@@ -5705,6 +5770,7 @@ class SimplifiedRAGEngine:
                             order_tracker.update_quantite(user_id, "", source="BOT_FORMAT_REJECT", confidence=1.0)
                         if reason in {"missing_required_option", "option_value_not_allowed", "bad_specs"}:
                             order_tracker.update_produit_details(user_id, "", source="BOT_FORMAT_REJECT", confidence=1.0)
+                            order_tracker.update_selected_options(user_id, {}, display_value="", source="BOT_FORMAT_REJECT", confidence=1.0)
                         print(
                             f"[BOT_FORMAT_REJECT_STATE] "
                             + json.dumps(
@@ -5720,6 +5786,25 @@ class SimplifiedRAGEngine:
                 except Exception:
                     pass
                 if validation.get("ok"):
+                    try:
+                        if isinstance(detected_items, list) and detected_items:
+                            selected_options_merged: Dict[str, str] = {}
+                            for _it in detected_items:
+                                _sel = _it.get("selected_options") if isinstance(_it, dict) and isinstance(_it.get("selected_options"), dict) else {}
+                                for _k, _v in _sel.items():
+                                    _ks = str(_k or "").strip()
+                                    _vs = str(_v or "").strip()
+                                    if _ks and _vs:
+                                        selected_options_merged[_ks] = _vs
+                            _persist_selected_options(
+                                user_id,
+                                selected_catalog if isinstance(selected_catalog, dict) else None,
+                                selected_options_merged,
+                                source="BOT_FORMAT_VALIDATED",
+                                confidence=0.95,
+                            )
+                    except Exception:
+                        pass
                     st_for_zone = order_tracker.get_state(user_id)
                     zone_for_price = str(getattr(st_for_zone, "zone", "") or "").strip() or str(dynamic_context.get("detected_location") or "").strip()
 
@@ -6333,6 +6418,7 @@ class SimplifiedRAGEngine:
                                 _sel_cat_lookup,
                                 unit=_detected_unit,
                                 specs=_detected_spec,
+                                selected_options=getattr(order_tracker.get_state(user_id), "selected_options", {}),
                             )
 
                     if pid and bool(_price_lookup.get("ready")):

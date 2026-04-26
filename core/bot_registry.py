@@ -64,7 +64,7 @@ AMANDA: Dict[str, Any] = {
 # ═══════════════════════════════════════════════════════════════════════════════
 
 _JESSICA_RANG_A = os.getenv("JESSICA_MODEL_RANG_A", "google/gemma-4-26b-a4b-it")
-_JESSICA_RANG_S = os.getenv("JESSICA_MODEL_RANG_S", "deepseek/deepseek-v3.2")
+_JESSICA_RANG_S = os.getenv("JESSICA_MODEL_RANG_S", "deepseek/deepseek-v4-flash")
 _JESSICA_BOOST = os.getenv("JESSICA_MODEL_BOOST", "google/gemini-3.1-flash-lite-preview")
 _JESSICA_FALLBACK = os.getenv("JESSICA_MODEL_FALLBACK", "google/gemma-4-26b-a4b-it")
 
@@ -141,6 +141,8 @@ ALLOWED_MODELS = {
     "google/gemma-4-26b-a4b-it",
     "google/gemma-4-31b-it",
     "deepseek/deepseek-v3.2",
+    "deepseek/deepseek-v4-flash",
+    "stepfun/step-3.5-flash",
     "google/gemini-3.1-flash-lite-preview",
     "google/gemini-3.1-pro-preview",
 }

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+import re
+import unicodedata
+from typing import Any, Dict, List, Optional, Tuple
 
 
 def _xml_escape(value: Any) -> str:
@@ -154,6 +156,198 @@ def _extract_required_options(bot_format: Dict[str, Any], catalog: Dict[str, Any
     return fallback
 
 
+def _surface_normalize(value: Any) -> str:
+    raw = unicodedata.normalize("NFKD", str(value or ""))
+    ascii_only = "".join(ch for ch in raw if not unicodedata.combining(ch))
+    lowered = ascii_only.lower().strip()
+    return re.sub(r"[^a-z0-9]+", "", lowered)
+
+
+def _extract_option_values(catalog: Dict[str, Any]) -> List[Dict[str, Any]]:
+    bot_format = load_bot_format(catalog)
+    options = _extract_required_options(bot_format, catalog)
+    out: List[Dict[str, Any]] = []
+    for opt in options:
+        values = [str(v).strip() for v in (opt.get("values") or []) if str(v).strip()]
+        if not values:
+            continue
+        out.append(
+            {
+                "key": str(opt.get("key") or "").strip(),
+                "name": str(opt.get("name") or "").strip(),
+                "is_mandatory": bool(opt.get("is_mandatory")),
+                "values": values,
+            }
+        )
+    return out
+
+
+def _value_label(candidate: str) -> str:
+    text = str(candidate or "").strip()
+    if "(" in text:
+        text = text.split("(", 1)[0].strip()
+    return text
+
+
+def _extract_numeric_probe(raw_value: str) -> Optional[float]:
+    match = re.search(r"(\d+(?:[\.,]\d+)?)", str(raw_value or ""))
+    if not match:
+        return None
+    try:
+        return float(match.group(1).replace(",", "."))
+    except Exception:
+        return None
+
+
+def _extract_candidate_range(candidate: str) -> Optional[Tuple[float, float]]:
+    numbers = re.findall(r"(\d+(?:[\.,]\d+)?)", str(candidate or ""))
+    if len(numbers) < 2:
+        return None
+    try:
+        low = float(numbers[0].replace(",", "."))
+        high = float(numbers[1].replace(",", "."))
+    except Exception:
+        return None
+    if low > high:
+        low, high = high, low
+    return low, high
+
+
+def canonicalize_option_value(raw_value: Any, allowed_values: List[str]) -> Dict[str, Any]:
+    raw = str(raw_value or "").strip()
+    values = [str(v).strip() for v in (allowed_values or []) if str(v).strip()]
+    result = {
+        "value": "",
+        "status": "missing" if not raw else "not_found",
+        "attempt_count": 1 if raw else 0,
+        "success_count": 0,
+        "ambiguous_count": 0,
+    }
+    if not raw or not values:
+        return result
+
+    for candidate in values:
+        if raw == candidate:
+            result.update({"value": candidate, "status": "exact", "success_count": 1})
+            return result
+
+    raw_norm = _surface_normalize(raw)
+    normalized_hits = [candidate for candidate in values if _surface_normalize(candidate) == raw_norm]
+    if len(normalized_hits) == 1:
+        result.update({"value": normalized_hits[0], "status": "surface", "success_count": 1})
+        return result
+    if len(normalized_hits) > 1:
+        result.update({"status": "ambiguous_surface", "ambiguous_count": 1})
+        return result
+
+    contains_hits = [candidate for candidate in values if _surface_normalize(candidate) in raw_norm or raw_norm in _surface_normalize(candidate)]
+    if len(contains_hits) == 1:
+        result.update({"value": contains_hits[0], "status": "contains", "success_count": 1})
+        return result
+    if len(contains_hits) > 1:
+        result.update({"status": "ambiguous_contains", "ambiguous_count": 1})
+        return result
+
+    label_hits = []
+    for candidate in values:
+        label = _surface_normalize(_value_label(candidate))
+        if label and (raw_norm == label or raw_norm.startswith(label) or label.startswith(raw_norm)):
+            label_hits.append(candidate)
+    if len(label_hits) == 1:
+        result.update({"value": label_hits[0], "status": "label", "success_count": 1})
+        return result
+    if len(label_hits) > 1:
+        result.update({"status": "ambiguous_label", "ambiguous_count": 1})
+        return result
+
+    probe = _extract_numeric_probe(raw)
+    if probe is not None:
+        range_hits = []
+        for candidate in values:
+            parsed_range = _extract_candidate_range(candidate)
+            if not parsed_range:
+                continue
+            low, high = parsed_range
+            if low <= probe <= high:
+                range_hits.append(candidate)
+        if len(range_hits) == 1:
+            result.update({"value": range_hits[0], "status": "range", "success_count": 1})
+            return result
+        if len(range_hits) > 1:
+            result.update({"status": "ambiguous_range", "ambiguous_count": 1})
+            return result
+
+    return result
+
+
+def resolve_selected_options(
+    catalog: Dict[str, Any],
+    *,
+    raw_specs: Optional[str],
+    selected_options: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    options = _extract_option_values(catalog)
+    provided = selected_options if isinstance(selected_options, dict) else {}
+    specs_text = str(raw_specs or "").strip()
+    resolved: Dict[str, str] = {}
+    metrics = {
+        "canonicalization_attempt_count": 0,
+        "canonicalization_success_count": 0,
+        "canonicalization_ambiguous_count": 0,
+    }
+
+    for opt in options:
+        key = str(opt.get("key") or opt.get("name") or "").strip()
+        raw_value = provided.get(key)
+        if raw_value is None and str(opt.get("name") or "").strip():
+            raw_value = provided.get(str(opt.get("name") or "").strip())
+        raw_probe = raw_value if raw_value is not None else specs_text
+        result = canonicalize_option_value(raw_probe, opt.get("values") or [])
+        metrics["canonicalization_attempt_count"] += int(result.get("attempt_count") or 0)
+        metrics["canonicalization_success_count"] += int(result.get("success_count") or 0)
+        metrics["canonicalization_ambiguous_count"] += int(result.get("ambiguous_count") or 0)
+        value = str(result.get("value") or "").strip()
+        if key and value:
+            resolved[key] = value
+
+    return {"selected_options": resolved, "metrics": metrics, "options": options}
+
+
+def build_selected_options_display(catalog: Dict[str, Any], selected_options: Optional[Dict[str, Any]]) -> str:
+    selected = selected_options if isinstance(selected_options, dict) else {}
+    if not selected:
+        return ""
+    ordered_values: List[str] = []
+    for opt in _extract_option_values(catalog):
+        key = str(opt.get("key") or opt.get("name") or "").strip()
+        value = str(selected.get(key) or "").strip()
+        if value:
+            ordered_values.append(value)
+    for _, value in selected.items():
+        value_s = str(value or "").strip()
+        if value_s and value_s not in ordered_values:
+            ordered_values.append(value_s)
+    return " / ".join(ordered_values)
+
+
+def canonicalize_item_options(catalog: Dict[str, Any], item: Dict[str, Any]) -> Dict[str, Any]:
+    item_dict = dict(item or {})
+    resolution = resolve_selected_options(
+        catalog,
+        raw_specs=item_dict.get("specs") or item_dict.get("spec"),
+        selected_options=item_dict.get("selected_options") if isinstance(item_dict.get("selected_options"), dict) else None,
+    )
+    selected = resolution.get("selected_options") if isinstance(resolution.get("selected_options"), dict) else {}
+    display = build_selected_options_display(catalog, selected)
+    if selected:
+        item_dict["selected_options"] = selected
+    if display:
+        item_dict["spec"] = display
+        item_dict["specs"] = display
+    item_dict["_canonicalization_meta"] = resolution.get("metrics") if isinstance(resolution.get("metrics"), dict) else {}
+    return item_dict
+
+
 def _extract_min_order_by_unit(bot_format: Dict[str, Any]) -> Dict[str, int]:
     out: Dict[str, int] = {}
     rules = bot_format.get("validation_rules") if isinstance(bot_format.get("validation_rules"), dict) else {}
@@ -184,6 +378,7 @@ def is_price_lookup_ready(
     *,
     unit: Optional[str],
     specs: Optional[str],
+    selected_options: Optional[Dict[str, Any]] = None,
     allowed_units: Optional[List[str]] = None,
 ) -> Dict[str, Any]:
     bot_format = load_bot_format(catalog)
@@ -196,7 +391,6 @@ def is_price_lookup_ready(
         allowed_units=allowed_units,
     )
     specs_val = str(specs or "").strip()
-    specs_lower = specs_val.lower()
     effective_allowed_units = extract_allowed_units(bot_format, allowed_units)
     missing_required: List[Dict[str, Any]] = []
 
@@ -207,20 +401,22 @@ def is_price_lookup_ready(
         return {"ready": False, "missing_required_options": missing_required, "allowed_units": effective_allowed_units}
 
     required_options = _extract_required_options(bot_format, catalog)
+    resolution = resolve_selected_options(catalog, raw_specs=specs_val, selected_options=selected_options)
+    resolved_selected = resolution.get("selected_options") if isinstance(resolution.get("selected_options"), dict) else {}
     for opt in required_options:
         if not bool(opt.get("is_mandatory")):
             continue
         values = [str(v).strip() for v in (opt.get("values") or []) if str(v).strip()]
-        if not specs_val:
-            missing_required.append({"name": str(opt.get("name") or "").strip(), "values": values})
-            continue
-        if values and not any(str(v).lower() in specs_lower for v in values):
+        opt_key = str(opt.get("key") or opt.get("name") or "").strip()
+        if not str(resolved_selected.get(opt_key) or "").strip():
             missing_required.append({"name": str(opt.get("name") or "").strip(), "values": values})
 
     return {
         "ready": not missing_required,
         "missing_required_options": missing_required,
         "allowed_units": effective_allowed_units,
+        "selected_options": resolved_selected,
+        "canonicalization_metrics": resolution.get("metrics") if isinstance(resolution.get("metrics"), dict) else {},
     }
 
 
@@ -235,7 +431,7 @@ def validate_cart_item(
     if not bot_format:
         return None
 
-    item_dict = dict(item or {})
+    item_dict = canonicalize_item_options(catalog, item)
     item_dict["unit"] = apply_explicit_unit_alias(
         str(item_dict.get("unit") or "").strip(),
         bot_format=bot_format,
@@ -245,6 +441,7 @@ def validate_cart_item(
     qty_val = item_dict.get("qty")
     unit_val = str(item_dict.get("unit") or "").strip()
     specs_val = str(item_dict.get("specs") or item_dict.get("spec") or "").strip()
+    resolved_selected = item_dict.get("selected_options") if isinstance(item_dict.get("selected_options"), dict) else {}
     effective_allowed_units = extract_allowed_units(bot_format, allowed_units)
     rules = bot_format.get("validation_rules") if isinstance(bot_format.get("validation_rules"), dict) else {}
 
@@ -276,19 +473,20 @@ def validate_cart_item(
             }
 
     required_options = _extract_required_options(bot_format, catalog)
-    specs_lower = specs_val.lower()
     for opt in required_options:
         if not bool(opt.get("is_mandatory")):
             continue
         values = [str(v).strip() for v in (opt.get("values") or []) if str(v).strip()]
-        if not specs_val:
+        opt_key = str(opt.get("key") or opt.get("name") or "").strip()
+        resolved_value = str(resolved_selected.get(opt_key) or "").strip()
+        if not resolved_value:
             return {
                 "code": "missing_required_option",
                 "expected": {"name": opt.get("name"), "values": values},
                 "message": f'Option manquante. Tu dois IMPERATIVEMENT demander l\'option {opt.get("name")} au client parmi cette liste : {", ".join(values)}.',
                 "item": item_dict,
             }
-        if values and not any(str(v).lower() in specs_lower for v in values):
+        if values and resolved_value not in values:
             return {
                 "code": "option_value_not_allowed",
                 "expected": {"name": opt.get("name"), "values": values},
@@ -324,6 +522,11 @@ def validate_cart_intent(
         "invalid": [],
         "unconfirmed": [],
         "validation_errors_xml": "",
+        "canonicalization_metrics": {
+            "canonicalization_attempt_count": 0,
+            "canonicalization_success_count": 0,
+            "canonicalization_ambiguous_count": 0,
+        },
     }
 
     for item in items or []:
@@ -338,16 +541,20 @@ def validate_cart_intent(
             )
             continue
 
+        canonical_item = canonicalize_item_options(catalog, item)
         rejection = validate_cart_item(
             catalog,
-            item,
+            canonical_item,
             allowed_units=allowed_units,
             strict_bot_format=strict_bot_format,
         )
+        canonical_metrics = canonical_item.get("_canonicalization_meta") if isinstance(canonical_item.get("_canonicalization_meta"), dict) else {}
+        for metric_name in ("canonicalization_attempt_count", "canonicalization_success_count", "canonicalization_ambiguous_count"):
+            out["canonicalization_metrics"][metric_name] = int(out["canonicalization_metrics"].get(metric_name) or 0) + int(canonical_metrics.get(metric_name) or 0)
         if rejection:
             out["invalid"].append(rejection)
             continue
-        out["confirmed"].append(item)
+        out["confirmed"].append(canonical_item)
 
     if out["invalid"]:
         first = out["invalid"][0]

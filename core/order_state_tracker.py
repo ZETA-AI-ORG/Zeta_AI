@@ -10,7 +10,7 @@ import sqlite3
 import json
 import os
 import threading
-from typing import Dict, Optional, Set
+from typing import Any, Dict, Optional, Set
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -39,6 +39,8 @@ class OrderState:
     user_id: str
     produit: Optional[str] = None
     produit_details: Optional[str] = None
+    produit_details_display: Optional[str] = None
+    selected_options: Dict[str, str] = field(default_factory=dict)
     quantite: Optional[str] = None
     paiement: Optional[str] = None
     zone: Optional[str] = None
@@ -78,7 +80,7 @@ class OrderState:
         missing = set()
         if not self.produit:
             missing.add("PRODUIT")
-        if not str(self.produit_details or "").strip():
+        if not str(self.produit_details or self.produit_details_display or "").strip() and not self.selected_options:
             missing.add("SPECS")
         if not self.quantite:
             missing.add("QUANTITÉ")
@@ -104,8 +106,9 @@ class OrderState:
         parts = []
         if self.produit:
             parts.append(f"✅PRODUIT:{self.produit}")
-        if self.produit_details:
-            parts.append(f"✅SPECS:{self.produit_details}")
+        specs_display = str(self.produit_details_display or self.produit_details or "").strip()
+        if specs_display:
+            parts.append(f"✅SPECS:{specs_display}")
         if self.quantite:
             parts.append(f"✅QUANTITÉ:{self.quantite}")
         if self._is_paiement_valid():
@@ -376,10 +379,14 @@ class OrderStateTracker:
         conn.close()
         
         if row:
+            selected_options = self.get_custom_meta(user_id, "selected_options", default={})
+            produit_details_display = self.get_custom_meta(user_id, "produit_details_display", default=row[1])
             return OrderState(
                 user_id=user_id,
                 produit=row[0],
                 produit_details=row[1],
+                produit_details_display=str(produit_details_display or row[1] or "").strip() or None,
+                selected_options=selected_options if isinstance(selected_options, dict) else {},
                 quantite=row[2],
                 paiement=row[3],
                 zone=row[4],
@@ -425,9 +432,46 @@ class OrderStateTracker:
         with _get_user_lock(user_id):
             state = self.get_state(user_id)
             state.produit_details = produit_details
+            state.produit_details_display = produit_details
             self._save_state(state)
+            self.set_custom_meta(user_id, "produit_details_display", produit_details)
             self.set_slot_meta(user_id, "SPECS", source=source, confidence=confidence)
             logger.info(f"[{user_id}] PRODUIT_DETAILS mémorisés: {produit_details}")
+            return state
+
+    def update_selected_options(
+        self,
+        user_id: str,
+        selected_options: Dict[str, Any],
+        *,
+        display_value: Optional[str] = None,
+        source: str = "USER_TEXT",
+        confidence: float = 1.0,
+    ) -> OrderState:
+        """Met à jour la vérité machine des options catalogue."""
+        with _get_user_lock(user_id):
+            state = self.get_state(user_id)
+            clean: Dict[str, str] = {}
+            if isinstance(selected_options, dict):
+                for key, value in selected_options.items():
+                    key_s = str(key or "").strip()
+                    value_s = str(value or "").strip()
+                    if key_s and value_s:
+                        clean[key_s] = value_s
+            state.selected_options = clean
+            if display_value is not None:
+                display_s = str(display_value or "").strip()
+                state.produit_details_display = display_s or None
+                state.produit_details = display_s or None
+            elif clean and not str(state.produit_details_display or "").strip():
+                joined = " / ".join(clean.values())
+                state.produit_details_display = joined
+                state.produit_details = joined
+            self._save_state(state)
+            self.set_custom_meta(user_id, "selected_options", clean)
+            self.set_custom_meta(user_id, "produit_details_display", state.produit_details_display or "")
+            self.set_slot_meta(user_id, "SPECS", source=source, confidence=confidence)
+            logger.info(f"[{user_id}] SELECTED_OPTIONS mémorisées: {json.dumps(clean, ensure_ascii=False)}")
             return state
 
     def update_quantite(self, user_id: str, quantite: str, source: str = "USER_TEXT", confidence: float = 1.0) -> OrderState:
