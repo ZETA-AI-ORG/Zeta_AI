@@ -147,7 +147,7 @@ def _model_runtime_registry(model: str) -> Dict[str, Any]:
     registry = [
         {
             "match_prefix": "qwen/qwen3.5-flash-02-23",
-            "provider_only": _parse_csv_env("OPENROUTER_QWEN_PROVIDER_ONLY") or ["alibaba-cloud-int"],
+            "provider_only": _parse_csv_env("OPENROUTER_QWEN_PROVIDER_ONLY") or ["alibaba"],
             "use_nitro": _env_flag("OPENROUTER_QWEN_USE_NITRO", False),
             "temperature": float(os.getenv("OPENROUTER_QWEN_TEMPERATURE", "0.2")),
             "top_p": float(os.getenv("OPENROUTER_QWEN_TOP_P", "0.8")),

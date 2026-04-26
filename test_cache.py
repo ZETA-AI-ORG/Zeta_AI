@@ -33,7 +33,7 @@ def normalize_provider_token(token: str) -> str:
     return aliases.get(raw, aliases.get(compact, compact))
 
 
-PROVIDER_ONLY = [normalize_provider_token(x) for x in str(os.getenv("OPENROUTER_QWEN_PROVIDER_ONLY", "alibaba-cloud-int") or "").split(",") if normalize_provider_token(x)]
+PROVIDER_ONLY = [normalize_provider_token(x) for x in str(os.getenv("OPENROUTER_QWEN_PROVIDER_ONLY", "alibaba") or "").split(",") if normalize_provider_token(x)]
 
 
 async def main() -> None:
