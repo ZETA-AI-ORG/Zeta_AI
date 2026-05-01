@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="fr" data-theme="dark">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Admin — Connexion</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+:root{
+  --bg:#0f0f17;--bg2:#16161f;--card:#1c1c28;
+  --border:rgba(255,255,255,.09);--text:#f0f0f5;--text2:#9898a8;--text3:#5a5a6a;
+  --orange:#ff7a2f;--orange-g:linear-gradient(135deg,#ff7a2f,#ff4d00);
+  --cyan:#00d4c8;--sep:rgba(255,255,255,.07);
+  --shadow:0 8px 32px rgba(0,0,0,.45);
+  --ease:cubic-bezier(.4,0,.2,1);
+}
+[data-theme="light"]{
+  --bg:#f5f5f0;--bg2:#ececec;--card:#fff;
+  --border:rgba(0,0,0,.09);--text:#1a1a2e;--text2:#555;--text3:#999;
+  --sep:rgba(0,0,0,.07);--shadow:0 8px 32px rgba(0,0,0,.12);
+}
+body{min-height:100dvh;background:var(--bg);display:flex;align-items:center;justify-content:center;font-family:'Inter',system-ui,sans-serif;}
+.card{width:min(380px,92vw);background:var(--card);border:1px solid var(--border);border-radius:22px;padding:36px 28px;box-shadow:var(--shadow);}
+.brand{text-align:center;margin-bottom:28px;}
+.brand-logo{font-size:36px;margin-bottom:8px;}
+.brand-title{font-size:20px;font-weight:700;color:var(--text);letter-spacing:.02em;}
+.brand-sub{font-size:13px;color:var(--text2);margin-top:4px;}
+.f{margin-bottom:16px;}
+label{display:block;font-size:11px;font-weight:600;color:var(--text2);margin-bottom:6px;letter-spacing:.05em;text-transform:uppercase;}
+input{width:100%;background:var(--bg2);border:1.5px solid var(--border);border-radius:11px;padding:13px 16px;font-size:14px;color:var(--text);transition:border-color .2s;outline:none;}
+input:focus{border-color:var(--orange);}
+input::placeholder{color:var(--text3);}
+.btn{width:100%;height:52px;border-radius:13px;background:var(--orange-g);color:#fff;font-weight:700;font-size:15px;letter-spacing:.04em;cursor:pointer;border:none;margin-top:8px;display:flex;align-items:center;justify-content:center;gap:8px;transition:opacity .2s,transform .1s;box-shadow:0 6px 22px rgba(255,122,47,.35);}
+.btn:active{transform:scale(.98);}
+.btn:disabled{opacity:.55;cursor:not-allowed;}
+.err{font-size:12px;color:#E53935;text-align:center;margin-top:12px;min-height:18px;}
+.ok{font-size:12px;color:#10B981;text-align:center;margin-top:12px;min-height:18px;}
+.footer{text-align:center;margin-top:24px;font-size:11px;color:var(--text3);}
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="brand">
+    <div class="brand-logo">🔐</div>
+    <div class="brand-title">Espace Admin</div>
+    <div class="brand-sub">Connectez-vous pour gérer votre catalogue</div>
+  </div>
+
+  <div class="f">
+    <label>Email</label>
+    <input type="email" id="email" placeholder="admin@maboutique.com" autocomplete="email"/>
+  </div>
+  <div class="f">
+    <label>Mot de passe</label>
+    <input type="password" id="pwd" placeholder="••••••••" autocomplete="current-password"
+      onkeydown="if(event.key==='Enter')doLogin()"/>
+  </div>
+
+  <button class="btn" id="btn-login" onclick="doLogin()">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M15 3h4a2 2 0 012 2v14a2 2 0 01-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/>
+    </svg>
+    Se connecter
+  </button>
+  <div id="msg" class="err"></div>
+
+  <div class="footer">Propulsé par <span style="color:var(--cyan);font-weight:700;">ZetaFlow</span></div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="config.js"></script>
+<script>
+const { createClient } = supabase;
+const db = createClient(CONFIG.supabase.url, CONFIG.supabase.anonKey);
+
+/* Redirige si déjà connecté */
+(async () => {
+  const { data: { session } } = await db.auth.getSession();
+  if (session) window.location.href = 'admincatalogue.html';
+})();
+
+async function doLogin() {
+  const email = document.getElementById('email').value.trim();
+  const pwd   = document.getElementById('pwd').value;
+  const msg   = document.getElementById('msg');
+  const btn   = document.getElementById('btn-login');
+
+  msg.className = 'err';
+  msg.textContent = '';
+
+  if (!email || !pwd) { msg.textContent = 'Email et mot de passe requis.'; return; }
+
+  btn.disabled = true;
+  btn.textContent = 'Connexion…';
+
+  const { error } = await db.auth.signInWithPassword({ email, password: pwd });
+
+  if (error) {
+    msg.textContent = error.message || 'Identifiants incorrects.';
+    btn.disabled = false;
+    btn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M15 3h4a2 2 0 012 2v14a2 2 0 01-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/>
+    </svg> Se connecter`;
+    return;
+  }
+
+  msg.className = 'ok';
+  msg.textContent = '✓ Connecté, redirection…';
+  setTimeout(() => window.location.href = 'admincatalogue.html', 600);
+}
+</script>
+</body>
+</html>

@@ -176,3 +176,6 @@ config.js
 
 frontend/
 zeta-ai-vercel/
+
+# ===== CATALOGUE JS CONFIG (CREDENTIALS) =====
+config.js

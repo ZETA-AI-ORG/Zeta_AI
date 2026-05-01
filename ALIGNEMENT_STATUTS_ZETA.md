@@ -32,6 +32,43 @@ Les commandes créées par le chatbot n'apparaissaient **pas** dans l'app Partne
 
 ---
 
+## 🔗 Comment les statuts sont liés (Backend ↔ Supabase ↔ Frontend)
+
+Le **Backend** écrit les statuts dans Supabase.
+
+- **Table `orders.status`**
+  - Statut “global” de la commande.
+  - C’est ce champ qui est filtré par certaines pages/hook côté Frontend (ex: Partner qui fait `.eq("status", "open")`).
+
+- **Table `order_deliveries.status`**
+  - Statut “livraison / tracking”.
+  - C’est ce champ qui pilote généralement les colonnes “à prendre / en cours / terminées / annulées…”.
+
+Conséquence:
+
+- Si le Backend insère `orders.status = "pending"` mais le Frontend filtre sur `"open"`, la commande est **invisible**.
+- Si un trigger crée `order_deliveries`, il doit créer une ligne cohérente (souvent en copiant le statut ou en mettant `"open"` au départ).
+
+---
+
+## 🧩 (Frontend) Modification de la page Catalogue — où modifier ?
+
+Oui : si tu veux modifier la page **Catalogue**, tu modifies directement le fichier dédié :
+
+- `zeta-ai-vercel/src/pages/ZetaFlowCatalogue.tsx`
+
+Et c’est automatiquement pris en compte dans l’app `ZetaFlow` parce que `ZetaFlow.tsx` **importe** et **rend** ce composant tel quel :
+
+- `import ZetaFlowCatalogue from "./ZetaFlowCatalogue";`
+- puis `<ZetaFlowCatalogue />`
+
+Notes pratiques :
+
+- En **dev** (serveur Vite/React), tes changements sont généralement visibles immédiatement (hot reload).
+- En **prod**, il faut re-build/redeploy le frontend (Vercel) pour que les changements soient visibles.
+
+---
+
 ## 📊 MAPPING COMPLET DES STATUTS
 
 ### Table `orders` (commande globale)
